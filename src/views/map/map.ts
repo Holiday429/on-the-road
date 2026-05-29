@@ -290,9 +290,13 @@ async function drillCountry(code: string, name: string) {
   series.mapPolygons.template.setAll({
     interactive: true, cursorOverStyle: 'pointer',
     fill: am5.color(C.drillFill),
-    stroke: am5.color(C.landStroke), strokeWidth: 0.5, nonScalingStroke: true,
+    // White borders between regions read clearly over the amber country fill.
+    stroke: am5.color('#ffffff'), strokeWidth: 1.2, nonScalingStroke: true,
+    shadowColor: am5.color(C.ink), shadowBlur: 6, shadowOpacity: 0.12,
   });
-  series.mapPolygons.template.states.create('hover', { fill: am5.color(C.hover) });
+  series.mapPolygons.template.states.create('hover', {
+    fill: am5.color(C.hover), stroke: am5.color('#ffffff'), strokeWidth: 1.5,
+  });
 
   const tooltip = document.getElementById('mapTooltip')!;
   const tipName = document.getElementById('mapTooltipName')!;
