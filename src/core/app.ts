@@ -2,6 +2,8 @@
    On the Road · App Shell & Router
    ========================================================================== */
 
+import type { User } from '../firebase/auth.ts';
+
 export type ViewId = 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'safety' | 'journal' | 'map';
 
 interface NavItem {
@@ -35,6 +37,25 @@ const TRIP = {
 };
 
 let viewInits: Partial<Record<ViewId, () => void>> = {};
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function initialsFor(user: User): string {
+  const source = user.displayName?.trim() || user.email?.trim() || 'Traveler';
+  return source
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'OT';
+}
 
 export function registerView(id: ViewId, initFn: () => void) {
   viewInits[id] = initFn;
@@ -132,6 +153,34 @@ function buildNavSections(_context: 'sidebar' | 'mobile'): string {
       `).join('')}
     `;
   }).join('');
+}
+
+export function renderSession(user: User, onSignOut: () => void) {
+  const topbar = document.getElementById('app-topbar');
+  if (!topbar) return;
+
+  const displayName = escapeHtml(user.displayName?.trim() || 'Traveler');
+  const email = escapeHtml(user.email?.trim() || '');
+  const photo = user.photoURL?.trim();
+  const avatar = photo
+    ? `<img src="${escapeHtml(photo)}" alt="${displayName}" class="session-avatar-image">`
+    : `<div class="session-avatar-fallback">${initialsFor(user)}</div>`;
+
+  topbar.innerHTML = `
+    <div class="app-topbar-inner">
+      <div class="app-topbar-copy">
+        <div class="app-topbar-label">Signed in</div>
+        <div class="app-topbar-title">${displayName}</div>
+        ${email ? `<div class="app-topbar-subtitle">${email}</div>` : ''}
+      </div>
+      <div class="session-card">
+        <div class="session-avatar">${avatar}</div>
+        <button id="sign-out-btn" class="btn btn-ghost session-signout-btn" type="button">Sign out</button>
+      </div>
+    </div>
+  `;
+
+  topbar.querySelector<HTMLButtonElement>('#sign-out-btn')?.addEventListener('click', onSignOut);
 }
 
 export function initApp() {

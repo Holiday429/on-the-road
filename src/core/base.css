@@ -118,6 +118,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 input, textarea, select { font-family: inherit; }
 ul, ol { list-style: none; }
 img, svg { display: block; }
+[hidden] { display: none !important; }
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }

@@ -8,10 +8,38 @@
 </head>
 <body>
 
-<div id="app">
+<section id="auth-screen" class="auth-screen" aria-live="polite">
+  <div class="auth-shell">
+    <div class="auth-copy">
+      <div class="auth-eyebrow">On the Road</div>
+      <h1 class="auth-title">Sign in and keep your trip in one place.</h1>
+      <p class="auth-subtitle">
+        Continue with Google to open your planning dashboard, itinerary, expenses, and city intel.
+      </p>
+      <div class="auth-highlights">
+        <div class="auth-highlight">Prep checklist that stays organized by timeline.</div>
+        <div class="auth-highlight">Trip route, costs, and city notes in one workspace.</div>
+        <div class="auth-highlight">Google sign-in already connected through Firebase Auth.</div>
+      </div>
+    </div>
+
+    <div class="auth-card card">
+      <div class="auth-card-title">Welcome back</div>
+      <div class="auth-card-text">Use your Google account to enter the app.</div>
+      <button id="auth-google-btn" class="btn btn-primary auth-google-btn" type="button">
+        <span aria-hidden="true">G</span>
+        Continue with Google
+      </button>
+      <div id="auth-status" class="auth-status">Checking your session…</div>
+    </div>
+  </div>
+</section>
+
+<div id="app" hidden>
   <aside id="sidebar"></aside>
 
   <main id="main">
+    <header id="app-topbar"></header>
 
     <!-- /prep -->
     <div id="view-prep" class="view">

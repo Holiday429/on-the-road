@@ -8,6 +8,7 @@
    ========================================================================== */
 
 export interface LatLng { lat: number; lng: number; }
+export interface CityLocation extends LatLng { key: string; name: string; }
 
 // Primary cities on the route. Keys match the first city token of a leg
 // (e.g. "Lisbon + Porto" -> "lisbon"), lower-cased.
@@ -48,13 +49,33 @@ export const COUNTRY_ISO: Record<string, string> = {
   'Greece': 'GR',
 };
 
+const CITY_SPLIT_RE = /\s*(?:\/|\+|→|->|,)\s*/;
+
+function cityTokens(cityField: string): string[] {
+  return cityField.split(CITY_SPLIT_RE).map((token) => token.trim()).filter(Boolean);
+}
+
 /** Pull the first recognizable city name out of a leg's city string. */
 export function primaryCity(cityField: string): string {
-  return cityField.split(/\s*(?:\/|\+|→|->|,)\s*/)[0].trim();
+  return cityTokens(cityField)[0] ?? cityField.trim();
+}
+
+export function cityLocationsFor(cityField: string): CityLocation[] {
+  const seen = new Set<string>();
+  const locations: CityLocation[] = [];
+  for (const token of cityTokens(cityField)) {
+    const key = token.toLowerCase();
+    const coords = CITY_COORDS[key];
+    if (!coords || seen.has(key)) continue;
+    seen.add(key);
+    locations.push({ ...coords, key, name: token });
+  }
+  return locations;
 }
 
 export function coordsFor(cityField: string): LatLng | null {
-  return CITY_COORDS[primaryCity(cityField).toLowerCase()] ?? null;
+  const first = cityLocationsFor(cityField)[0];
+  return first ? { lat: first.lat, lng: first.lng } : null;
 }
 
 export function isoFor(country: string): string | null {
