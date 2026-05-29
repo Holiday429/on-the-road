@@ -4,6 +4,7 @@
 
 import './map.css';
 import { DEFAULT_ROUTE_LEGS, loadStoredRouteLegs } from '../../data/default-route.ts';
+import { renderViewTitleMarkup } from '../../core/app.ts';
 import { cityLocationsFor, isoFor, EUROPE_CENTER } from './geo.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
 const HERO_GIF  = '/art/logo.gif';
@@ -66,6 +67,7 @@ function countryColor(iso: string): string {
 const HARBIN  = { lat: 45.8038, lng: 126.5350 };
 const BEIJING = { lat: 39.9042, lng: 116.4074 };
 const CPH     = { lat: 55.6761, lng:  12.5683 };
+const HOME_COUNTRY_ISO = 'CN';
 
 /* Quadratic Bézier arc — perpendicular-left bend (flight-map style) */
 function arcPoints(
@@ -99,7 +101,6 @@ let _worldSeries: any = null;
 let _polyById    = new Map<string, any>();
 let _dataItemById = new Map<string, any>();  // iso → dataItem (unused after zoom refactor)
 let _lit         = new Set<string>();
-let _activeId:   string | null = null;
 let _drillSeries: any = null;
 let _drillCode:   string | null = null;
 let _replayTimer:      number | null = null;
@@ -110,6 +111,7 @@ let _paused = false;
 let _legsRef: PlottedLeg[] = [];
 let _regionLabelOverlays: OverlayItem[] = [];
 let _countryPinOverlays: OverlayItem[] = [];
+let _activeMotionId: string | null = null;
 
 /* ── Data ─────────────────────────────────────────────────────────────────── */
 function loadLegs(): Leg[] { return loadStoredRouteLegs<Leg>(DEFAULT_ROUTE_LEGS as Leg[]).legs; }
@@ -289,7 +291,7 @@ export function initMap() {
   const view = document.getElementById('view-map'); if (!view) return;
 
   view.querySelector('.view-header')!.innerHTML = `
-    <div class="view-title">My map</div>
+    <div class="view-title">${renderViewTitleMarkup('map', 'My Map')}</div>
     <div class="view-subtitle">Your footprint across Europe — click a country to zoom into its regions.</div>`;
 
   const body = view.querySelector('.stub-body');
@@ -451,7 +453,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     (document.querySelector('.map-stage') as HTMLElement).appendChild(planeImg);
   }
   (chart as any)._planeImg = planeImg;
-  // Track position history to compute a smoothed heading with ±30° clamp
+  // Track position history to compute a restrained heading + subtle flight motion.
   let _prevPlanePx: {x:number;y:number}|null = null;
   let _planeBaseAngle = 180; // outbound starts west-ish
   let _planeCurrentAngle = 180;
@@ -466,18 +468,19 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
       const dx = px.x - _prevPlanePx.x;
       const dy = px.y - _prevPlanePx.y;
       if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
-        // Raw heading from movement
         const rawAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-        // Clamp deviation from base to ±30°
         let delta = rawAngle - _planeBaseAngle;
-        // Normalise delta to [-180, 180]
         while (delta > 180)  delta -= 360;
         while (delta < -180) delta += 360;
-        delta = Math.max(-30, Math.min(30, delta));
-        _planeCurrentAngle = _planeBaseAngle + delta;
-        img.style.transform = `translate(-50%,-50%) rotate(${_planeCurrentAngle}deg)`;
+        delta = Math.max(-12, Math.min(12, delta));
+        const targetAngle = _planeBaseAngle + delta;
+        _planeCurrentAngle += (targetAngle - _planeCurrentAngle) * 0.18;
       }
     }
+    const flightPhase = performance.now() / 220;
+    const bob = Math.sin(flightPhase) * 1.2;
+    const pulse = 1 + Math.sin(flightPhase * 0.9) * 0.015;
+    img.style.transform = `translate(-50%, calc(-50% + ${bob.toFixed(2)}px)) rotate(${_planeCurrentAngle.toFixed(2)}deg) scale(${pulse.toFixed(3)})`;
     _prevPlanePx = { x:px.x, y:px.y };
     img.style.left = `${px.x}px`; img.style.top = `${px.y}px`;
   };
@@ -485,7 +488,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     _planeBaseAngle    = angle;
     _planeCurrentAngle = angle;
     const img = (chart as any)._planeImg as HTMLImageElement;
-    if (img) img.style.transform = `translate(-50%,-50%) rotate(${angle}deg)`;
+    if (img) img.style.transform = `translate(-50%, -50%) rotate(${angle}deg) scale(1)`;
   };
   root.events.on('frameended', syncPlane);
 
@@ -712,6 +715,18 @@ function stopReplayMotion() {
   if (heroImg)  heroImg.style.opacity  = '1';
 }
 
+function focusMotion(id: string | null) {
+  _activeMotionId = id;
+  const rows = document.querySelectorAll<HTMLElement>('.leg-row, .leg-flight-row');
+  rows.forEach((el) => {
+    const isActive = el.dataset.motionId === id;
+    el.classList.toggle('active', isActive);
+    if (isActive) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
+}
+
 /* ── Plane animation ──────────────────────────────────────────────────────── */
 function animatePlaneThrough(waypoints:{lat:number;lng:number}[], segDuration:number): Promise<void> {
   const item = (_chart as any)?._planeItem;
@@ -751,6 +766,7 @@ function travelSequence(legs: PlottedLeg[], replay = false) {
   if (!replay && window.matchMedia?.('(prefers-reduced-motion:reduce)').matches) {
     const last = legs[legs.length-1];
     heroItem.set('longitude',last.lng); heroItem.set('latitude',last.lat);
+    lightCountry(HOME_COUNTRY_ISO);
     legs.forEach((l)=>lightCountry(l.iso)); return;
   }
 
@@ -763,6 +779,8 @@ function travelSequence(legs: PlottedLeg[], replay = false) {
 
   const planeItem = (_chart as any)?._planeItem;
   if (planeItem) { planeItem.set('longitude',HARBIN.lng); planeItem.set('latitude',HARBIN.lat); }
+  lightCountry(HOME_COUNTRY_ISO);
+  focusMotion('flight-outbound');
 
   const heroImg  = (_chart as any)?._heroImg  as HTMLImageElement|null;
   const planeImg = (_chart as any)?._planeImg as HTMLImageElement|null;
@@ -815,6 +833,7 @@ function travelSequence(legs: PlottedLeg[], replay = false) {
       (_chart as any)._setPlaneBase?.(0);
       if (planeImg) planeImg.style.opacity = '1';
       if (planeItem) { planeItem.set('longitude',CPH.lng); planeItem.set('latitude',CPH.lat); }
+      focusMotion('flight-return');
 
       // Pan back to CPH area first
       panToGeoPoint(CPH.lng, CPH.lat, 400);
@@ -847,6 +866,8 @@ function travelSequence(legs: PlottedLeg[], replay = false) {
         }
         if (planeImg) planeImg.style.opacity = '0';
         if (heroImg)  heroImg.style.opacity  = '1';
+        fitToRoute(legs, 900);
+        focusLeg(legs[legs.length - 1].id);
       });
     }, euroTrip);
   });
@@ -876,10 +897,27 @@ function travelHeroLegs(legs: PlottedLeg[]) {
 }
 
 /* ── Side panel ───────────────────────────────────────────────────────────── */
+function summarizeRoute(legs: PlottedLeg[]) {
+  const uniqueCountries = new Set<string>();
+  const uniqueCities = new Set<string>();
+
+  for (const leg of legs) {
+    uniqueCountries.add(leg.iso ?? leg.country);
+    for (const stop of leg.stops) {
+      uniqueCities.add(`${leg.iso ?? leg.country}:${stop.key}`);
+    }
+  }
+
+  return {
+    cityCount: uniqueCities.size,
+    countryCount: uniqueCountries.size,
+  };
+}
+
 function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
-  const countries = new Set(legs.map((l)=>l.country)).size;
+  const { cityCount, countryCount } = summarizeRoute(legs);
   const list = legs.map((l,i) => `
-    <button class="leg-row ${l.id===_activeId?'active':''}" data-id="${l.id}">
+    <button class="leg-row ${_activeMotionId===l.id ? 'active' : ''}" data-id="${l.id}" data-motion-id="${l.id}">
       <span class="leg-row-num">${i+1}</span>
       <span class="leg-row-main">
         <span class="leg-row-city">${l.flag} ${l.city}</span>
@@ -889,11 +927,11 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
 
   (view.querySelector('.map-panel') as HTMLElement).innerHTML = `
     <div class="map-stats">
-      <div class="map-stat"><div class="map-stat-num">${legs.length}</div><div class="map-stat-label">Cities</div></div>
-      <div class="map-stat"><div class="map-stat-num">${countries}</div><div class="map-stat-label">Countries</div></div>
+      <div class="map-stat"><div class="map-stat-num">${cityCount}</div><div class="map-stat-label">Cities</div></div>
+      <div class="map-stat"><div class="map-stat-num">${countryCount}</div><div class="map-stat-label">Countries</div></div>
     </div>
     <div class="map-legs">
-      <div class="leg-flight-row">
+      <div class="leg-flight-row ${_activeMotionId === 'flight-outbound' ? 'active' : ''}" data-motion-id="flight-outbound">
         <span class="leg-flight-icon">✈️</span>
         <span class="leg-flight-main">
           <span class="leg-flight-label">China → Denmark</span>
@@ -901,7 +939,7 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
         </span>
       </div>
       ${list}
-      <div class="leg-flight-row">
+      <div class="leg-flight-row ${_activeMotionId === 'flight-return' ? 'active' : ''}" data-motion-id="flight-return">
         <span class="leg-flight-icon">✈️</span>
         <span class="leg-flight-main">
           <span class="leg-flight-label">Denmark → China</span>
@@ -923,8 +961,5 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
 }
 
 function focusLeg(id: string) {
-  _activeId = id;
-  document.querySelectorAll('.leg-row').forEach((el) => {
-    el.classList.toggle('active', (el as HTMLElement).dataset.id === id);
-  });
+  focusMotion(id);
 }

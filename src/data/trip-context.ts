@@ -16,9 +16,9 @@ export const DEFAULT_TRIP_ID = 'europe-2025';
 
 const DEFAULT_TRIP: Omit<Trip, 'createdAt' | 'updatedAt' | 'schemaVersion'> = {
   id: DEFAULT_TRIP_ID,
-  name: 'Europe Summer 2025',
-  startDate: '2025-06-25',
-  endDate: '2025-09-06',
+  name: 'Europe Summer 2026',
+  startDate: '2026-06-25',
+  endDate: '2026-09-06',
   coverColor: '#f9b830',
   status: 'planning',
   baseCurrency: 'EUR',
@@ -44,7 +44,21 @@ export async function ensureDefaultTrip(): Promise<Trip> {
   if (!u) throw new Error('Not signed in.');
   const ref = tripRef(u.uid, DEFAULT_TRIP_ID);
   const snap = await getDoc(ref);
-  if (snap.exists()) return snap.data() as Trip;
+  if (snap.exists()) {
+    const existing = snap.data() as Trip;
+    if (existing.name === 'Europe Summer 2025' || existing.startDate === '2025-06-25') {
+      const updated = TripSchema.parse({
+        ...existing,
+        ...DEFAULT_TRIP,
+        createdAt: existing.createdAt,
+        updatedAt: Date.now(),
+        schemaVersion: SCHEMA_VERSION,
+      });
+      await setDoc(ref, updated);
+      return updated;
+    }
+    return existing;
+  }
 
   const now = Date.now();
   const trip = TripSchema.parse({

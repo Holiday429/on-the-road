@@ -201,11 +201,28 @@ img, svg { display: block; }
   margin-bottom: var(--sp-8);
 }
 .view-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
   font-family: var(--font-ui);
   font-size: var(--fs-3xl);
   font-weight: 700;
   color: var(--ink);
   line-height: 1.1;
+}
+
+.view-title-icon {
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.view-title-icon .nav-icon-image {
+  width: 46px;
+  height: 46px;
 }
 .view-subtitle {
   font-size: var(--fs-md);

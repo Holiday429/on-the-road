@@ -16,7 +16,7 @@ const STUBS: StubConfig[] = [
   {
     id: 'pack',
     icon: '🎒',
-    title: 'Pack formula',
+    title: 'Pack Formula',
     subtitle: 'Your 44L packing calculator',
     color: '#bbf7d0',
     features: [
@@ -30,7 +30,7 @@ const STUBS: StubConfig[] = [
   {
     id: 'budget',
     icon: '🏠',
-    title: 'Stay finder',
+    title: 'Stay Finder',
     subtitle: 'Multi-criteria accommodation scorer',
     color: '#bae6fd',
     features: [
@@ -44,7 +44,7 @@ const STUBS: StubConfig[] = [
   {
     id: 'safety',
     icon: '🛡️',
-    title: 'Safety kit',
+    title: 'Safety Kit',
     subtitle: 'Solo female travel safety toolkit',
     color: '#fecaca',
     features: [
@@ -98,10 +98,9 @@ function renderStub(config: StubConfig): string {
           font-size: var(--fs-xs);
           font-weight: 700;
           color: var(--ink-muted);
-          text-transform: uppercase;
           letter-spacing: 0.08em;
           margin-bottom: var(--sp-4);
-        ">Coming in v2</div>
+        ">Coming in V2</div>
         <div style="display: flex; flex-direction: column; gap: var(--sp-3)">
           ${config.features.map(f => `
             <div style="display: flex; gap: var(--sp-3); align-items: flex-start; font-size: var(--fs-base); color: var(--ink-soft)">
@@ -122,7 +121,7 @@ function renderStub(config: StubConfig): string {
         color: var(--amber-700);
       ">
         This module is planned for the next development sprint.
-        Focus right now: Prep, Route, Expenses, City Intel.
+        Focus right now: Prep, Route, Expenses, City Guide.
       </div>
     </div>
   `;

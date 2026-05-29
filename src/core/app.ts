@@ -3,40 +3,50 @@
    ========================================================================== */
 
 import type { User } from '../firebase/auth.ts';
+import checklistIcon from '../../icon/Checklist.png';
+import guideIcon from '../../icon/Guide.png';
+import itineraryIcon from '../../icon/Itinerary.png';
+import journalIcon from '../../icon/Journal.png';
+import packIcon from '../../icon/Pack.png';
+import paymentIcon from '../../icon/payment.png';
+import profileIcon from '../../icon/profile.png';
+import safetyIcon from '../../icon/Safety.png';
+import stayIcon from '../../icon/stay.png';
+import mapsIcon from '../../icon/maps.png';
 
 export type ViewId = 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'safety' | 'journal' | 'map';
 
 interface NavItem {
   id: ViewId;
   label: string;
-  icon: string;
+  iconSrc: string;
   section: 'before' | 'during' | 'after';
 }
 
 const NAV_ITEMS: NavItem[] = [
   // Before
-  { id: 'prep',     label: 'Prep checklist', icon: '✅', section: 'before' },
-  { id: 'pack',     label: 'Pack formula',   icon: '🎒', section: 'before' },
-  { id: 'budget',   label: 'Stay finder',    icon: '🏠', section: 'before' },
+  { id: 'prep',     label: 'Prep Checklist', iconSrc: checklistIcon, section: 'before' },
+  { id: 'pack',     label: 'Pack Formula',   iconSrc: packIcon, section: 'before' },
+  { id: 'budget',   label: 'Stay Finder',    iconSrc: stayIcon, section: 'before' },
   // During
-  { id: 'route',    label: 'Itinerary',      icon: '🗺️', section: 'during' },
-  { id: 'cities',   label: 'City intel',     icon: '🏛️', section: 'during' },
-  { id: 'safety',   label: 'Safety kit',     icon: '🛡️', section: 'during' },
-  { id: 'expenses', label: 'Expenses',       icon: '💰', section: 'during' },
+  { id: 'route',    label: 'Itinerary',      iconSrc: itineraryIcon, section: 'during' },
+  { id: 'cities',   label: 'City Guide',     iconSrc: guideIcon, section: 'during' },
+  { id: 'safety',   label: 'Safety Kit',     iconSrc: safetyIcon, section: 'during' },
+  { id: 'expenses', label: 'Expenses',       iconSrc: paymentIcon, section: 'during' },
   // After
-  { id: 'journal',  label: 'Journal',        icon: '📓', section: 'after'  },
-  { id: 'map',      label: 'My map',         icon: '🌍', section: 'after'  },
+  { id: 'journal',  label: 'Journal',        iconSrc: journalIcon, section: 'after'  },
+  { id: 'map',      label: 'My Map',         iconSrc: mapsIcon, section: 'after'  },
 ];
 
-const SECTION_LABELS = { before: 'Before', during: 'On the road', after: 'After' };
+const SECTION_LABELS = { before: 'Before', during: 'On The Road', after: 'After' };
 
-// Trip meta — will come from Firebase later
 const TRIP = {
-  name: 'Europe Summer 2025',
-  departure: new Date('2025-06-25'),
+  name: 'Europe Summer 2026',
+  departure: new Date('2026-06-25T00:00:00'),
 };
 
 let viewInits: Partial<Record<ViewId, () => void>> = {};
+let sessionState: { user: User | null } = { user: null };
 
 function escapeHtml(value: string): string {
   return value
@@ -55,6 +65,70 @@ function initialsFor(user: User): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('') || 'OT';
+}
+
+function primaryNameFor(user: User): string {
+  const displayName = user.displayName?.trim();
+  if (displayName) return displayName.split(/\s+/)[0] || displayName;
+  const emailName = user.email?.split('@')[0]?.trim();
+  return emailName || 'Traveler';
+}
+
+function renderNavIcon(item: NavItem): string {
+  return `<img src="${item.iconSrc}" class="nav-icon-image" alt="" aria-hidden="true">`;
+}
+
+function buildSidebarHeader(): string {
+  const { user } = sessionState;
+  if (!user) {
+    return `
+      <div class="sidebar-header">
+        <div class="sidebar-header-profile">
+          <div class="sidebar-profile-avatar">
+            <img src="${profileIcon}" class="sidebar-profile-avatar-image" alt="" aria-hidden="true">
+          </div>
+          <div class="sidebar-profile-meta">
+            <div class="sidebar-profile-title">on the road</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const displayName = escapeHtml(primaryNameFor(user));
+  const photo = user.photoURL?.trim();
+  const avatar = photo
+    ? `<img src="${escapeHtml(photo)}" alt="${displayName}" class="sidebar-profile-avatar-image">`
+    : `<div class="sidebar-profile-avatar-fallback">${initialsFor(user)}</div>`;
+
+  return `
+    <div class="sidebar-header">
+      <div class="sidebar-header-profile">
+        <div class="sidebar-profile-avatar">${avatar}</div>
+        <div class="sidebar-profile-meta">
+          <div class="sidebar-profile-title">${displayName}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderViewTitleMarkup(id: ViewId, title?: string): string {
+  const item = NAV_ITEMS.find((navItem) => navItem.id === id)!;
+  return `
+    <span class="view-title-icon" aria-hidden="true">${renderNavIcon(item)}</span>
+    <span>${escapeHtml(title?.trim() || item.label)}</span>
+  `;
+}
+
+function decorateViewTitles() {
+  NAV_ITEMS.forEach((item) => {
+    const titleEl = document.querySelector<HTMLElement>(`#view-${item.id} .view-title`);
+    if (!titleEl) return;
+    const title = titleEl.dataset.title ?? titleEl.textContent?.trim() ?? item.label;
+    titleEl.dataset.title = title;
+    titleEl.innerHTML = renderViewTitleMarkup(item.id, title);
+  });
 }
 
 export function registerView(id: ViewId, initFn: () => void) {
@@ -96,6 +170,7 @@ function daysUntil(date: Date): number {
 function buildSidebar() {
   const sidebar = document.getElementById('sidebar')!;
   const days = daysUntil(TRIP.departure);
+  const compactCountdown = days > 0 ? String(days) : String(Math.abs(days));
   const daysText = days > 0
     ? `Departing in <strong>${days} days</strong>`
     : days === 0
@@ -103,13 +178,11 @@ function buildSidebar() {
     : `Trip started <strong>${Math.abs(days)} days</strong> ago`;
 
   sidebar.innerHTML = `
-    <div class="sidebar-header">
-      <img src="/logo.svg" class="sidebar-logo" alt="On the Road">
-      <div class="sidebar-wordmark">On the <span>Road</span></div>
-    </div>
+    ${buildSidebarHeader()}
     <div class="trip-pill">
-      <div class="trip-pill-label">Current trip</div>
+      <div class="trip-pill-label">Current Trip</div>
       <div class="trip-pill-name">${TRIP.name}</div>
+      <div class="trip-pill-date">${compactCountdown}</div>
       <div class="trip-pill-days">${daysText}</div>
     </div>
     <nav class="sidebar-nav" aria-label="Main navigation">
@@ -129,7 +202,7 @@ function buildMobileNav() {
   mobileNav.innerHTML = mobileItems.map(id => {
     const item = NAV_ITEMS.find(n => n.id === id)!;
     return `<div class="mobile-nav-item" data-view="${id}" role="button" tabindex="0">
-      <span class="nav-icon" aria-hidden="true">${item.icon}</span>
+      <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
       <span class="nav-label">${item.label.split(' ')[0]}</span>
     </div>`;
   }).join('');
@@ -147,7 +220,7 @@ function buildNavSections(_context: 'sidebar' | 'mobile'): string {
       <div class="nav-section-label">${SECTION_LABELS[section]}</div>
       ${items.map(item => `
         <div class="nav-item" data-view="${item.id}" role="button" tabindex="0">
-          <span class="nav-icon" aria-hidden="true">${item.icon}</span>
+          <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
           <span class="nav-label">${item.label}</span>
         </div>
       `).join('')}
@@ -155,37 +228,17 @@ function buildNavSections(_context: 'sidebar' | 'mobile'): string {
   }).join('');
 }
 
-export function renderSession(user: User, onSignOut: () => void) {
-  const topbar = document.getElementById('app-topbar');
-  if (!topbar) return;
-
-  const displayName = escapeHtml(user.displayName?.trim() || 'Traveler');
-  const email = escapeHtml(user.email?.trim() || '');
-  const photo = user.photoURL?.trim();
-  const avatar = photo
-    ? `<img src="${escapeHtml(photo)}" alt="${displayName}" class="session-avatar-image">`
-    : `<div class="session-avatar-fallback">${initialsFor(user)}</div>`;
-
-  topbar.innerHTML = `
-    <div class="app-topbar-inner">
-      <div class="app-topbar-copy">
-        <div class="app-topbar-label">Signed in</div>
-        <div class="app-topbar-title">${displayName}</div>
-        ${email ? `<div class="app-topbar-subtitle">${email}</div>` : ''}
-      </div>
-      <div class="session-card">
-        <div class="session-avatar">${avatar}</div>
-        <button id="sign-out-btn" class="btn btn-ghost session-signout-btn" type="button">Sign out</button>
-      </div>
-    </div>
-  `;
-
-  topbar.querySelector<HTMLButtonElement>('#sign-out-btn')?.addEventListener('click', onSignOut);
+export function renderSession(user: User, _onSignOut: () => void) {
+  sessionState = { user };
+  document.getElementById('app-topbar')!.innerHTML = '';
+  buildSidebar();
 }
 
 export function initApp() {
+  document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
   buildMobileNav();
+  decorateViewTitles();
 
   // Route from hash
   const hash = window.location.hash.replace('#', '') as ViewId;

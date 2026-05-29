@@ -135,28 +135,56 @@
 .sidebar-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: var(--sp-3);
   padding: var(--sp-5) var(--sp-4);
   border-bottom: 1px solid var(--rule-soft);
   flex-shrink: 0;
 }
 
-.sidebar-logo {
-  width: 36px; height: 36px;
-  border-radius: var(--r-sm);
-  flex-shrink: 0;
+.sidebar-header-profile {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
 }
 
-.sidebar-wordmark {
+.sidebar-profile-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--amber-100);
+  border: 1px solid rgba(180, 83, 9, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-profile-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sidebar-profile-avatar-fallback {
   font-family: var(--font-ui);
-  font-size: var(--fs-md);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--amber-700);
+}
+
+.sidebar-profile-meta {
+  min-width: 0;
+}
+
+.sidebar-profile-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
   font-weight: 700;
   color: var(--ink);
   white-space: nowrap;
-  overflow: hidden;
-}
-.sidebar-wordmark span {
-  color: var(--amber-600);
 }
 
 /* ── Trip countdown pill ─────────────────────────────────────────────────── */
@@ -170,11 +198,10 @@
 }
 .trip-pill-label {
   font-family: var(--font-ui);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--amber-600);
   letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 .trip-pill-name {
   font-family: var(--font-ui);
@@ -185,6 +212,14 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.trip-pill-date {
+  display: none;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--amber-700);
+  line-height: 1;
 }
 .trip-pill-days {
   font-size: var(--fs-xs);
@@ -208,11 +243,10 @@
 
 .nav-section-label {
   font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--ink-faint);
   letter-spacing: 0.08em;
-  text-transform: uppercase;
   padding: var(--sp-3) var(--sp-2) var(--sp-1);
 }
 
@@ -220,7 +254,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 9px var(--sp-3);
+  padding: 11px var(--sp-3);
   border-radius: var(--r-md);
   cursor: pointer;
   transition: background var(--dur-fast), color var(--dur-fast);
@@ -233,20 +267,28 @@
   color: var(--ink);
 }
 .nav-item.active {
-  background: var(--amber-100);
-  color: var(--amber-700);
-  font-weight: 600;
+  background: #f0cb73;
+  color: #754500;
+  font-weight: 700;
 }
 .nav-item .nav-icon {
-  font-size: 18px;
   flex-shrink: 0;
-  width: 20px;
-  text-align: center;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-icon-image {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 .nav-item .nav-label {
   font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: 500;
+  font-size: var(--fs-base);
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -268,71 +310,8 @@
   border-bottom: 1px solid var(--rule-soft);
 }
 
-.app-topbar-inner {
-  max-width: var(--content-max);
-  margin: 0 auto;
-  padding: 14px var(--gutter);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
-}
-
-.app-topbar-label {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.app-topbar-title {
-  margin-top: 2px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-md);
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.app-topbar-subtitle {
-  font-size: var(--fs-sm);
-  color: var(--ink-muted);
-}
-
-.session-card {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-}
-
-.session-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: var(--amber-100);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(180, 83, 9, 0.12);
-}
-
-.session-avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.session-avatar-fallback {
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  color: var(--amber-700);
-}
-
-.session-signout-btn {
-  white-space: nowrap;
+#app-topbar:empty {
+  display: none;
 }
 
 /* ── Mobile bottom nav ───────────────────────────────────────────────────── */
@@ -357,8 +336,76 @@
   min-width: 44px;
 }
 .mobile-nav-item.active { color: var(--amber-600); }
-.mobile-nav-item .nav-icon { font-size: 20px; }
-.mobile-nav-item .nav-label { font-size: 10px; font-weight: 600; font-family: var(--font-ui); }
+.mobile-nav-item .nav-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobile-nav-item .nav-label { font-size: 11px; font-weight: 700; font-family: var(--font-ui); }
+
+@media (max-width: 1180px) {
+  #sidebar {
+    width: var(--sidebar-w-collapsed);
+  }
+
+  #main {
+    margin-left: var(--sidebar-w-collapsed);
+  }
+
+  .sidebar-header {
+    justify-content: center;
+    padding: var(--sp-4) var(--sp-2);
+  }
+
+  .sidebar-header-profile {
+    justify-content: center;
+  }
+
+  .sidebar-profile-meta,
+  .trip-pill-label,
+  .trip-pill-name,
+  .trip-pill-days,
+  .nav-section-label,
+  .nav-item .nav-label {
+    display: none;
+  }
+
+  .trip-pill {
+    margin: var(--sp-3) var(--sp-2) 0;
+    padding: var(--sp-2);
+    text-align: center;
+  }
+
+  .trip-pill-date {
+    display: block;
+    margin-top: 0;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .sidebar-nav {
+    padding: var(--sp-3) var(--sp-2);
+    align-items: center;
+  }
+
+  .nav-item {
+    justify-content: center;
+    width: 100%;
+    padding: 10px 0;
+  }
+
+  .nav-item .nav-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .nav-icon-image {
+    width: 28px;
+    height: 28px;
+  }
+}
 
 @media (max-width: 768px) {
   .auth-screen {
@@ -381,14 +428,4 @@
   #sidebar { display: none; }
   #main { margin-left: 0; padding-bottom: 70px; }
   #mobile-nav { display: flex; }
-
-  .app-topbar-inner {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .session-card {
-    width: 100%;
-    justify-content: space-between;
-  }
 }
