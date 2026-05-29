@@ -16,10 +16,9 @@
    ========================================================================== */
 
 import './map.css';
+import { DEFAULT_ROUTE_LEGS, loadStoredRouteLegs } from '../../data/default-route.ts';
 import { coordsFor, isoFor, primaryCity, EUROPE_CENTER } from './geo.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
-
-const ROUTE_KEY = 'otr:route:legs';
 const HERO_GIF = '/art/logo.gif';
 
 interface Leg {
@@ -41,21 +40,43 @@ const C = {
   sea:         '#eaf6fb',
 };
 
+/* Per-country palette — each country lights up in a distinct, stable color
+   (same idea as Marginalia's countryFill: deterministic hash into a palette so
+   the same country always gets the same hue and neighbours differ). */
+const PALETTE = [
+  '#f9b830', // amber
+  '#ef6c4d', // coral
+  '#38bdf8', // sky
+  '#34d399', // emerald
+  '#a78bfa', // violet
+  '#fb7185', // rose
+  '#fbbf24', // gold
+  '#22d3ee', // cyan
+  '#f472b6', // pink
+];
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; }
+  return Math.abs(h);
+}
+function countryColor(iso: string): string {
+  return PALETTE[hashStr(iso) % PALETTE.length];
+}
+
 let _initialized = false;
 let _root: any = null;
 let _chart: any = null;
+let _polyById = new Map<string, any>();       // iso -> MapPolygon (fast lighting)
+let _lit = new Set<string>();                 // countries already lit
 let _activeId: string | null = null;
-let _drillSeries: any = null;        // currently shown province series
+let _drillSeries: any = null;                 // currently shown province series
 let _drillCode: string | null = null;
 let _replayTimer: number | null = null;
+let _legsRef: PlottedLeg[] = [];              // legs for re-fitting the view
 
 /* ── Data ─────────────────────────────────────────────────────────────────── */
 function loadLegs(): Leg[] {
-  try {
-    const raw = localStorage.getItem(ROUTE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch { /* ignore */ }
-  return [];
+  return loadStoredRouteLegs<Leg>(DEFAULT_ROUTE_LEGS as Leg[]).legs;
 }
 
 function plot(legs: Leg[]): PlottedLeg[] {
@@ -66,10 +87,6 @@ function plot(legs: Leg[]): PlottedLeg[] {
     out.push({ ...leg, lat: c.lat, lng: c.lng, iso: isoFor(leg.country) });
   }
   return out;
-}
-
-function visitedISOs(legs: PlottedLeg[]): Set<string> {
-  return new Set(legs.map((l) => l.iso).filter(Boolean) as string[]);
 }
 
 function fmtRange(from: string, to: string): string {
@@ -137,6 +154,7 @@ export function initMap() {
 
 /* ── Chart ────────────────────────────────────────────────────────────────── */
 function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
+  _legsRef = legs;
   const root = am5.Root.new('mapChart');
   _root = root;
   root.setThemes([am5themes_Animated.new(root)]);
@@ -147,15 +165,19 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
       projection: am5map.geoMercator(),
       panX: 'translateX', panY: 'translateY',
       wheelY: 'zoom', pinchZoom: true,
-      homeZoomLevel: 4.2,
+      // (3) Gentler zoom: smaller step per wheel notch + slower mouse-wheel
+      // sensitivity, so a small scroll no longer jumps several levels.
+      zoomStep: 1.4,
+      maxZoomLevel: 64,
+      minZoomLevel: 1,
+      wheelSensitivity: 0.6,
       homeGeoPoint: EUROPE_CENTER,
     }),
   );
   _chart = chart;
 
-  const visited = visitedISOs(legs);
-
-  /* World countries */
+  /* World countries — start un-lit (muted land). Countries light up in their
+     own color as the hero reaches them (replay) or when a stop is clicked. */
   const world = chart.series.push(am5map.MapPolygonSeries.new(root, {
     geoJSON: am5geodata_worldLow,
     exclude: ['AQ'],
@@ -171,16 +193,15 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     fill: am5.color(C.hover),
   });
 
-  // Paint visited countries, and make non-drillable ones non-interactive feel.
   world.events.on('datavalidated', () => {
+    _polyById.clear();
     world.mapPolygons.each((poly: any) => {
       const id = poly.dataItem?.get('id');
-      if (visited.has(id)) {
-        poly.setAll({ fill: am5.color(C.visited) });
-        poly.states.create('hover', { fill: am5.color(C.visitedHi) });
-      }
+      if (id) _polyById.set(id, poly);
       poly.set('cursorOverStyle', DRILLDOWN_COUNTRIES[id] ? 'pointer' : 'default');
     });
+    // Re-apply any countries already lit (e.g. after a re-render).
+    _lit.forEach((iso) => paintCountry(iso, countryColor(iso)));
   });
 
   const tooltip = document.getElementById('mapTooltip')!;
@@ -288,9 +309,10 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
 
   chart.appear(700, 100).then(() => {
     document.getElementById('mapLoading')?.remove();
-    // Snap to the Europe-focused home view, then send the hero traveling.
-    chart.goHome?.(600);
-    setTimeout(() => { syncHero(); travelHero(legs); }, 700);
+    // (1) Frame the trip itself — zoom to the route's bounding box (with a small
+    // margin) so the footprint fills the view instead of floating in whitespace.
+    fitToRoute(legs, 700);
+    setTimeout(() => { syncHero(); travelHero(legs); }, 850);
   });
 
   // Toolbar
@@ -368,10 +390,64 @@ function geoCentroidOf(series: any) {
   } catch { return EUROPE_CENTER; }
 }
 
+/** Zoom so the whole route fills the view, with a margin around the extremes. */
+function fitToRoute(legs: PlottedLeg[], duration = 700) {
+  if (!_chart || legs.length === 0) return;
+  let n = -90, s = 90, e = -180, w = 180;
+  for (const l of legs) {
+    n = Math.max(n, l.lat); s = Math.min(s, l.lat);
+    e = Math.max(e, l.lng); w = Math.min(w, l.lng);
+  }
+  // Pad the box ~18% so pins/labels near the edge aren't clipped.
+  const padLat = Math.max(1.2, (n - s) * 0.18);
+  const padLng = Math.max(1.2, (e - w) * 0.18);
+  const bounds = {
+    left: w - padLng,
+    right: e + padLng,
+    top: n + padLat,
+    bottom: s - padLat,
+  };
+  try {
+    _chart.zoomToGeoBounds(bounds, duration);
+  } catch {
+    _chart.zoomToGeoPoint?.(EUROPE_CENTER, 4.8, true, duration);
+  }
+}
+
 function backToEurope() {
   if (_drillSeries) { _drillSeries.dispose(); _drillSeries = null; _drillCode = null; }
   (document.getElementById('mapBack') as HTMLElement).hidden = true;
-  _chart.goHome?.(800);
+  fitToRoute(_legsRef, 800);
+}
+
+/* ── Country lighting ─────────────────────────────────────────────────────── */
+/** Paint a country polygon (no state bookkeeping). */
+function paintCountry(iso: string, color: string) {
+  const poly = _polyById.get(iso);
+  if (!poly) return;
+  poly.set('fill', am5.color(color));
+  poly.states.create('hover', { fill: am5.color(color) }); // keep its color on hover
+}
+
+/** Light a country in its distinct color, once. Animates the first time. */
+function lightCountry(iso: string | null) {
+  if (!iso || _lit.has(iso)) return;
+  _lit.add(iso);
+  const poly = _polyById.get(iso);
+  const color = countryColor(iso);
+  if (!poly) return;
+  paintCountry(iso, color);
+  // brief pop so the reveal reads as "this country just lit up"
+  poly.animate({ key: 'fillOpacity', from: 0.55, to: 1, duration: 500, easing: am5.ease.out(am5.ease.cubic) });
+}
+
+/** Reset all lit countries back to un-lit (used before a replay). */
+function resetLit() {
+  _lit.forEach((iso) => {
+    const poly = _polyById.get(iso);
+    if (poly) poly.set('fill', am5.color(C.land));
+  });
+  _lit.clear();
 }
 
 /* ── Hero travel / replay ─────────────────────────────────────────────────── */
@@ -379,23 +455,28 @@ function travelHero(legs: PlottedLeg[], replay = false) {
   const item = (_chart as any)?._heroItem;
   if (!item || legs.length === 0) return;
   if (_replayTimer) { clearTimeout(_replayTimer); _replayTimer = null; }
+  if (replay) resetLit();
 
   if (!replay && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
     const last = legs[legs.length - 1];
     item.set('longitude', last.lng); item.set('latitude', last.lat);
+    legs.forEach((l) => lightCountry(l.iso));  // light everything, no animation pref
     return;
   }
 
   let i = 0;
   item.set('longitude', legs[0].lng); item.set('latitude', legs[0].lat);
   focusLeg(legs[0].id);
+  lightCountry(legs[0].iso);
 
   const stepTo = (idx: number) => {
     const l = legs[idx];
-    // animate the data item's geo position
     item.animate({ key: 'longitude', to: l.lng, duration: 900, easing: am5.ease.inOut(am5.ease.cubic) });
     item.animate({ key: 'latitude', to: l.lat, duration: 900, easing: am5.ease.inOut(am5.ease.cubic) });
     focusLeg(l.id);
+    // Light the destination country a touch before arrival, so the reveal lands
+    // as she steps in (same "arrive → light up" beat as MG's reading journey).
+    setTimeout(() => lightCountry(l.iso), 600);
   };
 
   const tick = () => {
@@ -431,7 +512,10 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
       const id = btn.dataset.id!;
       focusLeg(id);
       const leg = legs.find((l) => l.id === id);
-      if (leg && _chart) _chart.zoomToGeoPoint?.({ longitude: leg.lng, latitude: leg.lat }, 6, true, 700);
+      if (!leg) return;
+      // (2) Clicking a stop fills its country in that country's distinct color.
+      lightCountry(leg.iso);
+      if (_chart) _chart.zoomToGeoPoint?.({ longitude: leg.lng, latitude: leg.lat }, 6, true, 700);
     });
   });
 }

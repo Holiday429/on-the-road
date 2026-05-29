@@ -3,6 +3,7 @@
    ========================================================================== */
 
 import './route.css';
+import { DEFAULT_ROUTE_LEGS, loadStoredRouteLegs, ROUTE_STORAGE_KEY } from '../../data/default-route.ts';
 
 interface Transport {
   type: 'flight' | 'train' | 'bus' | 'ferry';
@@ -48,74 +49,7 @@ const FLAG_MAP: Record<string, string> = {
   'Hungary': '🇭🇺', 'Croatia': '🇭🇷', 'Greece': '🇬🇷',
 };
 
-const STORAGE_KEY = 'otr:route:legs';
-
-// Pre-seeded Europe trip
-const DEFAULT_LEGS: Leg[] = [
-  {
-    id: 'leg-cph-start',
-    city: 'Copenhagen', country: 'Denmark', flag: '🇩🇰',
-    dateFrom: '2025-06-25', dateTo: '2025-07-09',
-    accommodation: { name: "Friend's place", confirmed: true },
-    notes: 'Arriving from home. First and last stop of the trip.',
-  },
-  {
-    id: 'leg-berlin',
-    city: 'Berlin', country: 'Germany', flag: '🇩🇪',
-    dateFrom: '2025-07-09', dateTo: '2025-07-14',
-    arrivalTransport: { type: 'train', from: 'Copenhagen', to: 'Berlin', date: '2025-07-09', duration: '~5h', confirmed: false },
-  },
-  {
-    id: 'leg-amsterdam',
-    city: 'Amsterdam', country: 'Netherlands', flag: '🇳🇱',
-    dateFrom: '2025-07-14', dateTo: '2025-07-18',
-    arrivalTransport: { type: 'train', from: 'Berlin', to: 'Amsterdam', date: '2025-07-14', duration: '~6h', confirmed: false },
-  },
-  {
-    id: 'leg-brussels',
-    city: 'Brussels / Ghent', country: 'Belgium', flag: '🇧🇪',
-    dateFrom: '2025-07-18', dateTo: '2025-07-21',
-    arrivalTransport: { type: 'train', from: 'Amsterdam', to: 'Brussels', date: '2025-07-18', duration: '~3h', confirmed: false },
-  },
-  {
-    id: 'leg-paris',
-    city: 'Paris', country: 'France', flag: '🇫🇷',
-    dateFrom: '2025-07-21', dateTo: '2025-07-27',
-    arrivalTransport: { type: 'train', from: 'Brussels', to: 'Paris', date: '2025-07-21', duration: '~1.5h (Thalys)', confirmed: false },
-  },
-  {
-    id: 'leg-barcelona',
-    city: 'Barcelona', country: 'Spain', flag: '🇪🇸',
-    dateFrom: '2025-07-27', dateTo: '2025-08-02',
-    arrivalTransport: { type: 'flight', from: 'Paris CDG', to: 'Barcelona BCN', date: '2025-07-27', confirmed: false },
-  },
-  {
-    id: 'leg-lisbon',
-    city: 'Lisbon + Porto', country: 'Portugal', flag: '🇵🇹',
-    dateFrom: '2025-08-02', dateTo: '2025-08-09',
-    arrivalTransport: { type: 'train', from: 'Barcelona', to: 'Lisbon', date: '2025-08-02', duration: '~11h (night train)', confirmed: false },
-  },
-  {
-    id: 'leg-switzerland',
-    city: 'Bern / Grindelwald', country: 'Switzerland', flag: '🇨🇭',
-    dateFrom: '2025-08-09', dateTo: '2025-08-14',
-    arrivalTransport: { type: 'flight', from: 'Lisbon LIS', to: 'Zurich ZRH', date: '2025-08-09', confirmed: false },
-  },
-  {
-    id: 'leg-italy',
-    city: 'Milan → Venice → Florence → Rome', country: 'Italy', flag: '🇮🇹',
-    dateFrom: '2025-08-14', dateTo: '2025-08-23',
-    arrivalTransport: { type: 'train', from: 'Zurich', to: 'Milan', date: '2025-08-14', duration: '~3.5h', confirmed: false },
-  },
-  {
-    id: 'leg-cph-end',
-    city: 'Copenhagen', country: 'Denmark', flag: '🇩🇰',
-    dateFrom: '2025-08-23', dateTo: '2025-09-06',
-    arrivalTransport: { type: 'flight', from: 'Rome FCO', to: 'Copenhagen CPH', date: '2025-08-23', confirmed: false },
-    accommodation: { name: "Friend's place", confirmed: true },
-    notes: 'Final stretch. Decompression and work.',
-  },
-];
+const DEFAULT_LEGS: Leg[] = DEFAULT_ROUTE_LEGS;
 
 let legs: Leg[] = [];
 let addFormOpen = false;
@@ -123,15 +57,12 @@ let addFormOpen = false;
 function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
 function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { legs = JSON.parse(raw); return; }
-  } catch {}
-  legs = DEFAULT_LEGS;
-  save();
+  const loaded = loadStoredRouteLegs<Leg>(DEFAULT_LEGS);
+  legs = loaded.legs;
+  if (!loaded.fromStorage) save();
 }
 
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(legs)); }
+function save() { localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify(legs)); }
 
 function daysBetween(from: string, to: string): number {
   return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000);
