@@ -1,15 +1,16 @@
 /* ==========================================================================
    On the Road · Geo lookup
    --------------------------------------------------------------------------
-   Lat/lng for European cities, plus a projection from lng/lat to the SVG
-   viewBox used by the 2D map. The map shows Western/Central Europe; the
-   projection is a simple equirectangular fit tuned to that window.
+   City coordinates (lng/lat) for the route's stops, and a mapping from
+   country name → ISO2 so we can highlight visited countries and decide which
+   ones support province-level drilldown. amCharts handles projection, so we
+   pass geo points (longitude/latitude) directly.
    ========================================================================== */
 
 export interface LatLng { lat: number; lng: number; }
 
-// Primary cities on the route. Keys are matched case-insensitively against the
-// first city token of a leg (e.g. "Lisbon + Porto" -> "lisbon").
+// Primary cities on the route. Keys match the first city token of a leg
+// (e.g. "Lisbon + Porto" -> "lisbon"), lower-cased.
 export const CITY_COORDS: Record<string, LatLng> = {
   copenhagen: { lat: 55.6761, lng: 12.5683 },
   berlin:     { lat: 52.5200, lng: 13.4050 },
@@ -28,31 +29,37 @@ export const CITY_COORDS: Record<string, LatLng> = {
   rome:       { lat: 41.9028, lng: 12.4964 },
 };
 
+// Country display name (as used in route data) → ISO2 (amCharts polygon id).
+export const COUNTRY_ISO: Record<string, string> = {
+  'Denmark': 'DK',
+  'Germany': 'DE',
+  'Netherlands': 'NL',
+  'Belgium': 'BE',
+  'France': 'FR',
+  'Spain': 'ES',
+  'Portugal': 'PT',
+  'Switzerland': 'CH',
+  'Italy': 'IT',
+  'Austria': 'AT',
+  'Czech Republic': 'CZ',
+  'Poland': 'PL',
+  'Hungary': 'HU',
+  'Croatia': 'HR',
+  'Greece': 'GR',
+};
+
 /** Pull the first recognizable city name out of a leg's city string. */
 export function primaryCity(cityField: string): string {
-  // Split on common separators: " / ", " + ", " → ", "→", ","
-  const first = cityField.split(/\s*(?:\/|\+|→|->|,)\s*/)[0].trim();
-  return first;
+  return cityField.split(/\s*(?:\/|\+|→|->|,)\s*/)[0].trim();
 }
 
 export function coordsFor(cityField: string): LatLng | null {
-  const key = primaryCity(cityField).toLowerCase();
-  return CITY_COORDS[key] ?? null;
+  return CITY_COORDS[primaryCity(cityField).toLowerCase()] ?? null;
 }
 
-/* ── Projection ──────────────────────────────────────────────────────────
-   The SVG map uses a 1000 x 760 viewBox covering roughly:
-     lng  -11° (W Portugal)  →  19° (E Italy/Adriatic)
-     lat   58° (N Denmark)   →  36° (S Italy/Iberia)
-   Equirectangular, linear interpolation across that window.
-*/
-export const MAP_VIEW = { w: 1000, h: 760 };
-
-const LNG_MIN = -11, LNG_MAX = 19;
-const LAT_MIN = 36,  LAT_MAX = 58;
-
-export function project({ lat, lng }: LatLng): { x: number; y: number } {
-  const x = ((lng - LNG_MIN) / (LNG_MAX - LNG_MIN)) * MAP_VIEW.w;
-  const y = ((LAT_MAX - lat) / (LAT_MAX - LAT_MIN)) * MAP_VIEW.h;
-  return { x, y };
+export function isoFor(country: string): string | null {
+  return COUNTRY_ISO[country] ?? null;
 }
+
+// Geographic centre of the trip's footprint — used to centre the Europe view.
+export const EUROPE_CENTER = { longitude: 6, latitude: 48 };
