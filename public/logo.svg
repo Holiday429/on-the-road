@@ -1,0 +1,22 @@
+<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" rx="12" fill="#F9B830"/>
+  <!-- Traveler figure based on reference illustration style -->
+  <!-- Body -->
+  <rect x="17" y="18" width="7" height="9" rx="1.5" fill="#1c1917"/>
+  <!-- Head -->
+  <circle cx="20.5" cy="14.5" r="3.5" fill="#f5d0a9"/>
+  <!-- Backpack strap -->
+  <path d="M17 19 Q14 18 14 22 L14 26" stroke="#d97706" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Arm with phone -->
+  <path d="M24 20 L27 18" stroke="#1c1917" stroke-width="2" stroke-linecap="round"/>
+  <!-- Suitcase -->
+  <rect x="8" y="24" width="7" height="9" rx="2" fill="#7dd3fc" stroke="#1c1917" stroke-width="1"/>
+  <rect x="10" y="22.5" width="3" height="2" rx="1" fill="#1c1917"/>
+  <!-- Wheels -->
+  <circle cx="10" cy="33.5" r="1" fill="#1c1917"/>
+  <circle cx="14" cy="33.5" r="1" fill="#1c1917"/>
+  <!-- Handle bar -->
+  <path d="M11 24 L14 24" stroke="#1c1917" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Headphone hint -->
+  <path d="M17.5 12 Q17 9.5 20.5 9.5 Q24 9.5 23.5 12" stroke="#38bdf8" stroke-width="1.5" fill="none"/>
+</svg>

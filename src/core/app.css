@@ -1,0 +1,181 @@
+/* ==========================================================================
+   On the Road · App Shell
+   ========================================================================== */
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+#app {
+  display: flex;
+  min-height: 100dvh;
+}
+
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+#sidebar {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: var(--sidebar-w);
+  background: var(--surface);
+  border-right: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  transition: width var(--dur-mid) var(--ease-out);
+  overflow: hidden;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-4);
+  border-bottom: 1px solid var(--rule-soft);
+  flex-shrink: 0;
+}
+
+.sidebar-logo {
+  width: 36px; height: 36px;
+  border-radius: var(--r-sm);
+  flex-shrink: 0;
+}
+
+.sidebar-wordmark {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar-wordmark span {
+  color: var(--amber-600);
+}
+
+/* ── Trip countdown pill ─────────────────────────────────────────────────── */
+.trip-pill {
+  margin: var(--sp-4) var(--sp-3) 0;
+  background: var(--amber-50);
+  border: 1.5px solid var(--amber-200);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
+  flex-shrink: 0;
+}
+.trip-pill-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--amber-600);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.trip-pill-name {
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trip-pill-days {
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+  margin-top: 4px;
+}
+.trip-pill-days strong {
+  font-weight: 700;
+  color: var(--amber-700);
+}
+
+/* ── Nav sections ────────────────────────────────────────────────────────── */
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-4) var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.nav-section-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--sp-3) var(--sp-2) var(--sp-1);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 9px var(--sp-3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--ink-soft);
+}
+.nav-item:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+.nav-item.active {
+  background: var(--amber-100);
+  color: var(--amber-700);
+  font-weight: 600;
+}
+.nav-item .nav-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+.nav-item .nav-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Main content ────────────────────────────────────────────────────────── */
+#main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  min-height: 100dvh;
+  transition: margin-left var(--dur-mid) var(--ease-out);
+}
+
+/* ── Mobile bottom nav ───────────────────────────────────────────────────── */
+#mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--rule);
+  padding: 8px var(--sp-2) max(8px, env(safe-area-inset-bottom));
+  z-index: 100;
+  justify-content: space-around;
+}
+.mobile-nav-item {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  color: var(--ink-faint);
+  transition: color var(--dur-fast);
+  min-width: 44px;
+}
+.mobile-nav-item.active { color: var(--amber-600); }
+.mobile-nav-item .nav-icon { font-size: 20px; }
+.mobile-nav-item .nav-label { font-size: 10px; font-weight: 600; font-family: var(--font-ui); }
+
+@media (max-width: 768px) {
+  #sidebar { display: none; }
+  #main { margin-left: 0; padding-bottom: 70px; }
+  #mobile-nav { display: flex; }
+}

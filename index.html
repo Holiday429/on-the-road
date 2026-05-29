@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>On the Road</title>
+  <link rel="icon" href="/logo.svg">
+</head>
+<body>
+
+<div id="app">
+  <aside id="sidebar"></aside>
+
+  <main id="main">
+
+    <!-- /prep -->
+    <div id="view-prep" class="view">
+      <div class="view-header">
+        <div class="view-title">Prep checklist</div>
+        <div class="view-subtitle">Everything you need to do before you go — by timeline.</div>
+      </div>
+      <div class="prep-progress-wrap"></div>
+      <div class="prep-tabs-wrap"></div>
+      <div class="prep-body"></div>
+    </div>
+
+    <!-- /route -->
+    <div id="view-route" class="view">
+      <div class="view-header">
+        <div class="view-title">Itinerary</div>
+        <div class="view-subtitle">Your route, city by city. Transport and stays at a glance.</div>
+      </div>
+      <div class="route-timeline"></div>
+    </div>
+
+    <!-- /expenses -->
+    <div id="view-expenses" class="view">
+      <div class="view-header">
+        <div class="view-title">Expenses</div>
+        <div class="view-subtitle">Track every euro. See where it went.</div>
+      </div>
+      <div class="exp-summary"></div>
+      <div class="exp-layout">
+        <div>
+          <div class="exp-form-wrap"></div>
+          <div class="exp-list-wrap"></div>
+        </div>
+        <div class="exp-breakdown-wrap"></div>
+      </div>
+    </div>
+
+    <!-- /cities -->
+    <div id="view-cities" class="view">
+      <div class="view-header">
+        <div class="view-title">City intel</div>
+        <div class="view-subtitle">AI-generated cultural briefings — greetings, neighborhoods, safety, hidden gems.</div>
+      </div>
+      <div class="cities-search-wrap">
+        <div class="cities-search-row">
+          <input class="input" id="cities-search-input" placeholder="Search a city… e.g. Barcelona" style="font-size:var(--fs-md);padding:14px 18px">
+          <button class="btn btn-primary" id="cities-search-btn" style="padding:14px 20px;font-size:var(--fs-md);white-space:nowrap">Generate</button>
+        </div>
+        <div id="cities-search-status" style="margin-top:16px"></div>
+      </div>
+      <div class="city-details-wrap"></div>
+      <div class="cities-grid"></div>
+    </div>
+
+    <!-- /pack (stub) -->
+    <div id="view-pack" class="view">
+      <div class="view-header"></div>
+      <div class="stub-body"></div>
+    </div>
+
+    <!-- /budget (stub) -->
+    <div id="view-budget" class="view">
+      <div class="view-header"></div>
+      <div class="stub-body"></div>
+    </div>
+
+    <!-- /safety (stub) -->
+    <div id="view-safety" class="view">
+      <div class="view-header"></div>
+      <div class="stub-body"></div>
+    </div>
+
+    <!-- /journal (stub) -->
+    <div id="view-journal" class="view">
+      <div class="view-header"></div>
+      <div class="stub-body"></div>
+    </div>
+
+    <!-- /map (stub) -->
+    <div id="view-map" class="view">
+      <div class="view-header"></div>
+      <div class="stub-body"></div>
+    </div>
+
+  </main>
+
+  <nav id="mobile-nav" aria-label="Mobile navigation"></nav>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

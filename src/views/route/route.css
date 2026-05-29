@@ -1,0 +1,207 @@
+/* ==========================================================================
+   On the Road · Itinerary / Route
+   ========================================================================== */
+
+#view-route { animation: fadeUp var(--dur-mid) var(--ease-out); }
+
+/* ── Timeline ────────────────────────────────────────────────────────────── */
+.route-timeline {
+  position: relative;
+  padding-left: 48px;
+}
+.route-timeline::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 24px; bottom: 24px;
+  width: 2px;
+  background: var(--surface-4);
+  border-radius: var(--r-full);
+}
+
+/* ── Leg (city block) ────────────────────────────────────────────────────── */
+.route-leg {
+  position: relative;
+  margin-bottom: var(--sp-6);
+}
+.route-leg-dot {
+  position: absolute;
+  left: -36px;
+  top: 20px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  box-shadow: var(--shadow-sm);
+  z-index: 1;
+}
+
+.route-leg-card {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--rule-soft);
+  overflow: hidden;
+}
+
+.route-leg-header {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.route-leg-header:hover { background: var(--surface-2); }
+
+.route-leg-flag {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+.route-leg-info { flex: 1; min-width: 0; }
+.route-leg-city {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--ink);
+}
+.route-leg-country {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}
+.route-leg-dates {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: right;
+  flex-shrink: 0;
+}
+.route-leg-duration {
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+}
+
+.route-leg-body {
+  border-top: 1px solid var(--rule-soft);
+  padding: var(--sp-4) var(--sp-5);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+}
+@media (max-width: 600px) { .route-leg-body { grid-template-columns: 1fr; } }
+
+.route-leg-section-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--sp-2);
+}
+
+/* ── Transport card ──────────────────────────────────────────────────────── */
+.transport-node {
+  display: flex; align-items: center; gap: var(--sp-3);
+  position: relative;
+  padding-left: 36px;
+  margin-bottom: var(--sp-3);
+}
+.transport-node::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: calc(100% + var(--sp-3));
+  width: 2px;
+  background: var(--surface-3);
+}
+.transport-node:last-child::before { display: none; }
+.transport-icon {
+  position: absolute;
+  left: 0;
+  width: 32px; height: 32px;
+  border-radius: var(--r-md);
+  background: var(--amber-100);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  z-index: 1;
+  flex-shrink: 0;
+}
+.transport-info { flex: 1; min-width: 0; }
+.transport-label {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.transport-detail {
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+}
+.transport-confirmed {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  flex-shrink: 0;
+}
+
+/* ── Accommodation ───────────────────────────────────────────────────────── */
+.accom-card {
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  border: 1px solid var(--rule-soft);
+}
+.accom-name {
+  font-size: var(--fs-base);
+  font-weight: 600;
+  color: var(--ink);
+}
+.accom-meta {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  margin-top: 3px;
+  display: flex; gap: var(--sp-2); flex-wrap: wrap;
+}
+
+/* ── Add leg form ────────────────────────────────────────────────────────── */
+.route-add-btn {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  border: 2px dashed var(--surface-4);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--ink-muted);
+  transition: all var(--dur-fast);
+  width: 100%;
+}
+.route-add-btn:hover { border-color: var(--amber-300); color: var(--amber-700); background: var(--amber-50); }
+
+.route-add-form {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  padding: var(--sp-6);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--amber-200);
+  margin-bottom: var(--sp-5);
+  display: none;
+}
+.route-add-form.open { display: block; animation: fadeUp var(--dur-mid) var(--ease-out); }
+.route-add-form-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  margin-bottom: var(--sp-5);
+}
+.route-add-form-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3); margin-bottom: var(--sp-4);
+}
+.route-add-form-grid .field-full { grid-column: 1 / -1; }
+.route-add-form-btns {
+  display: flex; gap: var(--sp-3); justify-content: flex-end;
+}
