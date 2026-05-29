@@ -238,25 +238,47 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     index, id: l.id,
   })));
 
-  /* Hero (logo.gif) — an image bullet that we move along the route */
+  /* Hero (logo.gif) — driven as a real HTML <img> so the GIF actually animates.
+     amCharts renders to canvas (which only paints a GIF's first frame), so we
+     keep an invisible point item as the animated position source of truth and
+     mirror it to an <img> overlay every frame via chart.convert(). */
   const heroData = chart.series.push(am5map.MapPointSeries.new(root, {}));
-  heroData.bullets.push((bRoot: any) => {
-    const pic = am5.Picture.new(bRoot, {
-      src: HERO_GIF, width: 54, height: 54,
-      centerX: am5.p50, centerY: am5.p100,
-    });
-    return am5.Bullet.new(bRoot, { sprite: pic });
-  });
   const heroItem = heroData.pushDataItem({
     longitude: legs[0].lng, latitude: legs[0].lat,
   });
   (chart as any)._heroItem = heroItem;
 
+  // The overlay element lives in .map-stage, above the canvas.
+  let heroImg = document.querySelector('.map-hero-img') as HTMLImageElement | null;
+  if (!heroImg) {
+    heroImg = document.createElement('img');
+    heroImg.className = 'map-hero-img';
+    heroImg.src = HERO_GIF;
+    heroImg.alt = '';
+    (document.querySelector('.map-stage') as HTMLElement).appendChild(heroImg);
+  }
+  (chart as any)._heroImg = heroImg;
+
+  // Keep the <img> glued to the item's geo position on every zoom/pan/animation.
+  const syncHero = () => {
+    const img = (chart as any)._heroImg as HTMLImageElement;
+    const it = (chart as any)._heroItem;
+    if (!img || !it) return;
+    const lng = it.get('longitude');
+    const lat = it.get('latitude');
+    if (lng == null || lat == null) return;
+    const px = chart.convert({ longitude: lng, latitude: lat });
+    if (px) { img.style.left = `${px.x}px`; img.style.top = `${px.y}px`; }
+  };
+  (chart as any)._syncHero = syncHero;
+  // Re-sync continuously; amCharts fires 'frameended' each render frame.
+  root.events.on('frameended', syncHero);
+
   chart.appear(700, 100).then(() => {
     document.getElementById('mapLoading')?.remove();
     // Snap to the Europe-focused home view, then send the hero traveling.
     chart.goHome?.(600);
-    setTimeout(() => travelHero(legs), 700);
+    setTimeout(() => { syncHero(); travelHero(legs); }, 700);
   });
 
   // Toolbar

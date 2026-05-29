@@ -24,9 +24,18 @@
   height: 540px;
 }
 
-/* Hero gif moving on the map */
-.map-stage img[src*="logo.gif"] {
-  filter: drop-shadow(0 6px 8px rgba(58,29,110,0.25));
+/* Hero gif moving on the map — real <img> overlay so the GIF animates */
+.map-hero-img {
+  position: absolute;
+  left: 0; top: 0;
+  width: 56px;
+  height: 56px;
+  /* anchor the figure's feet at the geo point */
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  z-index: 3;
+  filter: drop-shadow(0 6px 8px rgba(58,29,110,0.28));
+  will-change: left, top;
 }
 
 /* ── Tooltip (we render our own; amCharts native suppressed) ───────────── */
