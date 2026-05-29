@@ -69,20 +69,6 @@ const STUBS: StubConfig[] = [
       'AI-generated trip summary',
     ],
   },
-  {
-    id: 'map',
-    icon: '🌍',
-    title: 'My map',
-    subtitle: 'Your travel footprint',
-    color: '#fde68a',
-    features: [
-      'World map with visited countries highlighted',
-      'Click city to see journal excerpts',
-      'Animated route playback by date',
-      'Stats: countries visited, total days',
-      'Built with Leaflet.js (like Marginalia\'s profile map)',
-    ],
-  },
 ];
 
 function renderStub(config: StubConfig): string {

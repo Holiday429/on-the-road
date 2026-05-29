@@ -10,6 +10,7 @@ import { initPrep }     from './views/prep/prep.ts';
 import { initRoute }    from './views/route/route.ts';
 import { initExpenses } from './views/expenses/expenses.ts';
 import { initCities }   from './views/cities/cities.ts';
+import { initMap }      from './views/map/map.ts';
 import { initStubs }    from './views/stubs.ts';
 
 // Register lazy view inits (fire once on first navigation)
@@ -17,6 +18,7 @@ registerView('prep',     initPrep);
 registerView('route',    initRoute);
 registerView('expenses', initExpenses);
 registerView('cities',   initCities);
+registerView('map',      initMap);
 
 // Boot the app shell + router
 initApp();
