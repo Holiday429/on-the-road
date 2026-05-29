@@ -260,6 +260,9 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   (chart as any)._heroImg = heroImg;
 
   // Keep the <img> glued to the item's geo position on every zoom/pan/animation.
+  // The GIF faces left by default; flip horizontally when walking rightward so
+  // she turns to face her direction of travel (mirrored about her vertical axis).
+  let _lastHeroX: number | null = null;
   const syncHero = () => {
     const img = (chart as any)._heroImg as HTMLImageElement;
     const it = (chart as any)._heroItem;
@@ -268,7 +271,16 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     const lat = it.get('latitude');
     if (lng == null || lat == null) return;
     const px = chart.convert({ longitude: lng, latitude: lat });
-    if (px) { img.style.left = `${px.x}px`; img.style.top = `${px.y}px`; }
+    if (!px) return;
+    // Decide facing from horizontal movement, ignoring sub-pixel jitter.
+    if (_lastHeroX != null) {
+      const dx = px.x - _lastHeroX;
+      if (dx > 0.4) img.classList.add('facing-right');
+      else if (dx < -0.4) img.classList.remove('facing-right');
+    }
+    _lastHeroX = px.x;
+    img.style.left = `${px.x}px`;
+    img.style.top = `${px.y}px`;
   };
   (chart as any)._syncHero = syncHero;
   // Re-sync continuously; amCharts fires 'frameended' each render frame.

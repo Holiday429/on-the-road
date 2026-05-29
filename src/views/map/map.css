@@ -30,12 +30,19 @@
   left: 0; top: 0;
   width: 56px;
   height: 56px;
-  /* anchor the figure's feet at the geo point */
-  transform: translate(-50%, -100%);
+  transform-origin: center bottom;
+  /* anchor the figure's feet at the geo point; default faces left */
+  transform: translate(-50%, -100%) scaleX(1);
+  /* only the flip animates (a quick "turn"); position is set via left/top */
+  transition: transform var(--dur-mid) var(--ease-out);
   pointer-events: none;
   z-index: 3;
   filter: drop-shadow(0 6px 8px rgba(58,29,110,0.28));
   will-change: left, top;
+}
+/* walking rightward / upward-right: mirror about her vertical axis to face right */
+.map-hero-img.facing-right {
+  transform: translate(-50%, -100%) scaleX(-1);
 }
 
 /* ── Tooltip (we render our own; amCharts native suppressed) ───────────── */
