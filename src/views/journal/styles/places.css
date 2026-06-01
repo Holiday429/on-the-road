@@ -1,0 +1,85 @@
+.journal-places-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--sp-4);
+}
+.journal-place-tile {
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.journal-place-tile:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+.journal-place-tile-cover {
+  position: relative;
+  aspect-ratio: 4/3;
+  background: radial-gradient(120% 90% at 30% 0%, color-mix(in srgb, var(--tint) 50%, #fff), color-mix(in srgb, var(--tint) 22%, #fff));
+  overflow: hidden;
+}
+.journal-place-tile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.journal-place-tile-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 28px;
+}
+.journal-place-tile-count {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--r-full);
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.journal-place-tile-info {
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.journal-place-tile-name {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--ink);
+}
+.journal-place-tile-meta {
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+}
+.journal-place-tile-add { border-style: dashed; border-color: var(--surface-4); }
+.journal-place-tile-cover-add {
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  color: var(--ink-faint);
+}

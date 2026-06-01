@@ -12,7 +12,6 @@ import {
   MOODS,
   escHtml,
   excerpt,
-  moodEmoji,
   prettyDate,
   suggestedDestinations,
   titleFor,
@@ -40,6 +39,8 @@ export interface MapPoint {
   key: string;
   label: string;
   count: number;
+  lat: number;
+  lng: number;
   left: number;
   top: number;
   entries: StoredJournalEntry[];
@@ -68,28 +69,22 @@ interface CaptureRenderModel {
   legs: StoredLeg[];
 }
 
-const VIEW_META: Record<CaptureView, { label: string; note: string }> = {
-  feed: { label: 'Feed', note: 'A running stream of little things worth keeping.' },
-  places: { label: 'Places', note: 'Group entries by city so a stop feels like a chapter.' },
-  categories: { label: 'Categories', note: 'Review your trip through recurring themes and tags.' },
-  gallery: { label: 'Gallery', note: 'A more visual wall for moments with texture and mood.' },
-  map: { label: 'Map', note: 'Pin entries back onto the route and see where memory clusters.' },
-  calendar: { label: 'Calendar', note: 'Scan the trip day by day without rewriting it as a diary.' },
+const VIEW_META: Record<CaptureView, { label: string }> = {
+  feed:       { label: 'Feed' },
+  places:     { label: 'Places' },
+  categories: { label: 'Categories' },
+  gallery:    { label: 'Gallery' },
+  map:        { label: 'Map' },
+  calendar:   { label: 'Calendar' },
 };
 
 export function renderCapture(model: CaptureRenderModel): string {
   const placeCount = model.placeGroups.filter((group) => group.label !== 'No place yet').length;
   const pinnedCount = model.allEntries.filter((entry) => entry.favorite).length;
-  const activeView = VIEW_META[model.state.view];
 
   return `
     <div class="journal-shell">
-      <section class="card journal-capture-head">
-        <div class="journal-capture-copy">
-          <span class="journal-section-kicker">Quick Capture</span>
-          <h3>${activeView.label}</h3>
-          <p>${activeView.note}</p>
-        </div>
+      <div class="journal-capture-bar">
         <div class="journal-capture-stats">
           <div class="journal-capture-stat">
             <span class="journal-capture-stat-num">${model.allEntries.length}</span>
@@ -104,8 +99,10 @@ export function renderCapture(model: CaptureRenderModel): string {
             <span class="journal-capture-stat-label">pinned</span>
           </div>
         </div>
-        <button class="btn btn-primary journal-capture-cta" data-new-entry type="button">+ New entry</button>
-      </section>
+        <button class="btn btn-primary" data-new-entry type="button">+ New entry</button>
+      </div>
+
+      ${renderStamps(model.state)}
 
       <div class="journal-layout-bar">
         ${Object.entries(VIEW_META).map(([id, meta]) => `
@@ -114,15 +111,12 @@ export function renderCapture(model: CaptureRenderModel): string {
           </button>
         `).join('')}
       </div>
-
-      ${renderStamps(model.state)}
       ${model.state.templateBuilderOpen ? renderTemplateBuilder(model.state) : ''}
       ${model.state.composerOpen ? renderComposer(model.state, model.allEntries, model.legs) : ''}
-      ${renderFilters(model)}
 
-      <section class="journal-view-surface">
+      <div class="journal-view-surface">
         ${renderActiveView(model)}
-      </section>
+      </div>
     </div>
   `;
 }
@@ -130,10 +124,10 @@ export function renderCapture(model: CaptureRenderModel): string {
 function renderActiveView(model: CaptureRenderModel): string {
   if (model.state.view === 'places') return renderPlacesView(model.placeGroups);
   if (model.state.view === 'categories') return renderCategoriesView(model.templateGroups, model.tagGroups);
-  if (model.state.view === 'gallery') return renderGalleryView(model.visibleEntries);
+  if (model.state.view === 'gallery') return renderGalleryView(model.visibleEntries, model.state);
   if (model.state.view === 'map') return renderMapView(model.mapPoints, model.mapRoute);
   if (model.state.view === 'calendar') return renderCalendarView(model.calendarCells, model.currentMonthLabel);
-  return renderFeed(model.visibleEntries, model.state.editingId);
+  return renderFeedWithFilters(model);
 }
 
 function renderStamps(state: CaptureState): string {
@@ -307,50 +301,89 @@ function renderComposer(
   `;
 }
 
-function renderFilters(model: CaptureRenderModel): string {
-  const items = templates();
-  if (model.allEntries.length === 0) return '';
-  return `
-    <div class="journal-filter-bar">
-      <div class="journal-filter-stack">
-        <div class="journal-filter-group">
-          <button class="journal-filter-chip ${model.state.filter.template === 'all' ? 'active' : ''}" data-filter-template="all" type="button">All</button>
-          ${items.map((item) => `
-            <button class="journal-filter-chip ${model.state.filter.template === item.id ? 'active' : ''}"
-                    style="--tint:${item.tint}" data-filter-template="${item.id}" type="button">
-              <span class="journal-filter-emoji">${item.emoji}</span>${escHtml(item.label)}
-            </button>
-          `).join('')}
-          <button class="journal-filter-chip journal-filter-pin ${model.state.filter.favoritesOnly ? 'active' : ''}" data-filter-favorites type="button" title="Pinned only">📌</button>
-        </div>
-        ${model.allTags.length ? `
-          <div class="journal-filter-group journal-filter-tags">
-            <button class="journal-filter-chip ${model.state.filter.tag === 'all' ? 'active' : ''}" data-filter-tag="all" type="button">All tags</button>
-            ${model.allTags.slice(0, 8).map((tag) => `
-              <button class="journal-filter-chip ${model.state.filter.tag === tag ? 'active' : ''}" data-filter-tag="${escHtml(tag)}" type="button">#${escHtml(tag)}</button>
-            `).join('')}
-          </div>
-        ` : ''}
+function renderFeedWithFilters(model: CaptureRenderModel): string {
+  const hasFilters = model.allTags.length > 0 || model.destinations.length > 0;
+  const filterBar = hasFilters ? `
+    <div class="journal-feed-filter-bar">
+      <div class="journal-filter-group">
+        <button class="journal-filter-chip journal-filter-pin ${model.state.filter.favoritesOnly ? 'active' : ''}" data-filter-favorites type="button" title="Pinned only">📌</button>
+        ${model.allTags.slice(0, 8).map((tag) => `
+          <button class="journal-filter-chip ${model.state.filter.tag === tag ? 'active' : ''}" data-filter-tag="${escHtml(tag)}" type="button">#${escHtml(tag)}</button>
+        `).join('')}
       </div>
-      <div class="journal-filter-side">
-        ${model.destinations.length ? `
-          <select class="select input journal-dest-select" data-filter-destination>
-            <option value="all" ${model.state.filter.destination === 'all' ? 'selected' : ''}>All places</option>
-            ${model.destinations.map((destination) => `
-              <option value="${escHtml(destination)}" ${model.state.filter.destination === destination ? 'selected' : ''}>${escHtml(destination)}</option>
-            `).join('')}
-          </select>
-        ` : ''}
+      ${model.destinations.length ? `
+        <select class="select input journal-dest-select" data-filter-destination>
+          <option value="all" ${model.state.filter.destination === 'all' ? 'selected' : ''}>All places</option>
+          ${model.destinations.map((destination) => `
+            <option value="${escHtml(destination)}" ${model.state.filter.destination === destination ? 'selected' : ''}>${escHtml(destination)}</option>
+          `).join('')}
+        </select>
+      ` : ''}
+    </div>
+  ` : '';
+
+  if (model.visibleEntries.length === 0) {
+    return filterBar + renderEmpty('Filtered', 'No entries match this filter', 'Try clearing a tag or place filter.');
+  }
+  return filterBar + renderTimelineFeed(model.visibleEntries, model.state.editingId);
+}
+
+function renderTimelineFeed(entries: StoredJournalEntry[], editingId: string | null): string {
+  // Group by happenedOn date
+  const groups = new Map<string, StoredJournalEntry[]>();
+  for (const entry of entries) {
+    const day = entry.happenedOn;
+    const list = groups.get(day) ?? [];
+    list.push(entry);
+    groups.set(day, list);
+  }
+  const today = new Date().toISOString().slice(0, 10);
+
+  return `<div class="journal-timeline">
+    ${[...groups.entries()].map(([day, dayEntries]) => {
+      const isToday = day === today;
+      const dateLabel = isToday ? 'Today' : new Date(`${day}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      return `
+        <div class="journal-timeline-group">
+          <div class="journal-timeline-date">
+            <span class="journal-timeline-date-label ${isToday ? 'is-today' : ''}">${escHtml(dateLabel)}</span>
+          </div>
+          <div class="journal-timeline-entries">
+            ${dayEntries.map((entry) => renderTimelineEntry(entry, editingId)).join('')}
+          </div>
+        </div>
+      `;
+    }).join('')}
+  </div>`;
+}
+
+function renderTimelineEntry(entry: StoredJournalEntry, editingId: string | null): string {
+  const item = template(entry.template);
+  const isEditing = entry.id === editingId;
+  const where = entry.destination || titleFor(entry);
+  const isPublic = entry.visibility === 'public';
+
+  return `
+    <div class="journal-timeline-entry ${isEditing ? 'is-editing' : ''}" data-open-entry="${entry.id}" style="--tint:${item.tint}">
+      <div class="journal-timeline-dot" style="background:${item.tint}"></div>
+      <div class="journal-timeline-card">
+        <div class="journal-timeline-card-head">
+          <div class="journal-timeline-card-meta">
+            <span class="journal-timeline-badge" style="background:color-mix(in srgb,${item.tint} 22%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">${item.emoji} ${escHtml(item.label)}</span>
+            <span class="journal-timeline-where">${escHtml(where)}</span>
+          </div>
+          <div class="journal-timeline-actions">
+            <button class="journal-icon-btn ${isPublic ? 'is-on' : ''}" data-share-entry="${entry.id}" type="button" title="Share">↗</button>
+            <button class="journal-icon-btn ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${entry.id}" type="button" title="Pin">📌</button>
+            <button class="journal-icon-btn" data-delete-entry="${entry.id}" type="button" title="Delete">✕</button>
+          </div>
+        </div>
+        <p class="journal-timeline-body">${escHtml(excerpt(entry.body, 160))}</p>
+        ${entry.coverImage ? `<img src="${escHtml(entry.coverImage)}" alt="" class="journal-timeline-img">` : ''}
+        ${entry.tags.length ? `<div class="journal-timeline-tags">${entry.tags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
       </div>
     </div>
   `;
-}
-
-function renderFeed(entries: StoredJournalEntry[], editingId: string | null): string {
-  if (entries.length === 0) {
-    return renderEmpty('Filtered', 'No entries match this slice', 'Try “All” or clear a tag/place filter.');
-  }
-  return `<section class="journal-feed">${entries.map((entry, index) => renderCard(entry, index, editingId)).join('')}</section>`;
 }
 
 function renderPlacesView(groups: PlaceGroup[]): string {
@@ -359,20 +392,35 @@ function renderPlacesView(groups: PlaceGroup[]): string {
   }
   return `
     <div class="journal-places-grid">
-      ${groups.map((group) => `
-        <article class="card journal-place-card">
-          <div class="journal-place-head">
-            <div>
-              <div class="journal-place-title">${escHtml(group.label)}</div>
-              <div class="journal-place-meta">${group.entries.length} entries · ${escHtml(group.summary)}</div>
+      ${groups.map((group) => {
+        const coverEntry = group.entries.find((e) => e.coverImage);
+        const hasImage = !!coverEntry?.coverImage;
+        const tmpl = template(group.entries[0].template);
+        return `
+          <article class="journal-place-tile" data-place-filter="${escHtml(group.label)}" style="--tint:${tmpl.tint}">
+            <div class="journal-place-tile-cover">
+              ${hasImage
+                ? `<img src="${escHtml(coverEntry!.coverImage!)}" alt="${escHtml(group.label)}" class="journal-place-tile-img">`
+                : `<div class="journal-place-tile-fallback">
+                    ${group.entries.slice(0, 3).map((e) => `<span>${template(e.template).emoji}</span>`).join('')}
+                  </div>`}
+              <div class="journal-place-tile-count">${group.entries.length}</div>
             </div>
-            <button class="journal-filter-chip" data-place-filter="${escHtml(group.label)}" type="button">Open slice</button>
-          </div>
-          <div class="journal-mini-list">
-            ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
-          </div>
-        </article>
-      `).join('')}
+            <div class="journal-place-tile-info">
+              <span class="journal-place-tile-name">${escHtml(group.label)}</span>
+              <span class="journal-place-tile-meta">${group.entries.length} ${group.entries.length === 1 ? 'entry' : 'entries'}</span>
+            </div>
+          </article>
+        `;
+      }).join('')}
+      <button class="journal-place-tile journal-place-tile-add" data-new-entry type="button">
+        <div class="journal-place-tile-cover journal-place-tile-cover-add">
+          <span>＋</span>
+        </div>
+        <div class="journal-place-tile-info">
+          <span class="journal-place-tile-name">Add Place</span>
+        </div>
+      </button>
     </div>
   `;
 }
@@ -385,76 +433,99 @@ function renderCategoriesView(templateGroups: TemplateGroup[], tagGroups: TagGro
   return `
     <div class="journal-category-shell">
       ${templateGroups.length ? `
-        <section>
-          <div class="journal-subsection-title">By template</div>
-          <div class="journal-category-grid">
-            ${templateGroups.map((group) => {
-              const item = template(group.templateId);
-              return `
-                <article class="card journal-category-card" style="--tint:${item.tint}">
-                  <div class="journal-category-card-head">
-                    <div class="journal-category-badge">${item.emoji}</div>
-                    <div>
-                      <div class="journal-category-title">${escHtml(item.label)}</div>
-                      <div class="journal-category-meta">${group.entries.length} entries</div>
-                    </div>
-                  </div>
+        <div class="journal-category-grid">
+          ${templateGroups.map((group) => {
+            const item = template(group.templateId);
+            const coverEntry = group.entries.find((e) => e.coverImage);
+            return `
+              <article class="journal-category-tile" data-filter-template="${item.id}" style="--tint:${item.tint}">
+                <div class="journal-category-tile-cover">
+                  ${coverEntry?.coverImage
+                    ? `<img src="${escHtml(coverEntry.coverImage)}" alt="" class="journal-category-tile-img">`
+                    : `<div class="journal-category-tile-bg"></div>`}
+                  <div class="journal-category-tile-emoji">${item.emoji}</div>
+                </div>
+                <div class="journal-category-tile-body">
+                  <div class="journal-category-title">${escHtml(item.label)}</div>
+                  <div class="journal-category-meta">${group.entries.length} entries</div>
                   ${group.topTags.length ? `
                     <div class="journal-category-tags">
-                      ${group.topTags.map((tag) => `<button class="journal-tag" data-filter-tag="${escHtml(tag)}" type="button">#${escHtml(tag)}</button>`).join('')}
+                      ${group.topTags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}
                     </div>
                   ` : ''}
-                  <div class="journal-mini-list">
-                    ${group.entries.slice(0, 2).map(renderMiniEntry).join('')}
-                  </div>
-                </article>
-              `;
-            }).join('')}
-          </div>
-        </section>
+                </div>
+              </article>
+            `;
+          }).join('')}
+          <button class="journal-category-tile journal-category-tile-add" data-open-template-builder type="button">
+            <div class="journal-category-tile-cover journal-category-tile-cover-add">
+              <span>＋</span>
+            </div>
+            <div class="journal-category-tile-body">
+              <div class="journal-category-title">Create Category</div>
+            </div>
+          </button>
+        </div>
       ` : ''}
 
       ${tagGroups.length ? `
-        <section>
-          <div class="journal-subsection-title">By tag</div>
-          <div class="journal-tag-groups">
-            ${tagGroups.map((group) => `
-              <article class="card journal-tag-group">
-                <div class="journal-tag-group-head">
-                  <button class="journal-filter-chip active" data-filter-tag="${escHtml(group.tag)}" type="button">#${escHtml(group.tag)}</button>
-                  <span class="journal-category-meta">${group.entries.length} entries</span>
-                </div>
-                <div class="journal-mini-list">
-                  ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
-                </div>
-              </article>
-            `).join('')}
-          </div>
-        </section>
+        <div class="journal-tag-groups">
+          ${tagGroups.map((group) => `
+            <article class="card journal-tag-group">
+              <div class="journal-tag-group-head">
+                <button class="journal-filter-chip active" data-filter-tag="${escHtml(group.tag)}" type="button">#${escHtml(group.tag)}</button>
+                <span class="journal-category-meta">${group.entries.length} entries</span>
+              </div>
+              <div class="journal-mini-list">
+                ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
+              </div>
+            </article>
+          `).join('')}
+        </div>
       ` : ''}
     </div>
   `;
 }
 
-function renderGalleryView(entries: StoredJournalEntry[]): string {
+const PRESET_RATIOS: Array<{ label: string; ratio: number }> = [
+  { label: '16:9', ratio: 16 / 9 },
+  { label: '3:2',  ratio: 3 / 2 },
+  { label: '4:3',  ratio: 4 / 3 },
+  { label: '1:1',  ratio: 1 },
+  { label: '3:4',  ratio: 3 / 4 },
+  { label: '2:3',  ratio: 2 / 3 },
+];
+
+function closestPresetRatio(ratio: number): number {
+  return PRESET_RATIOS.reduce((best, preset) =>
+    Math.abs(preset.ratio - ratio) < Math.abs(best.ratio - ratio) ? preset : best
+  ).ratio;
+}
+
+function renderGalleryView(entries: StoredJournalEntry[], state: CaptureState): string {
   if (entries.length === 0) {
     return renderEmpty('Gallery', 'No gallery items yet', 'As you capture more moments, they will show up here as a richer wall.');
   }
+  const square = state.gallerySquare;
   return `
+    <div class="journal-gallery-header">
+      <button class="journal-filter-chip ${square ? '' : 'active'}" data-gallery-square type="button">Proportional</button>
+      <button class="journal-filter-chip ${square ? 'active' : ''}" data-gallery-square type="button">1:1</button>
+    </div>
     <div class="journal-gallery-grid">
-      ${entries.map((entry, index) => {
+      ${entries.map((entry) => {
         const item = template(entry.template);
-        const classes = [
-          'journal-gallery-tile',
-          index % 5 === 0 ? 'is-tall' : '',
-          entry.coverImage ? 'has-image' : '',
-        ].filter(Boolean).join(' ');
+        const rawRatio = entry.imageRatio;
+        const ratio = square ? 1 : (rawRatio ? closestPresetRatio(rawRatio) : 3 / 4);
+        const paddingTop = `${(1 / ratio) * 100}%`;
         return `
-          <article class="${classes}" data-open-entry="${entry.id}" style="--tint:${item.tint}">
-            <div class="journal-gallery-media">
-              ${entry.coverImage
-                ? `<img src="${escHtml(entry.coverImage)}" alt="${escHtml(titleFor(entry))}" class="journal-gallery-image">`
-                : `<div class="journal-gallery-fallback"><span>${item.emoji}</span><p>${escHtml(excerpt(entry.body, 88))}</p></div>`}
+          <article class="journal-gallery-tile${entry.coverImage ? ' has-image' : ''}" data-open-entry="${entry.id}" style="--tint:${item.tint}">
+            <div class="journal-gallery-media" style="padding-top:${paddingTop}">
+              <div class="journal-gallery-media-inner">
+                ${entry.coverImage
+                  ? `<img src="${escHtml(entry.coverImage)}" alt="${escHtml(titleFor(entry))}" class="journal-gallery-image">`
+                  : `<div class="journal-gallery-fallback"><span>${item.emoji}</span><p>${escHtml(excerpt(entry.body, 88))}</p></div>`}
+              </div>
             </div>
             <div class="journal-gallery-foot">
               <span class="journal-gallery-label">${escHtml(titleFor(entry))}</span>
@@ -467,76 +538,81 @@ function renderGalleryView(entries: StoredJournalEntry[]): string {
   `;
 }
 
-function renderMapView(points: MapPoint[], route: Array<{ left: number; top: number }>): string {
+function renderMapView(points: MapPoint[], _route: Array<{ left: number; top: number }>): string {
   if (points.length === 0) {
     return renderEmpty('Map', 'No mapped entries yet', 'Entries with destinations that match your route will pin themselves here.');
   }
+  const totalEntries = points.reduce((sum, p) => sum + p.count, 0);
   return `
     <div class="journal-map-layout">
-      <div class="journal-map-stage">
-        <svg class="journal-map-lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          ${route.length > 1 ? `<polyline points="${route.map((point) => `${point.left},${point.top}`).join(' ')}"></polyline>` : ''}
-        </svg>
-        ${points.map((point) => `
-          <button class="journal-map-pin" data-place-filter="${escHtml(point.label)}" type="button" style="left:${point.left}%;top:${point.top}%">
-            <span class="journal-map-pin-count">${point.count}</span>
-            <span class="journal-map-pin-label">${escHtml(point.label)}</span>
-          </button>
-        `).join('')}
-      </div>
+      <div class="journal-map-tile" id="journal-leaflet-map"
+           data-points="${escHtml(JSON.stringify(points.map(p => ({ key: p.key, label: p.label, lat: p.lat, lng: p.lng, count: p.count }))))}"
+      ></div>
       <aside class="journal-map-panel">
-        <div class="journal-map-panel-head">
-          <div>
-            <div class="journal-subsection-title">Pinned places</div>
-            <p>Open a city slice here, or jump into the full Map view.</p>
-          </div>
-          <button class="btn btn-ghost" data-open-map-view type="button">Open map</button>
+        <div class="journal-map-panel-stats">
+          <span class="journal-map-panel-count">${totalEntries}</span>
+          <span class="journal-map-panel-label">entries across ${points.length} places</span>
         </div>
         <div class="journal-map-list">
           ${points.map((point) => `
-            <button class="journal-map-list-item" data-place-filter="${escHtml(point.label)}" type="button">
+            <button class="journal-map-list-item" data-place-filter="${escHtml(point.label)}" data-map-focus="${escHtml(point.key)}" type="button">
               <span class="journal-map-list-name">${escHtml(point.label)}</span>
-              <span class="journal-map-list-meta">${point.count} entries</span>
+              <span class="journal-map-list-meta">${point.count} ${point.count === 1 ? 'entry' : 'entries'}</span>
             </button>
           `).join('')}
         </div>
+        <button class="btn btn-ghost journal-map-open-btn" data-open-map-view type="button">Open full map →</button>
       </aside>
     </div>
   `;
 }
 
 function renderCalendarView(cells: CalendarCell[], monthLabel: string): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const usedTemplates = new Set(cells.flatMap((c) => c.entries.map((e) => e.template)));
+  const legendItems = [...usedTemplates].map((tid) => {
+    const item = template(tid);
+    return `<span class="journal-cal-legend-item"><span class="journal-cal-legend-dot" style="background:${item.tint}"></span>${escHtml(item.label)}</span>`;
+  });
+
   return `
     <div class="journal-calendar-shell">
       <div class="journal-calendar-head">
-        <div>
-          <div class="journal-subsection-title">Daily recall</div>
-          <div class="journal-calendar-month">${escHtml(monthLabel)}</div>
-        </div>
-        <div class="journal-calendar-actions">
-          <button class="journal-filter-chip" data-calendar-shift="-1" type="button">← Prev</button>
-          <button class="journal-filter-chip" data-calendar-shift="1" type="button">Next →</button>
-        </div>
+        <button class="journal-filter-chip" data-calendar-shift="-1" type="button">‹</button>
+        <div class="journal-calendar-month">${escHtml(monthLabel)}</div>
+        <button class="journal-filter-chip" data-calendar-shift="1" type="button">›</button>
       </div>
       <div class="journal-calendar-grid">
         ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label) => `
           <div class="journal-calendar-dow">${label}</div>
         `).join('')}
-        ${cells.map((cell) => `
-          <article class="journal-calendar-cell ${cell.inMonth ? '' : 'is-muted'}">
-            <div class="journal-calendar-day">${cell.day}</div>
-            <div class="journal-calendar-items">
-              ${cell.entries.slice(0, 2).map((entry) => `
-                <button class="journal-calendar-pill journal-template-${template(entry.template).id}" data-open-entry="${entry.id}" type="button">
-                  <span>${template(entry.template).emoji}</span>
-                  <span>${escHtml(titleFor(entry))}</span>
-                </button>
-              `).join('')}
-              ${cell.entries.length > 2 ? `<div class="journal-calendar-more">+${cell.entries.length - 2} more</div>` : ''}
-            </div>
-          </article>
-        `).join('')}
+        ${cells.map((cell) => {
+          const isToday = cell.iso === today;
+          return `
+            <article class="journal-calendar-cell ${cell.inMonth ? '' : 'is-muted'} ${isToday ? 'is-today' : ''}">
+              <div class="journal-calendar-day ${isToday ? 'is-today' : ''}">${cell.day}</div>
+              <div class="journal-calendar-items">
+                ${cell.entries.slice(0, 3).map((entry) => {
+                  const item = template(entry.template);
+                  return `
+                    <button class="journal-calendar-pill" data-open-entry="${entry.id}" type="button" style="background:color-mix(in srgb,${item.tint} 25%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">
+                      <span>${item.emoji}</span>
+                      <span class="journal-calendar-pill-text">${escHtml(titleFor(entry))}</span>
+                    </button>
+                  `;
+                }).join('')}
+                ${cell.entries.length > 3 ? `<div class="journal-calendar-more">+${cell.entries.length - 3}</div>` : ''}
+              </div>
+            </article>
+          `;
+        }).join('')}
       </div>
+      ${legendItems.length ? `
+        <div class="journal-cal-legend">
+          ${legendItems.join('')}
+          <span class="journal-cal-legend-item journal-cal-legend-all">All Entries</span>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -568,74 +644,3 @@ function renderMiniEntry(entry: StoredJournalEntry): string {
   `;
 }
 
-function renderCardFrame(entry: StoredJournalEntry, format: string): string {
-  const body = escHtml(excerpt(entry.body));
-  const where = escHtml(entry.destination || titleFor(entry));
-  const image = entry.coverImage
-    ? `<img src="${escHtml(entry.coverImage)}" alt="${escHtml(titleFor(entry))}" class="journal-card-cover-image">`
-    : '';
-
-  if (format === 'postcard') {
-    const initials = where.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || 'OTR';
-    return `
-      <div class="journal-postcard-grid">
-        <div class="journal-postcard-msg-wrap">${image}<div class="journal-postcard-msg">${body}</div></div>
-        <div class="journal-postcard-side">
-          <div class="journal-postcard-stamp">${initials}</div>
-          <div class="journal-postcard-lines"><span></span><span></span><span></span></div>
-        </div>
-      </div>
-    `;
-  }
-
-  if (format === 'ticket') {
-    return `
-      <div class="journal-ticket-grid">
-        <div class="journal-ticket-stub">
-          <span class="journal-ticket-stub-label">Note</span>
-          <span class="journal-ticket-stub-date">${prettyDate(entry.happenedOn)}</span>
-        </div>
-        <div class="journal-ticket-body">${image}${body}</div>
-      </div>
-    `;
-  }
-
-  return `<div class="journal-card-frame">${image}<p class="journal-card-body">${body}</p></div>`;
-}
-
-function renderCard(entry: StoredJournalEntry, index: number, editingId: string | null): string {
-  const item = template(entry.template);
-  const tilt = [-1.2, 0.9, -0.5, 1.1, 0.4][index % 5];
-  const isEditing = entry.id === editingId;
-  const isPublic = entry.visibility === 'public';
-  const showFoot = item.format !== 'ticket';
-
-  return `
-    <article class="journal-card journal-fmt-${item.format} ${isEditing ? 'is-editing' : ''}"
-             data-open-entry="${entry.id}" style="--tint:${item.tint}; --card-tilt:${tilt}deg">
-      <div class="journal-card-actions">
-        <button class="journal-icon-btn ${isPublic ? 'is-on' : ''}" data-share-entry="${entry.id}" type="button" title="${isPublic ? 'Copy link' : 'Share'}">↗</button>
-        <button class="journal-icon-btn ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${entry.id}" type="button" title="Pin">📌</button>
-        <button class="journal-icon-btn" data-delete-entry="${entry.id}" type="button" title="Delete">✕</button>
-      </div>
-
-      ${renderCardFrame(entry, item.format)}
-
-      ${showFoot ? `
-        <div class="journal-card-foot">
-          <span class="journal-card-emoji">${item.emoji}</span>
-          <span class="journal-card-where">${escHtml(entry.destination || titleFor(entry))}</span>
-          ${entry.mood ? `<span class="journal-card-mood">${moodEmoji(entry.mood)}</span>` : ''}
-          <span class="journal-card-date">${prettyDate(entry.happenedOn)}</span>
-        </div>
-      ` : `
-        <div class="journal-card-foot journal-ticket-foot">
-          <span class="journal-card-emoji">${item.emoji}</span>
-          <span class="journal-card-where">${escHtml(entry.destination || titleFor(entry))}</span>
-        </div>
-      `}
-
-      ${entry.tags.length ? `<div class="journal-card-tags">${entry.tags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
-    </article>
-  `;
-}

@@ -1,0 +1,120 @@
+.journal-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: var(--sp-4);
+  align-items: stretch;
+  min-height: 480px;
+}
+.journal-map-tile {
+  height: 480px;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  border: 1px solid var(--rule-soft);
+  box-shadow: var(--shadow-sm);
+  /* Leaflet needs a real height */
+  min-height: 320px;
+}
+.journal-map-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  overflow: hidden;
+}
+.journal-map-panel-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.journal-map-panel-count {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--ink);
+}
+.journal-map-panel-label {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}
+.journal-map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+.journal-map-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  text-align: left;
+  transition: border-color var(--dur-fast), transform var(--dur-fast);
+}
+.journal-map-list-item:hover {
+  border-color: var(--amber-200);
+  transform: translateX(2px);
+}
+.journal-map-list-name {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+}
+.journal-map-list-meta {
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+.journal-map-open-btn {
+  margin-top: auto;
+  width: 100%;
+  justify-content: center;
+}
+
+/* ── Leaflet custom pins ──────────────────────────────────────────────────── */
+.journal-lmap-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+  cursor: pointer;
+  transform: translate(-50%, -100%);
+}
+.journal-lmap-pin-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--r-full);
+  background: var(--ink);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+  transition: transform var(--dur-fast), background var(--dur-fast);
+}
+.journal-lmap-pin:hover .journal-lmap-pin-count {
+  background: var(--amber-500);
+  transform: scale(1.1);
+}
+.journal-lmap-pin-label {
+  padding: 3px 8px;
+  border-radius: var(--r-full);
+  background: rgba(255,255,255,0.92);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+

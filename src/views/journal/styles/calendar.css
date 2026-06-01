@@ -1,0 +1,114 @@
+.journal-calendar-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.journal-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+.journal-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--sp-1);
+}
+.journal-calendar-dow {
+  padding: var(--sp-2) var(--sp-2) var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  text-align: center;
+}
+.journal-calendar-cell {
+  min-height: 96px;
+  padding: var(--sp-2);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  transition: border-color var(--dur-fast);
+}
+.journal-calendar-cell:hover { border-color: var(--amber-200); }
+.journal-calendar-cell.is-muted { opacity: 0.45; }
+.journal-calendar-cell.is-today { border-color: var(--amber-300); background: var(--amber-50, #fffbeb); }
+.journal-calendar-day {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-muted);
+  text-align: right;
+  margin-bottom: var(--sp-1);
+}
+.journal-calendar-day.is-today {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  float: right;
+}
+.journal-calendar-items {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  clear: both;
+}
+.journal-calendar-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 3px 6px;
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  transition: filter var(--dur-fast);
+}
+.journal-calendar-pill:hover { filter: brightness(0.92); }
+.journal-calendar-pill-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.journal-calendar-more {
+  font-size: 11px;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  padding-left: 4px;
+}
+.journal-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--rule-soft);
+}
+.journal-cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.journal-cal-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.journal-cal-legend-all { color: var(--ink-faint); }
