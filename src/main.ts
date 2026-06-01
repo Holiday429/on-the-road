@@ -14,7 +14,7 @@ import { initPrep }     from './views/prep/prep.ts';
 import { initRoute }    from './views/route/route.ts';
 import { initExpenses } from './views/expenses/expenses.ts';
 import { initCities }   from './views/guide/guide.ts';
-import { initJournal }  from './views/journal/journal.ts';
+import { initJournal }  from './views/journal/index.ts';
 import { initMap }      from './views/map/map.ts';
 import { initNomad }    from './views/nomad/nomad.ts';
 import { initStay }     from './views/stay/stay.ts';

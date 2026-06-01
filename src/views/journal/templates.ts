@@ -1,110 +1,157 @@
-/* ==========================================================================
-   On the Road · Journal templates
-   --------------------------------------------------------------------------
-   The single source of truth for journal card "templates". A template is a
-   preset that shapes a card: its visual format, accent colour (drawn from the
-   shared MAP_PALETTE so Journal matches the map + prep notes), prompt copy and
-   which optional fields make sense for it.
-
-   Adding a new template is a one-object change here — the picker, the feed
-   styling (`journal-fmt-<format>`), the accent variables and the filters all
-   read from this list. Keep `id` values in sync with JournalEntrySchema.template.
-   ========================================================================== */
-
 import { MAP_PALETTE } from '../../data/palette.ts';
+import type { StoredJournalTemplate } from '../../data/stores/journal-template-store.ts';
+import type { JournalTemplateKind as SchemaJournalTemplateKind } from '../../data/schema.ts';
 
-export type TemplateId =
-  | 'moment'
-  | 'place'
-  | 'note'
-  | 'spark'
-  | 'interesting';
+export type JournalTemplateKind = SchemaJournalTemplateKind;
 
-/** Card silhouette. Each format has its own chrome in journal.css. */
-export type CardFormat = 'polaroid' | 'postcard' | 'sticky' | 'post' | 'ticket';
+export type TemplateId = string;
+export type CardFormat = 'polaroid' | 'postcard' | 'post' | 'ticket';
 
 export interface JournalTemplate {
   id: TemplateId;
   label: string;
   emoji: string;
-  /** Card silhouette (drives layout/chrome). */
+  kind: JournalTemplateKind;
   format: CardFormat;
-  /** Accent tint, taken from the shared map palette so colours stay in family. */
   tint: string;
-  /** Placeholder for the body textarea when this template is active. */
   placeholder: string;
-  /** Rotating writing prompts (kept short; emoji-led). */
   prompts: string[];
-  /** Optional fields this template invites (drives progressive disclosure). */
+  focus: string;
+  bodyLabel: string;
+  destinationLabel: string;
+  tagsLabel: string;
+  imageLabel: string;
+  builtin: boolean;
   fields: {
     destination: boolean;
     mood: boolean;
     tags: boolean;
+    image: boolean;
   };
 }
 
-/* MAP_PALETTE = lavender, blue-grey, sand, mint, rose, sage.
-   Index into it so Journal shares the exact map / prep-note colours. */
-export const JOURNAL_TEMPLATES: JournalTemplate[] = [
+const BASE_TEMPLATE_BY_KIND: Record<JournalTemplateKind, Omit<JournalTemplate, 'id' | 'label' | 'emoji' | 'builtin'>> = {
+  moment: {
+    kind: 'moment',
+    format: 'polaroid',
+    tint: MAP_PALETTE[2],
+    placeholder: 'A short moment, feeling, or line you want to keep…',
+    prompts: ['What do you want to remember?', 'What feeling flashed by?', 'What tiny thing changed the mood?'],
+    focus: 'Short lines, emotions, and passing sparks.',
+    bodyLabel: 'Moment',
+    destinationLabel: 'Where were you?',
+    tagsLabel: 'Feeling / theme tags',
+    imageLabel: 'Moment photo',
+    fields: { destination: true, mood: true, tags: true, image: true },
+  },
+  place: {
+    kind: 'place',
+    format: 'postcard',
+    tint: MAP_PALETTE[3],
+    placeholder: 'What did this place feel like, beyond the name on the map?',
+    prompts: ['What made this place stand out?', 'What detail captures its atmosphere?', 'Would you send someone else here?'],
+    focus: 'A place plus your impression of it.',
+    bodyLabel: 'Place impression',
+    destinationLabel: 'Place / city',
+    tagsLabel: 'Place tags',
+    imageLabel: 'Place photo',
+    fields: { destination: true, mood: false, tags: true, image: true },
+  },
+  note: {
+    kind: 'note',
+    format: 'ticket',
+    tint: MAP_PALETTE[1],
+    placeholder: 'Price, hours, route, reminder, booking tip…',
+    prompts: ['What should future-you know?', 'What practical detail mattered?', 'What was worth noting down right away?'],
+    focus: 'Useful facts, reminders, prices, and logistics.',
+    bodyLabel: 'Useful note',
+    destinationLabel: 'Linked place',
+    tagsLabel: 'Practical tags',
+    imageLabel: 'Receipt / reference photo',
+    fields: { destination: true, mood: false, tags: true, image: true },
+  },
+  interesting: {
+    kind: 'interesting',
+    format: 'post',
+    tint: MAP_PALETTE[0],
+    placeholder: 'Something surprising, strange, funny, or sharply different…',
+    prompts: ['What felt unexpectedly different?', 'What detail made you stop?', 'What observation would you tell a friend first?'],
+    focus: 'Contrast, observation, and things that felt unexpectedly vivid.',
+    bodyLabel: 'Observation',
+    destinationLabel: 'Where did you notice it?',
+    tagsLabel: 'Observation tags',
+    imageLabel: 'Observation photo',
+    fields: { destination: true, mood: false, tags: true, image: true },
+  },
+};
+
+export const BUILTIN_TEMPLATE_KINDS: JournalTemplateKind[] = ['moment', 'note', 'interesting', 'place'];
+export const DEFAULT_TEMPLATE: TemplateId = 'moment';
+
+const BUILTIN_TEMPLATES: JournalTemplate[] = [
   {
     id: 'moment',
-    label: 'Moment',
+    label: 'Moments',
     emoji: '✨',
-    format: 'polaroid',
-    tint: MAP_PALETTE[2], // sand
-    placeholder: 'A tiny thing from today…',
-    prompts: ['What do you want to remember?', 'Best part of today?', 'What made you smile?'],
-    fields: { destination: true, mood: true, tags: true },
-  },
-  {
-    id: 'place',
-    label: 'Place',
-    emoji: '📍',
-    format: 'postcard',
-    tint: MAP_PALETTE[3], // mint
-    placeholder: 'Where are you — and how does it feel?',
-    prompts: ['What makes this spot special?', 'What does it smell and sound like?', 'Worth coming back?'],
-    fields: { destination: true, mood: false, tags: true },
+    builtin: true,
+    ...BASE_TEMPLATE_BY_KIND.moment,
   },
   {
     id: 'note',
-    label: 'Note',
+    label: 'Notes',
     emoji: '📝',
-    format: 'ticket',
-    tint: MAP_PALETTE[1], // blue-grey
-    placeholder: 'Hours, price, a tip to remember…',
-    prompts: ['A tip for future-you?', 'Worth booking ahead?', 'What almost tripped you up?'],
-    fields: { destination: true, mood: false, tags: true },
-  },
-  {
-    id: 'spark',
-    label: 'Spark',
-    emoji: '💭',
-    format: 'sticky',
-    tint: MAP_PALETTE[4], // rose
-    placeholder: 'One honest line. No editing.',
-    prompts: ['How do you actually feel?', 'What line keeps replaying?', 'What shifted in you?'],
-    fields: { destination: false, mood: true, tags: true },
+    builtin: true,
+    ...BASE_TEMPLATE_BY_KIND.note,
   },
   {
     id: 'interesting',
     label: 'Interesting',
     emoji: '🤯',
-    format: 'post',
-    tint: MAP_PALETTE[0], // lavender
-    placeholder: 'So different from back home…',
-    prompts: ['What surprised you?', 'What would never fly back home?', 'Done totally differently here?'],
-    fields: { destination: true, mood: false, tags: true },
+    builtin: true,
+    ...BASE_TEMPLATE_BY_KIND.interesting,
+  },
+  {
+    id: 'place',
+    label: 'Places',
+    emoji: '📍',
+    builtin: true,
+    ...BASE_TEMPLATE_BY_KIND.place,
   },
 ];
 
-export const DEFAULT_TEMPLATE: TemplateId = 'moment';
+let CUSTOM_TEMPLATES: JournalTemplate[] = [];
 
-const TEMPLATE_INDEX: Record<string, JournalTemplate> = Object.fromEntries(
-  JOURNAL_TEMPLATES.map((t) => [t.id, t]),
-);
+export function normalizeTemplateId(id: string): string {
+  return id === 'spark' ? 'moment' : id;
+}
 
-/** Resolve a template by id, falling back to the default if unknown. */
+export function setCustomTemplates(rows: StoredJournalTemplate[]) {
+  CUSTOM_TEMPLATES = rows
+    .map((row) => {
+      const base = BASE_TEMPLATE_BY_KIND[row.kind];
+      return {
+        ...base,
+        id: row.id,
+        label: row.label.trim() || 'Custom',
+        emoji: row.emoji.trim() || '✨',
+        tint: row.tint.trim() || base.tint,
+        placeholder: row.placeholder.trim() || base.placeholder,
+        prompts: row.prompts.length ? row.prompts : base.prompts,
+        builtin: false,
+      } satisfies JournalTemplate;
+    })
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export function templates(): JournalTemplate[] {
+  return [...BUILTIN_TEMPLATES, ...CUSTOM_TEMPLATES];
+}
+
+export function builtinTemplate(kind: JournalTemplateKind): JournalTemplate {
+  return BUILTIN_TEMPLATES.find((item) => item.kind === kind) ?? BUILTIN_TEMPLATES[0];
+}
+
 export function template(id: string): JournalTemplate {
-  return TEMPLATE_INDEX[id] ?? TEMPLATE_INDEX[DEFAULT_TEMPLATE];
+  const normalized = normalizeTemplateId(id);
+  return templates().find((item) => item.id === normalized) ?? builtinTemplate('moment');
 }

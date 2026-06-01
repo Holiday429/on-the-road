@@ -11,6 +11,7 @@
        expenses/{expenseId}         spend log            (expenses)
         cityIntel/{cityId}           AI city briefings    (cities)
         journalEntries/{entryId}    travel notes         (journal)
+        journalStories/{storyId}    AI trip recaps       (journal)
 
    Every document carries meta (createdAt/updatedAt/schemaVersion) so we can
    migrate shapes later without guessing a document's age or version.
@@ -269,3 +270,48 @@ export const JournalEntrySchema = doc({
   coverImage: z.string().optional(), // data URL or remote URL
 });
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
+
+export const JournalTemplateKindSchema = z.enum(['moment', 'place', 'note', 'interesting']);
+export type JournalTemplateKind = z.infer<typeof JournalTemplateKindSchema>;
+
+export const JournalTemplateSchema = doc({
+  label: z.string(),
+  emoji: z.string().default('✨'),
+  kind: JournalTemplateKindSchema.default('moment'),
+  placeholder: z.string().default(''),
+  prompts: z.array(z.string()).default([]),
+  tint: z.string().default(''),
+});
+export type JournalTemplate = z.infer<typeof JournalTemplateSchema>;
+
+export const JournalStoryModuleSchema = z.object({
+  id: z.string(),
+  type: z.string().default('module'),
+  title: z.string(),
+  summary: z.string(),
+  entryIds: z.array(z.string()).default([]),
+});
+export type JournalStoryModule = z.infer<typeof JournalStoryModuleSchema>;
+
+export const JournalStoryQuestionSchema = z.object({
+  id: z.string(),
+  prompt: z.string(),
+  answer: z.string().default(''),
+  entryId: z.string().nullable().default(null),
+});
+export type JournalStoryQuestion = z.infer<typeof JournalStoryQuestionSchema>;
+
+export const JournalStorySchema = doc({
+  title: z.string(),
+  subtitle: z.string().default(''),
+  recapLine: z.string().default(''),
+  travelerMode: z.string().default(''),
+  scopeLabel: z.string().default('Whole trip'),
+  entryIds: z.array(z.string()).default([]),
+  modules: z.array(JournalStoryModuleSchema).default([]),
+  questions: z.array(JournalStoryQuestionSchema).default([]),
+  status: z.enum(['draft', 'published']).default('draft'),
+  visibility: z.enum(['private', 'public']).default('private'),
+  slug: z.string().default(''),
+});
+export type JournalStory = z.infer<typeof JournalStorySchema>;
