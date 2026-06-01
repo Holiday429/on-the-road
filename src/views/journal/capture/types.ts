@@ -18,6 +18,7 @@ export interface DraftState {
   mood: string;
   happenedOn: string;
   coverImage: string;
+  imageRatio: number | undefined;
 }
 
 export interface TemplateBuilderState {
@@ -38,4 +39,5 @@ export interface CaptureState {
   editingId: string | null;
   promptIndex: number;
   calendarMonth: string;
+  gallerySquare: boolean;
 }

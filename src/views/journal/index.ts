@@ -67,8 +67,12 @@ function renderJournal() {
   `;
 
   bindModeSwitch(root);
-  if (mode === 'capture') capture.bind(root);
-  else story.bind(root);
+  if (mode === 'capture') {
+    capture.bind(root);
+    capture.afterRender(root);
+  } else {
+    story.bind(root);
+  }
   updateSubtitle();
 }
 

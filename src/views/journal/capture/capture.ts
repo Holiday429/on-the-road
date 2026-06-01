@@ -1,3 +1,5 @@
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { journalStore, type StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { journalTemplateStore } from '../../../data/stores/journal-template-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
@@ -42,6 +44,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     editingId: null,
     promptIndex: 0,
     calendarMonth: currentMonthKey(),
+    gallerySquare: false,
   };
 
   function render(): string {
@@ -211,6 +214,13 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
+      const galleryToggleBtn = target.closest<HTMLElement>('[data-gallery-square]');
+      if (galleryToggleBtn) {
+        state.gallerySquare = !state.gallerySquare;
+        deps.requestRender();
+        return;
+      }
+
       const removeImageBtn = target.closest<HTMLElement>('[data-remove-image]');
       if (removeImageBtn) {
         syncDraftFromDom(shell);
@@ -299,10 +309,82 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     }
   }
 
+  let _leafletMap: L.Map | null = null;
+  let _leafletMapId: string | null = null;
+
+  function afterRender(root: HTMLElement) {
+    const mapEl = root.querySelector<HTMLElement>('#journal-leaflet-map');
+    if (!mapEl) {
+      if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; _leafletMapId = null; }
+      return;
+    }
+
+    const rawPoints = mapEl.dataset.points ?? '[]';
+    const pointsId = rawPoints;
+
+    // Re-use existing map if the container is the same and data hasn't changed.
+    if (_leafletMap && _leafletMapId === pointsId) {
+      _leafletMap.invalidateSize();
+      return;
+    }
+
+    if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; }
+
+    type RawPoint = { key: string; label: string; lat: number; lng: number; count: number };
+    let points: RawPoint[] = [];
+    try { points = JSON.parse(rawPoints); } catch { /* empty */ }
+
+    const map = L.map(mapEl, { zoomControl: true, attributionControl: false });
+    _leafletMap = map;
+    _leafletMapId = pointsId;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+    }).addTo(map);
+
+    L.control.attribution({ prefix: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>' }).addTo(map);
+
+    if (points.length === 0) {
+      map.setView([48, 6], 4);
+      return;
+    }
+
+    const markers: L.Marker[] = [];
+    for (const point of points) {
+      const icon = L.divIcon({
+        className: 'journal-lmap-pin',
+        html: `<span class="journal-lmap-pin-count">${point.count}</span><span class="journal-lmap-pin-label">${point.label}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      });
+      const marker = L.marker([point.lat, point.lng], { icon })
+        .addTo(map)
+        .on('click', () => {
+          state.filter.destination = point.label;
+          state.view = 'feed';
+          deps.requestRender();
+        });
+      markers.push(marker);
+    }
+
+    const group = L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.25));
+
+    // Wire sidebar list buttons to fly-to
+    root.querySelectorAll<HTMLElement>('[data-map-focus]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.mapFocus!;
+        const pt = points.find((p) => p.key === key);
+        if (pt) map.flyTo([pt.lat, pt.lng], 11, { duration: 0.8 });
+      });
+    });
+  }
+
   return {
     render,
     bind,
     handleDataChange,
+    afterRender,
   };
 
   function filteredEntries(entries: StoredJournalEntry[], applyCalendarMonth = true): StoredJournalEntry[] {
@@ -324,6 +406,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       mood: 'spark',
       happenedOn: new Date().toISOString().slice(0, 10),
       coverImage: '',
+      imageRatio: undefined,
     };
   }
 
@@ -366,6 +449,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       mood: entry.mood ?? 'spark',
       happenedOn: entry.happenedOn,
       coverImage: entry.coverImage ?? '',
+      imageRatio: entry.imageRatio,
     };
   }
 
@@ -380,6 +464,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       mood: ((root.querySelector('input[name="journal-mood"]:checked') as HTMLInputElement | null)?.value as string) ?? state.draft.mood,
       happenedOn: get<HTMLInputElement>('#journal-date')?.value ?? state.draft.happenedOn,
       coverImage: state.draft.coverImage,
+      imageRatio: state.draft.imageRatio,
     };
   }
 
@@ -409,6 +494,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       tags: currentTemplate.fields.tags ? parseTags(state.draft.tagsText) : [],
       happenedOn: state.draft.happenedOn || new Date().toISOString().slice(0, 10),
       coverImage: state.draft.coverImage || '',
+      imageRatio: state.draft.imageRatio,
     };
     if (currentTemplate.fields.mood) payload.mood = state.draft.mood;
 
@@ -483,7 +569,9 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     const file = input.files?.[0];
     if (!file) return;
     try {
-      state.draft.coverImage = await readFileAsDataUrl(file);
+      const dataUrl = await readFileAsDataUrl(file);
+      state.draft.coverImage = dataUrl;
+      state.draft.imageRatio = await measureImageRatio(dataUrl);
       deps.requestRender();
     } catch (error) {
       console.error('Image load failed:', error);
@@ -593,6 +681,8 @@ function buildMapData(entries: StoredJournalEntry[], legs: StoredLeg[]) {
       key: point.key,
       label: point.label,
       count: point.entries.length,
+      lat: point.lat,
+      lng: point.lng,
       left: projectLng(point.lng, bounds),
       top: projectLat(point.lat, bounds),
       entries: sortEntries(point.entries),
@@ -673,6 +763,15 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onload = (event) => resolve(String(event.target?.result ?? ''));
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
+  });
+}
+
+function measureImageRatio(src: string): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img.naturalWidth > 0 && img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : undefined);
+    img.onerror = () => resolve(undefined);
+    img.src = src;
   });
 }
 

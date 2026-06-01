@@ -268,6 +268,7 @@ export const JournalEntrySchema = doc({
   visibility: z.enum(['private', 'public']).default('private'),
   slug: z.string().default(''),
   coverImage: z.string().optional(), // data URL or remote URL
+  imageRatio: z.number().optional(),  // width / height, e.g. 1.5 for 3:2
 });
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 
