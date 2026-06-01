@@ -1,5 +1,5 @@
 /* ==========================================================================
-   On the Road · Stub views — pack, budget, safety, journal, map
+   On the Road · Stub views — pack, safety
    Full implementations to follow in next iteration.
    ========================================================================== */
 
@@ -28,20 +28,6 @@ const STUBS: StubConfig[] = [
     ],
   },
   {
-    id: 'budget',
-    icon: '🏠',
-    title: 'Stay',
-    subtitle: 'Multi-criteria accommodation scorer',
-    color: '#bae6fd',
-    features: [
-      'Add candidate accommodations with price and link',
-      'Score on: transport access, safety, amenities',
-      'Adjust scoring weights to your priorities',
-      'Ranked comparison with overall score',
-      'Mark final pick and link to itinerary',
-    ],
-  },
-  {
     id: 'safety',
     icon: '🛡️',
     title: 'Safety',
@@ -53,20 +39,6 @@ const STUBS: StubConfig[] = [
       'Useful local phrases for emergencies',
       'Accommodation safety check (door, exits, etc.)',
       'Works fully offline',
-    ],
-  },
-  {
-    id: 'journal',
-    icon: '📓',
-    title: 'Journal',
-    subtitle: 'Your travel notes, by city',
-    color: '#e9d5ff',
-    features: [
-      'Markdown notes organized by city',
-      'Tags: food, architecture, people, feelings',
-      'Photo links (cloud-stored, no uploads)',
-      'Timeline and city views',
-      'AI-generated trip summary',
     ],
   },
 ];

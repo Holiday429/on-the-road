@@ -9,12 +9,15 @@ import { initApp, registerView, renderSession } from './core/app.ts';
 import { onAuth, signInWithGoogle, signOut } from './firebase/auth.ts';
 import { ensureDefaultTrip } from './data/trip-context.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
+import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { initPrep }     from './views/prep/prep.ts';
 import { initRoute }    from './views/route/route.ts';
 import { initExpenses } from './views/expenses/expenses.ts';
 import { initCities }   from './views/guide/guide.ts';
+import { initJournal }  from './views/journal/journal.ts';
 import { initMap }      from './views/map/map.ts';
 import { initNomad }    from './views/nomad/nomad.ts';
+import { initStay }     from './views/stay/stay.ts';
 import { initStubs }    from './views/stubs.ts';
 
 // Register lazy view inits (fire once on first navigation)
@@ -22,8 +25,10 @@ registerView('prep',     initPrep);
 registerView('route',    initRoute);
 registerView('expenses', initExpenses);
 registerView('cities',   initCities);
+registerView('journal',  initJournal);
 registerView('map',      initMap);
 registerView('nomad',    initNomad);
+registerView('budget',   initStay);
 
 const authScreen = document.getElementById('auth-screen') as HTMLElement | null;
 const authButton = document.getElementById('auth-google-btn') as HTMLButtonElement | null;
@@ -121,5 +126,12 @@ onAuth(async ({ user, ready }) => {
     if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
   } catch (error) {
     console.warn('Route migration skipped:', error);
+  }
+
+  try {
+    const n = await migrateExpensesToCloud();
+    if (n > 0) console.info(`Migrated ${n} expenses to the cloud.`);
+  } catch (error) {
+    console.warn('Expense migration skipped:', error);
   }
 });

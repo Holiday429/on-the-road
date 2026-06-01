@@ -35,8 +35,7 @@
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .auth-title {
@@ -246,8 +245,7 @@
   font-size: 11px;
   font-weight: 700;
   color: var(--ink-faint);
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   padding: var(--sp-4) var(--sp-2) var(--sp-1);
 }
 

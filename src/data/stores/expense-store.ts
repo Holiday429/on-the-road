@@ -20,6 +20,10 @@ export const expenseStore = {
     return store().set(input);
   },
 
+  update(id: string, patch: Partial<Expense>) {
+    return store().update(id, patch);
+  },
+
   remove(id: string) {
     return store().remove(id);
   },

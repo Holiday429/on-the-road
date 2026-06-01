@@ -4,12 +4,13 @@
    Single source of truth for the shape of every stored document.
    Firestore layout (public-version ready):
 
-     users/{uid}                      profile + settings
-       trips/{tripId}                 a single trip
-         legs/{legId}                 itinerary stops      (route)
-         prepTasks/{taskId}           pre-departure tasks  (prep)
-         expenses/{expenseId}         spend log            (expenses)
-         cityIntel/{cityId}           AI city briefings    (cities)
+   users/{uid}                      profile + settings
+     trips/{tripId}                 a single trip
+       legs/{legId}                 itinerary stops      (route)
+       prepTasks/{taskId}           pre-departure tasks  (prep)
+       expenses/{expenseId}         spend log            (expenses)
+        cityIntel/{cityId}           AI city briefings    (cities)
+        journalEntries/{entryId}    travel notes         (journal)
 
    Every document carries meta (createdAt/updatedAt/schemaVersion) so we can
    migrate shapes later without guessing a document's age or version.
@@ -148,17 +149,85 @@ export const LegSchema = doc({
 });
 export type Leg = z.infer<typeof LegSchema>;
 
+/* ── Stay (accommodation comparison) ─────────────────────────────────────── */
+// A Stay is one comparison group, attached to a Leg (one per leg). Candidates
+// are the columns, dimensions the rows. We embed both arrays in the doc (like
+// ChecklistSchema's groups/items) — a group is only a handful of each, so a
+// single read/write per group is the simplest correct model.
+
+// A scoring dimension (one row). `type` decides how the raw value is read and
+// normalized; `higherIsBetter=false` flips it (e.g. price, "need to relocate").
+export const StayDimensionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: z.enum(['number', 'rating', 'boolean']),
+  weight: z.number().default(1),          // 0–5 priority slider
+  higherIsBetter: z.boolean().default(true),
+  builtin: z.boolean().default(false),    // built-ins can't be deleted, only reweighted
+});
+export type StayDimension = z.infer<typeof StayDimensionSchema>;
+
+// A candidate accommodation (one column).
+export const StayCandidateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  kind: z.enum(['hotel', 'airbnb', 'hostel', 'other']).default('hotel'),
+  link: z.string().optional(),
+  address: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  // Price is split so we can compute a comparable per-night figure and surface
+  // hidden costs. The 'price' built-in dimension reads from these, not scores.
+  totalPrice: z.number().optional(),      // room cost over the whole stay
+  extraFees: z.number().default(0),       // cleaning / service fees etc.
+  nights: z.number().default(1),
+  // Per-dimension raw values, keyed by dimension id. rating: 0–5, boolean: 0|1.
+  scores: z.record(z.string(), z.number()).default({}),
+  notes: z.string().optional(),
+});
+export type StayCandidate = z.infer<typeof StayCandidateSchema>;
+
+export const StaySchema = doc({
+  legId: z.string(),
+  city: z.string().default(''),           // denormalized for list display
+  dimensions: z.array(StayDimensionSchema).default([]),
+  candidates: z.array(StayCandidateSchema).default([]),
+});
+export type Stay = z.infer<typeof StaySchema>;
+
 /* ── Expenses ────────────────────────────────────────────────────────────── */
+// We keep the user's raw input (amount + currency) forever, and store a
+// snapshot of the conversion to the trip's base currency at record time:
+// `rate` is the original→base rate then, `baseAmount` the converted figure.
+// Snapshotting means a June expense never silently re-values when rates drift
+// or when the user changes the trip's base currency — historical books stay put.
+// `category` may be '' = "unclassified" (quick-capture, sorted out later).
 export const ExpenseSchema = doc({
-  amount: z.number(),
-  currency: z.string(),
-  amountEur: z.number(),
+  amount: z.number(),                       // raw amount, in `currency`
+  currency: z.string(),                     // ISO code the user typed in
+  rate: z.number().default(1),              // original→base rate at record time
+  baseAmount: z.number(),                   // amount converted to base currency
+  baseCurrency: z.string().default('EUR'),  // trip base at record time (for the snapshot)
   description: z.string(),
-  category: z.string(),
+  category: z.string().default(''),         // '' = unclassified
+  tags: z.array(z.string()).default([]),    // free-text fine labels (#ramen …)
   city: z.string().default(''),
-  date: z.string(),               // ISO date
+  country: z.string().default(''),          // denormalized from the leg, for by-country analysis
+  date: z.string(),                         // ISO date
 });
 export type Expense = z.infer<typeof ExpenseSchema>;
+
+// User-defined spend categories. The seven built-ins live in the view code and
+// are not stored; this collection only holds the user's own additions. `id` is
+// what an expense's `category` field references, so it must be stable and not
+// collide with a built-in id.
+export const ExpenseCategorySchema = doc({
+  label: z.string(),
+  icon: z.string().default('🏷️'),
+  color: z.string().default('#e5e7eb'),
+  order: z.number().default(0),
+});
+export type ExpenseCategory = z.infer<typeof ExpenseCategorySchema>;
 
 /* ── City intel (AI cache) ───────────────────────────────────────────────── */
 export const CityIntelSchema = doc({
@@ -178,3 +247,25 @@ export const CityIntelSchema = doc({
   transport: z.array(z.string()).default([]),
 });
 export type CityIntel = z.infer<typeof CityIntelSchema>;
+
+/* ── Journal ─────────────────────────────────────────────────────────────── */
+// `template` is the card preset (see src/views/journal/templates.ts) and is the
+// primary discriminator going forward. It's a plain string — not an enum — so
+// new templates can ship without a schema migration; the UI validates against
+// the known registry and falls back gracefully for anything it doesn't know.
+// `mood` is optional because only some templates surface it.
+export const JournalEntrySchema = doc({
+  title: z.string().default(''),
+  body: z.string(),
+  template: z.string().default('moment'),
+  destination: z.string().default(''),
+  tags: z.array(z.string()).default([]),
+  mood: z.string().optional(),
+  happenedOn: z.string(), // ISO date
+  favorite: z.boolean().default(false),
+  // Sharing — a public entry is readable via /#/s/{slug} without auth.
+  visibility: z.enum(['private', 'public']).default('private'),
+  slug: z.string().default(''),
+  coverImage: z.string().optional(), // data URL or remote URL
+});
+export type JournalEntry = z.infer<typeof JournalEntrySchema>;

@@ -3,7 +3,7 @@
    Warm amber + white, rounded, playful but functional
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;1,400&family=Caveat:wght@500;600;700&display=swap');
 
 :root {
   /* ── Brand palette ─────────────────────────────────────────────────── */
@@ -47,6 +47,7 @@
   /* ── Typography ────────────────────────────────────────────────────── */
   --font-ui:      'Sora', system-ui, sans-serif;
   --font-body:    'DM Sans', system-ui, sans-serif;
+  --font-hand:    'Caveat', 'DM Sans', cursive;
 
   /* ── Type scale ────────────────────────────────────────────────────── */
   --fs-xs:   11px;
@@ -262,8 +263,7 @@ label.field-label {
   font-size: var(--fs-xs);
   font-weight: 600;
   color: var(--ink-muted);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   margin-bottom: var(--sp-2);
 }
 

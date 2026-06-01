@@ -25,6 +25,7 @@ const DEFAULT_TRIP: Omit<Trip, 'createdAt' | 'updatedAt' | 'schemaVersion'> = {
 };
 
 let _currentTripId = DEFAULT_TRIP_ID;
+let _baseCurrency = DEFAULT_TRIP.baseCurrency;
 
 export function currentTripId(): string {
   return _currentTripId;
@@ -32,6 +33,30 @@ export function currentTripId(): string {
 
 export function setCurrentTripId(id: string) {
   _currentTripId = id;
+}
+
+/** The trip's base/settlement currency (what totals are shown in). */
+export function baseCurrency(): string {
+  return _baseCurrency;
+}
+
+/** Persist a new base currency on the current trip. Existing expenses keep
+ *  their snapshotted rate/baseAmount, so historical books don't re-value. */
+export async function setBaseCurrency(code: string): Promise<void> {
+  _baseCurrency = code;
+  const u = currentUser();
+  if (!u) return;
+  const ref = tripRef(u.uid, _currentTripId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const existing = snap.data() as Trip;
+  const updated = TripSchema.parse({
+    ...existing,
+    baseCurrency: code,
+    updatedAt: Date.now(),
+    schemaVersion: SCHEMA_VERSION,
+  });
+  await setDoc(ref, updated);
 }
 
 function tripRef(uid: string, tripId: string) {
@@ -46,6 +71,7 @@ export async function ensureDefaultTrip(): Promise<Trip> {
   const snap = await getDoc(ref);
   if (snap.exists()) {
     const existing = snap.data() as Trip;
+    _baseCurrency = existing.baseCurrency ?? _baseCurrency;
     if (existing.name === 'Europe Summer 2025' || existing.startDate === '2025-06-25') {
       const updated = TripSchema.parse({
         ...existing,
