@@ -3,12 +3,16 @@
    ========================================================================== */
 
 import './map.css';
-import { DEFAULT_ROUTE_LEGS, loadStoredRouteLegs } from '../../data/default-route.ts';
 import { renderViewTitleMarkup } from '../../core/app.ts';
 import { cityLocationsFor, isoFor, EUROPE_CENTER } from './geo.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
-const HERO_GIF  = '/art/logo.gif';
-const PLANE_PNG = '/art/plane.png';
+import { MAP_PALETTE, hashStr } from '../../data/palette.ts';
+import { routeStore } from '../../data/stores/route-store.ts';
+// Assets live in public/art/. Prefix with Vite's base URL so they resolve under
+// any deploy base (e.g. /on-the-road/) instead of the site root.
+const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
+const HERO_GIF  = `${ART}logo.gif`;
+const PLANE_PNG = `${ART}plane.png`;
 
 interface Leg {
   id: string; city: string; country: string; flag: string;
@@ -54,13 +58,8 @@ const COUNTRY_COLORS: Record<string, string> = {
   CH: '#e8d4a0',  // warm straw
   IT: '#c4aad4',  // dusty violet
 };
-const FALLBACK_PALETTE = ['#c8b4d4','#b4c8d4','#d4c8b4','#b4d4c8','#d4b4b4','#b4d4b4'];
-function hashStr(s: string): number {
-  let h = 0; for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i); h |= 0; }
-  return Math.abs(h);
-}
 function countryColor(iso: string): string {
-  return COUNTRY_COLORS[iso] ?? FALLBACK_PALETTE[hashStr(iso) % FALLBACK_PALETTE.length];
+  return COUNTRY_COLORS[iso] ?? MAP_PALETTE[hashStr(iso) % MAP_PALETTE.length];
 }
 
 /* ── Flight waypoints ─────────────────────────────────────────────────────── */
@@ -93,6 +92,18 @@ function bezierWaypoints(from:{lat:number;lng:number}, to:{lat:number;lng:number
   return arcPoints(from, to, n, bend).map(([lng,lat]) => ({lat, lng}));
 }
 
+/* Waypoints whose count is proportional to geo distance, so that with a fixed
+   per-waypoint duration the plane moves at a constant *visual* speed across
+   segments of different lengths. ~one waypoint per `degPerStep` degrees. */
+function evenSpeedWaypoints(
+  from:{lat:number;lng:number}, to:{lat:number;lng:number}, bend=0.25, degPerStep=1.6,
+) {
+  const dLng = to.lng - from.lng, dLat = to.lat - from.lat;
+  const chord = Math.sqrt(dLng*dLng + dLat*dLat);
+  const n = Math.max(2, Math.round(chord / degPerStep));
+  return bezierWaypoints(from, to, bend, n);
+}
+
 /* ── State ────────────────────────────────────────────────────────────────── */
 let _initialized = false;
 let _root:  any = null;
@@ -108,13 +119,18 @@ let _planeReplayTimer: number | null = null;
 let _outboundPanTimer: number | null = null;
 let _returnPanTimer: number | null = null;
 let _paused = false;
+let _playing = false;
 let _legsRef: PlottedLeg[] = [];
 let _regionLabelOverlays: OverlayItem[] = [];
 let _countryPinOverlays: OverlayItem[] = [];
 let _activeMotionId: string | null = null;
 
+function setReplayBtnLabel(playing: boolean) {
+  const btn = document.getElementById('mapReplay');
+  if (btn) btn.textContent = playing ? '⏸ Pause' : '▶ Replay route';
+}
+
 /* ── Data ─────────────────────────────────────────────────────────────────── */
-function loadLegs(): Leg[] { return loadStoredRouteLegs<Leg>(DEFAULT_ROUTE_LEGS as Leg[]).legs; }
 function plot(legs: Leg[]): PlottedLeg[] {
   return legs.flatMap((leg) => {
     const stops = cityLocationsFor(leg.city);
@@ -222,19 +238,40 @@ function geoCentroid(geometry: any) {
   return { longitude: EUROPE_CENTER.longitude, latitude: EUROPE_CENTER.latitude };
 }
 
-function renderRegionLabels(series: any) {
+// Great-circle-ish distance in degrees (good enough for de-duping nearby labels).
+function geoDist(aLng: number, aLat: number, bLng: number, bLat: number): number {
+  const dLng = aLng - bLng, dLat = aLat - bLat;
+  return Math.sqrt(dLng * dLng + dLat * dLat);
+}
+
+function renderRegionLabels(series: any, cityStops: CountryStop[] = []) {
   _regionLabelOverlays = clearOverlayItems(_regionLabelOverlays, 'mapRegionLabels');
   const layer = overlayLayer('mapRegionLabels');
   if (!layer) return;
+
+  // A region label is suppressed when it sits on top of a city pin (the pin
+  // already shows that place's name) or too close to another region label.
+  const CITY_GAP = 0.9;     // degrees — hide region name near a city pin
+  const LABEL_GAP = 1.1;    // degrees — minimum spacing between region labels
+  const placed: { lng: number; lat: number }[] = [];
+
   series.dataItems.forEach((item: any) => {
     const name = String(item.dataContext?.name ?? '').trim();
     if (!name) return;
     const centroid = geoCentroid(item.get('geometry') ?? item.dataContext?.geometry);
+    const { longitude: lng, latitude: lat } = centroid;
+
+    // Skip if a city pin already labels roughly this spot.
+    if (cityStops.some(s => geoDist(lng, lat, s.lng, s.lat) < CITY_GAP)) return;
+    // Skip if it would collide with an already-placed region label.
+    if (placed.some(p => geoDist(lng, lat, p.lng, p.lat) < LABEL_GAP)) return;
+
     const el = document.createElement('div');
     el.className = 'map-region-label';
     el.textContent = wrapMapLabel(name);
     layer.appendChild(el);
-    _regionLabelOverlays.push({ el, lng: centroid.longitude, lat: centroid.latitude });
+    _regionLabelOverlays.push({ el, lng, lat });
+    placed.push({ lng, lat });
   });
   syncOverlayItems(_regionLabelOverlays);
 }
@@ -272,17 +309,16 @@ function clearDrillOverlays() {
 function zoomToCountryPoly(poly: any) {
   const di = poly?.dataItem;
   if (!_worldSeries || !_chart || !di) return;
-  const doZoom = () => {
-    try {
-      _worldSeries.zoomToDataItem(di);
-      window.setTimeout(() => {
-        const fitted = _chart.get('zoomLevel') || 1;
-        _chart.zoomToGeoPoint(geoCentroid(di.get('geometry')), Math.max(1, fitted * 0.86), true, 320);
-      }, 340);
-    } catch {}
-  };
-  doZoom();
-  window.setTimeout(doZoom, 620);
+  // Jump straight to the country's bounds with no animation, so the detailed
+  // (region-labelled) view appears instantly instead of flashing through zooms.
+  try {
+    const bounds = am5map.getGeoBounds(di.get('geometry'));
+    if (bounds && Number.isFinite(bounds.left)) {
+      fitGeoBounds(bounds, 0, 0.1);
+      return;
+    }
+  } catch {}
+  _chart.zoomToGeoPoint(geoCentroid(di.get('geometry')), 6.5, true, 0);
 }
 
 /* ── Boot ─────────────────────────────────────────────────────────────────── */
@@ -321,23 +357,60 @@ export function initMap() {
       </div>`;
   }
 
-  const legs = plot(loadLegs());
-  if (legs.length === 0) {
-    (view.querySelector('.map-stage') as HTMLElement).innerHTML = `
-      <div class="map-empty">
-        <img src="/art/earth_trans.png" alt="" class="map-empty-art">
-        <div class="map-empty-title">No route yet</div>
-        <div class="map-empty-sub">Add cities in <a href="#route">Itinerary</a> and they'll appear here.</div>
-      </div>`; return;
-  }
+  routeStore.subscribe((storedLegs) => {
+    const legs = plot(storedLegs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) as Leg[]);
 
-  renderPanel(view as HTMLElement, legs);
-  loadAmCharts()
-    .then(() => { bootChart(view as HTMLElement, legs); preloadDrilldownCountries(); })
-    .catch((err) => {
-      console.error('amCharts load failed', err);
-      const el = document.getElementById('mapLoading'); if (el) el.textContent = 'Map failed to load.';
-    });
+    // Chart already running — just refresh the side panel
+    if (_chart) {
+      renderPanel(view as HTMLElement, legs);
+      return;
+    }
+
+    // No legs yet (empty cache or genuinely empty) — show placeholder and keep listening
+    if (legs.length === 0) {
+      const stage = view.querySelector<HTMLElement>('.map-stage');
+      if (stage && !stage.querySelector('.map-empty')) {
+        stage.innerHTML = `
+          <div class="map-empty">
+            <img src="${ART}earth_trans.png" alt="" class="map-empty-art">
+            <div class="map-empty-title">No route yet</div>
+            <div class="map-empty-sub">Add cities in <a href="#route">Itinerary</a> and they'll appear here.</div>
+          </div>`;
+      }
+      return;
+    }
+
+    // Legs arrived — restore stage DOM if empty state was shown, then boot chart once
+    const stage = view.querySelector<HTMLElement>('.map-stage');
+    if (stage?.querySelector('.map-empty')) {
+      stage.innerHTML = `
+        <div id="mapChart" class="map-chart"></div>
+        <div class="map-region-labels" id="mapRegionLabels"></div>
+        <div class="map-country-pins" id="mapCountryPins"></div>
+        <div class="map-tooltip" id="mapTooltip">
+          <span class="map-tooltip-name" id="mapTooltipName"></span>
+          <span class="map-tooltip-meta" id="mapTooltipMeta"></span>
+        </div>
+        <div class="map-toolbar">
+          <button class="map-tool-btn" id="mapReplay" title="Replay route">▶ Replay route</button>
+          <button class="map-tool-btn" id="mapBack" title="Back to Europe" hidden>← Back</button>
+        </div>
+        <div class="map-zoom-controls">
+          <button class="map-zoom-btn" id="mapZoomIn"  title="Zoom in">+</button>
+          <button class="map-zoom-btn" id="mapZoomFit" title="Fit to route">⊡</button>
+          <button class="map-zoom-btn" id="mapZoomOut" title="Zoom out">−</button>
+        </div>
+        <div class="map-loading" id="mapLoading">Loading map…</div>`;
+    }
+
+    renderPanel(view as HTMLElement, legs);
+    loadAmCharts()
+      .then(() => { bootChart(view as HTMLElement, legs); preloadDrilldownCountries(); })
+      .catch((err) => {
+        console.error('amCharts load failed', err);
+        const el = document.getElementById('mapLoading'); if (el) el.textContent = 'Map failed to load.';
+      });
+  });
 }
 
 /* ── Chart ────────────────────────────────────────────────────────────────── */
@@ -472,9 +545,10 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
         let delta = rawAngle - _planeBaseAngle;
         while (delta > 180)  delta -= 360;
         while (delta < -180) delta += 360;
-        delta = Math.max(-12, Math.min(12, delta));
+        // Keep the nose close to the base heading — only a subtle wobble.
+        delta = Math.max(-6, Math.min(6, delta));
         const targetAngle = _planeBaseAngle + delta;
-        _planeCurrentAngle += (targetAngle - _planeCurrentAngle) * 0.18;
+        _planeCurrentAngle += (targetAngle - _planeCurrentAngle) * 0.1;
       }
     }
     const flightPhase = performance.now() / 220;
@@ -532,18 +606,15 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     setTimeout(() => { syncHero(); syncPlane(); travelSequence(legs); }, 400);
   });
 
-  // Replay / Pause button
+  // Replay / Pause button — toggles between playing and paused/stopped.
   const replayBtn = document.getElementById('mapReplay')!;
   replayBtn.addEventListener('click', () => {
-    if (_paused) {
-      // Currently paused → restart from beginning
-      _paused = false;
-      replayBtn.textContent = '▶ Replay route';
-      travelSequence(legs, true);
-    } else {
-      // Currently playing → pause
-      replayBtn.textContent = '▶ Replay route';
+    if (_playing) {
+      // Currently playing → pause (freeze in place)
       stopReplayMotion();
+    } else {
+      // Stopped or paused → restart the sequence from the beginning
+      travelSequence(legs, true);
     }
   });
 
@@ -635,23 +706,22 @@ async function drillCountry(code: string, name: string, legs: PlottedLeg[], worl
   const finalizeDrill = () => {
     if (finalized || _drillSeries !== series) return;
     finalized = true;
-    renderRegionLabels(series);
-    renderCountryPins(buildCountryStops(legs, code));
+    const cityStops = buildCountryStops(legs, code);
+    // Region labels first dedupe against the city pins (which show city names).
+    renderRegionLabels(series, cityStops);
+    renderCountryPins(cityStops);
     (document.getElementById('mapBack') as HTMLElement).hidden = false;
 
-    if (worldPoly) zoomToCountryPoly(worldPoly);
+    // Show the detailed country polygons immediately (no fade), then snap the
+    // camera to its bounds with no animation.
+    series.show(0);
 
-    window.setTimeout(() => {
-      if (_drillSeries !== series) return;
-      series.show(0);
-    }, worldPoly ? 380 : 0);
-
-    if (!worldPoly) {
-      window.setTimeout(() => {
-        if (_drillSeries !== series) return;
-        if (fitDrilledCountry(series, 520)) return;
-        _chart.zoomToGeoPoint(geoCentroidOf(series), 6.5, true, 520);
-      }, 120);
+    if (worldPoly) {
+      zoomToCountryPoly(worldPoly);
+    } else {
+      if (!fitDrilledCountry(series, 0)) {
+        _chart.zoomToGeoPoint(geoCentroidOf(series), 6.5, true, 0);
+      }
     }
   };
 
@@ -708,6 +778,8 @@ function clearAllTimers() {
 
 function stopReplayMotion() {
   _paused = true;
+  _playing = false;
+  setReplayBtnLabel(false);
   clearAllTimers();
   const heroImg  = (_chart as any)?._heroImg  as HTMLImageElement|null;
   const planeImg = (_chart as any)?._planeImg as HTMLImageElement|null;
@@ -761,20 +833,26 @@ function travelSequence(legs: PlottedLeg[], replay = false) {
   if (!heroItem||legs.length===0) return;
   clearAllTimers();
   _paused = false;
+  _playing = true;
+  setReplayBtnLabel(true);
   if (replay) resetLit();
 
   if (!replay && window.matchMedia?.('(prefers-reduced-motion:reduce)').matches) {
     const last = legs[legs.length-1];
     heroItem.set('longitude',last.lng); heroItem.set('latitude',last.lat);
     lightCountry(HOME_COUNTRY_ISO);
-    legs.forEach((l)=>lightCountry(l.iso)); return;
+    legs.forEach((l)=>lightCountry(l.iso));
+    _playing = false;
+    setReplayBtnLabel(false);
+    return;
   }
 
-  // Plane is fast: 180ms per waypoint
-  const FLIGHT_SEG = 180;
+  // Plane is fast: fixed ms per waypoint. Waypoint count scales with distance
+  // so the plane keeps a constant visual speed across both segments.
+  const FLIGHT_SEG = 90;
   const outboundWpts = [
-    ...bezierWaypoints(HARBIN, BEIJING, 0.25, 12),
-    ...bezierWaypoints(BEIJING, CPH,    0.25, 30).slice(1),
+    ...evenSpeedWaypoints(HARBIN, BEIJING, 0.25),
+    ...evenSpeedWaypoints(BEIJING, CPH,    0.25).slice(1),
   ];
 
   const planeItem = (_chart as any)?._planeItem;
@@ -839,8 +917,8 @@ function travelSequence(legs: PlottedLeg[], replay = false) {
       panToGeoPoint(CPH.lng, CPH.lat, 400);
 
       const returnWpts = [
-        ...bezierWaypoints(CPH,    BEIJING, 0.20, 30),
-        ...bezierWaypoints(BEIJING, HARBIN,  0.20, 12).slice(1),
+        ...evenSpeedWaypoints(CPH,     BEIJING, 0.20),
+        ...evenSpeedWaypoints(BEIJING, HARBIN,  0.20).slice(1),
       ];
 
       // Pan along with return flight too
@@ -866,8 +944,16 @@ function travelSequence(legs: PlottedLeg[], replay = false) {
         }
         if (planeImg) planeImg.style.opacity = '0';
         if (heroImg)  heroImg.style.opacity  = '1';
-        fitToRoute(legs, 900);
-        focusLeg(legs[legs.length - 1].id);
+        // Linger on the arrival in China before flying the camera back to Europe.
+        panToGeoPoint(HARBIN.lng, HARBIN.lat, 600);
+        _planeReplayTimer = window.setTimeout(() => {
+          if (_paused) return;
+          fitToRoute(legs, 1100);
+          focusLeg(legs[legs.length - 1].id);
+          // Sequence finished naturally — reset to the replayable state.
+          _playing = false;
+          setReplayBtnLabel(false);
+        }, 1400);
       });
     }, euroTrip);
   });
@@ -884,8 +970,13 @@ function travelHeroLegs(legs: PlottedLeg[]) {
     const l = legs[idx];
     item.animate({ key:'longitude', to:l.lng, duration:LEG_DURATION, easing:am5.ease.inOut(am5.ease.cubic) });
     item.animate({ key:'latitude',  to:l.lat, duration:LEG_DURATION, easing:am5.ease.inOut(am5.ease.cubic) });
-    focusLeg(l.id);
-    setTimeout(()=>lightCountry(l.iso), LEG_DURATION*0.7);
+    // Sync the country fill and the right-hand list at the same moment the
+    // little traveller arrives, so map + sidebar light up together.
+    setTimeout(() => {
+      if (_paused) return;
+      lightCountry(l.iso);
+      focusLeg(l.id);
+    }, LEG_DURATION * 0.7);
   };
   const tick = () => {
     if (_paused) return;
