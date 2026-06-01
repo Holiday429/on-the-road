@@ -1,9 +1,10 @@
 /* ==========================================================================
-   On the Road · Itinerary / Route
+   On the Road · Itinerary / Route — Firestore-backed
    ========================================================================== */
 
 import './route.css';
-import { DEFAULT_ROUTE_LEGS, loadStoredRouteLegs, ROUTE_STORAGE_KEY } from '../../data/default-route.ts';
+import { routeStore } from '../../data/stores/route-store.ts';
+import type { Leg as SchemaLeg } from '../../data/schema.ts';
 
 interface Transport {
   type: 'flight' | 'train' | 'bus' | 'ferry';
@@ -35,6 +36,7 @@ interface Leg {
   accommodation?: Accommodation;
   arrivalTransport?: Transport;
   notes?: string;
+  order?: number;
 }
 
 const TRANSPORT_ICONS: Record<string, string> = {
@@ -49,20 +51,17 @@ const FLAG_MAP: Record<string, string> = {
   'Hungary': '🇭🇺', 'Croatia': '🇭🇷', 'Greece': '🇬🇷',
 };
 
-const DEFAULT_LEGS: Leg[] = DEFAULT_ROUTE_LEGS;
-
 let legs: Leg[] = [];
 let addFormOpen = false;
 
 function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
-function load() {
-  const loaded = loadStoredRouteLegs<Leg>(DEFAULT_LEGS);
-  legs = loaded.legs;
-  if (!loaded.fromStorage) save();
-}
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 
-function save() { localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify(legs)); }
+/** Drop undefined keys — Firestore rejects undefined values. */
+function clean<T extends object>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj));
+}
 
 function daysBetween(from: string, to: string): number {
   return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000);
@@ -72,36 +71,45 @@ function fmtDate(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-function deleteLeg(id: string) {
-  if (!confirm('Remove this stop from the itinerary?')) return;
-  legs = legs.filter(l => l.id !== id);
-  save();
-  render();
+function sortLegs(rows: Leg[]): Leg[] {
+  return [...rows].sort((a, b) => {
+    const byDate = a.dateFrom.localeCompare(b.dateFrom);
+    if (byDate !== 0) return byDate;
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
 }
 
-function addLeg(city: string, country: string, dateFrom: string, dateTo: string,
-                transportType: string, transportFrom: string, accomName: string) {
-  const newLeg: Leg = {
+/* ── Mutations (all async → Firestore) ──────────────────────────────────── */
+
+async function addLeg(city: string, country: string, dateFrom: string, dateTo: string,
+                      transportType: string, transportFrom: string, accomName: string) {
+  const row: Partial<SchemaLeg> & { id: string } = {
     id: uid(), city, country,
     flag: FLAG_MAP[country] ?? '🗺️',
     dateFrom, dateTo,
+    order: legs.length,
   };
   if (transportType && transportFrom) {
-    newLeg.arrivalTransport = {
+    row.arrivalTransport = {
       type: transportType as Transport['type'],
       from: transportFrom, to: city, date: dateFrom,
       confirmed: false,
     };
   }
   if (accomName) {
-    newLeg.accommodation = { name: accomName, confirmed: false };
+    row.accommodation = { name: accomName, confirmed: false };
   }
-  legs.push(newLeg);
-  legs.sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
-  save();
   addFormOpen = false;
-  render();
+  await routeStore.set(clean(row));
+  // render() fires from the Firestore subscription
 }
+
+async function deleteLeg(id: string) {
+  if (!confirm('Remove this stop from the itinerary?')) return;
+  await routeStore.remove(id);
+}
+
+/* ── Render ──────────────────────────────────────────────────────────────── */
 
 function renderLeg(leg: Leg): string {
   const days = daysBetween(leg.dateFrom, leg.dateTo);
@@ -232,7 +240,6 @@ function render() {
     </div>
   `;
 
-  // Events
   timeline.querySelector('#route-add-toggle')?.addEventListener('click', () => {
     addFormOpen = true;
     render();
@@ -265,6 +272,8 @@ function render() {
 }
 
 export function initRoute() {
-  load();
-  render();
+  routeStore.subscribe((rows) => {
+    legs = sortLegs(rows as Leg[]);
+    render();
+  });
 }

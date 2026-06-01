@@ -8,11 +8,13 @@ import './core/app.css';
 import { initApp, registerView, renderSession } from './core/app.ts';
 import { onAuth, signInWithGoogle, signOut } from './firebase/auth.ts';
 import { ensureDefaultTrip } from './data/trip-context.ts';
+import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { initPrep }     from './views/prep/prep.ts';
 import { initRoute }    from './views/route/route.ts';
 import { initExpenses } from './views/expenses/expenses.ts';
-import { initCities }   from './views/cities/cities.ts';
+import { initCities }   from './views/guide/guide.ts';
 import { initMap }      from './views/map/map.ts';
+import { initNomad }    from './views/nomad/nomad.ts';
 import { initStubs }    from './views/stubs.ts';
 
 // Register lazy view inits (fire once on first navigation)
@@ -21,6 +23,7 @@ registerView('route',    initRoute);
 registerView('expenses', initExpenses);
 registerView('cities',   initCities);
 registerView('map',      initMap);
+registerView('nomad',    initNomad);
 
 const authScreen = document.getElementById('auth-screen') as HTMLElement | null;
 const authButton = document.getElementById('auth-google-btn') as HTMLButtonElement | null;
@@ -110,5 +113,13 @@ onAuth(async ({ user, ready }) => {
     await ensureDefaultTrip();
   } catch (error) {
     console.warn('Default trip bootstrap skipped:', error);
+  }
+
+  // One-time, self-healing: push any local itinerary into the cloud if it's empty.
+  try {
+    const n = await migrateRouteToCloud();
+    if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
+  } catch (error) {
+    console.warn('Route migration skipped:', error);
   }
 });

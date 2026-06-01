@@ -1,0 +1,15 @@
+{
+  "name": "On the Road",
+  "short_name": "On the Road",
+  "description": "Your travel planning companion — itinerary, expenses, city guide, and more.",
+  "start_url": "/on-the-road/",
+  "scope": "/on-the-road/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E8940A",
+  "theme_color": "#E8940A",
+  "icons": [
+    { "src": "/on-the-road/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/on-the-road/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

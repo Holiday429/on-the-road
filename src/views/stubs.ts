@@ -16,7 +16,7 @@ const STUBS: StubConfig[] = [
   {
     id: 'pack',
     icon: '🎒',
-    title: 'Pack Formula',
+    title: 'Pack',
     subtitle: 'Your 44L packing calculator',
     color: '#bbf7d0',
     features: [
@@ -30,7 +30,7 @@ const STUBS: StubConfig[] = [
   {
     id: 'budget',
     icon: '🏠',
-    title: 'Stay Finder',
+    title: 'Stay',
     subtitle: 'Multi-criteria accommodation scorer',
     color: '#bae6fd',
     features: [
@@ -44,7 +44,7 @@ const STUBS: StubConfig[] = [
   {
     id: 'safety',
     icon: '🛡️',
-    title: 'Safety Kit',
+    title: 'Safety',
     subtitle: 'Solo female travel safety toolkit',
     color: '#fecaca',
     features: [

@@ -1,52 +1,25 @@
 /* ==========================================================================
-   On the Road · City Intel (DeepSeek AI)
+   On the Road · City Intel (AI) — Firestore-backed
    ========================================================================== */
 
-import './cities.css';
+import './guide.css';
+import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 
-interface CityIntel {
-  id: string;
-  city: string;
-  country: string;
-  flag: string;
-  bannerColor: string;
-  greetings: { phrase: string; pronunciation: string; meaning: string }[];
-  customs: string[];
-  taboos: string[];
-  neighborhoods: { name: string; vibe: string }[];
-  localFood: string[];
-  hiddenGems: string[];
-  safetyTips: string[];
-  transport: string[];
-  generatedAt: number;
-}
-
-const STORAGE_KEY = 'otr:cities';
 const BANNER_COLORS = [
   '#fde68a', '#bae6fd', '#bbf7d0', '#e9d5ff',
   '#fecaca', '#fed7aa', '#cffafe', '#fce7f3',
 ];
 
-let cities: CityIntel[] = [];
+let _cities: StoredCityIntel[] = [];
 let openCityId: string | null = null;
 
-function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
-
-function load() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) cities = JSON.parse(raw);
-  } catch { cities = []; }
+function slugId(city: string): string {
+  return city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
-function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(cities)); }
-
-async function fetchCityIntel(cityName: string): Promise<CityIntel | null> {
+async function fetchCityIntel(cityName: string): Promise<Omit<StoredCityIntel, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> | null> {
   const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    // Return mock data when no API key configured
-    return getMockIntel(cityName);
-  }
+  if (!apiKey) return getMockIntel(cityName);
 
   const prompt = `You are a local guide for solo female travellers. Generate a detailed cultural intel card for ${cityName}.
 
@@ -85,10 +58,8 @@ Return ONLY valid JSON matching this exact shape:
     const parsed = JSON.parse(data.choices[0].message.content);
 
     return {
-      id: uid(),
-      bannerColor: BANNER_COLORS[cities.length % BANNER_COLORS.length],
-      generatedAt: Date.now(),
       ...parsed,
+      bannerColor: BANNER_COLORS[_cities.length % BANNER_COLORS.length],
     };
   } catch (e) {
     console.error('DeepSeek error:', e);
@@ -96,16 +67,13 @@ Return ONLY valid JSON matching this exact shape:
   }
 }
 
-function getMockIntel(cityName: string): CityIntel {
+function getMockIntel(cityName: string): Omit<StoredCityIntel, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> {
   return {
-    id: uid(),
     city: cityName,
     country: 'Europe',
     flag: '🗺️',
-    bannerColor: BANNER_COLORS[cities.length % BANNER_COLORS.length],
-    greetings: [
-      { phrase: 'Hello / Bonjour / Hola', pronunciation: 'varies', meaning: 'Hello' },
-    ],
+    bannerColor: BANNER_COLORS[_cities.length % BANNER_COLORS.length],
+    greetings: [{ phrase: 'Hello / Bonjour / Hola', pronunciation: 'varies', meaning: 'Hello' }],
     customs: [
       'Greet shopkeepers when entering small shops',
       'Lunch is a serious affair — avoid scheduling meetings then',
@@ -141,18 +109,10 @@ function getMockIntel(cityName: string): CityIntel {
       'Public transport is almost always the cheapest option',
       'Ride-hailing apps (Uber / Bolt / FreeNow) are safer than random taxis',
     ],
-    generatedAt: Date.now(),
   };
 }
 
-function deleteCity(id: string) {
-  cities = cities.filter(c => c.id !== id);
-  if (openCityId === id) openCityId = null;
-  save();
-  render();
-}
-
-function renderCityDetail(intel: CityIntel): string {
+function renderCityDetail(intel: StoredCityIntel): string {
   return `
     <div class="city-detail ${openCityId === intel.id ? 'open' : ''}" id="city-detail-${intel.id}">
       <div class="city-detail-header">
@@ -235,7 +195,7 @@ function renderCityDetail(intel: CityIntel): string {
         </div>
       </div>
       <div style="font-size:var(--fs-xs);color:var(--ink-faint);margin-top:var(--sp-5)">
-        Generated ${new Date(intel.generatedAt).toLocaleDateString()}
+        Generated ${new Date(intel.updatedAt).toLocaleDateString()}
       </div>
     </div>
   `;
@@ -248,12 +208,12 @@ function render() {
   const grid = root.querySelector<HTMLElement>('.cities-grid')!;
   const detailWrap = root.querySelector<HTMLElement>('.city-details-wrap')!;
 
-  grid.innerHTML = cities.length === 0 ? `
+  grid.innerHTML = _cities.length === 0 ? `
     <div class="empty-state" style="grid-column:1/-1">
       <div class="empty-icon">🏛️</div>
       <p>Search for a city above to generate your first intel card</p>
     </div>
-  ` : cities.map(c => `
+  ` : _cities.map(c => `
     <div class="city-card" data-id="${c.id}">
       <div class="city-card-banner" style="background:${c.bannerColor}">${c.flag}</div>
       <div class="city-card-body">
@@ -279,20 +239,23 @@ function render() {
     });
   });
 
-  detailWrap.innerHTML = cities.map(renderCityDetail).join('');
+  detailWrap.innerHTML = _cities.map(renderCityDetail).join('');
 
   detailWrap.querySelectorAll('.close-detail').forEach(btn => {
     btn.addEventListener('click', () => { openCityId = null; render(); });
   });
 
   detailWrap.querySelectorAll('.delete-city').forEach(btn => {
-    btn.addEventListener('click', () => deleteCity((btn as HTMLElement).dataset.id!));
+    btn.addEventListener('click', () => cityStore.remove((btn as HTMLElement).dataset.id!));
   });
 }
 
 export function initCities() {
-  load();
-  render();
+  // Subscribe: Firestore snapshots drive all re-renders
+  cityStore.subscribe((rows) => {
+    _cities = [...rows].sort((a, b) => b.updatedAt - a.updatedAt);
+    render();
+  });
 
   const root = document.getElementById('view-cities')!;
   const input = root.querySelector<HTMLInputElement>('#cities-search-input')!;
@@ -303,8 +266,8 @@ export function initCities() {
     const q = input.value.trim();
     if (!q) return;
 
-    // Check if already exists
-    const existing = cities.find(c => c.city.toLowerCase() === q.toLowerCase());
+    // Already exists — just open it
+    const existing = _cities.find(c => c.city.toLowerCase() === q.toLowerCase());
     if (existing) {
       openCityId = existing.id;
       render();
@@ -323,11 +286,11 @@ export function initCities() {
     btn.textContent = 'Generate';
 
     if (intel) {
-      cities.unshift(intel);
-      save();
-      openCityId = intel.id;
+      const id = slugId(q);
+      await cityStore.save({ id, ...intel });
+      openCityId = id;
       input.value = '';
-      render();
+      // render() will be triggered by the Firestore subscription
     } else {
       status.innerHTML = `<p style="color:var(--coral-500);font-size:var(--fs-sm)">Failed to generate intel. Check your API key in .env</p>`;
     }

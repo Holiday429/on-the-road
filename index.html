@@ -2,9 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>On the Road</title>
+
+  <!-- Favicon -->
   <link rel="icon" href="/art/logo.png">
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/on-the-road/manifest.json">
+
+  <!-- iOS / iPadOS "Add to Home Screen" -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="On the Road">
+  <meta name="theme-color" content="#E8940A">
+
+  <!-- Apple touch icons -->
+  <link rel="apple-touch-icon" href="/on-the-road/icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/on-the-road/icons/apple-touch-icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="/on-the-road/icons/apple-touch-icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/on-the-road/icons/apple-touch-icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="/on-the-road/icons/apple-touch-icon-120.png">
+  <link rel="apple-touch-icon" sizes="76x76"   href="/on-the-road/icons/apple-touch-icon-76.png">
 </head>
 <body>
 
@@ -44,11 +63,9 @@
     <!-- /prep -->
     <div id="view-prep" class="view">
       <div class="view-header">
-        <div class="view-title">Prep Checklist</div>
-        <div class="view-subtitle">Everything you need to do before you go — by timeline.</div>
+        <div class="view-title">Checklist</div>
+        <div class="view-subtitle">Trip preparation checklists — templates, custom lists, and AI review.</div>
       </div>
-      <div class="prep-progress-wrap"></div>
-      <div class="prep-tabs-wrap"></div>
       <div class="prep-body"></div>
     </div>
 
@@ -61,26 +78,10 @@
       <div class="route-timeline"></div>
     </div>
 
-    <!-- /expenses -->
-    <div id="view-expenses" class="view">
-      <div class="view-header">
-        <div class="view-title">Expenses</div>
-        <div class="view-subtitle">Track every euro. See where it went.</div>
-      </div>
-      <div class="exp-summary"></div>
-      <div class="exp-layout">
-        <div>
-          <div class="exp-form-wrap"></div>
-          <div class="exp-list-wrap"></div>
-        </div>
-        <div class="exp-breakdown-wrap"></div>
-      </div>
-    </div>
-
     <!-- /cities -->
     <div id="view-cities" class="view">
       <div class="view-header">
-        <div class="view-title">City Guide</div>
+        <div class="view-title">Guide</div>
         <div class="view-subtitle">AI-generated cultural briefings — greetings, neighborhoods, safety, hidden gems.</div>
       </div>
       <div class="cities-search-wrap">
@@ -106,20 +107,45 @@
       <div class="stub-body"></div>
     </div>
 
+    <!-- /nomad -->
+    <div id="view-nomad" class="view">
+      <div class="view-header">
+        <div class="view-title">Nomad</div>
+        <div class="view-subtitle">Cafés and co-working spots worth working from, country by country.</div>
+      </div>
+      <div class="nomad-body"></div>
+    </div>
+
     <!-- /safety (stub) -->
     <div id="view-safety" class="view">
       <div class="view-header"></div>
       <div class="stub-body"></div>
     </div>
 
-    <!-- /journal (stub) -->
-    <div id="view-journal" class="view">
-      <div class="view-header"></div>
-      <div class="stub-body"></div>
+    <!-- /expenses -->
+    <div id="view-expenses" class="view">
+      <div class="view-header">
+        <div class="view-title">Expenses</div>
+        <div class="view-subtitle">Track every euro. See where it went.</div>
+      </div>
+      <div class="exp-summary"></div>
+      <div class="exp-layout">
+        <div>
+          <div class="exp-form-wrap"></div>
+          <div class="exp-list-wrap"></div>
+        </div>
+        <div class="exp-breakdown-wrap"></div>
+      </div>
     </div>
 
     <!-- /map (stub) -->
     <div id="view-map" class="view">
+      <div class="view-header"></div>
+      <div class="stub-body"></div>
+    </div>
+
+    <!-- /journal (stub) -->
+    <div id="view-journal" class="view">
       <div class="view-header"></div>
       <div class="stub-body"></div>
     </div>

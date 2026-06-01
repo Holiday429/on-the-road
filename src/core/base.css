@@ -191,13 +191,15 @@ img, svg { display: block; }
 /* ── View container ────────────────────────────────────────────────────── */
 .view {
   padding: var(--gutter);
+  padding-top: 0;
   max-width: var(--content-max);
-  margin: 0 auto;
   display: none;
 }
 .view.active { display: block; }
 
 .view-header {
+  /* Match sidebar-header vertical padding so title baseline aligns with avatar */
+  padding-top: var(--sp-5);
   margin-bottom: var(--sp-8);
 }
 .view-title {

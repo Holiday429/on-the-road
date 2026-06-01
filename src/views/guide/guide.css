@@ -2,7 +2,7 @@
    On the Road · City Intel
    ========================================================================== */
 
-#view-cities { animation: fadeUp var(--dur-mid) var(--ease-out); }
+#view-cities, #view-guide { animation: fadeUp var(--dur-mid) var(--ease-out); }
 
 .cities-search-wrap {
   max-width: 600px;
