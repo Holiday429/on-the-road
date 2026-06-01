@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/on-the-road/',
+  base: process.env.VITE_BASE_PATH || '/on-the-road/',
 });
