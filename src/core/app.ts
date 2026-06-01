@@ -13,8 +13,9 @@ import profileIcon from '../../icon/profile.png';
 import safetyIcon from '../../icon/Safety.png';
 import stayIcon from '../../icon/stay.png';
 import mapsIcon from '../../icon/maps.png';
+import nomadIcon from '../../icon/Nomad.png';
 
-export type ViewId = 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'safety' | 'journal' | 'map';
+export type ViewId = 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'safety' | 'journal' | 'map' | 'nomad';
 
 interface NavItem {
   id: ViewId;
@@ -25,17 +26,18 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   // Before
-  { id: 'prep',     label: 'Prep Checklist', iconSrc: checklistIcon, section: 'before' },
-  { id: 'pack',     label: 'Pack Formula',   iconSrc: packIcon, section: 'before' },
-  { id: 'budget',   label: 'Stay Finder',    iconSrc: stayIcon, section: 'before' },
+  { id: 'prep',     label: 'Checklist', iconSrc: checklistIcon, section: 'before' },
+  { id: 'pack',     label: 'Pack',      iconSrc: packIcon,      section: 'before' },
+  { id: 'budget',   label: 'Stay',      iconSrc: stayIcon,      section: 'before' },
   // During
-  { id: 'route',    label: 'Itinerary',      iconSrc: itineraryIcon, section: 'during' },
-  { id: 'cities',   label: 'City Guide',     iconSrc: guideIcon, section: 'during' },
-  { id: 'safety',   label: 'Safety Kit',     iconSrc: safetyIcon, section: 'during' },
-  { id: 'expenses', label: 'Expenses',       iconSrc: paymentIcon, section: 'during' },
+  { id: 'route',    label: 'Itinerary', iconSrc: itineraryIcon, section: 'during' },
+  { id: 'cities',   label: 'Guide',     iconSrc: guideIcon,     section: 'during' },
+  { id: 'nomad',    label: 'Nomad',     iconSrc: nomadIcon,     section: 'during' },
+  { id: 'safety',   label: 'Safety',    iconSrc: safetyIcon,    section: 'during' },
   // After
-  { id: 'journal',  label: 'Journal',        iconSrc: journalIcon, section: 'after'  },
-  { id: 'map',      label: 'My Map',         iconSrc: mapsIcon, section: 'after'  },
+  { id: 'expenses', label: 'Expenses',  iconSrc: paymentIcon,   section: 'after'  },
+  { id: 'map',      label: 'Map',       iconSrc: mapsIcon,      section: 'after'  },
+  { id: 'journal',  label: 'Journal',   iconSrc: journalIcon,   section: 'after'  },
 ];
 
 const SECTION_LABELS = { before: 'Before', during: 'On The Road', after: 'After' };
@@ -156,6 +158,10 @@ export function navigateTo(id: ViewId) {
     item.classList.toggle('active', (item as HTMLElement).dataset.view === id);
   });
 
+  // Scroll active mobile tab into view
+  const activeTab = document.querySelector<HTMLElement>(`.mobile-nav-item[data-view="${id}"]`);
+  activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
   window.location.hash = id;
 }
 
@@ -197,15 +203,12 @@ function buildSidebar() {
 
 function buildMobileNav() {
   const mobileNav = document.getElementById('mobile-nav')!;
-  // Show only 5 most important on mobile
-  const mobileItems = ['prep', 'route', 'expenses', 'cities', 'pack'] as ViewId[];
-  mobileNav.innerHTML = mobileItems.map(id => {
-    const item = NAV_ITEMS.find(n => n.id === id)!;
-    return `<div class="mobile-nav-item" data-view="${id}" role="button" tabindex="0">
+  mobileNav.innerHTML = `<div id="mobile-nav-inner">${NAV_ITEMS.map(item => {
+    return `<div class="mobile-nav-item" data-view="${item.id}" role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
       <span class="nav-label">${item.label.split(' ')[0]}</span>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
 
   mobileNav.querySelectorAll('.mobile-nav-item').forEach(item => {
     item.addEventListener('click', () => navigateTo((item as HTMLElement).dataset.view as ViewId));
