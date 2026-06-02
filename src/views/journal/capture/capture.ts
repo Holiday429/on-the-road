@@ -14,6 +14,7 @@ import {
   type TemplateId,
 } from '../templates.ts';
 import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type TagGroup, type TemplateGroup } from './render.ts';
+import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import {
   currentCity,
@@ -78,11 +79,14 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     });
   }
 
-  function bind(root: HTMLElement) {
-    const shell = root.querySelector<HTMLElement>('.journal-shell');
-    if (!shell) return;
+  let _boundRoot: HTMLElement | null = null;
 
-    shell.addEventListener('click', (event) => {
+  function bind(root: HTMLElement) {
+    // Only attach listeners once per root element to prevent accumulation across re-renders.
+    if (_boundRoot === root) return;
+    _boundRoot = root;
+
+    root.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
 
       const shareBtn = target.closest<HTMLElement>('[data-share-entry]');
@@ -103,9 +107,17 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
+      const cardBtn = target.closest<HTMLElement>('[data-card-entry]');
+      if (cardBtn) {
+        const entry = deps.getEntries().find((item) => item.id === cardBtn.dataset.cardEntry);
+        if (entry) void openCardPreview(entry);
+        return;
+      }
+
       const saveBtn = target.closest<HTMLElement>('[data-journal-save]');
       if (saveBtn) {
-        void saveDraft(shell);
+        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        if (liveShell) void saveDraft(liveShell);
         return;
       }
 
@@ -118,7 +130,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const shuffleBtn = target.closest<HTMLElement>('[data-journal-shuffle]');
       if (shuffleBtn) {
-        syncDraftFromDom(shell);
+        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        if (liveShell) syncDraftFromDom(liveShell);
         state.promptIndex += 1;
         deps.requestRender();
         focusComposer();
@@ -134,12 +147,10 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
-      const newEntryBtn = target.closest<HTMLElement>('[data-new-entry]');
-      if (newEntryBtn) {
-        state.templateBuilderOpen = false;
-        openComposer(DEFAULT_TEMPLATE);
+      // Close composer when clicking outside the drawer (on the overlay backdrop)
+      if (target.matches('[data-journal-overlay]')) {
+        resetDraft();
         deps.requestRender();
-        focusComposer();
         return;
       }
 
@@ -161,7 +172,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const saveTemplateBtn = target.closest<HTMLElement>('[data-save-template]');
       if (saveTemplateBtn) {
-        void saveTemplate(shell);
+        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        if (liveShell) void saveTemplate(liveShell);
         return;
       }
 
@@ -223,9 +235,21 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const removeImageBtn = target.closest<HTMLElement>('[data-remove-image]');
       if (removeImageBtn) {
-        syncDraftFromDom(shell);
+        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        if (liveShell) syncDraftFromDom(liveShell);
         state.draft.coverImage = '';
         deps.requestRender();
+        return;
+      }
+
+      const quickChipBtn = target.closest<HTMLElement>('[data-append-body]');
+      if (quickChipBtn) {
+        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        if (liveShell) syncDraftFromDom(liveShell);
+        const append = quickChipBtn.dataset.appendBody ?? '';
+        state.draft.body = state.draft.body ? `${state.draft.body}${append}` : append;
+        deps.requestRender();
+        focusComposer();
         return;
       }
 
@@ -237,8 +261,11 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       }
     });
 
-    shell.addEventListener('change', (event) => {
+    root.addEventListener('change', (event) => {
       const target = event.target as HTMLInputElement | HTMLSelectElement;
+      const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+      if (!liveShell) return;
+
       if (target.matches('[data-filter-destination]')) {
         state.filter.destination = target.value;
         deps.requestRender();
@@ -246,13 +273,13 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       }
 
       if (target.matches('#journal-image-input')) {
-        syncDraftFromDom(shell);
+        syncDraftFromDom(liveShell);
         void loadDraftImage(target as HTMLInputElement);
         return;
       }
 
       if (target.matches('input[name="journal-template-kind"]')) {
-        syncTemplateBuilderFromDom(shell);
+        syncTemplateBuilderFromDom(liveShell);
         const selectedKind = (target as HTMLInputElement).value as JournalTemplateKind;
         const next = defaultTemplateBuilder(selectedKind);
         state.templateBuilder = {
@@ -264,12 +291,12 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       }
 
       if (target.name === 'journal-mood') {
-        syncDraftFromDom(shell);
+        syncDraftFromDom(liveShell);
         deps.requestRender();
       }
     });
 
-    shell.addEventListener('keydown', (event) => {
+    root.addEventListener('keydown', (event) => {
       const keyEvent = event as KeyboardEvent;
       if (
         keyEvent.target instanceof HTMLTextAreaElement &&
@@ -278,7 +305,9 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         keyEvent.key === 'Enter'
       ) {
         keyEvent.preventDefault();
-        void saveDraft(shell);
+        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        if (!liveShell) return;
+        void saveDraft(liveShell);
       }
     });
   }
@@ -310,25 +339,24 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   }
 
   let _leafletMap: L.Map | null = null;
-  let _leafletMapId: string | null = null;
+  let _leafletMapEl: HTMLElement | null = null;
 
   function afterRender(root: HTMLElement) {
     const mapEl = root.querySelector<HTMLElement>('#journal-leaflet-map');
     if (!mapEl) {
-      if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; _leafletMapId = null; }
+      if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; _leafletMapEl = null; }
       return;
     }
 
     const rawPoints = mapEl.dataset.points ?? '[]';
-    const pointsId = rawPoints;
 
-    // Re-use existing map if the container is the same and data hasn't changed.
-    if (_leafletMap && _leafletMapId === pointsId) {
+    // Re-use existing map only if it is attached to the exact same DOM element.
+    if (_leafletMap && _leafletMapEl === mapEl) {
       _leafletMap.invalidateSize();
       return;
     }
 
-    if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; }
+    if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; _leafletMapEl = null; }
 
     type RawPoint = { key: string; label: string; lat: number; lng: number; count: number };
     let points: RawPoint[] = [];
@@ -336,7 +364,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
     const map = L.map(mapEl, { zoomControl: true, attributionControl: false });
     _leafletMap = map;
-    _leafletMapId = pointsId;
+    _leafletMapEl = mapEl;
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -385,6 +413,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     bind,
     handleDataChange,
     afterRender,
+    currentView: () => state.view,
   };
 
   function filteredEntries(entries: StoredJournalEntry[], applyCalendarMonth = true): StoredJournalEntry[] {
@@ -725,7 +754,7 @@ function projectLat(lat: number, bounds: ReturnType<typeof mapBounds>) {
 function buildCalendarCells(monthKey: string, entries: StoredJournalEntry[]): CalendarCell[] {
   const [year, month] = monthKey.split('-').map(Number);
   const first = new Date(year, month - 1, 1);
-  const firstWeekday = (first.getDay() + 6) % 7;
+  const firstWeekday = (first.getDay() + 6) % 7; // Mon=0 … Sun=6
   const start = new Date(year, month - 1, 1 - firstWeekday);
   const byDate = new Map<string, StoredJournalEntry[]>();
 
@@ -735,17 +764,19 @@ function buildCalendarCells(monthKey: string, entries: StoredJournalEntry[]): Ca
     byDate.set(entry.happenedOn, sortEntries(list));
   }
 
-  return Array.from({ length: 42 }, (_, index) => {
+  // Build cells week by week; stop after the week that contains the last day of the month.
+  const lastDay = new Date(year, month, 0); // last day of this month
+  const cells: CalendarCell[] = [];
+  for (let index = 0; ; index++) {
     const cell = new Date(start);
     cell.setDate(start.getDate() + index);
     const iso = cell.toISOString().slice(0, 10);
-    return {
-      iso,
-      day: cell.getDate(),
-      inMonth: cell.getMonth() === month - 1,
-      entries: byDate.get(iso) ?? [],
-    };
-  });
+    const inMonth = cell.getMonth() === month - 1;
+    cells.push({ iso, day: cell.getDate(), inMonth, entries: byDate.get(iso) ?? [] });
+    // Stop at a week boundary once we've passed the last day of the month.
+    if (cell >= lastDay && (index + 1) % 7 === 0) break;
+  }
+  return cells;
 }
 
 async function copyLink(url: string) {

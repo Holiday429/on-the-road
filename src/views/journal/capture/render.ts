@@ -5,9 +5,10 @@ import {
   builtinTemplate,
   templates,
   template,
+  type JournalTemplate,
   type TemplateId,
 } from '../templates.ts';
-import type { CaptureState, CaptureView } from './types.ts';
+import type { CaptureState } from './types.ts';
 import {
   MOODS,
   escHtml,
@@ -69,50 +70,14 @@ interface CaptureRenderModel {
   legs: StoredLeg[];
 }
 
-const VIEW_META: Record<CaptureView, { label: string }> = {
-  feed:       { label: 'Feed' },
-  places:     { label: 'Places' },
-  categories: { label: 'Categories' },
-  gallery:    { label: 'Gallery' },
-  map:        { label: 'Map' },
-  calendar:   { label: 'Calendar' },
-};
 
 export function renderCapture(model: CaptureRenderModel): string {
-  const placeCount = model.placeGroups.filter((group) => group.label !== 'No place yet').length;
-  const pinnedCount = model.allEntries.filter((entry) => entry.favorite).length;
-
   return `
     <div class="journal-shell">
-      <div class="journal-capture-bar">
-        <div class="journal-capture-stats">
-          <div class="journal-capture-stat">
-            <span class="journal-capture-stat-num">${model.allEntries.length}</span>
-            <span class="journal-capture-stat-label">entries</span>
-          </div>
-          <div class="journal-capture-stat">
-            <span class="journal-capture-stat-num">${placeCount}</span>
-            <span class="journal-capture-stat-label">places</span>
-          </div>
-          <div class="journal-capture-stat">
-            <span class="journal-capture-stat-num">${pinnedCount}</span>
-            <span class="journal-capture-stat-label">pinned</span>
-          </div>
-        </div>
-        <button class="btn btn-primary" data-new-entry type="button">+ New entry</button>
-      </div>
-
       ${renderStamps(model.state)}
 
-      <div class="journal-layout-bar">
-        ${Object.entries(VIEW_META).map(([id, meta]) => `
-          <button class="journal-layout-tab ${model.state.view === id ? 'active' : ''}" data-journal-view="${id}" type="button">
-            <span>${meta.label}</span>
-          </button>
-        `).join('')}
-      </div>
       ${model.state.templateBuilderOpen ? renderTemplateBuilder(model.state) : ''}
-      ${model.state.composerOpen ? renderComposer(model.state, model.allEntries, model.legs) : ''}
+      ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs)}</div></div>` : ''}
 
       <div class="journal-view-surface">
         ${renderActiveView(model)}
@@ -135,16 +100,16 @@ function renderStamps(state: CaptureState): string {
   return `
     <div class="journal-stamps">
       ${items.map((item) => `
-        <button class="journal-stamp journal-fmt-${item.format} ${state.composerOpen && !state.editingId && state.draft.template === item.id ? 'active' : ''}"
-                style="--tint:${item.tint}" data-stamp="${item.id}" type="button" title="${escHtml(item.label)}">
+        <button class="journal-stamp ${state.composerOpen && !state.editingId && state.draft.template === item.id ? 'active' : ''}"
+                data-stamp="${item.id}" type="button">
           <span class="journal-stamp-emoji">${item.emoji}</span>
           <span class="journal-stamp-label">${escHtml(item.label)}</span>
           ${item.builtin ? '' : '<span class="journal-stamp-custom">custom</span>'}
         </button>
       `).join('')}
-      <button class="journal-stamp journal-stamp-add" data-open-template-builder type="button" title="New custom template">
+      <button class="journal-stamp journal-stamp-add" data-open-template-builder type="button">
         <span class="journal-stamp-emoji">＋</span>
-        <span class="journal-stamp-label">Custom template</span>
+        <span class="journal-stamp-label">Custom</span>
       </button>
     </div>
   `;
@@ -227,78 +192,116 @@ function renderComposer(
         <div class="journal-composer-headings">
           <span class="journal-composer-format">${escHtml(item.label)}</span>
           <span class="journal-composer-prompt">${escHtml(prompt)}</span>
-          <span class="journal-composer-focus">${escHtml(item.focus)}</span>
         </div>
         <button class="journal-icon-btn" data-journal-shuffle type="button" title="Another prompt">↻</button>
         <button class="journal-icon-btn" data-journal-close type="button" title="Close">✕</button>
       </div>
 
-      <div class="journal-composer-block">
-        <div class="journal-composer-block-title">Core capture</div>
-        <div class="journal-write-area">
-          <label class="journal-body-label" for="journal-body">${escHtml(item.bodyLabel)}</label>
-          <textarea class="journal-textarea" id="journal-body" placeholder="${escHtml(item.placeholder)}">${escHtml(state.draft.body)}</textarea>
+      ${item.fields.image ? `
+        <div class="journal-image-zone">
+          ${state.draft.coverImage ? `
+            <div class="journal-image-preview-wrap">
+              <img src="${escHtml(state.draft.coverImage)}" alt="Preview" class="journal-image-preview-large">
+              <button class="journal-image-remove" data-remove-image type="button" title="Remove">✕</button>
+            </div>
+          ` : `
+            <label class="journal-image-placeholder" for="journal-image-input">
+              <span class="journal-image-placeholder-icon">🖼</span>
+              <span>${escHtml(item.imageLabel)}</span>
+            </label>
+          `}
+          <input class="journal-image-input" type="file" id="journal-image-input" accept="image/*">
         </div>
+      ` : ''}
+
+      <div class="journal-write-area">
+        <textarea class="journal-textarea" id="journal-body" placeholder="${escHtml(item.placeholder)}">${escHtml(state.draft.body)}</textarea>
       </div>
 
-      <div class="journal-composer-block">
-        <div class="journal-composer-block-title">Context</div>
+      <div class="journal-composer-meta">
         <div class="journal-meta-row">
           <input class="input journal-meta-title" id="journal-title" maxlength="80" placeholder="Title (optional)" value="${escHtml(state.draft.title)}">
           <input class="input journal-meta-date" type="date" id="journal-date" value="${escHtml(state.draft.happenedOn)}">
         </div>
-        <div class="journal-meta-grid">
-          ${item.fields.destination ? `
+        ${item.fields.destination ? `
+          <div class="journal-meta-row-single">
             <input class="input" id="journal-destination" list="journal-dest-list" placeholder="${escHtml(item.destinationLabel)}" value="${escHtml(state.draft.destination)}">
             <datalist id="journal-dest-list">
               ${destinations.map((destination) => `<option value="${escHtml(destination)}"></option>`).join('')}
             </datalist>
-          ` : ''}
-        </div>
+          </div>
+        ` : ''}
       </div>
 
-      <div class="journal-composer-block">
-        <div class="journal-composer-block-title">Extra texture</div>
-        <div class="journal-meta-grid">
-          ${item.fields.tags ? `
-            <input class="input" id="journal-tags" placeholder="${escHtml(item.tagsLabel)}" value="${escHtml(state.draft.tagsText)}">
-          ` : ''}
-          ${item.fields.image ? `
-            <label class="journal-upload-chip" for="journal-image-input">
-              <span>🖼️</span>
-              <span>${escHtml(item.imageLabel)}</span>
-            </label>
-            <input class="journal-image-input" type="file" id="journal-image-input" accept="image/*">
-          ` : ''}
-        </div>
-        ${state.draft.coverImage ? `
-          <div class="journal-image-preview-wrap">
-            <img src="${escHtml(state.draft.coverImage)}" alt="Preview" class="journal-image-preview">
-            <button class="journal-filter-chip" data-remove-image type="button">Remove image</button>
-          </div>
-        ` : ''}
-        ${item.fields.mood ? `
-          <div class="journal-mood-field">
-            <span class="journal-mood-label">Mood</span>
-            <div class="journal-mood-row">
-              ${MOODS.map((mood) => `
-                <label class="journal-mood-chip ${state.draft.mood === mood.value ? 'active' : ''}" title="${mood.value}">
-                  <input type="radio" name="journal-mood" value="${mood.value}" ${state.draft.mood === mood.value ? 'checked' : ''}>
-                  <span>${mood.emoji}</span>
-                </label>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
-      </div>
+      ${renderTypeExtras(item, state)}
 
       <div class="journal-composer-actions">
-        <button class="btn btn-primary" data-journal-save type="button">${state.editingId ? 'Save' : 'Add to capture'}</button>
         <button class="btn btn-ghost" data-journal-cancel type="button">Cancel</button>
-        <span class="journal-shortcut">⌘↵ to save</span>
+        <button class="btn btn-primary" data-journal-save type="button">${state.editingId ? 'Save' : 'Add to capture'}</button>
       </div>
     </section>
   `;
+}
+
+function renderTypeExtras(item: JournalTemplate, state: CaptureState): string {
+  const parts: string[] = [];
+
+  if (item.fields.mood) {
+    parts.push(`
+      <div class="journal-extras-row">
+        <div class="journal-mood-row">
+          ${MOODS.map((mood) => `
+            <label class="journal-mood-chip ${state.draft.mood === mood.value ? 'active' : ''}" title="${mood.value}">
+              <input type="radio" name="journal-mood" value="${mood.value}" ${state.draft.mood === mood.value ? 'checked' : ''}>
+              <span>${mood.emoji}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    `);
+  }
+
+  if (item.fields.tags) {
+    parts.push(`
+      <div class="journal-extras-row">
+        <input class="input" id="journal-tags" placeholder="${escHtml(item.tagsLabel)}" value="${escHtml(state.draft.tagsText)}">
+      </div>
+    `);
+  }
+
+  // Per-type quick chips
+  const quickChips = typeQuickChips(item.kind);
+  if (quickChips) {
+    parts.push(`<div class="journal-quick-chips">${quickChips}</div>`);
+  }
+
+  return parts.length ? `<div class="journal-composer-extras">${parts.join('')}</div>` : '';
+}
+
+function typeQuickChips(kind: string): string {
+  if (kind === 'moment') {
+    return `
+      <span class="journal-quick-label">时段</span>
+      ${['清晨','午后','傍晚','夜晚'].map((t) => `<button class="journal-quick-chip" data-append-body="${escHtml(t)}" type="button">${t}</button>`).join('')}
+    `;
+  }
+  if (kind === 'note') {
+    return `
+      ${[['💰','价格'],['🕐','开放时间'],['🎫','订票']].map(([icon, label]) => `<button class="journal-quick-chip" data-append-body="${escHtml(icon + ' ' + label + '：')}" type="button">${icon} ${label}</button>`).join('')}
+    `;
+  }
+  if (kind === 'interesting') {
+    return `
+      <span class="journal-quick-label">反差类型</span>
+      ${['意料之外','颠覆认知','想分享'].map((t) => `<button class="journal-quick-chip" data-append-body="${escHtml(t + '：')}" type="button">${t}</button>`).join('')}
+    `;
+  }
+  if (kind === 'place') {
+    return `
+      ${['☕ 咖啡','🏛 景点','🍜 餐厅','🛍 购物'].map((t) => `<button class="journal-quick-chip" data-append-body="${escHtml(t + ' ')}" type="button">${t}</button>`).join('')}
+    `;
+  }
+  return '';
 }
 
 function renderFeedWithFilters(model: CaptureRenderModel): string {
@@ -373,6 +376,7 @@ function renderTimelineEntry(entry: StoredJournalEntry, editingId: string | null
             <span class="journal-timeline-where">${escHtml(where)}</span>
           </div>
           <div class="journal-timeline-actions">
+            <button class="journal-icon-btn" data-card-entry="${entry.id}" type="button" title="Generate share card">🖼</button>
             <button class="journal-icon-btn ${isPublic ? 'is-on' : ''}" data-share-entry="${entry.id}" type="button" title="Share">↗</button>
             <button class="journal-icon-btn ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${entry.id}" type="button" title="Pin">📌</button>
             <button class="journal-icon-btn" data-delete-entry="${entry.id}" type="button" title="Delete">✕</button>
@@ -413,7 +417,7 @@ function renderPlacesView(groups: PlaceGroup[]): string {
           </article>
         `;
       }).join('')}
-      <button class="journal-place-tile journal-place-tile-add" data-new-entry type="button">
+      <button class="journal-place-tile journal-place-tile-add" data-stamp="place" type="button">
         <div class="journal-place-tile-cover journal-place-tile-cover-add">
           <span>＋</span>
         </div>

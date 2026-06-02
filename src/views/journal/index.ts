@@ -56,13 +56,25 @@ function renderJournal() {
   const body = root?.querySelector<HTMLElement>('.journal-body');
   if (!root || !body) return;
 
+  const captureHtml = mode === 'capture' ? capture.render() : '';
+  const storyHtml   = mode === 'story'   ? story.render()   : '';
+
   body.innerHTML = `
     <div class="journal-mode-shell">
-      <div class="journal-mode-tabs">
-        <button class="journal-mode-tab ${mode === 'capture' ? 'active' : ''}" data-journal-mode="capture" type="button">Capture</button>
-        <button class="journal-mode-tab ${mode === 'story' ? 'active' : ''}" data-journal-mode="story" type="button">Story</button>
+      <div class="journal-topbar">
+        <div class="journal-mode-tabs">
+          <button class="journal-mode-tab ${mode === 'capture' ? 'active' : ''}" data-journal-mode="capture" type="button">Capture</button>
+          <button class="journal-mode-tab ${mode === 'story' ? 'active' : ''}" data-journal-mode="story" type="button">Story</button>
+        </div>
+        ${mode === 'capture' ? `
+          <div class="journal-layout-bar">
+            ${(['feed','places','categories','gallery','map','calendar'] as const).map((id) => `
+              <button class="journal-layout-tab ${capture.currentView() === id ? 'active' : ''}" data-journal-view="${id}" type="button">${id.charAt(0).toUpperCase() + id.slice(1)}</button>
+            `).join('')}
+          </div>
+        ` : ''}
       </div>
-      ${mode === 'capture' ? capture.render() : story.render()}
+      ${captureHtml}${storyHtml}
     </div>
   `;
 
