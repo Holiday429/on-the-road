@@ -244,12 +244,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const quickChipBtn = target.closest<HTMLElement>('[data-append-body]');
       if (quickChipBtn) {
-        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
-        if (liveShell) syncDraftFromDom(liveShell);
         const append = quickChipBtn.dataset.appendBody ?? '';
-        state.draft.body = state.draft.body ? `${state.draft.body}${append}` : append;
-        deps.requestRender();
-        focusComposer();
+        appendToComposerBody(append);
         return;
       }
 
@@ -523,9 +519,11 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       tags: currentTemplate.fields.tags ? parseTags(state.draft.tagsText) : [],
       happenedOn: state.draft.happenedOn || new Date().toISOString().slice(0, 10),
       coverImage: state.draft.coverImage || '',
-      imageRatio: state.draft.imageRatio,
     };
     if (currentTemplate.fields.mood) payload.mood = state.draft.mood;
+    if (state.draft.coverImage && typeof state.draft.imageRatio === 'number') {
+      payload.imageRatio = state.draft.imageRatio;
+    }
 
     try {
       if (state.editingId) await journalStore.update(state.editingId, payload);
@@ -606,6 +604,27 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       console.error('Image load failed:', error);
       toast('Could not load image');
     }
+  }
+
+  function appendToComposerBody(append: string) {
+    const textarea = document.getElementById('journal-body') as HTMLTextAreaElement | null;
+    if (!textarea) {
+      state.draft.body = state.draft.body ? `${state.draft.body}${append}` : append;
+      focusComposer();
+      return;
+    }
+
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    const value = textarea.value;
+    const nextValue = `${value.slice(0, start)}${append}${value.slice(end)}`;
+
+    textarea.value = nextValue;
+    state.draft.body = nextValue;
+
+    const nextCursor = start + append.length;
+    textarea.focus();
+    textarea.setSelectionRange(nextCursor, nextCursor);
   }
 }
 

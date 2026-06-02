@@ -11,7 +11,7 @@ import {
   type StoredTemplate,
 } from '../../data/stores/checklist-store.ts';
 import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/schema.ts';
-import { paletteColor } from '../../data/palette.ts';
+import { noteColor } from '../../data/palette.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -379,33 +379,7 @@ function renderDetailScreen(container: HTMLElement) {
 
   container.innerHTML = `
     <div class="prep-detail-screen">
-      <!-- Back + title -->
-      <div class="detail-topbar">
-        <button class="btn btn-ghost back-btn" id="back-to-list">← Back</button>
-        <div class="detail-title-wrap">
-          <input class="detail-title-input" id="detail-title-input" value="${escHtml(cl.name)}">
-        </div>
-        <div class="detail-actions">
-          <button class="btn btn-ghost ai-check-btn" id="ai-check-btn" title="AI Review">✨ AI Check</button>
-          <button class="btn btn-ghost save-as-template-btn" id="save-as-template-btn" title="Save as template">📋 Save as Template</button>
-        </div>
-      </div>
-
-      <!-- Progress bar -->
-      <div class="detail-progress">
-        <div class="detail-progress-track">
-          <div class="detail-progress-fill ${allDone ? 'complete' : ''}" style="width:${pct}%"></div>
-        </div>
-        <span class="detail-progress-label">${done} / ${total} done</span>
-        ${allDone ? '<button class="btn btn-primary celebrate-btn" id="celebrate-btn">🎉 View completion</button>' : ''}
-      </div>
-
-      <!-- Groups -->
-      <div class="groups-list" id="groups-list">
-        ${cl.groups.sort((a, b) => a.order - b.order).map(g => renderGroup(cl.id, g)).join('')}
-      </div>
-
-      <!-- Add group -->
+      <!-- Add group (presets + custom) — placed above the title -->
       <div class="add-group-section">
         <div class="add-group-presets">
           ${[
@@ -436,6 +410,32 @@ function renderDetailScreen(container: HTMLElement) {
             `<button class="emoji-option" data-emoji="${e}">${e}</button>`
           ).join('')}
         </div>
+      </div>
+
+      <!-- Back + title -->
+      <div class="detail-topbar">
+        <button class="btn btn-ghost back-btn" id="back-to-list">← Back</button>
+        <div class="detail-title-wrap">
+          <input class="detail-title-input" id="detail-title-input" value="${escHtml(cl.name)}">
+        </div>
+        <div class="detail-actions">
+          <button class="btn btn-ghost ai-check-btn" id="ai-check-btn" title="AI Review">✨ AI Check</button>
+          <button class="btn btn-ghost save-as-template-btn" id="save-as-template-btn" title="Save as template">📋 Save as Template</button>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="detail-progress">
+        <div class="detail-progress-track">
+          <div class="detail-progress-fill ${allDone ? 'complete' : ''}" style="width:${pct}%"></div>
+        </div>
+        <span class="detail-progress-label">${done} / ${total} done</span>
+        ${allDone ? '<button class="btn btn-primary celebrate-btn" id="celebrate-btn">🎉 View completion</button>' : ''}
+      </div>
+
+      <!-- Groups -->
+      <div class="groups-list" id="groups-list">
+        ${cl.groups.sort((a, b) => a.order - b.order).map(g => renderGroup(cl.id, g)).join('')}
       </div>
 
       <!-- AI panel -->
@@ -489,7 +489,7 @@ function renderGroup(checklistId: string, group: ChecklistGroup): string {
   const allDone = total > 0 && done === total;
   const isEditing = editingGroupId === group.id;
   const tilt = groupTilt(group.id);
-  const color = allDone ? '#d1fae5' : paletteColor(group.id);
+  const color = allDone ? '#d6f5e3' : noteColor(group.id);
 
   return `
     <div class="prep-group ${allDone ? 'group-complete' : ''}"

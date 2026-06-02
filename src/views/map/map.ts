@@ -6,7 +6,8 @@ import './map.css';
 import { renderViewTitleMarkup } from '../../core/app.ts';
 import { cityLocationsFor, isoFor, EUROPE_CENTER } from './geo.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
-import { MAP_PALETTE, hashStr } from '../../data/palette.ts';
+import { MAP_COLORS as C, countryColor } from './map-shared.ts';
+import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
@@ -36,31 +37,7 @@ interface OverlayItem {
   lat: number;
 }
 
-/* ── Colors ───────────────────────────────────────────────────────────────── */
-const C = {
-  land:       '#f0ead6',
-  landStroke: '#d6c9a8',
-  route:      '#c0392b',
-  ink:        '#3a1d6e',
-  hover:      '#e07b54',
-};
-
-/* Hand-picked so no two adjacent countries share a hue family.
-   Adjacencies: DK-DE  DE-NL  DE-BE  NL-BE  BE-FR  FR-ES  FR-CH  FR-IT  CH-IT  ES-PT */
-const COUNTRY_COLORS: Record<string, string> = {
-  DK: '#d4a5a5',  // dusty rose
-  DE: '#9fc5b8',  // teal sage
-  NL: '#e8c99a',  // warm sand
-  BE: '#c4b7d4',  // lavender
-  FR: '#8fb8d4',  // slate blue
-  ES: '#d4b8a8',  // blush terracotta
-  PT: '#b8d49c',  // pale lime
-  CH: '#e8d4a0',  // warm straw
-  IT: '#c4aad4',  // dusty violet
-};
-function countryColor(iso: string): string {
-  return COUNTRY_COLORS[iso] ?? MAP_PALETTE[hashStr(iso) % MAP_PALETTE.length];
-}
+/* Colors and country data imported from map-shared.ts */
 
 /* ── Flight waypoints ─────────────────────────────────────────────────────── */
 const HARBIN  = { lat: 45.8038, lng: 126.5350 };
@@ -570,30 +547,18 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   const heroData = chart.series.push(am5map.MapPointSeries.new(root, {}));
   const heroItem = heroData.pushDataItem({ longitude:legs[0].lng, latitude:legs[0].lat });
   (chart as any)._heroItem = heroItem;
-  let heroImg = document.querySelector('.map-hero-img') as HTMLImageElement|null;
-  if (!heroImg) {
-    heroImg = document.createElement('img');
-    heroImg.className = 'map-hero-img';
-    heroImg.src = HERO_GIF; heroImg.alt = '';
-    (document.querySelector('.map-stage') as HTMLElement).appendChild(heroImg);
-  }
+  const heroImg = ensureHeroOverlay(
+    document.querySelector('.map-stage') as HTMLElement,
+    'map-hero-img',
+    HERO_GIF,
+  );
   (chart as any)._heroImg = heroImg;
-  let _lastHeroX: number|null = null;
-  const syncHero = () => {
-    const img = (chart as any)._heroImg as HTMLImageElement;
-    const it  = (chart as any)._heroItem;
-    if (!img||!it) return;
-    const lng = it.get('longitude'), lat = it.get('latitude');
-    if (lng==null||lat==null) return;
-    const px = chart.convert({ longitude:lng, latitude:lat }); if (!px) return;
-    if (_lastHeroX!=null) {
-      const dx = px.x - _lastHeroX;
-      if (dx>0.4) img.classList.add('facing-right'); else if (dx<-0.4) img.classList.remove('facing-right');
-    }
-    _lastHeroX = px.x;
-    img.style.left = `${px.x}px`; img.style.top = `${px.y}px`;
-  };
-  root.events.on('frameended', syncHero);
+  const syncHero = bindHeroOverlay(root, {
+    chart,
+    item: heroItem,
+    image: heroImg,
+    host: document.querySelector('.map-stage') as HTMLElement,
+  });
   root.events.on('frameended', () => {
     syncOverlayItems(_regionLabelOverlays);
     syncOverlayItems(_countryPinOverlays);

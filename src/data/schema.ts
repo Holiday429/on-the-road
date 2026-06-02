@@ -113,6 +113,85 @@ export const ChecklistSchema = doc({
 });
 export type Checklist = z.infer<typeof ChecklistSchema>;
 
+/* ── Pack (packing list, weight-budget driven) ───────────────────────────── */
+
+// A reusable piece of must-bring gear (user-scoped, cross-trip). Digital nomads
+// keep laptop/camera/chargers here so every new pack list starts with them
+// locked in and their weight pre-deducted from the budget.
+export const CoreKitItemSchema = doc({
+  name: z.string(),
+  category: z.string().default('Tech'),
+  weightG: z.number().default(0),
+  defaultSlot: z.enum(['carryOn', 'checked', 'personal']).default('carryOn'),
+});
+export type CoreKitItem = z.infer<typeof CoreKitItemSchema>;
+
+// A physical bag the user is taking. selfWeightG counts toward the slot budget.
+export const PackContainerSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  kind: z.enum(['suitcase', 'backpack', 'personal']).default('backpack'),
+  slot: z.enum(['checked', 'carryOn', 'personal']).default('carryOn'),
+  capacityL: z.number().default(0),
+  selfWeightG: z.number().default(0),
+});
+export type PackContainer = z.infer<typeof PackContainerSchema>;
+
+// Hand-entered airline allowance. Weight is the binding constraint in P1.
+export const AirlineLimitSchema = z.object({
+  airline: z.string().default(''),
+  carryOnKg: z.number().default(0),
+  checkedKg: z.number().default(0),
+  personalKg: z.number().default(0),
+});
+export type AirlineLimit = z.infer<typeof AirlineLimitSchema>;
+
+export const PackPriority = z.enum(['core', 'essential', 'nice', 'luxury']);
+export type PackPriority = z.infer<typeof PackPriority>;
+
+export const PackItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  category: z.string().default('Other'),
+  qty: z.number().default(1),
+  unitWeightG: z.number().default(0),
+  containerId: z.string().nullable().default(null),
+  priority: PackPriority.default('essential'),
+  locked: z.boolean().default(false),       // core-kit items can't be edited/removed
+  packed: z.boolean().default(false),       // checked off during pack-check
+  source: z.enum(['core', 'formula', 'manual']).default('manual'),
+  order: z.number().default(0),
+});
+export type PackItem = z.infer<typeof PackItemSchema>;
+
+export const PackProfileSchema = z.object({
+  days: z.number().default(7),
+  climate: z.enum(['cold', 'cool', 'mild', 'warm', 'hot']).default('mild'),
+  activities: z.array(z.string()).default([]),
+});
+export type PackProfile = z.infer<typeof PackProfileSchema>;
+
+export const PackListSchema = doc({
+  name: z.string(),
+  profile: PackProfileSchema.default({ days: 7, climate: 'mild', activities: [] }),
+  containers: z.array(PackContainerSchema).default([]),
+  airline: AirlineLimitSchema.default({ airline: '', carryOnKg: 0, checkedKg: 0, personalKg: 0 }),
+  items: z.array(PackItemSchema).default([]),
+});
+export type PackList = z.infer<typeof PackListSchema>;
+
+// A reusable pack list (user-scoped, cross-trip). Snapshots the profile, bags,
+// airline limits and items so a future trip can start from a proven setup.
+// Core-kit items are excluded — those re-attach live from the user's Core Kit.
+export const PackTemplateSchema = doc({
+  name: z.string(),
+  profile: PackProfileSchema.default({ days: 7, climate: 'mild', activities: [] }),
+  containers: z.array(PackContainerSchema).default([]),
+  airline: AirlineLimitSchema.default({ airline: '', carryOnKg: 0, checkedKg: 0, personalKg: 0 }),
+  items: z.array(PackItemSchema).default([]),
+});
+export type PackTemplate = z.infer<typeof PackTemplateSchema>;
+
 /* ── Route / Itinerary ───────────────────────────────────────────────────── */
 const TransportSchema = z.object({
   type: z.enum(['flight', 'train', 'bus', 'ferry']),
@@ -248,6 +327,89 @@ export const CityIntelSchema = doc({
   transport: z.array(z.string()).default([]),
 });
 export type CityIntel = z.infer<typeof CityIntelSchema>;
+
+/* ── Safety ──────────────────────────────────────────────────────────────── */
+// Two halves, mirroring the Stay/Guide split:
+//   SafetyProfile — one user-scoped doc (id: 'me'). Personal + emergency info
+//     the traveller fills in once and carries across every trip. Stored under
+//     users/{uid}/safetyProfile so it is NOT tied to a single trip. Everything
+//     defaults to '' — the form starts empty and the user populates it.
+//   CitySafety — one doc per city (id = slugged city), trip-scoped, AI-seeded
+//     but hand-correctable. `source` flips to 'edited' the moment the user
+//     changes a field, so a re-generate can skip cards they've curated.
+
+export const EmergencyContactSchema = z.object({
+  name: z.string().default(''),
+  relation: z.string().default(''),
+  dialCode: z.string().default(''),   // e.g. '+86' — stored separately for the split input
+  phone: z.string().default(''),      // local number without country code
+  isPrimary: z.boolean().default(false),
+});
+export type EmergencyContact = z.infer<typeof EmergencyContactSchema>;
+
+export const SafetyProfileSchema = doc({
+  nationality: z.string().default(''),          // ISO code → drives embassy lookup
+  emergencyContacts: z.array(EmergencyContactSchema).default([]),
+  bloodType: z.string().default(''),
+  allergies: z.string().default(''),
+  medications: z.string().default(''),
+  conditions: z.string().default(''),           // chronic conditions worth flagging to medics
+  insuranceProvider: z.string().default(''),
+  insurancePolicy: z.string().default(''),
+  insuranceHotline: z.string().default(''),     // hotline stored as single string (often intl already)
+  insurancePdfUrl: z.string().default(''),      // Firebase Storage download URL
+  insurancePdfName: z.string().default(''),     // original filename for display
+  notes: z.string().default(''),
+});
+export type SafetyProfile = z.infer<typeof SafetyProfileSchema>;
+
+// One labelled emergency number (Police / Ambulance / Fire / Women's helpline).
+export const SafetyNumberSchema = z.object({
+  label: z.string().default(''),
+  number: z.string().default(''),
+});
+export type SafetyNumber = z.infer<typeof SafetyNumberSchema>;
+
+export const SafetyHospitalSchema = z.object({
+  name: z.string().default(''),
+  address: z.string().default(''),
+  phone: z.string().default(''),
+  is24h: z.boolean().default(false),
+});
+export type SafetyHospital = z.infer<typeof SafetyHospitalSchema>;
+
+export const SafetyPhraseSchema = z.object({
+  en: z.string().default(''),            // "Call the police"
+  local: z.string().default(''),         // local-language equivalent
+  pronunciation: z.string().default(''),
+});
+export type SafetyPhrase = z.infer<typeof SafetyPhraseSchema>;
+
+export const SafetyEmbassySchema = z.object({
+  nationality: z.string().default(''),   // which country's embassy this is
+  name: z.string().default(''),
+  address: z.string().default(''),
+  phone: z.string().default(''),
+  website: z.string().default(''),
+});
+export type SafetyEmbassy = z.infer<typeof SafetyEmbassySchema>;
+
+export const CitySafetySchema = doc({
+  city: z.string(),
+  country: z.string().default(''),
+  flag: z.string().default(''),
+  generalEmergency: z.string().default('112'),       // pan-EU default
+  emergencyNumbers: z.array(SafetyNumberSchema).default([]),
+  embassy: SafetyEmbassySchema.default({ nationality: '', name: '', address: '', phone: '', website: '' }),
+  hospitals: z.array(SafetyHospitalSchema).default([]),
+  trustedTransport: z.array(z.string()).default([]),  // ride apps + night-travel advice
+  areasToAvoid: z.array(z.string()).default([]),       // zone + time-of-day
+  commonScams: z.array(z.string()).default([]),
+  phrases: z.array(SafetyPhraseSchema).default([]),
+  womenTips: z.array(z.string()).default([]),
+  source: z.enum(['ai', 'edited']).default('ai'),      // 'edited' = curated, don't overwrite
+});
+export type CitySafety = z.infer<typeof CitySafetySchema>;
 
 /* ── Journal ─────────────────────────────────────────────────────────────── */
 // `template` is the card preset (see src/views/journal/templates.ts) and is the
