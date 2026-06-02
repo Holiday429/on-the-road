@@ -65,7 +65,7 @@ function setAuthButtonBusy(busy: boolean) {
   if (!authButton) return;
   authButton.disabled = busy;
   if (!authButton.dataset.enterMode) {
-    authButton.textContent = busy ? 'Connecting…' : 'Continue with Google';
+    authButton.textContent = busy ? 'Connecting…' : 'Connect with Google';
   }
 }
 
@@ -105,13 +105,13 @@ authButton?.addEventListener('click', async () => {
   if (signingIn) return;
   signingIn = true;
   setAuthButtonBusy(true);
-  setAuthStatus('Opening Google sign-in…');
+  setAuthStatus('');
 
   try {
     await signInWithGoogle();
     // onAuth will fire and call bootApp() for fresh sign-ins
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Google sign-in failed.';
+    const message = error instanceof Error ? error.message : 'Sign-in failed. Please try again.';
     setAuthStatus(message, true);
   } finally {
     signingIn = false;
@@ -119,7 +119,7 @@ authButton?.addEventListener('click', async () => {
   }
 });
 
-/* Init map while the big walking hero is shrinking into the map start point. */
+/* Init map when hero starts shrinking (travel.gif 2.5s + hero walk 1.5s). */
 setTimeout(async () => {
   if (!landingMapInitialized && mapContainer && authScreen) {
     landingMapInitialized = true;
@@ -129,7 +129,7 @@ setTimeout(async () => {
       console.warn('Landing map init failed:', error);
     }
   }
-}, 2500);
+}, 4000);
 
 let _bootUser: Awaited<Parameters<Parameters<typeof onAuth>[0]>[0]>['user'] | null = null;
 
@@ -165,7 +165,6 @@ async function bootApp() {
 
 onAuth(async ({ user, ready }) => {
   if (!ready) {
-    if (authButton && !authButton.dataset.enterMode) authButton.disabled = true;
     setAuthStatus('');
     return;
   }
