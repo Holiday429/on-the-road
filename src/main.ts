@@ -7,6 +7,7 @@ import './core/app.css';
 
 import { initApp, registerView, renderSession } from './core/app.ts';
 import { onAuth, signInWithGoogle, signOut } from './firebase/auth.ts';
+import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip } from './data/trip-context.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
@@ -18,7 +19,8 @@ import { initJournal }  from './views/journal/index.ts';
 import { initMap }      from './views/map/map.ts';
 import { initNomad }    from './views/nomad/nomad.ts';
 import { initStay }     from './views/stay/stay.ts';
-import { initStubs }    from './views/stubs.ts';
+import { initPack }     from './views/pack/pack.ts';
+import { initSafety }   from './views/safety/safety.ts';
 
 // Register lazy view inits (fire once on first navigation)
 registerView('prep',     initPrep);
@@ -29,15 +31,29 @@ registerView('journal',  initJournal);
 registerView('map',      initMap);
 registerView('nomad',    initNomad);
 registerView('budget',   initStay);
+registerView('pack',     initPack);
+registerView('safety',   initSafety);
 
 const authScreen = document.getElementById('auth-screen') as HTMLElement | null;
 const authButton = document.getElementById('auth-google-btn') as HTMLButtonElement | null;
 const authStatus = document.getElementById('auth-status') as HTMLElement | null;
 const appRoot = document.getElementById('app') as HTMLElement | null;
+const mapContainer = document.getElementById('landingMap') as HTMLElement | null;
 
 let shellBooted = false;
 let signingIn = false;
 let signingOut = false;
+let landingMapInitialized = false;
+let animationDone = false;
+let readyToEnter = false; // user is authenticated, waiting to enter
+
+/* navigation 2.5s + hero shrink 1.1s + route fill ≈ 9.5s total */
+const ANIMATION_DURATION_MS = 9500;
+
+setTimeout(() => {
+  animationDone = true;
+  if (readyToEnter) showEnterButton();
+}, ANIMATION_DURATION_MS);
 
 function setAuthStatus(message: string, isError = false) {
   if (!authStatus) return;
@@ -48,7 +64,17 @@ function setAuthStatus(message: string, isError = false) {
 function setAuthButtonBusy(busy: boolean) {
   if (!authButton) return;
   authButton.disabled = busy;
-  authButton.textContent = busy ? 'Connecting…' : 'Continue with Google';
+  if (!authButton.dataset.enterMode) {
+    authButton.textContent = busy ? 'Connecting…' : 'Continue with Google';
+  }
+}
+
+function showEnterButton() {
+  if (!authButton) return;
+  authButton.dataset.enterMode = '1';
+  authButton.disabled = false;
+  authButton.textContent = 'Enter the app →';
+  setAuthStatus('Signed in. Ready when you are.');
 }
 
 function showSignedOut(message = 'Use your Google account to enter the app.') {
@@ -66,11 +92,16 @@ function showSignedIn() {
 function bootShellOnce() {
   if (shellBooted) return;
   initApp();
-  initStubs();
   shellBooted = true;
 }
 
 authButton?.addEventListener('click', async () => {
+  // Already authenticated — enter the app directly
+  if (authButton?.dataset.enterMode) {
+    await bootApp();
+    return;
+  }
+
   if (signingIn) return;
   signingIn = true;
   setAuthButtonBusy(true);
@@ -78,6 +109,7 @@ authButton?.addEventListener('click', async () => {
 
   try {
     await signInWithGoogle();
+    // onAuth will fire and call bootApp() for fresh sign-ins
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Google sign-in failed.';
     setAuthStatus(message, true);
@@ -87,26 +119,29 @@ authButton?.addEventListener('click', async () => {
   }
 });
 
-onAuth(async ({ user, ready }) => {
-  if (!ready) {
-    setAuthButtonBusy(true);
-    setAuthStatus('Checking your session…');
-    return;
+/* Init map while the big walking hero is shrinking into the map start point. */
+setTimeout(async () => {
+  if (!landingMapInitialized && mapContainer && authScreen) {
+    landingMapInitialized = true;
+    try {
+      await initLandingMap(mapContainer);
+    } catch (error) {
+      console.warn('Landing map init failed:', error);
+    }
   }
+}, 2500);
 
-  if (!user) {
-    signingOut = false;
-    showSignedOut();
-    return;
-  }
+let _bootUser: Awaited<Parameters<Parameters<typeof onAuth>[0]>[0]>['user'] | null = null;
 
+async function bootApp() {
+  if (!_bootUser) return;
+  const user = _bootUser;
   showSignedIn();
   bootShellOnce();
   renderSession(user, async () => {
     if (signingOut) return;
     signingOut = true;
     setAuthStatus('Signing you out…');
-
     try {
       await signOut();
     } finally {
@@ -114,24 +149,45 @@ onAuth(async ({ user, ready }) => {
     }
   });
 
-  try {
-    await ensureDefaultTrip();
-  } catch (error) {
-    console.warn('Default trip bootstrap skipped:', error);
-  }
+  try { await ensureDefaultTrip(); }
+  catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
-  // One-time, self-healing: push any local itinerary into the cloud if it's empty.
   try {
     const n = await migrateRouteToCloud();
     if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
-  } catch (error) {
-    console.warn('Route migration skipped:', error);
-  }
+  } catch (e) { console.warn('Route migration skipped:', e); }
 
   try {
     const n = await migrateExpensesToCloud();
     if (n > 0) console.info(`Migrated ${n} expenses to the cloud.`);
-  } catch (error) {
-    console.warn('Expense migration skipped:', error);
+  } catch (e) { console.warn('Expense migration skipped:', e); }
+}
+
+onAuth(async ({ user, ready }) => {
+  if (!ready) {
+    if (authButton && !authButton.dataset.enterMode) authButton.disabled = true;
+    setAuthStatus('');
+    return;
+  }
+
+  if (!user) {
+    signingOut = false;
+    _bootUser = null;
+    showSignedOut();
+    return;
+  }
+
+  _bootUser = user;
+
+  if (signingIn) {
+    // Fresh sign-in via button click — enter immediately after Google popup closes
+    await bootApp();
+  } else {
+    // Returning session (page refresh) — show landing, wait for user to click
+    readyToEnter = true;
+    if (animationDone) {
+      showEnterButton();
+    }
+    // else: the ANIMATION_DURATION_MS timeout will call showEnterButton() when ready
   }
 });

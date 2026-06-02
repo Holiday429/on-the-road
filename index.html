@@ -29,27 +29,31 @@
 
 <section id="auth-screen" class="auth-screen" aria-live="polite">
   <div class="auth-shell">
-    <div class="auth-copy">
-      <div class="auth-eyebrow">On the Road</div>
-      <h1 class="auth-title">Sign in and keep your trip in one place.</h1>
-      <p class="auth-subtitle">
-        Continue with Google to open your planning dashboard, itinerary, expenses, and city guide.
-      </p>
-      <div class="auth-highlights">
-        <div class="auth-highlight">Prep Checklist that stays organized by timeline.</div>
-        <div class="auth-highlight">Trip route, costs, and city notes in one workspace.</div>
-        <div class="auth-highlight">Google sign-in already connected through Firebase Auth.</div>
+    <!-- Left: Animation stage -->
+    <div class="auth-stage">
+      <div class="auth-eyebrow">
+        <span class="auth-eyebrow-on">
+          <img src="./icon/maps.png" alt="" class="auth-eyebrow-icon" aria-hidden="true">
+          <span class="auth-eyebrow-n">n</span>
+        </span>
+        <span class="auth-eyebrow-road">the Road</span>
+      </div>
+      <div class="stage-canvas">
+        <img src="./assets/travel.gif" alt="" class="stage-gif stage-pack" loading="eager" aria-hidden="true">
+        <img src="./assets/logo.gif" alt="" class="landing-hero-img" loading="eager" aria-hidden="true">
+        <div id="landingMap" class="stage-map"></div>
       </div>
     </div>
 
+    <!-- Right: Login card -->
     <div class="auth-card card">
-      <div class="auth-card-title">Welcome back</div>
-      <div class="auth-card-text">Use your Google account to enter the app.</div>
+      <div class="auth-card-title">Sign in to continue</div>
+      <div class="auth-card-text">Connect with Google to open your trip workspace.</div>
       <button id="auth-google-btn" class="btn btn-primary auth-google-btn" type="button">
         <span aria-hidden="true">G</span>
         Continue with Google
       </button>
-      <div id="auth-status" class="auth-status">Checking your session…</div>
+      <div id="auth-status" class="auth-status"></div>
     </div>
   </div>
 </section>
@@ -95,10 +99,13 @@
       <div class="cities-grid"></div>
     </div>
 
-    <!-- /pack (stub) -->
+    <!-- /pack -->
     <div id="view-pack" class="view">
-      <div class="view-header"></div>
-      <div class="stub-body"></div>
+      <div class="view-header">
+        <div class="view-title">Pack</div>
+        <div class="view-subtitle">Pack light. Set your bags and limits, lock in your core kit, then let the formula fill the rest under your weight budget.</div>
+      </div>
+      <div class="pack-body"></div>
     </div>
 
     <!-- /budget → Stay -->
@@ -119,10 +126,13 @@
       <div class="nomad-body"></div>
     </div>
 
-    <!-- /safety (stub) -->
+    <!-- /safety -->
     <div id="view-safety" class="view">
-      <div class="view-header"></div>
-      <div class="stub-body"></div>
+      <div class="view-header">
+        <div class="view-title">Safety</div>
+        <div class="view-subtitle">Your solo-travel safety toolkit — emergency numbers, embassy, and city-by-city know-how. Calm, prepared, free to roam.</div>
+      </div>
+      <div class="safety-body"></div>
     </div>
 
     <!-- /expenses -->
