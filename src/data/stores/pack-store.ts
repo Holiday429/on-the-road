@@ -11,8 +11,6 @@ import {
   type PackList,
   type PackItem,
   type PackContainer,
-  type PackProfile,
-  type AirlineLimit,
 } from '../schema.ts';
 
 export type StoredPackList = WithMeta<PackList>;
@@ -40,17 +38,13 @@ export const packStore = {
    */
   create(input: {
     name: string;
-    profile?: Partial<PackProfile>;
     containers?: PackContainer[];
-    airline?: Partial<AirlineLimit>;
     items?: PackItem[];
     tripId?: string;
   }): Promise<string> {
     return store(input.tripId).set({
       name: input.name,
-      profile: { days: 7, climate: 'mild', activities: [], ...input.profile },
       containers: input.containers ?? [],
-      airline: { airline: '', carryOnKg: 0, checkedKg: 0, personalKg: 0, ...input.airline },
       items: input.items ?? [],
     });
   },
@@ -73,14 +67,6 @@ export const packStore = {
 
   remove(id: string) {
     return this.storeFor(id).remove(id);
-  },
-
-  setProfile(id: string, profile: PackProfile) {
-    return this.storeFor(id).update(id, { profile });
-  },
-
-  setAirline(id: string, airline: AirlineLimit) {
-    return this.storeFor(id).update(id, { airline });
   },
 
   /* ── Containers ────────────────────────────────────────────────────────── */

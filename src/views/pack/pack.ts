@@ -1,52 +1,119 @@
 /* ==========================================================================
-   On the Road · Pack — weight-budget packing (P1 + P2)
-   Screens:  list → setup (containers + airline) → core (lock kit) →
-             formula (generate clothing) → detail (the working list)
-   P2 adds the trim engine: three-layer advisory, auto-trim to budget on
-   generate, and one-click overflow rebalance to checked.
+   On the Road · Pack — simple weight-aware packing
+   --------------------------------------------------------------------------
+   Two screens:
+     list   → pack lists + the Core Kit template (your reusable must-bring gear)
+     detail → containers (each with its own weight limit) + an Unassigned area
+
+   Mental model: add the bags you're taking, give each a weight limit, then drop
+   items into them. Each container tallies its own weight live and warns when it
+   goes over. Items you're unsure about sit in Unassigned (weight uncounted)
+   until you commit them to a bag — or drop them to travel lighter.
    ========================================================================== */
 
 import './pack.css';
 import { packStore, STANDALONE_TRIP_ID, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { currentTrip } from '../../data/trip-context.ts';
 import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
-import { packTemplateStore, type StoredPackTemplate } from '../../data/stores/pack-template-store.ts';
-import {
-  buildFormulaItems, specsToItems, itemWeightG, formatKg,
-  layerAdvice, trimToBudget,
-  CLIMATES, ACTIVITIES, CATEGORY_ORDER,
-} from '../../data/packing-formula.ts';
-import type { PackList, PackItem, PackContainer, PackProfile } from '../../data/schema.ts';
+import { itemWeightG, formatKg } from '../../data/packing-formula.ts';
+import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
+
+/* ── Item categories ─────────────────────────────────────────────────────── */
+// Colors: NOTE_PALETTE tones extended with a few extra muted hues.
+// Each category gets a fixed pastel background so tags are instantly readable.
+export const PACK_CATEGORIES: { label: string; value: string; color: string }[] = [
+  { value: 'electronics', label: 'Electronics',  color: '#e2edf3' }, // blue-grey
+  { value: 'clothing',    label: 'Clothing',      color: '#ece2f3' }, // lavender
+  { value: 'toiletries',  label: 'Toiletries',    color: '#e2f3ec' }, // mint
+  { value: 'documents',   label: 'Documents',     color: '#f3ede2' }, // sand
+  { value: 'health',      label: 'Health & Med',  color: '#f3e6e6' }, // blush
+  { value: 'feminine',    label: 'Feminine',      color: '#f0e2f3' }, // lilac
+  { value: 'consumables', label: 'Consumables',   color: '#e6f3e6' }, // sage
+  { value: 'food',        label: 'Food',          color: '#f3f0e2' }, // cream
+  { value: 'gifts',       label: 'Gifts',         color: '#f3e2e8' }, // rose
+  { value: 'other',       label: 'Other',         color: '#ebebeb' }, // neutral
+];
+
+const DEFAULT_CATEGORY = 'other';
+
+function categoryColor(value: string): string {
+  return PACK_CATEGORIES.find(c => c.value === value)?.color ?? '#ebebeb';
+}
+
+function categoryLabel(value: string): string {
+  return PACK_CATEGORIES.find(c => c.value === value)?.label ?? value;
+}
+
+function categoryOptions(selected = DEFAULT_CATEGORY): string {
+  return PACK_CATEGORIES.map(c =>
+    `<option value="${c.value}" ${c.value === selected ? 'selected' : ''}>${c.label}</option>`
+  ).join('');
+}
+
+/* ── Weight unit support ─────────────────────────────────────────────────── */
+
+type WeightUnit = 'kg' | 'g' | 'lb' | 'jin';
+
+const WEIGHT_UNITS: { value: WeightUnit; label: string }[] = [
+  { value: 'kg', label: 'kg' },
+  { value: 'g',  label: 'g' },
+  { value: 'lb', label: 'lb' },
+  { value: 'jin', label: '斤 (jin)' },
+];
+
+// Converts a value in the given unit to grams.
+function toGrams(val: number, unit: WeightUnit): number {
+  if (unit === 'g')   return val;
+  if (unit === 'lb')  return val * 453.592;
+  if (unit === 'jin') return val * 500;
+  return val * 1000; // kg
+}
+
+// Displays grams in the user's preferred unit.
+function displayWeight(g: number, unit: WeightUnit): string {
+  if (unit === 'g')   return `${Math.round(g)}g`;
+  if (unit === 'lb')  return `${(g / 453.592).toFixed(1)}lb`;
+  if (unit === 'jin') return `${(g / 500).toFixed(2)}斤`;
+  return `${(g / 1000).toFixed(g % 1000 === 0 ? 0 : 1)}kg`;
+}
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
 type Screen = 'list' | 'detail';
-type SlotKey = 'carryOn' | 'checked' | 'personal';
 
 let screen: Screen = 'list';
 let activeId: string | null = null;
-let hideLuxury = false;
 let packCheckMode = false;
-// Transient banner after a generate that auto-trimmed items. Cleared on next render-causing action.
-let trimNotice: string | null = null;
+let weightUnit: WeightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
 
 let _lists: StoredPackList[] = [];
 let _kit: StoredCoreKitItem[] = [];
-let _templates: StoredPackTemplate[] = [];
 
 let _unsubLists: (() => void) | null = null;
 let _unsubStandaloneLists: (() => void) | null = null;
 let _unsubKit: (() => void) | null = null;
-let _unsubTemplates: (() => void) | null = null;
 
 let _tripLists: StoredPackList[] = [];
 let _standaloneLists: StoredPackList[] = [];
 
-const SLOTS: { key: SlotKey; label: string }[] = [
-  { key: 'carryOn', label: 'Carry-on' },
-  { key: 'checked', label: 'Checked' },
-  { key: 'personal', label: 'Personal' },
+const KINDS: { value: PackContainer['kind']; label: string }[] = [
+  { value: 'backpack', label: 'Backpack' },
+  { value: 'suitcase', label: 'Suitcase' },
+  { value: 'personal', label: 'Personal' },
 ];
+
+const PRIORITIES: { value: PackPriority; label: string }[] = [
+  { value: 'essential', label: 'Essential' },
+  { value: 'nice', label: 'Nice' },
+  { value: 'optional', label: 'Optional' },
+];
+
+// Lower rank = drop first when over weight. Falls back gracefully for any
+// legacy/unknown priority value read off an old document.
+const PRIORITY_RANK: Record<PackPriority, number> = { optional: 0, nice: 1, essential: 2 };
+function priRank(p: PackItem['priority']): number {
+  return PRIORITY_RANK[p as PackPriority] ?? 1;
+}
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -68,24 +135,31 @@ function num(v: string, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-/** Total packed-item weight in a container (excludes the bag's own weight). */
-function containerItemsWeight(list: PackList, containerId: string): number {
-  return list.items
-    .filter(it => it.containerId === containerId)
+function kindLabel(kind: PackContainer['kind']): string {
+  return KINDS.find(k => k.value === kind)?.label ?? kind;
+}
+
+/** Total weight inside a container = its items + the empty bag's own weight. */
+function containerWeight(list: PackList, c: PackContainer): number {
+  const items = list.items
+    .filter(it => it.containerId === c.id)
     .reduce((sum, it) => sum + itemWeightG(it), 0);
+  return items + c.selfWeightG;
 }
 
-/** Per-container budget: limit comes from the airline by slot. */
-function containerLimitG(list: PackList, c: PackContainer): number {
-  const a = list.airline;
-  const kg = c.slot === 'carryOn' ? a.carryOnKg : c.slot === 'checked' ? a.checkedKg : a.personalKg;
-  return kg * 1000;
-}
-
+/** Whole-list weight = every item + every bag's self-weight (Unassigned counts items only). */
 function listTotalWeight(list: PackList): number {
   const items = list.items.reduce((s, it) => s + itemWeightG(it), 0);
   const bags = list.containers.reduce((s, c) => s + c.selfWeightG, 0);
   return items + bags;
+}
+
+function isOver(list: PackList, c: PackContainer): boolean {
+  return c.limitG > 0 && containerWeight(list, c) > c.limitG;
+}
+
+function genLocalId(): string {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 /* ── Subscriptions ───────────────────────────────────────────────────────── */
@@ -94,7 +168,6 @@ function startSubscriptions() {
   _unsubLists?.();
   _unsubStandaloneLists?.();
   _unsubKit?.();
-  _unsubTemplates?.();
   _unsubLists = packStore.subscribe(rows => {
     _tripLists = rows;
     _lists = [..._tripLists, ..._standaloneLists];
@@ -106,7 +179,6 @@ function startSubscriptions() {
     render();
   }, STANDALONE_TRIP_ID);
   _unsubKit = coreKitStore.subscribe(rows => { _kit = rows; render(); });
-  _unsubTemplates = packTemplateStore.subscribe(rows => { _templates = rows; render(); });
 }
 
 /* ── Render dispatch ─────────────────────────────────────────────────────── */
@@ -123,6 +195,7 @@ function render() {
 /* ── List screen ─────────────────────────────────────────────────────────── */
 
 function renderList(c: HTMLElement) {
+  const kitTotal = _kit.reduce((s, k) => s + k.weightG, 0);
   c.innerHTML = `
     <div class="pack-action-bar">
       <button class="btn btn-primary" id="pk-new">+ New Pack List</button>
@@ -132,7 +205,7 @@ function renderList(c: HTMLElement) {
       <div class="empty-state">
         <div class="empty-icon">🎒</div>
         <p>No pack lists yet.</p>
-        <p style="font-size:var(--fs-sm);color:var(--ink-faint)">Create one, set your bags and limits, then let the formula pack you light.</p>
+        <p style="font-size:var(--fs-sm);color:var(--ink-faint)">Create one, add your bags with weight limits, then drop items in and keep each bag under budget.</p>
       </div>
     ` : `
       <div class="pack-grid">
@@ -140,74 +213,77 @@ function renderList(c: HTMLElement) {
       </div>
     `}
 
-    ${_templates.length > 0 ? `
-    <div class="pack-tpl-section">
-      <div class="pack-section-header">
-        <div class="pack-section-title">Templates</div>
-      </div>
-      <p class="pack-kit-hint">Reusable setups. Start a new list from a proven kit.</p>
-      <div class="pack-tpl-grid">
-        ${_templates.map(renderTemplateCard).join('')}
-      </div>
-    </div>` : ''}
-
     <div class="pack-kit-section">
       <div class="pack-section-header">
         <div class="pack-section-title">Core Kit</div>
-        <button class="btn btn-ghost pk-sm" id="pk-add-kit">+ Add gear</button>
+        <div class="pack-kit-header-right">
+          ${_kit.length > 0 ? `<span class="pack-kit-total">${displayWeight(kitTotal, weightUnit)} total</span>` : ''}
+          <select class="pack-unit-sel" id="pk-unit-sel">
+            ${WEIGHT_UNITS.map(u => `<option value="${u.value}" ${u.value === weightUnit ? 'selected' : ''}>${u.label}</option>`).join('')}
+          </select>
+        </div>
       </div>
-      <p class="pack-kit-hint">Your must-bring gear. It locks into every new pack list and its weight is deducted from the budget first.</p>
-      <div class="pack-kit-list">
-        ${_kit.length === 0 ? `<div class="pack-kit-empty">No gear yet — add your laptop, camera, chargers…</div>`
-          : _kit.map(renderKitRow).join('')}
+      <p class="pack-kit-hint">Your reusable must-bring gear. Maintain it once here; pull it into any new pack list with one click.</p>
+      <div class="pack-kit-table">
+        <div class="pack-kit-thead">
+          <span>Item</span><span>Category</span><span>Weight (${weightUnit === 'jin' ? '斤' : weightUnit})</span><span></span>
+        </div>
+        ${_kit.map(renderKitRow).join('')}
+        ${renderKitAddRow()}
       </div>
     </div>
 
     ${newListModal()}
-    ${kitModal()}
   `;
   bindList(c);
 }
 
-function renderTemplateCard(t: StoredPackTemplate): string {
-  const w = t.items.reduce((s, i) => s + itemWeightG(i), 0);
-  return `
-    <div class="pack-tpl-card" data-id="${t.id}">
-      <div class="pack-card-top">
-        <div class="pack-card-name">${escHtml(t.name)}</div>
-        <button class="pk-del-tpl" data-id="${t.id}" title="Delete">✕</button>
-      </div>
-      <div class="pack-card-meta">${t.profile.days}d · ${t.items.length} items · ${formatKg(w)}</div>
-      <button class="btn btn-ghost pk-sm pk-use-tpl" data-id="${t.id}">Use this →</button>
-    </div>
-  `;
-}
-
 function renderListCard(l: StoredPackList): string {
   const total = listTotalWeight(l);
-  const over = l.containers.some(c => {
-    const lim = containerLimitG(l, c);
-    return lim > 0 && containerItemsWeight(l, c.id) + c.selfWeightG > lim;
-  });
+  const over = l.containers.some(c => isOver(l, c));
   return `
     <div class="pack-card ${over ? 'is-over' : ''}" data-id="${l.id}">
       <div class="pack-card-top">
         <div class="pack-card-name">${escHtml(l.name)}</div>
         <button class="pk-del-list" data-id="${l.id}" title="Delete">✕</button>
       </div>
-      <div class="pack-card-meta">${l.profile.days}d · ${l.items.length} items · ${l.containers.length} bags</div>
+      <div class="pack-card-meta">${l.containers.length} bags · ${l.items.length} items</div>
       <div class="pack-card-weight ${over ? 'is-over' : ''}">${formatKg(total)}${over ? ' · over limit' : ''}</div>
     </div>
   `;
 }
 
+function kitWeightDisplay(weightG: number): string {
+  // Display in user unit for existing rows; input in user unit too.
+  if (weightUnit === 'g')   return String(Math.round(weightG));
+  if (weightUnit === 'lb')  return (weightG / 453.592).toFixed(2);
+  if (weightUnit === 'jin') return (weightG / 500).toFixed(3);
+  return (weightG / 1000).toFixed(weightG % 1000 === 0 ? 0 : 2);
+}
+
 function renderKitRow(k: StoredCoreKitItem): string {
+  const catVal = PACK_CATEGORIES.find(c => c.label === k.category || c.value === k.category)?.value ?? DEFAULT_CATEGORY;
   return `
     <div class="pack-kit-row" data-id="${k.id}">
-      <span class="pack-kit-name">${escHtml(k.name)}</span>
-      <span class="pack-kit-cat">${escHtml(k.category)}</span>
-      <span class="pack-kit-weight">${formatKg(k.weightG)}</span>
+      <input class="pack-kit-cell-input" data-id="${k.id}" data-field="name" value="${escHtml(k.name)}" placeholder="Item name">
+      <select class="pack-kit-cell-input pk-cat-sel" data-id="${k.id}" data-field="category">
+        ${categoryOptions(catVal)}
+      </select>
+      <input class="pack-kit-cell-input pk-weight-input" data-id="${k.id}" data-field="weightG" type="number" min="0" step="any" value="${kitWeightDisplay(k.weightG)}" placeholder="0">
       <button class="pk-del-kit" data-id="${k.id}" title="Remove">✕</button>
+    </div>
+  `;
+}
+
+function renderKitAddRow(): string {
+  return `
+    <div class="pack-kit-row pack-kit-add-row" id="pk-kit-add-row">
+      <input class="pack-kit-cell-input" id="pk-kit-name" placeholder="+ Add item… (Enter to save)">
+      <select class="pack-kit-cell-input pk-cat-sel" id="pk-kit-cat">
+        ${categoryOptions('electronics')}
+      </select>
+      <input class="pack-kit-cell-input pk-weight-input" id="pk-kit-weight" type="number" min="0" step="any" placeholder="0">
+      <span></span>
     </div>
   `;
 }
@@ -215,126 +291,170 @@ function renderKitRow(k: StoredCoreKitItem): string {
 /* ── Detail screen ───────────────────────────────────────────────────────── */
 
 function renderDetail(c: HTMLElement, l: PackList) {
-  const slotsUsed = new Set(l.containers.map(c => c.slot));
+  const unassigned = l.items.filter(i => i.containerId === null);
   c.innerHTML = `
     <div class="pack-detail">
       <div class="pack-detail-bar">
         <button class="btn btn-ghost pk-sm" id="pk-back">← All lists</button>
         <div class="pack-detail-title">${escHtml(l.name)}</div>
         <div class="pack-detail-actions">
-          <button class="btn btn-ghost pk-sm" id="pk-save-tpl">⭐ Save as template</button>
-          <label class="pk-toggle"><input type="checkbox" id="pk-hide-lux" ${hideLuxury ? 'checked' : ''}> Hide luxuries</label>
+          <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">+ Add bag</button>
           <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> Pack-check</label>
         </div>
       </div>
 
-      ${trimNotice ? `<div class="pack-trim-notice">✂️ ${trimNotice}</div>` : ''}
       ${packCheckMode ? renderPackCheck(l) : ''}
-      ${renderBudgets(l)}
-      ${renderLayerAdvice(l)}
-      ${renderSetupRow(l)}
-      ${renderItems(l)}
 
-      <div class="pack-add-row">
-        <input class="input" id="pk-add-name" placeholder="Add an item…">
-        <input class="input pk-w-input" id="pk-add-weight" type="number" min="0" placeholder="g">
-        <button class="btn btn-primary pk-sm" id="pk-add-item">Add</button>
+      <div class="pack-containers-grid">
+        ${l.containers.map(ct => renderContainerCard(l, ct)).join('')}
+        ${renderUnassigned(l, unassigned)}
       </div>
 
-      <div class="modal-overlay" id="pk-tpl-modal" hidden>
-        <div class="modal-box">
-          <div class="modal-header"><div class="modal-title">Save as Template</div><button class="modal-close" id="pk-close-tpl">✕</button></div>
-          <div class="modal-body">
-            <label class="field-label">Template name</label>
-            <input class="input" id="pk-tpl-name" value="${escHtml(l.name)}" placeholder="e.g. Carry-on summer setup">
-            <p style="font-size:var(--fs-sm);color:var(--ink-muted);margin-top:var(--sp-3)">Saves bags, limits, and items. Core-kit gear re-attaches live, so it's left out.</p>
-            <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
-              <button class="btn btn-ghost" id="pk-cancel-tpl">Cancel</button>
-              <button class="btn btn-primary" id="pk-confirm-tpl">Save</button>
+      <div class="pack-add-panel">
+        <span class="pack-add-label">New item</span>
+        <input class="input pack-add-name" id="pk-add-name" placeholder="Name…">
+        <select class="input pack-add-cat" id="pk-add-cat">
+          ${categoryOptions('other')}
+        </select>
+        <input class="input pack-add-weight" id="pk-add-weight" type="number" min="0" step="any" placeholder="${weightUnit === 'jin' ? '斤' : weightUnit}">
+        <select class="input pack-add-pri" id="pk-add-pri">
+          ${PRIORITIES.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
+        </select>
+        <button class="btn btn-primary pk-sm" id="pk-add-item">Add ↵</button>
+      </div>
+    </div>
+
+    <!-- Add bag modal -->
+    <div class="modal-overlay" id="pk-add-bag-modal" hidden>
+      <div class="modal-box">
+        <div class="modal-header">
+          <div class="modal-title">Add bag</div>
+          <button class="modal-close" id="pk-close-add-bag">✕</button>
+        </div>
+        <div class="modal-body">
+          <label class="field-label">Name</label>
+          <input class="input" id="pk-c-label" placeholder="e.g. Carry-on backpack">
+          <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-4)">
+            <div style="flex:1">
+              <label class="field-label">Type</label>
+              <select class="input" id="pk-c-kind">
+                ${KINDS.map(k => `<option value="${k.value}">${k.label}</option>`).join('')}
+              </select>
             </div>
+            <div style="width:100px">
+              <label class="field-label">Empty (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
+              <input class="input" id="pk-c-self" type="number" min="0" step="any" placeholder="0">
+            </div>
+            <div style="width:100px">
+              <label class="field-label">Limit (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
+              <input class="input" id="pk-c-limit" type="number" min="0" step="any" placeholder="0">
+            </div>
+          </div>
+          <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
+            <button class="btn btn-ghost" id="pk-cancel-add-bag">Cancel</button>
+            <button class="btn btn-primary" id="pk-confirm-add-bag">Add bag</button>
           </div>
         </div>
       </div>
     </div>
+
+    <div id="pk-drag-ghost" class="pk-drag-ghost" hidden></div>
   `;
-  // mark which slots have bags (used to gray the formula notice) — simple ref to silence unused
-  void slotsUsed;
   bindDetail(c, l);
 }
 
-function renderBudgets(l: PackList): string {
-  if (l.containers.length === 0) {
-    return `<div class="pack-budget-empty">Add a bag below to start tracking your weight budget.</div>`;
+function renderContainerCard(l: PackList, c: PackContainer): string {
+  const used = containerWeight(l, c);
+  const over = isOver(l, c);
+  const pct = c.limitG > 0 ? Math.min(100, (used / c.limitG) * 100) : 0;
+  const items = l.items
+    .filter(i => i.containerId === c.id)
+    .sort((a, b) => priRank(a.priority) - priRank(b.priority) || a.order - b.order);
+  // When over, flag the lowest-priority items in this bag as drop candidates.
+  const dropCandidate = new Set<string>();
+  if (over) {
+    let excess = used - c.limitG;
+    for (const it of items.filter(i => i.source !== 'core')) {
+      if (excess <= 0) break;
+      dropCandidate.add(it.id);
+      excess -= itemWeightG(it);
+    }
   }
-  const coreW = l.items.filter(i => i.source === 'core').reduce((s, i) => s + itemWeightG(i), 0);
   return `
-    <div class="pack-budgets">
-      ${l.containers.map(c => renderBudgetBar(l, c)).join('')}
-    </div>
-    <div class="pack-budget-legend">
-      <span><i class="seg seg-bag"></i>bag</span>
-      <span><i class="seg seg-core"></i>core kit</span>
-      <span><i class="seg seg-formula"></i>formula</span>
-      <span><i class="seg seg-manual"></i>added</span>
-      ${coreW ? `<span class="pack-core-note">Core kit reserves ${formatKg(coreW)}</span>` : ''}
-    </div>
-  `;
-}
-
-function renderBudgetBar(l: PackList, c: PackContainer): string {
-  const limit = containerLimitG(l, c);
-  const items = l.items.filter(i => i.containerId === c.id);
-  const seg = (src: string) => items.filter(i => i.source === src).reduce((s, i) => s + itemWeightG(i), 0);
-  const used = c.selfWeightG + seg('core') + seg('formula') + seg('manual');
-  const denom = limit > 0 ? limit : used || 1;
-  const pct = (g: number) => Math.min(100, (g / denom) * 100);
-  const over = limit > 0 && used > limit;
-  // Offer one-click rebalance only when overflowing a non-checked bag and a checked bag exists.
-  const hasChecked = l.containers.some(x => x.slot === 'checked');
-  const canRebalance = over && c.slot !== 'checked' && hasChecked;
-  return `
-    <div class="pack-budget ${over ? 'is-over' : ''}">
-      <div class="pack-budget-head">
-        <span class="pack-budget-label">${escHtml(c.label)} <em>${slotLabel(c.slot)}</em></span>
-        <span class="pack-budget-num">${formatKg(used)}${limit > 0 ? ` / ${formatKg(limit)}` : ''}</span>
+    <div class="pack-container-card ${over ? 'is-over' : ''}" data-id="${c.id}">
+      <div class="pack-c-head">
+        <div class="pack-c-titlewrap">
+          <span class="pack-c-name">${escHtml(c.label)}</span>
+          <span class="pack-c-kind">${kindLabel(c.kind)}</span>
+        </div>
+        <button class="pk-del-c" data-id="${c.id}" title="Remove bag">✕</button>
       </div>
-      <div class="pack-bar">
-        <span class="seg-bag" style="width:${pct(c.selfWeightG)}%"></span>
-        <span class="seg-core" style="width:${pct(seg('core'))}%"></span>
-        <span class="seg-formula" style="width:${pct(seg('formula'))}%"></span>
-        <span class="seg-manual" style="width:${pct(seg('manual'))}%"></span>
-      </div>
-      ${over ? `<div class="pack-budget-warn">
-        Over by ${formatKg(used - limit)} — drop items${canRebalance ? '' : ' or move to checked'}.
-        ${canRebalance ? `<button class="pk-rebalance pk-sm" data-id="${c.id}">↪ Move overflow to checked</button>` : ''}
-      </div>` : ''}
-    </div>
-  `;
-}
 
-function renderLayerAdvice(l: PackList): string {
-  const advice = layerAdvice(l.profile, l.items.map(i => ({ name: i.name, qty: i.qty })));
-  const actionable = advice.filter(a => a.status === 'missing' || a.status === 'excess');
-  if (actionable.length === 0) return '';
-  const icon = (s: string) => s === 'missing' ? '⚠️' : s === 'excess' ? '⬇️' : '✓';
-  return `
-    <div class="pack-layers">
-      <div class="pack-layers-head">🧅 Three-layer check</div>
-      <div class="pack-layers-rows">
-        ${actionable.map(a => `
-          <div class="pack-layer-row status-${a.status}">
-            <span class="pack-layer-icon">${icon(a.status)}</span>
-            <span class="pack-layer-label">${escHtml(a.label)}</span>
-            <span class="pack-layer-msg">${escHtml(a.message)}</span>
-          </div>
-        `).join('')}
+      <div class="pack-c-limits">
+        <label>Empty <input class="pk-c-self-edit pk-mini" data-id="${c.id}" type="number" min="0" step="0.1" value="${c.selfWeightG ? (c.selfWeightG / 1000) : ''}" placeholder="0"> kg</label>
+        <label>Limit <input class="pk-c-limit-edit pk-mini" data-id="${c.id}" type="number" min="0" step="0.1" value="${c.limitG ? (c.limitG / 1000) : ''}" placeholder="0"> kg</label>
+      </div>
+
+      <div class="pack-c-meter">
+        <div class="pack-c-num ${over ? 'is-over' : ''}">${formatKg(used)}${c.limitG > 0 ? ` / ${formatKg(c.limitG)}` : ''}</div>
+        <div class="pack-bar"><span class="${over ? 'is-over' : ''}" style="width:${pct}%"></span></div>
+        ${over ? `<div class="pack-c-warn">Over by ${formatKg(used - c.limitG)} — move the highlighted items to Unassigned or another bag.</div>` : ''}
+      </div>
+
+      <div class="pack-c-items pk-drop-zone" data-container-id="${c.id}">
+        ${items.length === 0
+          ? `<div class="pack-c-empty">Empty — drag items here.</div>`
+          : items.map(i => renderItemTag(i, dropCandidate.has(i.id))).join('')}
       </div>
     </div>
   `;
 }
 
-function slotLabel(slot: SlotKey): string {
-  return SLOTS.find(s => s.key === slot)?.label ?? slot;
+function renderUnassigned(_l: PackList, items: PackItem[]): string {
+  const w = items.reduce((s, i) => s + itemWeightG(i), 0);
+  const sorted = [...items].sort((a, b) => priRank(a.priority) - priRank(b.priority) || a.order - b.order);
+  const note = items.length > 0 ? `${displayWeight(w, weightUnit)} waiting` : 'Drop items here to decide later';
+  return `
+    <div class="pack-container-card pack-unassigned-card">
+      <div class="pack-c-head">
+        <div class="pack-c-titlewrap">
+          <span class="pack-c-name">Unassigned</span>
+          <span class="pack-c-kind">${note}</span>
+        </div>
+      </div>
+      <div class="pack-c-items pk-drop-zone" data-container-id="">
+        ${items.length === 0
+          ? `<div class="pack-c-empty">Not in any bag — weight not counted.</div>`
+          : sorted.map(i => renderItemTag(i, false)).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderItemTag(i: PackItem, isDropCandidate: boolean): string {
+  const isCore = i.source === 'core';
+  const wDisplay = displayWeight(itemWeightG(i), weightUnit);
+  const priLabel = PRIORITIES.find(p => p.value === i.priority)?.label ?? i.priority;
+  const catLabel = categoryLabel(i.category);
+  const bgColor = categoryColor(i.category);
+  const qtyNote = i.qty > 1 ? ` ×${i.qty}` : '';
+  const tooltip = isCore
+    ? `${catLabel} · ${wDisplay}`
+    : `${catLabel} · ${wDisplay}${qtyNote} · ${priLabel}`;
+  const dropStyle = isDropCandidate ? 'outline:2px solid var(--coral-400);' : '';
+  return `
+    <div class="pack-item-tag ${i.packed ? 'is-packed' : ''}"
+         data-id="${i.id}" data-drag="item" data-tooltip="${escHtml(tooltip)}"
+         style="background:${bgColor};${dropStyle}">
+      ${packCheckMode ? `<input type="checkbox" class="pk-packed" data-id="${i.id}" ${i.packed ? 'checked' : ''} style="flex-shrink:0">` : ''}
+      <span class="tag-drag-handle">⠿</span>
+      <span class="tag-name">${isCore ? '🔒 ' : ''}${escHtml(i.name)}${i.qty > 1 ? `<span class="tag-qty-badge">×${i.qty}</span>` : ''}</span>
+      <span class="tag-actions">
+        ${isCore ? '' : `<button class="pk-edit-item tag-action" data-id="${i.id}" title="Edit">✎</button>`}
+        <button class="pk-del-item tag-action tag-del" data-id="${i.id}" title="Remove">✕</button>
+      </span>
+    </div>
+  `;
 }
 
 /* ── Pack-check progress + completion ────────────────────────────────────── */
@@ -362,119 +482,6 @@ function renderPackCheck(l: PackList): string {
         <span>${pct}%</span>
       </div>
       <div class="pack-check-track"><span style="width:${pct}%"></span></div>
-    </div>
-  `;
-}
-
-function renderSetupRow(l: PackList): string {
-  return `
-    <details class="pack-setup">
-      <summary>Bags & airline limits</summary>
-      <div class="pack-setup-body">
-        <div class="pack-airline-row">
-          <div class="pk-field"><label>Airline</label><input class="input" id="pk-airline" value="${escHtml(l.airline.airline)}" placeholder="e.g. Ryanair"></div>
-          <div class="pk-field"><label>Carry-on kg</label><input class="input" id="pk-lim-carryOn" type="number" min="0" value="${l.airline.carryOnKg || ''}"></div>
-          <div class="pk-field"><label>Checked kg</label><input class="input" id="pk-lim-checked" type="number" min="0" value="${l.airline.checkedKg || ''}"></div>
-          <div class="pk-field"><label>Personal kg</label><input class="input" id="pk-lim-personal" type="number" min="0" value="${l.airline.personalKg || ''}"></div>
-          <button class="btn btn-ghost pk-sm" id="pk-save-airline">Save limits</button>
-        </div>
-
-        <div class="pack-containers">
-          ${l.containers.map(renderContainerRow).join('')}
-        </div>
-        <div class="pack-add-container">
-          <input class="input" id="pk-c-label" placeholder="Bag name (e.g. Carry-on backpack)">
-          <select class="input" id="pk-c-slot">
-            ${SLOTS.map(s => `<option value="${s.key}">${s.label}</option>`).join('')}
-          </select>
-          <input class="input pk-w-input" id="pk-c-self" type="number" min="0" placeholder="self kg">
-          <button class="btn btn-ghost pk-sm" id="pk-add-c">+ Bag</button>
-        </div>
-
-        <div class="pack-formula-box">
-          <div class="pk-field"><label>Days</label><input class="input pk-w-input" id="pk-f-days" type="number" min="1" value="${l.profile.days}"></div>
-          <div class="pk-field"><label>Climate</label>
-            <select class="input" id="pk-f-climate">
-              ${CLIMATES.map(cl => `<option value="${cl.value}" ${l.profile.climate === cl.value ? 'selected' : ''}>${cl.label}</option>`).join('')}
-            </select>
-          </div>
-          <div class="pk-field pk-acts"><label>Activities</label>
-            <div class="pack-act-chips">
-              ${ACTIVITIES.map(a => `<label class="pack-chip ${l.profile.activities.includes(a.value) ? 'on' : ''}"><input type="checkbox" class="pk-act" value="${a.value}" ${l.profile.activities.includes(a.value) ? 'checked' : ''}>${a.label}</label>`).join('')}
-            </div>
-          </div>
-          <button class="btn btn-primary pk-sm" id="pk-run-formula">⚡ Generate clothing</button>
-        </div>
-
-        <div class="pack-corekit-pick">
-          <div class="pk-field-label">Core kit in this list:</div>
-          <div class="pack-corekit-chips">
-            ${_kit.length === 0 ? `<span class="pack-kit-empty">No gear in Core Kit yet.</span>` :
-              _kit.map(k => {
-                const inList = l.items.some(i => i.source === 'core' && i.name === k.name);
-                return `<label class="pack-chip ${inList ? 'on' : ''}"><input type="checkbox" class="pk-kit-pick" value="${k.id}" ${inList ? 'checked' : ''}>${escHtml(k.name)}</label>`;
-              }).join('')}
-          </div>
-        </div>
-      </div>
-    </details>
-  `;
-}
-
-function renderContainerRow(c: PackContainer): string {
-  return `
-    <div class="pack-container-row" data-id="${c.id}">
-      <span class="pack-c-name">${escHtml(c.label)}</span>
-      <span class="pack-c-slot">${slotLabel(c.slot)}</span>
-      <span class="pack-c-self">${formatKg(c.selfWeightG)} bag</span>
-      <button class="pk-del-c" data-id="${c.id}" title="Remove bag">✕</button>
-    </div>
-  `;
-}
-
-function renderItems(l: PackList): string {
-  let items = [...l.items].sort((a, b) => a.order - b.order);
-  if (hideLuxury) items = items.filter(i => i.priority !== 'luxury');
-  if (items.length === 0) {
-    return `<div class="pack-items-empty">No items yet. Generate from the formula or add manually below.</div>`;
-  }
-  const cats = CATEGORY_ORDER.filter(cat => items.some(i => i.category === cat));
-  const extra = [...new Set(items.map(i => i.category))].filter(c => !CATEGORY_ORDER.includes(c));
-  return `
-    <div class="pack-items">
-      ${[...cats, ...extra].map(cat => renderCategory(l, cat, items.filter(i => i.category === cat))).join('')}
-    </div>
-  `;
-}
-
-function renderCategory(l: PackList, cat: string, items: PackItem[]): string {
-  const w = items.reduce((s, i) => s + itemWeightG(i), 0);
-  return `
-    <div class="pack-cat">
-      <div class="pack-cat-head"><span>${escHtml(cat)}</span><span class="pack-cat-w">${formatKg(w)}</span></div>
-      ${items.map(i => renderItemRow(l, i)).join('')}
-    </div>
-  `;
-}
-
-function renderItemRow(l: PackList, i: PackItem): string {
-  const cName = l.containers.find(c => c.id === i.containerId)?.label ?? '—';
-  return `
-    <div class="pack-item ${i.locked ? 'is-locked' : ''} pri-${i.priority} ${i.packed ? 'is-packed' : ''}" data-id="${i.id}">
-      ${packCheckMode ? `<input type="checkbox" class="pk-packed" data-id="${i.id}" ${i.packed ? 'checked' : ''}>` : ''}
-      <span class="pack-item-name">${i.locked ? '🔒 ' : ''}${escHtml(i.name)}</span>
-      ${i.source !== 'core' ? `<span class="pack-pri-badge">${i.priority}</span>` : `<span class="pack-pri-badge core">core</span>`}
-      <div class="pack-item-qty">
-        <button class="pk-qty" data-id="${i.id}" data-d="-1" ${i.locked ? 'disabled' : ''}>−</button>
-        <span>${i.qty}</span>
-        <button class="pk-qty" data-id="${i.id}" data-d="1" ${i.locked ? 'disabled' : ''}>+</button>
-      </div>
-      <span class="pack-item-w">${formatKg(itemWeightG(i))}</span>
-      <select class="pack-item-c" data-id="${i.id}">
-        <option value="">${escHtml(cName)}…</option>
-        ${l.containers.map(c => `<option value="${c.id}" ${c.id === i.containerId ? 'selected' : ''}>${escHtml(c.label)}</option>`).join('')}
-      </select>
-      ${i.locked ? '' : `<button class="pk-del-item" data-id="${i.id}" title="Remove">✕</button>`}
     </div>
   `;
 }
@@ -509,6 +516,10 @@ function newListModal(): string {
               </span>
             </label>
           </div>` : ''}
+          ${_kit.length > 0 ? `<label class="pk-kit-bring">
+            <input type="checkbox" id="pk-bring-kit" checked>
+            <span>Bring in my Core Kit (${_kit.length} items · ${formatKg(_kit.reduce((s, k) => s + k.weightG, 0))})</span>
+          </label>` : ''}
           <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
             <button class="btn btn-ghost" id="pk-cancel-new">Cancel</button>
             <button class="btn btn-primary" id="pk-confirm-new">Create</button>
@@ -519,33 +530,27 @@ function newListModal(): string {
   `;
 }
 
-function kitModal(): string {
-  return `
-    <div class="modal-overlay" id="pk-kit-modal" hidden>
-      <div class="modal-box">
-        <div class="modal-header"><div class="modal-title">Add Core Gear</div><button class="modal-close" id="pk-close-kit">✕</button></div>
-        <div class="modal-body">
-          <label class="field-label">Name</label>
-          <input class="input" id="pk-kit-name" placeholder="e.g. MacBook Pro 14&quot;">
-          <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-4)">
-            <div style="flex:1"><label class="field-label">Category</label><input class="input" id="pk-kit-cat" value="Tech"></div>
-            <div style="width:120px"><label class="field-label">Weight (g)</label><input class="input" id="pk-kit-weight" type="number" min="0" placeholder="1400"></div>
-          </div>
-          <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
-            <button class="btn btn-ghost" id="pk-cancel-kit">Cancel</button>
-            <button class="btn btn-primary" id="pk-confirm-kit">Add</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+/** Build PackItems from the Core Kit, all landing in Unassigned, locked. */
+function coreKitItems(): PackItem[] {
+  return _kit.map((k, idx) => ({
+    id: genLocalId(),
+    name: k.name,
+    category: k.category,
+    qty: 1,
+    unitWeightG: k.weightG,
+    containerId: null,
+    priority: 'essential' as const,
+    locked: true,
+    packed: false,
+    source: 'core' as const,
+    order: idx,
+  }));
 }
 
 /* ── Bind: list screen ───────────────────────────────────────────────────── */
 
 function bindList(c: HTMLElement) {
   const newModal = c.querySelector<HTMLElement>('#pk-new-modal');
-  const kModal = c.querySelector<HTMLElement>('#pk-kit-modal');
 
   c.querySelector('#pk-new')?.addEventListener('click', () => newModal?.removeAttribute('hidden'));
   c.querySelector('#pk-close-new')?.addEventListener('click', () => newModal?.setAttribute('hidden', ''));
@@ -555,24 +560,67 @@ function bindList(c: HTMLElement) {
     if (!name) return;
     const scope = (c.querySelector<HTMLInputElement>('input[name="pk-scope"]:checked')?.value) ?? 'trip';
     const tripId = scope === 'standalone' ? STANDALONE_TRIP_ID : undefined;
-    const id = await packStore.create({ name, tripId });
+    const bringKit = c.querySelector<HTMLInputElement>('#pk-bring-kit')?.checked ?? false;
+    const id = await packStore.create({
+      name, tripId,
+      items: bringKit ? coreKitItems() : [],
+    });
     activeId = id;
     screen = 'detail';
+    packCheckMode = false;
     render();
   });
 
-  c.querySelector('#pk-add-kit')?.addEventListener('click', () => kModal?.removeAttribute('hidden'));
-  c.querySelector('#pk-close-kit')?.addEventListener('click', () => kModal?.setAttribute('hidden', ''));
-  c.querySelector('#pk-cancel-kit')?.addEventListener('click', () => kModal?.setAttribute('hidden', ''));
-  c.querySelector('#pk-confirm-kit')?.addEventListener('click', async () => {
-    const name = (c.querySelector<HTMLInputElement>('#pk-kit-name')?.value || '').trim();
-    if (!name) return;
+  /* Unit selector */
+  c.querySelector<HTMLSelectElement>('#pk-unit-sel')?.addEventListener('change', e => {
+    weightUnit = (e.target as HTMLSelectElement).value as WeightUnit;
+    localStorage.setItem('pk-weight-unit', weightUnit);
+    render();
+  });
+
+  /* Kit add: Enter on any field triggers save, focus moves to name */
+  const confirmKitAdd = async () => {
+    const nameEl = c.querySelector<HTMLInputElement>('#pk-kit-name');
+    const catEl  = c.querySelector<HTMLSelectElement>('#pk-kit-cat');
+    const wEl    = c.querySelector<HTMLInputElement>('#pk-kit-weight');
+    const name = (nameEl?.value || '').trim();
+    if (!name) { nameEl?.focus(); return; }
     await coreKitStore.add({
       name,
-      category: (c.querySelector<HTMLInputElement>('#pk-kit-cat')?.value || 'Tech').trim(),
-      weightG: num(c.querySelector<HTMLInputElement>('#pk-kit-weight')?.value || '0'),
+      category: catEl?.value || DEFAULT_CATEGORY,
+      weightG: toGrams(num(wEl?.value || '0'), weightUnit),
     });
-    kModal?.setAttribute('hidden', '');
+    if (nameEl) nameEl.value = '';
+    if (wEl) wEl.value = '';
+    nameEl?.focus();
+  };
+  ['#pk-kit-name', '#pk-kit-cat', '#pk-kit-weight'].forEach(sel => {
+    c.querySelector<HTMLInputElement>(sel)?.addEventListener('keydown', e => {
+      if ((e as KeyboardEvent).key === 'Enter') void confirmKitAdd();
+    });
+  });
+
+  /* Inline kit cell edits — inputs blur-to-save, selects change-to-save */
+  c.querySelectorAll<HTMLInputElement>('.pack-kit-row:not(.pack-kit-add-row) input.pack-kit-cell-input').forEach(inp => {
+    inp.addEventListener('blur', async () => {
+      const id = inp.dataset.id!;
+      const field = inp.dataset.field as 'name' | 'weightG';
+      if (field === 'weightG') {
+        await coreKitStore.update(id, { weightG: toGrams(num(inp.value), weightUnit) });
+      } else {
+        const val = inp.value.trim();
+        if (!val) return;
+        await coreKitStore.update(id, { name: val });
+      }
+    });
+    inp.addEventListener('keydown', e => {
+      if ((e as KeyboardEvent).key === 'Enter') inp.blur();
+    });
+  });
+  c.querySelectorAll<HTMLSelectElement>('.pack-kit-row:not(.pack-kit-add-row) select.pk-cat-sel').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      await coreKitStore.update(sel.dataset.id!, { category: sel.value });
+    });
   });
 
   c.querySelectorAll<HTMLElement>('.pack-card').forEach(card => {
@@ -593,25 +641,6 @@ function bindList(c: HTMLElement) {
   c.querySelectorAll<HTMLElement>('.pk-del-kit').forEach(b => {
     b.addEventListener('click', async () => { await coreKitStore.remove(b.dataset.id!); });
   });
-
-  c.querySelectorAll<HTMLElement>('.pk-use-tpl').forEach(b => {
-    b.addEventListener('click', async e => {
-      e.stopPropagation();
-      const tpl = packTemplateStore.get(b.dataset.id!);
-      if (!tpl) return;
-      const id = await packStore.create({ name: tpl.name, ...packTemplateStore.toListInput(tpl) });
-      activeId = id;
-      screen = 'detail';
-      packCheckMode = false;
-      render();
-    });
-  });
-  c.querySelectorAll<HTMLElement>('.pk-del-tpl').forEach(b => {
-    b.addEventListener('click', async e => {
-      e.stopPropagation();
-      if (confirm('Delete this template?')) await packTemplateStore.remove(b.dataset.id!);
-    });
-  });
 }
 
 /* ── Bind: detail screen ─────────────────────────────────────────────────── */
@@ -619,103 +648,141 @@ function bindList(c: HTMLElement) {
 function bindDetail(c: HTMLElement, l: PackList) {
   const id = l.id;
 
-  c.querySelector('#pk-back')?.addEventListener('click', () => { screen = 'list'; activeId = null; trimNotice = null; render(); });
-  c.querySelector('#pk-hide-lux')?.addEventListener('change', e => { hideLuxury = (e.target as HTMLInputElement).checked; render(); });
+  c.querySelector('#pk-back')?.addEventListener('click', () => { screen = 'list'; activeId = null; render(); });
   c.querySelector('#pk-check-mode')?.addEventListener('change', e => { packCheckMode = (e.target as HTMLInputElement).checked; render(); });
 
-  c.querySelectorAll<HTMLElement>('.pk-rebalance').forEach(b => {
-    b.addEventListener('click', async () => { trimNotice = null; await rebalanceToChecked(id, b.dataset.id!); });
-  });
-
-  /* Save as template */
-  const tplModal = c.querySelector<HTMLElement>('#pk-tpl-modal');
-  c.querySelector('#pk-save-tpl')?.addEventListener('click', () => tplModal?.removeAttribute('hidden'));
-  c.querySelector('#pk-close-tpl')?.addEventListener('click', () => tplModal?.setAttribute('hidden', ''));
-  c.querySelector('#pk-cancel-tpl')?.addEventListener('click', () => tplModal?.setAttribute('hidden', ''));
-  c.querySelector('#pk-confirm-tpl')?.addEventListener('click', async () => {
-    const name = (c.querySelector<HTMLInputElement>('#pk-tpl-name')?.value || '').trim();
-    const list = packStore.get(id);
-    if (!name || !list) return;
-    await packTemplateStore.saveFromList(name, list);
-    tplModal?.setAttribute('hidden', '');
-  });
-
-  /* Airline limits */
-  c.querySelector('#pk-save-airline')?.addEventListener('click', async () => {
-    await packStore.setAirline(id, {
-      airline: (c.querySelector<HTMLInputElement>('#pk-airline')?.value || '').trim(),
-      carryOnKg: num(c.querySelector<HTMLInputElement>('#pk-lim-carryOn')?.value || '0'),
-      checkedKg: num(c.querySelector<HTMLInputElement>('#pk-lim-checked')?.value || '0'),
-      personalKg: num(c.querySelector<HTMLInputElement>('#pk-lim-personal')?.value || '0'),
-    });
-  });
-
-  /* Containers */
-  c.querySelector('#pk-add-c')?.addEventListener('click', async () => {
+  /* Add bag modal */
+  const addBagModal = c.parentElement?.querySelector<HTMLElement>('#pk-add-bag-modal') ?? document.getElementById('pk-add-bag-modal');
+  const openAddBag = () => addBagModal?.removeAttribute('hidden');
+  const closeAddBag = () => addBagModal?.setAttribute('hidden', '');
+  c.querySelector('#pk-open-add-bag')?.addEventListener('click', openAddBag);
+  c.querySelector('#pk-close-add-bag')?.addEventListener('click', closeAddBag);
+  c.querySelector('#pk-cancel-add-bag')?.addEventListener('click', closeAddBag);
+  c.querySelector('#pk-confirm-add-bag')?.addEventListener('click', async () => {
     const label = (c.querySelector<HTMLInputElement>('#pk-c-label')?.value || '').trim();
-    if (!label) return;
-    const slot = (c.querySelector<HTMLSelectElement>('#pk-c-slot')?.value || 'carryOn') as SlotKey;
-    const kind = slot === 'checked' ? 'suitcase' : slot === 'personal' ? 'personal' : 'backpack';
+    if (!label) { c.querySelector<HTMLInputElement>('#pk-c-label')?.focus(); return; }
+    const kind = (c.querySelector<HTMLSelectElement>('#pk-c-kind')?.value || 'backpack') as PackContainer['kind'];
     await packStore.addContainer(id, {
-      label, slot, kind,
-      capacityL: 0,
-      selfWeightG: num(c.querySelector<HTMLInputElement>('#pk-c-self')?.value || '0') * 1000,
+      label, kind,
+      selfWeightG: toGrams(num(c.querySelector<HTMLInputElement>('#pk-c-self')?.value || '0'), weightUnit),
+      limitG:      toGrams(num(c.querySelector<HTMLInputElement>('#pk-c-limit')?.value || '0'), weightUnit),
     });
+    closeAddBag();
   });
+  /* Open modal on Enter in the label field */
+  c.querySelector<HTMLInputElement>('#pk-c-label')?.addEventListener('keydown', e => {
+    if ((e as KeyboardEvent).key === 'Enter') void c.querySelector<HTMLButtonElement>('#pk-confirm-add-bag')?.click();
+  });
+
   c.querySelectorAll<HTMLElement>('.pk-del-c').forEach(b => {
     b.addEventListener('click', async () => { await packStore.removeContainer(id, b.dataset.id!); });
   });
 
-  /* Profile activity chips */
-  c.querySelectorAll<HTMLInputElement>('.pk-act').forEach(chip => {
-    chip.addEventListener('change', async () => {
-      const acts = Array.from(c.querySelectorAll<HTMLInputElement>('.pk-act:checked')).map(x => x.value);
-      const profile: PackProfile = {
-        days: num(c.querySelector<HTMLInputElement>('#pk-f-days')?.value || '7', 7),
-        climate: (c.querySelector<HTMLSelectElement>('#pk-f-climate')?.value || 'mild') as PackProfile['climate'],
-        activities: acts,
+  /* Inline container limit / self-weight edits */
+  c.querySelectorAll<HTMLInputElement>('.pk-c-limit-edit').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      await packStore.updateContainer(id, inp.dataset.id!, { limitG: toGrams(num(inp.value), weightUnit) });
+    });
+  });
+  c.querySelectorAll<HTMLInputElement>('.pk-c-self-edit').forEach(inp => {
+    inp.addEventListener('change', async () => {
+      await packStore.updateContainer(id, inp.dataset.id!, { selfWeightG: toGrams(num(inp.value), weightUnit) });
+    });
+  });
+
+  /* Item edit — name editable inline, popover for category/weight/priority */
+  c.querySelectorAll<HTMLElement>('.pk-edit-item').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const itemId = btn.dataset.id!;
+      const item = l.items.find(i => i.id === itemId);
+      if (!item) return;
+
+      const tag = btn.closest<HTMLElement>('.pack-item-tag')!;
+      if (tag.classList.contains('is-editing')) return;
+      tag.classList.add('is-editing');
+
+      // Close any previously open popover
+      document.getElementById('pk-edit-popover')?.remove();
+
+      // Make the tag-name span editable in-place
+      const nameEl = tag.querySelector<HTMLElement>('.tag-name')!;
+      const originalText = item.name;
+      nameEl.contentEditable = 'true';
+      nameEl.focus();
+      // Select all text
+      const range = document.createRange();
+      range.selectNodeContents(nameEl);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(range);
+
+      // Build popover (no name field)
+      const wVal = (itemWeightG(item) > 0) ? kitWeightDisplay(itemWeightG(item)) : '';
+      const catVal = PACK_CATEGORIES.find(cat => cat.value === item.category || cat.label === item.category)?.value ?? DEFAULT_CATEGORY;
+      const pop = document.createElement('div');
+      pop.id = 'pk-edit-popover';
+      pop.className = 'pk-edit-popover';
+      pop.innerHTML = `
+        <select class="input pk-ep-cat">${categoryOptions(catVal)}</select>
+        <input class="input pk-ep-weight" type="number" min="0" step="any" value="${wVal}" placeholder="${weightUnit === 'jin' ? '斤' : weightUnit}">
+        <select class="input pk-ep-pri">
+          ${PRIORITIES.map(p => `<option value="${p.value}" ${p.value === item.priority ? 'selected' : ''}>${p.label}</option>`).join('')}
+        </select>
+        <button class="btn btn-primary pk-sm pk-ep-save">Save</button>
+      `;
+      tag.appendChild(pop);
+
+      const close = (revert = false) => {
+        nameEl.contentEditable = 'false';
+        if (revert) nameEl.textContent = originalText;
+        tag.classList.remove('is-editing');
+        pop.remove();
+        document.removeEventListener('click', onOutside, true);
       };
-      await packStore.setProfile(id, profile);
-    });
-  });
 
-  /* Run formula */
-  c.querySelector('#pk-run-formula')?.addEventListener('click', async () => {
-    const profile: PackProfile = {
-      days: num(c.querySelector<HTMLInputElement>('#pk-f-days')?.value || '7', 7),
-      climate: (c.querySelector<HTMLSelectElement>('#pk-f-climate')?.value || 'mild') as PackProfile['climate'],
-      activities: Array.from(c.querySelectorAll<HTMLInputElement>('.pk-act:checked')).map(x => x.value),
-    };
-    await applyFormula(id, profile);
-  });
+      const save = async () => {
+        const name = (nameEl.textContent || '').trim();
+        if (!name) { close(true); return; }
+        const category = pop.querySelector<HTMLSelectElement>('.pk-ep-cat')?.value || DEFAULT_CATEGORY;
+        const wRaw = num(pop.querySelector<HTMLInputElement>('.pk-ep-weight')?.value || '0');
+        const priority = (pop.querySelector<HTMLSelectElement>('.pk-ep-pri')?.value || 'essential') as PackPriority;
+        await packStore.updateItem(id, itemId, {
+          name, category,
+          unitWeightG: toGrams(wRaw, weightUnit),
+          priority,
+        });
+        close();
+      };
 
-  /* Core-kit picker */
-  c.querySelectorAll<HTMLInputElement>('.pk-kit-pick').forEach(box => {
-    box.addEventListener('change', async () => {
-      await toggleKitInList(id, box.value, box.checked);
-    });
-  });
+      pop.querySelector('.pk-ep-save')?.addEventListener('click', e => { e.stopPropagation(); void save(); });
 
-  /* Item qty */
-  c.querySelectorAll<HTMLElement>('.pk-qty').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const item = l.items.find(i => i.id === btn.dataset.id);
-      if (!item || item.locked) return;
-      const qty = Math.max(1, item.qty + Number(btn.dataset.d));
-      await packStore.updateItem(id, item.id, { qty });
-    });
-  });
+      // Enter in popover saves; Escape cancels
+      pop.addEventListener('keydown', e => {
+        const key = (e as KeyboardEvent).key;
+        if (key === 'Enter') { e.stopPropagation(); void save(); }
+        if (key === 'Escape') { e.stopPropagation(); close(true); }
+      });
+      // Enter in the editable name also saves
+      nameEl.addEventListener('keydown', e => {
+        const key = (e as KeyboardEvent).key;
+        if (key === 'Enter') { e.preventDefault(); void save(); }
+        if (key === 'Escape') close(true);
+      }, { once: false });
 
-  /* Item container move */
-  c.querySelectorAll<HTMLSelectElement>('.pack-item-c').forEach(sel => {
-    sel.addEventListener('change', async () => {
-      await packStore.moveItem(id, sel.dataset.id!, sel.value || null);
+      // Click outside → save
+      const onOutside = (ev: MouseEvent) => {
+        if (!tag.contains(ev.target as Node)) void save();
+      };
+      setTimeout(() => document.addEventListener('click', onOutside, true), 0);
     });
   });
 
   /* Item delete */
   c.querySelectorAll<HTMLElement>('.pk-del-item').forEach(b => {
-    b.addEventListener('click', async () => { await packStore.removeItem(id, b.dataset.id!); });
+    b.addEventListener('click', async e => {
+      e.stopPropagation();
+      await packStore.removeItem(id, b.dataset.id!);
+    });
   });
 
   /* Pack-check toggle */
@@ -723,108 +790,106 @@ function bindDetail(c: HTMLElement, l: PackList) {
     box.addEventListener('change', async () => { await packStore.togglePacked(id, box.dataset.id!); });
   });
 
-  /* Manual add */
+  /* Add item — lands in Unassigned as a draggable tag */
   const addItem = async () => {
-    const name = (c.querySelector<HTMLInputElement>('#pk-add-name')?.value || '').trim();
-    if (!name) return;
-    const firstCarryOn = l.containers.find(x => x.slot === 'carryOn') ?? l.containers[0];
+    const nameEl = c.querySelector<HTMLInputElement>('#pk-add-name');
+    const catEl  = c.querySelector<HTMLSelectElement>('#pk-add-cat');
+    const wEl    = c.querySelector<HTMLInputElement>('#pk-add-weight');
+    const priEl  = c.querySelector<HTMLSelectElement>('#pk-add-pri');
+    const name = (nameEl?.value || '').trim();
+    if (!name) { nameEl?.focus(); return; }
     await packStore.addItem(id, {
-      name, category: 'Other', qty: 1,
-      unitWeightG: num(c.querySelector<HTMLInputElement>('#pk-add-weight')?.value || '0'),
-      containerId: firstCarryOn?.id ?? null,
-      priority: 'essential', locked: false, packed: false, source: 'manual',
+      name, category: catEl?.value || DEFAULT_CATEGORY, qty: 1,
+      unitWeightG: toGrams(num(wEl?.value || '0'), weightUnit),
+      containerId: null,
+      priority: (priEl?.value || 'essential') as PackPriority,
+      locked: false, packed: false, source: 'manual',
     });
+    if (nameEl) nameEl.value = '';
+    if (wEl) wEl.value = '';
+    nameEl?.focus();
   };
   c.querySelector('#pk-add-item')?.addEventListener('click', addItem);
   c.querySelector('#pk-add-name')?.addEventListener('keydown', e => {
     if ((e as KeyboardEvent).key === 'Enter') void addItem();
   });
-}
+  c.querySelector('#pk-add-weight')?.addEventListener('keydown', e => {
+    if ((e as KeyboardEvent).key === 'Enter') void addItem();
+  });
 
-/* ── Mutations that need cross-cutting logic ─────────────────────────────── */
+  /* ── Drag-to-bag ─────────────────────────────────────────────────────────
+     Items are draggable tags. On pointerdown → ghost follows cursor. On drop
+     over a .pk-drop-zone, the item is moved to that container (or Unassigned
+     if data-container-id=""). A drop outside any zone cancels the drag.
+  ── */
+  const ghost = c.querySelector<HTMLElement>('#pk-drag-ghost')!;
+  const DRAG_THRESHOLD = 6;
 
-async function applyFormula(id: string, profile: PackProfile) {
-  const list = packStore.get(id);
-  if (!list) return;
-  const target = list.containers.find(c => c.slot === 'carryOn') ?? list.containers[0] ?? null;
-  // Replace previous formula items; keep core + manual.
-  const kept = list.items.filter(i => i.source !== 'formula');
-  const specs = buildFormulaItems(profile);
-  let fresh = specsToItems(specs, target?.id ?? null, kept.length).map(it => ({ ...it, id: genLocalId() }));
+  let dragItemId: string | null = null;
+  let dragStartX = 0, dragStartY = 0;
+  let dragging = false;
 
-  // Auto-trim: if the target bag has a limit, shave low-priority formula counts
-  // to fit the budget left after the bag's own weight and everything already in it.
-  trimNotice = null;
-  if (target) {
-    const limit = containerLimitG(list, target);
-    if (limit > 0) {
-      const reserved = target.selfWeightG +
-        kept.filter(i => i.containerId === target.id).reduce((s, i) => s + itemWeightG(i), 0);
-      const budget = limit - reserved;
-      const res = trimToBudget(fresh, budget);
-      fresh = res.items;
-      if (res.trimmed.length > 0) {
-        const names = res.trimmed.map(t => `${t.name} ${t.from}→${t.to}`).join(', ');
-        trimNotice = `Trimmed ${formatKg(res.removedG)} to fit ${escHtml(target.label)} — ${escHtml(names)}.`;
+  function findDropZone(x: number, y: number): { el: HTMLElement; containerId: string | null } | null {
+    const zones = c.querySelectorAll<HTMLElement>('.pk-drop-zone');
+    for (const zone of zones) {
+      const r = zone.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+        const cid = zone.dataset.containerId;
+        return { el: zone, containerId: cid === '' ? null : (cid ?? null) };
       }
+    }
+    return null;
+  }
+
+  function onPointerMove(e: PointerEvent) {
+    if (!dragItemId) return;
+    const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
+    if (!dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      dragging = true;
+      ghost.removeAttribute('hidden');
+      const tag = c.querySelector<HTMLElement>(`[data-id="${dragItemId}"][data-drag="item"]`);
+      ghost.textContent = tag?.querySelector('.tag-name')?.textContent ?? '';
+      document.body.style.cursor = 'grabbing';
+    }
+    if (dragging) {
+      ghost.style.left = `${e.clientX + 12}px`;
+      ghost.style.top  = `${e.clientY - 12}px`;
+      // Highlight drop zone under cursor
+      c.querySelectorAll('.pk-drop-zone').forEach(z => z.classList.remove('is-drag-over'));
+      const zone = findDropZone(e.clientX, e.clientY);
+      zone?.el.classList.add('is-drag-over');
     }
   }
 
-  const items: PackItem[] = [...kept, ...fresh];
-  await packStore.setProfile(id, profile);
-  await packStore.setItems(id, items);
-}
+  function onPointerUp(e: PointerEvent) {
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerup', onPointerUp);
+    document.body.style.cursor = '';
+    ghost.setAttribute('hidden', '');
+    c.querySelectorAll('.pk-drop-zone').forEach(z => z.classList.remove('is-drag-over'));
 
-/** Move a bag's overflow to the first container with a checked slot. */
-async function rebalanceToChecked(id: string, fromContainerId: string) {
-  const list = packStore.get(id);
-  if (!list) return;
-  const from = list.containers.find(c => c.id === fromContainerId);
-  const checked = list.containers.find(c => c.slot === 'checked');
-  if (!from || !checked) return;
-  const limit = containerLimitG(list, from);
-  if (limit <= 0) return;
-
-  // Move the lightest movable items (manual/formula, unlocked, non-core) until under limit.
-  const items = list.items.map(i => ({ ...i }));
-  const used = () => from.selfWeightG +
-    items.filter(i => i.containerId === from.id).reduce((s, i) => s + itemWeightG(i), 0);
-  const movable = () => items
-    .filter(i => i.containerId === from.id && !i.locked && i.source !== 'core')
-    .sort((a, b) => itemWeightG(b) - itemWeightG(a)); // move heaviest first to clear fast
-
-  let guard = 0;
-  while (used() > limit && guard++ < 200) {
-    const cand = movable()[0];
-    if (!cand) break;
-    const idx = items.findIndex(i => i.id === cand.id);
-    items[idx].containerId = checked.id;
+    if (dragging && dragItemId) {
+      const zone = findDropZone(e.clientX, e.clientY);
+      if (zone) {
+        void packStore.moveItem(id, dragItemId, zone.containerId);
+      }
+    }
+    dragItemId = null;
+    dragging = false;
   }
-  await packStore.setItems(id, items);
-}
 
-async function toggleKitInList(id: string, kitId: string, on: boolean) {
-  const list = packStore.get(id);
-  const kitItem = _kit.find(k => k.id === kitId);
-  if (!list || !kitItem) return;
-  if (on) {
-    if (list.items.some(i => i.source === 'core' && i.name === kitItem.name)) return;
-    const target = list.containers.find(c => c.slot === kitItem.defaultSlot)
-      ?? list.containers.find(c => c.slot === 'carryOn')
-      ?? list.containers[0] ?? null;
-    await packStore.addItem(id, {
-      name: kitItem.name, category: kitItem.category, qty: 1,
-      unitWeightG: kitItem.weightG, containerId: target?.id ?? null,
-      priority: 'core', locked: true, packed: false, source: 'core',
+  c.querySelectorAll<HTMLElement>('[data-drag="item"]').forEach(tag => {
+    tag.addEventListener('pointerdown', e => {
+      // Don't steal clicks on buttons/selects inside the tag
+      if ((e.target as HTMLElement).closest('button, select, input')) return;
+      dragItemId = tag.dataset.id!;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      dragging = false;
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
     });
-  } else {
-    const found = list.items.find(i => i.source === 'core' && i.name === kitItem.name);
-    if (found) await packStore.removeItem(id, found.id);
-  }
-}
-
-function genLocalId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  });
 }
 
 /* ── Init ────────────────────────────────────────────────────────────────── */
@@ -832,7 +897,7 @@ function genLocalId(): string {
 export function initPack() {
   screen = 'list';
   activeId = null;
-  hideLuxury = false;
   packCheckMode = false;
+  weightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
   startSubscriptions();
 }

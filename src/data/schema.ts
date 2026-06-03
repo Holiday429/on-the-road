@@ -121,40 +121,36 @@ export const ChecklistSchema = doc({
 });
 export type Checklist = z.infer<typeof ChecklistSchema>;
 
-/* ── Pack (packing list, weight-budget driven) ───────────────────────────── */
+/* ── Pack (simple weight-aware packing list) ─────────────────────────────────
+   Mental model: a pack list holds physical containers (a backpack, a suitcase),
+   each with its own weight limit. Items live inside a container (or sit in the
+   virtual "Unassigned" area when containerId is null — weight uncounted until
+   you commit them to a bag). Core Kit is the user's reusable must-bring gear,
+   maintained once on the Pack home and copied into any new list.
+   ──────────────────────────────────────────────────────────────────────────── */
 
-// A reusable piece of must-bring gear (user-scoped, cross-trip). Digital nomads
-// keep laptop/camera/chargers here so every new pack list starts with them
-// locked in and their weight pre-deducted from the budget.
+// A reusable piece of must-bring gear (user-scoped, cross-trip). The Core Kit on
+// the Pack home is the template — new pack lists can copy these in with one click.
 export const CoreKitItemSchema = doc({
   name: z.string(),
   category: z.string().default('Tech'),
   weightG: z.number().default(0),
-  defaultSlot: z.enum(['carryOn', 'checked', 'personal']).default('carryOn'),
 });
 export type CoreKitItem = z.infer<typeof CoreKitItemSchema>;
 
-// A physical bag the user is taking. selfWeightG counts toward the slot budget.
+// A physical bag the user is taking. Each container has its own weight budget;
+// selfWeightG (the empty bag) counts toward that limit. limitG of 0 = no limit.
 export const PackContainerSchema = z.object({
   id: z.string(),
   label: z.string(),
   kind: z.enum(['suitcase', 'backpack', 'personal']).default('backpack'),
-  slot: z.enum(['checked', 'carryOn', 'personal']).default('carryOn'),
-  capacityL: z.number().default(0),
+  limitG: z.number().default(0),
   selfWeightG: z.number().default(0),
 });
 export type PackContainer = z.infer<typeof PackContainerSchema>;
 
-// Hand-entered airline allowance. Weight is the binding constraint in P1.
-export const AirlineLimitSchema = z.object({
-  airline: z.string().default(''),
-  carryOnKg: z.number().default(0),
-  checkedKg: z.number().default(0),
-  personalKg: z.number().default(0),
-});
-export type AirlineLimit = z.infer<typeof AirlineLimitSchema>;
-
-export const PackPriority = z.enum(['core', 'essential', 'nice', 'luxury']);
+// essential = must bring · nice = good to have · optional = drop first if over.
+export const PackPriority = z.enum(['essential', 'nice', 'optional']);
 export type PackPriority = z.infer<typeof PackPriority>;
 
 export const PackItemSchema = z.object({
@@ -163,42 +159,21 @@ export const PackItemSchema = z.object({
   category: z.string().default('Other'),
   qty: z.number().default(1),
   unitWeightG: z.number().default(0),
-  containerId: z.string().nullable().default(null),
+  containerId: z.string().nullable().default(null),  // null = Unassigned area
   priority: PackPriority.default('essential'),
-  locked: z.boolean().default(false),       // core-kit items can't be edited/removed
+  locked: z.boolean().default(false),       // core-kit items can't be renamed/reweighted
   packed: z.boolean().default(false),       // checked off during pack-check
-  source: z.enum(['core', 'formula', 'manual']).default('manual'),
+  source: z.enum(['core', 'manual']).default('manual'),
   order: z.number().default(0),
 });
 export type PackItem = z.infer<typeof PackItemSchema>;
 
-export const PackProfileSchema = z.object({
-  days: z.number().default(7),
-  climate: z.enum(['cold', 'cool', 'mild', 'warm', 'hot']).default('mild'),
-  activities: z.array(z.string()).default([]),
-});
-export type PackProfile = z.infer<typeof PackProfileSchema>;
-
 export const PackListSchema = doc({
   name: z.string(),
-  profile: PackProfileSchema.default({ days: 7, climate: 'mild', activities: [] }),
   containers: z.array(PackContainerSchema).default([]),
-  airline: AirlineLimitSchema.default({ airline: '', carryOnKg: 0, checkedKg: 0, personalKg: 0 }),
   items: z.array(PackItemSchema).default([]),
 });
 export type PackList = z.infer<typeof PackListSchema>;
-
-// A reusable pack list (user-scoped, cross-trip). Snapshots the profile, bags,
-// airline limits and items so a future trip can start from a proven setup.
-// Core-kit items are excluded — those re-attach live from the user's Core Kit.
-export const PackTemplateSchema = doc({
-  name: z.string(),
-  profile: PackProfileSchema.default({ days: 7, climate: 'mild', activities: [] }),
-  containers: z.array(PackContainerSchema).default([]),
-  airline: AirlineLimitSchema.default({ airline: '', carryOnKg: 0, checkedKg: 0, personalKg: 0 }),
-  items: z.array(PackItemSchema).default([]),
-});
-export type PackTemplate = z.infer<typeof PackTemplateSchema>;
 
 /* ── Route / Itinerary ───────────────────────────────────────────────────── */
 const TransportSchema = z.object({

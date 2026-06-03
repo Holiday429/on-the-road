@@ -18,16 +18,15 @@ export const coreKitStore = {
   subscribe: (cb: (rows: StoredCoreKitItem[]) => void) =>
     store().subscribe(cb as (rows: WithMeta<CoreKitItem>[]) => void),
 
-  add(input: { name: string; category?: string; weightG?: number; defaultSlot?: CoreKitItem['defaultSlot'] }) {
+  add(input: { name: string; category?: string; weightG?: number }) {
     return store().set({
       name: input.name,
       category: input.category ?? 'Tech',
       weightG: input.weightG ?? 0,
-      defaultSlot: input.defaultSlot ?? 'carryOn',
     });
   },
 
-  update(id: string, patch: Partial<Pick<CoreKitItem, 'name' | 'category' | 'weightG' | 'defaultSlot'>>) {
+  update(id: string, patch: Partial<Pick<CoreKitItem, 'name' | 'category' | 'weightG'>>) {
     return store().update(id, patch);
   },
 
@@ -35,7 +34,7 @@ export const coreKitStore = {
     return store().remove(id);
   },
 
-  seed(items: Pick<CoreKitItem, 'name' | 'category' | 'weightG' | 'defaultSlot'>[]) {
+  seed(items: Pick<CoreKitItem, 'name' | 'category' | 'weightG'>[]) {
     const existing = store().peek();
     if (existing.length > 0) return Promise.resolve();
     return store().bulkSet(items);
