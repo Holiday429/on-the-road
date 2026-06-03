@@ -11,6 +11,29 @@
     linear-gradient(180deg, #fffaf0 0%, #f7f3ea 100%);
 }
 
+@keyframes auth-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.auth-screen.is-exiting {
+  animation: auth-fade-out 0.35s ease-out forwards;
+  pointer-events: none;
+}
+
+#app {
+  animation: none;
+}
+
+#app.is-entering {
+  animation: auth-fade-in 0.35s ease-out both;
+}
+
+@keyframes auth-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .auth-shell {
   min-height: calc(100dvh - clamp(36px, 6vw, 72px));
   max-width: 1280px;

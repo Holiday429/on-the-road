@@ -46,7 +46,7 @@ let signingIn = false;
 let signingOut = false;
 let landingMapInitialized = false;
 let animationDone = false;
-let readyToEnter = false; // user is authenticated, waiting to enter
+let readyToEnter = false; // returning session: authenticated, waiting for user click
 
 /* navigation 2.5s + hero shrink 1.1s + route fill ≈ 9.5s total */
 const ANIMATION_DURATION_MS = 9500;
@@ -80,14 +80,25 @@ function showEnterButton() {
 
 function showSignedOut(message = 'Use your Google account to enter the app.') {
   authScreen?.removeAttribute('hidden');
+  authScreen?.classList.remove('is-exiting');
   appRoot?.setAttribute('hidden', '');
+  appRoot?.classList.remove('is-entering');
+  if (authButton) delete authButton.dataset.enterMode;
   setAuthButtonBusy(signingIn);
   setAuthStatus(message);
 }
 
 function showSignedIn() {
-  authScreen?.setAttribute('hidden', '');
-  appRoot?.removeAttribute('hidden');
+  if (!authScreen || !appRoot) return;
+  appRoot.removeAttribute('hidden');
+  // Trigger reflow so the browser registers the starting opacity before the class is added
+  void appRoot.offsetHeight;
+  appRoot.classList.add('is-entering');
+  authScreen.classList.add('is-exiting');
+  authScreen.addEventListener('animationend', () => {
+    authScreen.setAttribute('hidden', '');
+    authScreen.classList.remove('is-exiting');
+  }, { once: true });
 }
 
 function bootShellOnce() {
@@ -97,7 +108,7 @@ function bootShellOnce() {
 }
 
 authButton?.addEventListener('click', async () => {
-  // Already authenticated — enter the app directly
+  // Returning session — enter directly
   if (authButton?.dataset.enterMode) {
     await bootApp();
     return;
@@ -196,11 +207,9 @@ onAuth(async ({ user, ready }) => {
     // Fresh sign-in via button click — enter immediately after Google popup closes
     await bootApp();
   } else {
-    // Returning session (page refresh) — show landing, wait for user to click
+    // Returning session (page refresh) — show landing, wait for animation then user click
     readyToEnter = true;
-    if (animationDone) {
-      showEnterButton();
-    }
+    if (animationDone) showEnterButton();
     // else: the ANIMATION_DURATION_MS timeout will call showEnterButton() when ready
   }
 });
