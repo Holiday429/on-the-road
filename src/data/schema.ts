@@ -214,6 +214,10 @@ const AccommodationSchema = z.object({
 });
 
 export const LegSchema = doc({
+  // Which trip this leg belongs to. null = unclassified (legacy/global).
+  // Set on flattened legs (users/{uid}/legs) so the map can filter per-trip
+  // or aggregate across all trips. See createTaggedCollectionStore.
+  tripId: z.string().nullable().default(null),
   city: z.string(),
   country: z.string(),
   flag: z.string().default(''),
@@ -418,6 +422,10 @@ export type CitySafety = z.infer<typeof CitySafetySchema>;
 // the known registry and falls back gracefully for anything it doesn't know.
 // `mood` is optional because only some templates surface it.
 export const JournalEntrySchema = doc({
+  // Which trip this entry belongs to. null = unclassified (legacy/global).
+  // Flattened to users/{uid}/journalEntries so the calendar can show one trip
+  // or scroll across all trips. See createTaggedCollectionStore.
+  tripId: z.string().nullable().default(null),
   title: z.string().default(''),
   body: z.string(),
   template: z.string().default('moment'),
@@ -478,3 +486,35 @@ export const JournalStorySchema = doc({
   slug: z.string().default(''),
 });
 export type JournalStory = z.infer<typeof JournalStorySchema>;
+
+/* ── Nomad (work-friendly spots) ─────────────────────────────────────────── */
+// Flattened to users/{uid}/nomadSpots with a tripId tag so the gallery can
+// show one trip or all trips, and filter by country. `visibility`/`ownerId`
+// are reserved for a future community/sharing layer (not queried yet).
+export const NomadRatingsSchema = z.object({
+  wifi: z.number().default(0),
+  power: z.number().default(0),
+  restroom: z.number().default(0),
+  coffee: z.number().default(0),
+  service: z.number().default(0),
+});
+export type NomadRatings = z.infer<typeof NomadRatingsSchema>;
+
+export const NomadSpotSchema = doc({
+  tripId: z.string().nullable().default(null),
+  name: z.string(),
+  city: z.string().default(''),
+  country: z.string().default(''),
+  type: z.enum(['Café', 'Co-working', 'Library', 'Hotel lobby']).default('Café'),
+  ratings: NomadRatingsSchema,
+  comment: z.string().optional(),
+  photos: z.array(z.string()).default([]),
+  placeId: z.string().optional(),
+  mapsUrl: z.string().optional(),
+  address: z.string().optional(),
+  placePhotoUrl: z.string().optional(),
+  // Reserved for a future cross-user community layer — not queried yet.
+  visibility: z.enum(['private', 'public']).default('private'),
+  ownerId: z.string().default(''),
+});
+export type NomadSpot = z.infer<typeof NomadSpotSchema>;

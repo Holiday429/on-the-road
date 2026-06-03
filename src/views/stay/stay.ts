@@ -24,6 +24,8 @@ let stays: StoredStay[] = [];
 let selectedLegId: string | null = null;
 let legsLoaded = false;
 let staysLoaded = false;
+let _unsubLegs: (() => void) | null = null;
+let _unsubStays: (() => void) | null = null;
 // When set, an "add option" form panel is shown for this stay (before any
 // candidate is committed). Cleared on save/cancel.
 let addFormStayId: string | null = null;
@@ -439,12 +441,16 @@ function render() {
 }
 
 export function initStay() {
-  routeStore.subscribe((rows) => {
+  // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
+  _unsubLegs?.();
+  _unsubStays?.();
+  legs = []; stays = []; legsLoaded = false; staysLoaded = false;
+  _unsubLegs = routeStore.subscribe((rows) => {
     legs = [...rows].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
     legsLoaded = true;
     render();
   });
-  stayStore.subscribe((rows) => {
+  _unsubStays = stayStore.subscribe((rows) => {
     stays = rows;
     staysLoaded = true;
     render();

@@ -53,6 +53,7 @@ const FLAG_MAP: Record<string, string> = {
 
 let legs: Leg[] = [];
 let addFormOpen = false;
+let _unsubRoute: (() => void) | null = null;
 
 function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
@@ -272,7 +273,10 @@ function render() {
 }
 
 export function initRoute() {
-  routeStore.subscribe((rows) => {
+  // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
+  _unsubRoute?.();
+  legs = [];
+  _unsubRoute = routeStore.subscribe((rows) => {
     legs = sortLegs(rows as Leg[]);
     render();
   });

@@ -330,6 +330,86 @@
   color: var(--amber-700);
 }
 
+/* ── Trip switcher ───────────────────────────────────────────────────────── */
+.trip-pill { cursor: pointer; transition: border-color 0.15s ease; }
+.trip-pill:hover { border-color: var(--amber-300, var(--amber-200)); }
+.trip-pill.is-open { border-color: var(--amber-600); }
+.trip-pill-caret {
+  display: inline-block;
+  font-size: 0.7em;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+.trip-pill.is-open .trip-pill-caret { transform: rotate(180deg); }
+
+.trip-menu {
+  margin: var(--sp-1) var(--sp-3) 0;
+  background: #fff;
+  border: 1.5px solid var(--amber-200);
+  border-radius: var(--r-lg);
+  padding: var(--sp-1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.trip-menu-item,
+.trip-menu-new {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  background: none;
+  border-radius: var(--r-md);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.trip-menu-item:hover,
+.trip-menu-new:hover { background: var(--amber-50); }
+.trip-menu-item.is-active { background: var(--amber-50); font-weight: 700; }
+.trip-menu-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.trip-menu-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trip-menu-check { color: var(--amber-700); font-weight: 700; }
+.trip-menu-empty { padding: var(--sp-2) var(--sp-3); color: var(--ink-muted); font-size: var(--fs-sm); }
+.trip-menu-new {
+  margin-top: 2px;
+  border-top: 1px solid var(--amber-100, var(--amber-200));
+  color: var(--amber-700);
+  font-weight: 600;
+}
+
+/* ── New-trip modal ──────────────────────────────────────────────────────── */
+.trip-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--sp-4);
+}
+.trip-modal {
+  background: #fff;
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.trip-modal-title { margin: 0 0 var(--sp-4); font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700; }
+.trip-modal-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: var(--sp-3); font-size: var(--fs-sm); }
+.trip-modal-field > span { font-weight: 600; color: var(--ink-muted); }
+.trip-modal-row { display: flex; gap: var(--sp-3); }
+.trip-modal-row .trip-modal-field { flex: 1; }
+.trip-modal-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
+.trip-modal-error { color: #c0392b; font-size: var(--fs-sm); margin-top: var(--sp-2); min-height: 1em; }
+
 /* ── Nav sections ────────────────────────────────────────────────────────── */
 .sidebar-nav {
   flex: 1;

@@ -26,6 +26,33 @@
   flex-wrap: wrap;
 }
 
+/* This-trip / All-trips scope toggle */
+.nomad-scope {
+  display: inline-flex;
+  background: var(--amber-50);
+  border: 1.5px solid var(--amber-200);
+  border-radius: var(--r-md);
+  padding: 2px;
+  flex-shrink: 0;
+}
+.nomad-scope-btn {
+  border: none;
+  background: none;
+  padding: 6px 12px;
+  border-radius: calc(var(--r-md) - 2px);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.nomad-scope-btn.active {
+  background: #fff;
+  color: var(--amber-700);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+
 .nomad-search-wrap {
   position: relative;
   flex: 1;

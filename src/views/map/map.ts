@@ -9,6 +9,7 @@ import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_
 import { MAP_COLORS as C, countryColor } from './map-shared.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
+import { onTripChange } from '../../data/trip-context.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
@@ -85,6 +86,8 @@ function evenSpeedWaypoints(
 let _initialized = false;
 let _root:  any = null;
 let _chart: any = null;
+let _scope: 'trip' | 'all' = 'trip';
+let _unsubLegs: (() => void) | null = null;
 let _worldSeries: any = null;
 let _polyById    = new Map<string, any>();
 let _dataItemById = new Map<string, any>();  // iso → dataItem (unused after zoom refactor)
@@ -334,12 +337,33 @@ export function initMap() {
       </div>`;
   }
 
-  routeStore.subscribe((storedLegs) => {
+  // Subscribe to legs for the active scope. Re-runnable: on scope change or
+  // trip switch we tear down the chart and re-subscribe so the route rebuilds.
+  subscribeLegs(view as HTMLElement);
+
+  // Trip switch: re-subscribe under the new trip (unless viewing all trips).
+  onTripChange(() => {
+    if (_scope === 'trip') subscribeLegs(view as HTMLElement);
+  });
+}
+
+/** Dispose the amCharts root so the next leg snapshot reboots the chart. */
+function teardownChart() {
+  if (_root) { try { _root.dispose(); } catch { /* ignore */ } }
+  _root = null;
+  _chart = null;
+}
+
+function subscribeLegs(view: HTMLElement) {
+  _unsubLegs?.();
+  teardownChart();
+  const subscribe = _scope === 'all' ? routeStore.subscribeAll : routeStore.subscribe;
+  _unsubLegs = subscribe((storedLegs) => {
     const legs = plot(storedLegs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) as Leg[]);
 
     // Chart already running — just refresh the side panel
     if (_chart) {
-      renderPanel(view as HTMLElement, legs);
+      renderPanel(view, legs);
       return;
     }
 
@@ -982,6 +1006,10 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
     </button>`).join('');
 
   (view.querySelector('.map-panel') as HTMLElement).innerHTML = `
+    <div class="map-scope">
+      <button class="map-scope-btn${_scope === 'trip' ? ' active' : ''}" data-scope="trip">This trip</button>
+      <button class="map-scope-btn${_scope === 'all' ? ' active' : ''}" data-scope="all">All footprints</button>
+    </div>
     <div class="map-stats">
       <div class="map-stat"><div class="map-stat-num">${cityCount}</div><div class="map-stat-label">Cities</div></div>
       <div class="map-stat"><div class="map-stat-num">${countryCount}</div><div class="map-stat-label">Countries</div></div>
@@ -1003,6 +1031,15 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
         </span>
       </div>
     </div>`;
+
+  view.querySelectorAll<HTMLButtonElement>('.map-scope-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.scope as 'trip' | 'all';
+      if (next === _scope) return;
+      _scope = next;
+      subscribeLegs(view);  // tears down chart + re-subscribes for the new scope
+    });
+  });
 
   view.querySelectorAll<HTMLButtonElement>('.leg-row').forEach((btn) => {
     btn.addEventListener('click', () => {

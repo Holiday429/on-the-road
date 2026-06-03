@@ -8,7 +8,7 @@
 
 import './pack.css';
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
-import { coreKitStore, STARTER_CORE_KIT, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
+import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
 import { packTemplateStore, type StoredPackTemplate } from '../../data/stores/pack-template-store.ts';
 import {
   buildFormulaItems, specsToItems, itemWeightG, formatKg,
@@ -92,8 +92,6 @@ function startSubscriptions() {
   _unsubLists = packStore.subscribe(rows => { _lists = rows; render(); });
   _unsubKit = coreKitStore.subscribe(rows => { _kit = rows; render(); });
   _unsubTemplates = packTemplateStore.subscribe(rows => { _templates = rows; render(); });
-  // Seed a starter kit for first-time users.
-  void coreKitStore.seed(STARTER_CORE_KIT);
 }
 
 /* ── Render dispatch ─────────────────────────────────────────────────────── */

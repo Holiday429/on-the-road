@@ -29,6 +29,34 @@
   flex-wrap: wrap;
 }
 
+/* This trip / All memories scope toggle */
+.journal-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 3px;
+  border-radius: var(--r-full);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  margin-left: auto;
+}
+.journal-scope-btn {
+  border: none;
+  background: none;
+  padding: 5px 12px;
+  border-radius: var(--r-full);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.journal-scope-btn.active {
+  background: var(--amber-100, var(--amber-50));
+  color: var(--amber-700);
+}
+
 /* Mode tabs (Capture | Story) — surface pill group, left side */
 .journal-mode-tabs {
   display: inline-flex;

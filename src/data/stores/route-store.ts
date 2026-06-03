@@ -2,19 +2,31 @@
    On the Road · Route store — itinerary legs
    ========================================================================== */
 
-import { createCollectionStore, type WithMeta } from '../../firebase/db.ts';
+import { createTaggedCollectionStore, type WithMeta } from '../../firebase/db.ts';
 import { currentTripId } from '../trip-context.ts';
 import { LegSchema, type Leg } from '../schema.ts';
 
 export type StoredLeg = WithMeta<Leg>;
 
+// Legs are flattened to users/{uid}/legs with a tripId tag, so the map can
+// either show one trip's itinerary or aggregate every trip's footprints.
+// Per-trip consumers (itinerary, stay, expenses, journal) use subscribe(),
+// which filters to the current trip; the map uses subscribeAll().
 function store() {
-  return createCollectionStore(currentTripId(), 'legs', LegSchema);
+  return createTaggedCollectionStore('legs', LegSchema);
 }
 
 export const routeStore = {
-  subscribe: (cb: (legs: StoredLeg[]) => void) => store().subscribe(cb),
-  peek: () => store().peek() as StoredLeg[],
+  /** Legs for the current trip only. */
+  subscribe: (cb: (legs: StoredLeg[]) => void) =>
+    store().subscribeForTrip(currentTripId(), cb as (rows: WithMeta<Leg>[]) => void),
+
+  /** Legs across all trips (map "all footprints" view). */
+  subscribeAll: (cb: (legs: StoredLeg[]) => void) =>
+    store().subscribeForTrip(null, cb as (rows: WithMeta<Leg>[]) => void),
+
+  /** Cached legs for the current trip. */
+  peek: () => (store().peek() as StoredLeg[]).filter(l => l.tripId === currentTripId()),
 
   set(leg: Partial<Leg> & { id?: string }) {
     return store().set(leg);

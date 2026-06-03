@@ -7,7 +7,7 @@
    default seed). localStorage is never deleted.
    ========================================================================== */
 
-import { createCollectionStore } from '../firebase/db.ts';
+import { createTaggedCollectionStore } from '../firebase/db.ts';
 import { currentTripId } from './trip-context.ts';
 import { LegSchema, type Leg } from './schema.ts';
 import { DEFAULT_ROUTE_LEGS, loadStoredRouteLegs } from './default-route.ts';
@@ -41,8 +41,14 @@ function readLegacyLegs(): any[] {
 
 /** Returns number of legs uploaded (0 if cloud already had data). */
 export async function migrateRouteToCloud(): Promise<number> {
-  const store = createCollectionStore(currentTripId(), 'legs', LegSchema);
+  // Flat, tripId-tagged legs collection (users/{uid}/legs).
+  const tripId = currentTripId();
+  const store = createTaggedCollectionStore('legs', LegSchema);
   const cloud = await store.list();
+  // Only seed if this trip has no legs yet (other trips' legs may coexist).
+  if (cloud.some((l) => (l as { tripId?: string | null }).tripId === tripId)) return 0;
+  // Also bail if the flattened collection already has unclassified legs the
+  // multitrip migration will tag — avoids double-seeding the default trip.
   if (cloud.length > 0) return 0;
 
   const source = readLegacyLegs();
@@ -50,6 +56,7 @@ export async function migrateRouteToCloud(): Promise<number> {
 
   const rows = source.map((l, i) => clean({
     id: l.id || uid(),
+    tripId,
     city: l.city,
     country: l.country,
     flag: l.flag || FLAG_MAP[l.country] || '🗺️',

@@ -42,14 +42,3 @@ export const coreKitStore = {
   },
 };
 
-/* ── Suggested starter kit (used to seed first-time users) ────────────────── */
-
-export const STARTER_CORE_KIT: Pick<CoreKitItem, 'name' | 'category' | 'weightG' | 'defaultSlot'>[] = [
-  { name: 'Laptop', category: 'Tech', weightG: 1400, defaultSlot: 'carryOn' },
-  { name: 'Laptop charger', category: 'Tech', weightG: 300, defaultSlot: 'carryOn' },
-  { name: 'Camera', category: 'Tech', weightG: 700, defaultSlot: 'carryOn' },
-  { name: 'Phone charger', category: 'Tech', weightG: 80, defaultSlot: 'personal' },
-  { name: 'Power bank', category: 'Tech', weightG: 350, defaultSlot: 'carryOn' },
-  { name: 'Universal adapter', category: 'Tech', weightG: 120, defaultSlot: 'carryOn' },
-  { name: 'Passport', category: 'Docs', weightG: 40, defaultSlot: 'personal' },
-];

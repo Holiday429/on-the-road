@@ -20,6 +20,7 @@ import {
 import { db as firestore } from './config.ts';
 import { currentUser } from './auth.ts';
 import { SCHEMA_VERSION, type Meta } from '../data/schema.ts';
+import { currentTripId } from '../data/trip-context.ts';
 import type { z } from 'zod';
 
 /** users/{uid}/{name} — for collections that belong to the user, not a trip. */
@@ -113,6 +114,45 @@ export function createUserCollectionStore<S extends z.ZodTypeAny>(
 
     async bulkSet(rows) {
       for (const row of rows) await this.set(row);
+    },
+  };
+}
+
+/**
+ * A user-scoped store whose docs carry a `tripId` tag. Lives at
+ * users/{uid}/{name} (flat, not under a trip), so a single subscription can
+ * either filter to one trip or aggregate across all trips — the pattern the
+ * map / journal calendar / nomad gallery need.
+ *
+ * - On write, an absent `tripId` defaults to the current trip.
+ * - `subscribeForTrip(tripId, cb)` filters client-side (tripId === value);
+ *   pass `null` to receive every row (global view). Data volume is small for a
+ *   single user, so no composite index is required.
+ */
+export interface TaggedCollectionStore<T> extends CollectionStore<T> {
+  subscribeForTrip(tripId: string | null, cb: (rows: WithMeta<T>[]) => void): () => void;
+}
+
+export function createTaggedCollectionStore<S extends z.ZodTypeAny>(
+  name: string,
+  schema: S,
+): TaggedCollectionStore<z.infer<S>> {
+  const base = createUserCollectionStore(name, schema);
+
+  return {
+    ...base,
+    async set(data) {
+      const withTrip = (data as { tripId?: string | null }).tripId == null
+        ? { ...data, tripId: currentTripId() }
+        : data;
+      return base.set(withTrip);
+    },
+    subscribeForTrip(tripId, cb) {
+      return base.subscribe((rows) => {
+        cb(tripId == null
+          ? rows
+          : rows.filter((r) => (r as { tripId?: string | null }).tripId === tripId));
+      });
     },
   };
 }

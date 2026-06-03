@@ -225,6 +225,9 @@
 
 /* ── Panel ─────────────────────────────────────────────────────────────── */
 .map-panel { position: sticky; top: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-4); }
+.map-scope { display: inline-flex; background: var(--amber-50); border: 1.5px solid var(--amber-200); border-radius: var(--r-md); padding: 2px; }
+.map-scope-btn { flex: 1; border: none; background: none; padding: 6px 10px; border-radius: calc(var(--r-md) - 2px); font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted); cursor: pointer; }
+.map-scope-btn.active { background: #fff; color: var(--amber-700); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
 .map-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
 .map-stat {
   background: var(--surface); border: 1px solid var(--rule);

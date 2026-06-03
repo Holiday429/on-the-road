@@ -8,7 +8,8 @@ import './core/app.css';
 import { initApp, registerView, renderSession } from './core/app.ts';
 import { onAuth, signInWithGoogle, signOut } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
-import { ensureDefaultTrip } from './data/trip-context.ts';
+import { ensureDefaultTrip, restoreActiveTrip } from './data/trip-context.ts';
+import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { initPrep }     from './views/prep/prep.ts';
@@ -137,6 +138,32 @@ async function bootApp() {
   if (!_bootUser) return;
   const user = _bootUser;
   showSignedIn();
+
+  // Resolve the active trip BEFORE the shell mounts any views, so they
+  // subscribe under the right tripId (no wrong-trip flash). Also run the
+  // one-time migrations: multitrip first (it flattens legacy per-trip legs/
+  // journal into the flat collections), then the legacy seeders.
+  try { await ensureDefaultTrip(); }
+  catch (e) { console.warn('Default trip bootstrap skipped:', e); }
+
+  try {
+    const n = await migrateMultiTrip();
+    if (n > 0) console.info(`Flattened ${n} legs/journal entries for multi-trip.`);
+  } catch (e) { console.warn('Multi-trip migration skipped:', e); }
+
+  try {
+    const n = await migrateRouteToCloud();
+    if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
+  } catch (e) { console.warn('Route migration skipped:', e); }
+
+  try {
+    const n = await migrateExpensesToCloud();
+    if (n > 0) console.info(`Migrated ${n} expenses to the cloud.`);
+  } catch (e) { console.warn('Expense migration skipped:', e); }
+
+  try { await restoreActiveTrip(); }
+  catch (e) { console.warn('Restore active trip skipped:', e); }
+
   bootShellOnce();
   renderSession(user, async () => {
     if (signingOut) return;
@@ -148,19 +175,6 @@ async function bootApp() {
       signingOut = false;
     }
   });
-
-  try { await ensureDefaultTrip(); }
-  catch (e) { console.warn('Default trip bootstrap skipped:', e); }
-
-  try {
-    const n = await migrateRouteToCloud();
-    if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
-  } catch (e) { console.warn('Route migration skipped:', e); }
-
-  try {
-    const n = await migrateExpensesToCloud();
-    if (n > 0) console.info(`Migrated ${n} expenses to the cloud.`);
-  } catch (e) { console.warn('Expense migration skipped:', e); }
 }
 
 onAuth(async ({ user, ready }) => {

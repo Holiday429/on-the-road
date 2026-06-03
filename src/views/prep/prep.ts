@@ -6,7 +6,6 @@ import './prep.css';
 import {
   checklistStore,
   templateStore,
-  BUILT_IN_TEMPLATES,
   type StoredChecklist,
   type StoredTemplate,
 } from '../../data/stores/checklist-store.ts';
@@ -60,10 +59,6 @@ function startSubscriptions() {
 
   _unsubTemplates = templateStore.subscribe((rows) => {
     _templates = rows;
-    // Seed built-ins if Firestore returns empty on first load
-    if (rows.length === 0) {
-      templateStore.seed(BUILT_IN_TEMPLATES).catch(console.error);
-    }
     render();
   });
 }

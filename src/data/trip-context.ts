@@ -7,12 +7,16 @@
    nothing downstream changes.
    ========================================================================== */
 
-import { doc as fbDoc, getDoc, setDoc } from 'firebase/firestore';
+import {
+  collection, doc as fbDoc, getDoc, getDocs, setDoc, deleteDoc, query,
+} from 'firebase/firestore';
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
 import { SCHEMA_VERSION, TripSchema, type Trip } from './schema.ts';
 
 export const DEFAULT_TRIP_ID = 'europe-2025';
+
+export type StoredTrip = Trip;
 
 const DEFAULT_TRIP: Omit<Trip, 'createdAt' | 'updatedAt' | 'schemaVersion'> = {
   id: DEFAULT_TRIP_ID,
@@ -26,13 +30,54 @@ const DEFAULT_TRIP: Omit<Trip, 'createdAt' | 'updatedAt' | 'schemaVersion'> = {
 
 let _currentTripId = DEFAULT_TRIP_ID;
 let _baseCurrency = DEFAULT_TRIP.baseCurrency;
+let _currentTrip: Trip | null = null;
 
 export function currentTripId(): string {
   return _currentTripId;
 }
 
+/** The full doc for the active trip, if we've loaded it (name, dates, status…). */
+export function currentTrip(): Trip | null {
+  return _currentTrip;
+}
+
+/* ── Trip-change bus ─────────────────────────────────────────────────────── */
+// Views and the shell subscribe here; switchTrip() fires it so they can tear
+// down stale store subscriptions and re-subscribe under the new tripId.
+type TripChangeListener = (tripId: string) => void;
+const _tripListeners = new Set<TripChangeListener>();
+
+export function onTripChange(cb: TripChangeListener): () => void {
+  _tripListeners.add(cb);
+  return () => _tripListeners.delete(cb);
+}
+
+function emitTripChange() {
+  for (const cb of _tripListeners) {
+    try { cb(_currentTripId); } catch (e) { console.warn('onTripChange listener failed:', e); }
+  }
+}
+
+/** Set the active trip without broadcasting (boot/seed path). */
 export function setCurrentTripId(id: string) {
   _currentTripId = id;
+}
+
+/**
+ * Switch the active trip: update local state, cache its metadata + base
+ * currency, persist the choice to the user profile, and broadcast so views
+ * re-subscribe. No page reload.
+ */
+export async function switchTrip(id: string): Promise<void> {
+  if (id === _currentTripId && _currentTrip) return;
+  _currentTripId = id;
+  const trip = await getTrip(id);
+  if (trip) {
+    _currentTrip = trip;
+    _baseCurrency = trip.baseCurrency ?? _baseCurrency;
+  }
+  await persistDefaultTripId(id);
+  emitTripChange();
 }
 
 /** The trip's base/settlement currency (what totals are shown in). */
@@ -63,6 +108,101 @@ function tripRef(uid: string, tripId: string) {
   return fbDoc(firestore, `users/${uid}/trips/${tripId}`);
 }
 
+function tripsCol(uid: string) {
+  return collection(firestore, `users/${uid}/trips`);
+}
+
+/* ── Trip CRUD ───────────────────────────────────────────────────────────── */
+
+/** All trips for the signed-in user, newest start date first. */
+export async function listTrips(): Promise<Trip[]> {
+  const u = currentUser();
+  if (!u) return [];
+  const snap = await getDocs(query(tripsCol(u.uid)));
+  return snap.docs
+    .map((d) => d.data() as Trip)
+    .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+}
+
+export async function getTrip(id: string): Promise<Trip | null> {
+  const u = currentUser();
+  if (!u) return null;
+  const snap = await getDoc(tripRef(u.uid, id));
+  return snap.exists() ? (snap.data() as Trip) : null;
+}
+
+/** Slugify a trip name into a stable, collision-resistant doc id. */
+function slugId(name: string): string {
+  const base = name.trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32) || 'trip';
+  return `${base}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+export interface NewTripInput {
+  name: string;
+  startDate: string;
+  endDate: string;
+  baseCurrency?: string;
+  coverColor?: string;
+}
+
+/** Create a blank trip (metadata only — no seeded checklist/route). Returns id. */
+export async function createTrip(input: NewTripInput): Promise<string> {
+  const u = currentUser();
+  if (!u) throw new Error('Not signed in.');
+  const id = slugId(input.name);
+  const now = Date.now();
+  const trip = TripSchema.parse({
+    id,
+    name: input.name,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    baseCurrency: input.baseCurrency ?? 'EUR',
+    coverColor: input.coverColor ?? '#f9b830',
+    status: 'planning',
+    createdAt: now,
+    updatedAt: now,
+    schemaVersion: SCHEMA_VERSION,
+  });
+  await setDoc(tripRef(u.uid, id), trip);
+  return id;
+}
+
+/** Delete a trip document. Sub-collection data is left in place (cheap, and a
+ *  safety net); a future cleanup pass can prune orphaned docs. */
+export async function removeTrip(id: string): Promise<void> {
+  const u = currentUser();
+  if (!u) throw new Error('Not signed in.');
+  await deleteDoc(tripRef(u.uid, id));
+}
+
+/** Persist the active trip choice onto the user profile so refreshes restore it. */
+async function persistDefaultTripId(id: string): Promise<void> {
+  const u = currentUser();
+  if (!u) return;
+  const ref = fbDoc(firestore, `users/${u.uid}`);
+  try {
+    const snap = await getDoc(ref);
+    const existing = snap.exists() ? snap.data() : {};
+    await setDoc(ref, { ...existing, defaultTripId: id, updatedAt: Date.now() }, { merge: true });
+  } catch (e) {
+    console.warn('Could not persist defaultTripId:', e);
+  }
+}
+
+/** Read the persisted default trip id from the profile, if any. */
+export async function readDefaultTripId(): Promise<string | null> {
+  const u = currentUser();
+  if (!u) return null;
+  try {
+    const snap = await getDoc(fbDoc(firestore, `users/${u.uid}`));
+    const id = snap.exists() ? (snap.data() as { defaultTripId?: string | null }).defaultTripId : null;
+    return id ?? null;
+  } catch { return null; }
+}
+
 /** Ensure the default trip document exists. Call once after sign-in. */
 export async function ensureDefaultTrip(): Promise<Trip> {
   const u = currentUser();
@@ -81,8 +221,10 @@ export async function ensureDefaultTrip(): Promise<Trip> {
         schemaVersion: SCHEMA_VERSION,
       });
       await setDoc(ref, updated);
+      _currentTrip = updated;
       return updated;
     }
+    _currentTrip = existing;
     return existing;
   }
 
@@ -91,5 +233,23 @@ export async function ensureDefaultTrip(): Promise<Trip> {
     ...DEFAULT_TRIP, createdAt: now, updatedAt: now, schemaVersion: SCHEMA_VERSION,
   });
   await setDoc(ref, trip);
+  _currentTrip = trip;
   return trip;
+}
+
+/**
+ * Restore the previously-selected trip from the profile, falling back to the
+ * default. Sets the active trip + caches its metadata. Call once after
+ * ensureDefaultTrip() on boot. Does not broadcast (nothing is mounted yet).
+ */
+export async function restoreActiveTrip(): Promise<void> {
+  const saved = await readDefaultTripId();
+  if (saved && saved !== _currentTripId) {
+    const trip = await getTrip(saved);
+    if (trip) {
+      _currentTripId = saved;
+      _currentTrip = trip;
+      _baseCurrency = trip.baseCurrency ?? _baseCurrency;
+    }
+  }
 }

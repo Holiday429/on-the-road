@@ -69,6 +69,8 @@ let filterCategory = 'all';
 let filterCity = 'all';
 let analysisDim: AnalysisDim = 'category';
 let unsub: (() => void) | null = null;
+let unsubLegs: (() => void) | null = null;
+let unsubCategories: (() => void) | null = null;
 
 type AnalysisDim = 'category' | 'country' | 'city' | 'time';
 const ANALYSIS_DIMS: { id: AnalysisDim; label: string }[] = [
@@ -574,18 +576,21 @@ export function initExpenses() {
   renderForm(formEl);
   render();
 
-  // Live data.
+  // Live data. Idempotent: clear prior subscriptions so a trip switch
+  // re-subscribes under the new tripId without leaking/duplicating.
   unsub?.();
+  unsubLegs?.();
+  unsubCategories?.();
   unsub = expenseStore.subscribe((rows) => {
     expenses = rows;
     render();
   });
-  routeStore.subscribe((rows) => {
+  unsubLegs = routeStore.subscribe((rows) => {
     legs = rows;
     render();
   });
   // Custom categories affect both the form chips and the analysis/filter panels.
-  expenseCategoryStore.subscribe((rows) => {
+  unsubCategories = expenseCategoryStore.subscribe((rows) => {
     customCategories = rows;
     renderForm(formEl);
     render();

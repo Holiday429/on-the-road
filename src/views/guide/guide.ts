@@ -12,6 +12,8 @@ const BANNER_COLORS = [
 
 let _cities: StoredCityIntel[] = [];
 let openCityId: string | null = null;
+let _unsubCities: (() => void) | null = null;
+let _citiesWired = false;
 
 function slugId(city: string): string {
   return city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -251,11 +253,19 @@ function render() {
 }
 
 export function initCities() {
-  // Subscribe: Firestore snapshots drive all re-renders
-  cityStore.subscribe((rows) => {
+  // Subscribe: Firestore snapshots drive all re-renders. Idempotent so a trip
+  // switch re-subscribes under the new tripId.
+  _unsubCities?.();
+  _cities = [];
+  openCityId = null;
+  _unsubCities = cityStore.subscribe((rows) => {
     _cities = [...rows].sort((a, b) => b.updatedAt - a.updatedAt);
     render();
   });
+
+  // DOM event wiring runs once (the elements persist across trip switches).
+  if (_citiesWired) return;
+  _citiesWired = true;
 
   const root = document.getElementById('view-cities')!;
   const input = root.querySelector<HTMLInputElement>('#cities-search-input')!;

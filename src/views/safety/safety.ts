@@ -22,6 +22,9 @@ import type { SafetyProfile } from '../../data/schema.ts';
 let _cards: StoredCitySafety[] = [];
 let _legs: StoredLeg[] = [];
 let _profile: StoredSafetyProfile | null = null;
+let _unsubProfile: (() => void) | null = null;
+let _unsubLegs: (() => void) | null = null;
+let _unsubCards: (() => void) | null = null;
 let openCardId: string | null = null;
 let editingProfile = false;
 
@@ -580,9 +583,15 @@ export function initSafety() {
     <div class="sfy-ess-grid"></div>
   `;
 
-  safetyProfileStore.subscribe((p) => { _profile = p; render(); });
-  routeStore.subscribe((legs) => { _legs = legs; render(); });
-  safetyStore.subscribe((rows) => {
+  // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
+  // (safetyProfileStore is user-global, but re-subscribing is harmless.)
+  _unsubProfile?.();
+  _unsubLegs?.();
+  _unsubCards?.();
+  _cards = []; _legs = [];
+  _unsubProfile = safetyProfileStore.subscribe((p) => { _profile = p; render(); });
+  _unsubLegs = routeStore.subscribe((legs) => { _legs = legs; render(); });
+  _unsubCards = safetyStore.subscribe((rows) => {
     _cards = [...rows].sort((a, b) => a.city.localeCompare(b.city));
     render();
   });

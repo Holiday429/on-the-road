@@ -9,11 +9,17 @@ import { setCustomTemplates } from './templates.ts';
 
 type JournalMode = 'capture' | 'story';
 
-let initialized = false;
 let mode: JournalMode = 'capture';
+// 'trip' = this trip's entries; 'all' = every trip's memories (calendar scroll).
+let entryScope: 'trip' | 'all' = 'trip';
 let entries: StoredJournalEntry[] = [];
 let stories: StoredJournalStory[] = [];
 let legs: StoredLeg[] = [];
+
+let _unsubEntries: (() => void) | null = null;
+let _unsubLegs: (() => void) | null = null;
+let _unsubStories: (() => void) | null = null;
+let _unsubTemplates: (() => void) | null = null;
 
 const capture = createCaptureController({
   getEntries: () => entries,
@@ -27,6 +33,18 @@ const story = createStoryController({
   getStories: () => stories,
   requestRender: renderJournal,
 });
+
+/** (Re)subscribe entries for the active scope (this trip vs all memories). */
+function subscribeEntries() {
+  _unsubEntries?.();
+  const subscribe = entryScope === 'all' ? journalStore.subscribeAll : journalStore.subscribe;
+  _unsubEntries = subscribe((rows) => {
+    entries = rows;
+    capture.handleDataChange();
+    story.handleDataChange();
+    renderJournal();
+  });
+}
 
 function subtitleFor(currentMode: JournalMode) {
   if (currentMode === 'story') {
@@ -42,6 +60,17 @@ function bindModeSwitch(root: HTMLElement) {
       if (mode === nextMode) return;
       mode = nextMode;
       renderJournal();
+    });
+  });
+}
+
+function bindScopeSwitch(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>('[data-journal-scope]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const next = (button.dataset.journalScope as 'trip' | 'all') ?? 'trip';
+      if (entryScope === next) return;
+      entryScope = next;
+      subscribeEntries(); // re-subscribe; will repaint via its callback
     });
   });
 }
@@ -72,6 +101,10 @@ function renderJournal() {
               <button class="journal-layout-tab ${capture.currentView() === id ? 'active' : ''}" data-journal-view="${id}" type="button">${id.charAt(0).toUpperCase() + id.slice(1)}</button>
             `).join('')}
           </div>
+          <div class="journal-scope">
+            <button class="journal-scope-btn ${entryScope === 'trip' ? 'active' : ''}" data-journal-scope="trip" type="button">This trip</button>
+            <button class="journal-scope-btn ${entryScope === 'all' ? 'active' : ''}" data-journal-scope="all" type="button">All memories</button>
+          </div>
         ` : ''}
       </div>
       ${captureHtml}${storyHtml}
@@ -79,6 +112,7 @@ function renderJournal() {
   `;
 
   bindModeSwitch(root);
+  bindScopeSwitch(root);
   if (mode === 'capture') {
     capture.bind(root);
     capture.afterRender(root);
@@ -89,32 +123,29 @@ function renderJournal() {
 }
 
 export function initJournal() {
-  if (initialized) {
-    renderJournal();
-    return;
-  }
-  initialized = true;
+  // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
+  _unsubEntries?.();
+  _unsubLegs?.();
+  _unsubStories?.();
+  _unsubTemplates?.();
+  entries = []; legs = []; stories = [];
 
-  journalStore.subscribe((rows) => {
-    entries = rows;
-    capture.handleDataChange();
-    renderJournal();
-  });
+  subscribeEntries(); // honours the current entryScope
 
-  routeStore.subscribe((rows) => {
+  _unsubLegs = routeStore.subscribe((rows) => {
     legs = rows;
     capture.handleDataChange();
     story.handleDataChange();
     renderJournal();
   });
 
-  journalStoryStore.subscribe((rows) => {
+  _unsubStories = journalStoryStore.subscribe((rows) => {
     stories = rows;
     story.handleDataChange();
     renderJournal();
   });
 
-  journalTemplateStore.subscribe((rows) => {
+  _unsubTemplates = journalTemplateStore.subscribe((rows) => {
     setCustomTemplates(rows);
     capture.handleDataChange();
     renderJournal();
