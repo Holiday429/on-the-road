@@ -25,11 +25,20 @@ let _ready = false;
 type Listener = (state: { user: User | null; ready: boolean }) => void;
 const listeners = new Set<Listener>();
 
-onAuthStateChanged(auth, (user) => {
+function publishAuthState(user: User | null) {
   _user = user;
   _ready = true;
   listeners.forEach((fn) => fn({ user: _user, ready: _ready }));
-});
+}
+
+onAuthStateChanged(
+  auth,
+  (user) => publishAuthState(user),
+  (error) => {
+    console.warn('Auth state initialization failed:', error);
+    publishAuthState(null);
+  },
+);
 
 /** Subscribe to auth changes. Fires immediately with the current state. Returns an unsubscribe fn. */
 export function onAuth(fn: Listener): () => void {

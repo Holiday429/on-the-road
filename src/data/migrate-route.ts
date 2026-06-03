@@ -10,7 +10,10 @@
 import { createTaggedCollectionStore } from '../firebase/db.ts';
 import { currentTripId } from './trip-context.ts';
 import { LegSchema, type Leg } from './schema.ts';
-import { DEFAULT_ROUTE_LEGS, loadStoredRouteLegs } from './default-route.ts';
+// default-route is no longer used for seeding; kept only so the import doesn't
+// break if referenced elsewhere. Safe to delete when migrate-route is retired.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import {} from './default-route.ts';
 
 const FLAG_MAP: Record<string, string> = {
   'Denmark': '🇩🇰', 'Germany': '🇩🇪', 'Netherlands': '🇳🇱',
@@ -25,6 +28,8 @@ function clean<T extends object>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
+const MIGRATION_DONE_FLAG = 'otr:route:migrated:v1';
+
 function readLegacyLegs(): any[] {
   for (const key of ['otr:route:legs', 'otr:route:legs:migrated']) {
     try {
@@ -35,21 +40,32 @@ function readLegacyLegs(): any[] {
       }
     } catch { /* ignore */ }
   }
-  // loadStoredRouteLegs handles legacy 2025→2026 date upgrades and falls back to the seed.
-  return loadStoredRouteLegs<any>(DEFAULT_ROUTE_LEGS as any[]).legs;
+  // No localStorage data — return empty so we don't re-seed from the hardcoded
+  // default. The user may have deliberately deleted all their legs.
+  return [];
 }
 
 /** Returns number of legs uploaded (0 if cloud already had data). */
 export async function migrateRouteToCloud(): Promise<number> {
+  // Skip entirely if we've already run this migration once for this browser.
+  // This prevents re-seeding when the user deliberately deletes all their legs.
+  if (localStorage.getItem(MIGRATION_DONE_FLAG) === '1') return 0;
+
   // Flat, tripId-tagged legs collection (users/{uid}/legs).
   const tripId = currentTripId();
   const store = createTaggedCollectionStore('legs', LegSchema);
   const cloud = await store.list();
   // Only seed if this trip has no legs yet (other trips' legs may coexist).
-  if (cloud.some((l) => (l as { tripId?: string | null }).tripId === tripId)) return 0;
+  if (cloud.some((l) => (l as { tripId?: string | null }).tripId === tripId)) {
+    localStorage.setItem(MIGRATION_DONE_FLAG, '1');
+    return 0;
+  }
   // Also bail if the flattened collection already has unclassified legs the
   // multitrip migration will tag — avoids double-seeding the default trip.
-  if (cloud.length > 0) return 0;
+  if (cloud.length > 0) {
+    localStorage.setItem(MIGRATION_DONE_FLAG, '1');
+    return 0;
+  }
 
   const source = readLegacyLegs();
   if (source.length === 0) return 0;
@@ -69,5 +85,6 @@ export async function migrateRouteToCloud(): Promise<number> {
   })) as (Partial<Leg> & { id: string })[];
 
   for (const row of rows) await store.set(row);
+  localStorage.setItem(MIGRATION_DONE_FLAG, '1');
   return rows.length;
 }

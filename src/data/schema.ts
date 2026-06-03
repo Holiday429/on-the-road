@@ -182,19 +182,56 @@ const TransportSchema = z.object({
   to: z.string(),
   date: z.string(),
   time: z.string().optional(),
+  arrivalTime: z.string().optional(),   // arrival clock time
   duration: z.string().optional(),
   price: z.string().optional(),
+  // Service identifier — flight number, train number, etc.
+  service: z.string().optional(),
+  // Departure / arrival stations or terminals (more specific than from/to city).
+  depPlace: z.string().optional(),
+  arrPlace: z.string().optional(),
+  bookingRef: z.string().optional(),
   confirmed: z.boolean().default(false),
   notes: z.string().optional(),
 });
 
 const AccommodationSchema = z.object({
+  id: z.string().optional(),            // present on multi-stay arrays
   name: z.string(),
   address: z.string().optional(),
   price: z.string().optional(),
   confirmed: z.boolean().default(false),
   link: z.string().optional(),
+  mapUrl: z.string().optional(),        // pasted Google Maps link (overrides name-based search)
+  checkIn: z.string().optional(),       // ISO date
+  checkOut: z.string().optional(),
+  phone: z.string().optional(),
+  order: z.number().optional(),
 });
+
+// One "thing I want to do" — not bound to a day. Optionally tagged + mappable.
+const PlanItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  note: z.string().optional(),
+  tag: z.string().optional(),           // 'food' | 'sights' | 'walk' | 'shop' | … (free text)
+  mapUrl: z.string().optional(),
+  done: z.boolean().default(false),
+  order: z.number().default(0),
+});
+export type PlanItem = z.infer<typeof PlanItemSchema>;
+
+// A collected piece of research — link, note, or image — that can be turned
+// into a PlanItem once the user has digested it.
+const ClipSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['link', 'note', 'image']).default('link'),
+  title: z.string().optional(),
+  url: z.string().optional(),
+  body: z.string().optional(),
+  order: z.number().default(0),
+});
+export type Clip = z.infer<typeof ClipSchema>;
 
 export const LegSchema = doc({
   // Which trip this leg belongs to. null = unclassified (legacy/global).
@@ -206,8 +243,11 @@ export const LegSchema = doc({
   flag: z.string().default(''),
   dateFrom: z.string(),
   dateTo: z.string(),
-  accommodation: AccommodationSchema.optional(),
+  accommodation: AccommodationSchema.optional(),       // legacy single stay — still read for back-compat
+  accommodations: z.array(AccommodationSchema).optional(), // ordered, one city can have several
   arrivalTransport: TransportSchema.optional(),
+  plans: z.array(PlanItemSchema).optional(),           // "things I want to do" (no timeline)
+  clips: z.array(ClipSchema).optional(),               // collected research
   notes: z.string().optional(),
   order: z.number().default(0),
   // Reserved for the /map globe — lets us plot legs without re-geocoding.

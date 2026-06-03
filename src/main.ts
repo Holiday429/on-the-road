@@ -6,7 +6,7 @@ import './core/base.css';
 import './core/app.css';
 
 import { initApp, registerView, renderSession, openOnboarding, navigateTo, type ViewId } from './core/app.ts';
-import { onAuth, signInWithGoogle, type User } from './firebase/auth.ts';
+import { onAuth, authReady, currentUser, signInWithGoogle, type User } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip, restoreActiveTrip } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
@@ -47,9 +47,10 @@ let landingMapInitialized = false;
 let bootPromise: Promise<void> | null = null;
 let appPrepared = false;
 let appEntered = false;
-let currentAuthUser: User | null = null;
 let preparedUserId: string | null = null;
 let guestShellReady = false;
+
+const AUTH_ENTRY_TIMEOUT_MS = 1500;
 
 function setAuthStatus(message: string, isError = false) {
   if (!authStatus) return;
@@ -139,6 +140,20 @@ async function bootGuestShell() {
   guestShellReady = true;
 }
 
+async function entryUser(): Promise<User | null> {
+  try {
+    return await Promise.race([
+      authReady(),
+      new Promise<User | null>((resolve) => {
+        window.setTimeout(() => resolve(currentUser()), AUTH_ENTRY_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (error) {
+    console.warn('Auth readiness skipped:', error);
+    return currentUser();
+  }
+}
+
 async function bootAuthenticatedShell(user: User) {
   if (preparedUserId === user.uid) return;
   if (bootPromise) {
@@ -199,12 +214,25 @@ async function bootAuthenticatedShell(user: User) {
 authButton?.addEventListener('click', async () => {
   setAuthButtonState('Entering…', true);
   setAuthStatus('');
-  if (currentAuthUser) {
-    await bootAuthenticatedShell(currentAuthUser);
-  } else {
-    await bootGuestShell();
+  try {
+    const user = await entryUser();
+    if (user) {
+      await bootAuthenticatedShell(user);
+    } else {
+      await bootGuestShell();
+    }
+    enterApp();
+  } catch (error) {
+    console.warn('Enter failed:', error);
+    try {
+      await bootGuestShell();
+      enterApp();
+    } catch (fallbackError) {
+      console.warn('Guest boot failed:', fallbackError);
+      setAuthButtonState('Enter', false);
+      setAuthStatus('Could not enter. Try again or sign in from a refreshed page.', true);
+    }
   }
-  enterApp();
 });
 
 /* Init map when hero starts shrinking (travel.gif 2.5s + hero walk 1.5s). */
@@ -221,8 +249,6 @@ setTimeout(async () => {
 
 onAuth(async ({ user, ready }) => {
   if (!ready) return;
-
-  currentAuthUser = user;
 
   // If the app is already open (user signed in/out after entering), update the shell.
   if (appEntered) {
