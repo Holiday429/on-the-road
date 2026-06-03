@@ -12,24 +12,14 @@ import {
 } from 'firebase/firestore';
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
-import { SCHEMA_VERSION, TripSchema, type Trip } from './schema.ts';
+import { SCHEMA_VERSION, TripSchema, type Trip, type TravelStyle } from './schema.ts';
 
-export const DEFAULT_TRIP_ID = 'europe-2025';
+export const DEFAULT_TRIP_ID = 'europe-2025'; // kept for migrate-retag reference only
 
 export type StoredTrip = Trip;
 
-const DEFAULT_TRIP: Omit<Trip, 'createdAt' | 'updatedAt' | 'schemaVersion'> = {
-  id: DEFAULT_TRIP_ID,
-  name: 'Europe Summer 2026',
-  startDate: '2026-06-25',
-  endDate: '2026-09-06',
-  coverColor: '#f9b830',
-  status: 'planning',
-  baseCurrency: 'EUR',
-};
-
 let _currentTripId = DEFAULT_TRIP_ID;
-let _baseCurrency = DEFAULT_TRIP.baseCurrency;
+let _baseCurrency = 'EUR';
 let _currentTrip: Trip | null = null;
 
 export function currentTripId(): string {
@@ -146,6 +136,9 @@ export interface NewTripInput {
   endDate: string;
   baseCurrency?: string;
   coverColor?: string;
+  travelStyle?: TravelStyle;
+  destinations?: string[];
+  notes?: string;
 }
 
 /** Create a blank trip (metadata only — no seeded checklist/route). Returns id. */
@@ -162,12 +155,32 @@ export async function createTrip(input: NewTripInput): Promise<string> {
     baseCurrency: input.baseCurrency ?? 'EUR',
     coverColor: input.coverColor ?? '#f9b830',
     status: 'planning',
+    travelStyle: input.travelStyle,
+    destinations: input.destinations,
+    notes: input.notes,
+    userCreated: true,
     createdAt: now,
     updatedAt: now,
     schemaVersion: SCHEMA_VERSION,
   });
   await setDoc(tripRef(u.uid, id), trip);
   return id;
+}
+
+/** Shallow-patch a trip document (name, dates, coverColor, etc.). */
+export async function updateTrip(id: string, patch: Partial<Omit<Trip, 'id' | 'createdAt' | 'schemaVersion'>>): Promise<void> {
+  const u = currentUser();
+  if (!u) throw new Error('Not signed in.');
+  const ref = tripRef(u.uid, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error('Trip not found.');
+  const existing = snap.data() as Trip;
+  const updated = TripSchema.parse({ ...existing, ...patch, id, updatedAt: Date.now(), schemaVersion: SCHEMA_VERSION });
+  await setDoc(ref, updated);
+  if (id === _currentTripId) {
+    _currentTrip = updated;
+    if (patch.baseCurrency) _baseCurrency = patch.baseCurrency;
+  }
 }
 
 /** Delete a trip document. Sub-collection data is left in place (cheap, and a
@@ -203,38 +216,29 @@ export async function readDefaultTripId(): Promise<string | null> {
   } catch { return null; }
 }
 
-/** Ensure the default trip document exists. Call once after sign-in. */
-export async function ensureDefaultTrip(): Promise<Trip> {
+/**
+ * On boot, check whether the user already has trips. If the legacy default
+ * trip (europe-2025) exists, migrate its name/dates to the canonical values
+ * and return it. If no trips exist at all, return null — the caller must
+ * show the onboarding dialog so the user creates their first trip.
+ */
+export async function ensureDefaultTrip(): Promise<Trip | null> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
-  const ref = tripRef(u.uid, DEFAULT_TRIP_ID);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    const existing = snap.data() as Trip;
-    _baseCurrency = existing.baseCurrency ?? _baseCurrency;
-    if (existing.name === 'Europe Summer 2025' || existing.startDate === '2025-06-25') {
-      const updated = TripSchema.parse({
-        ...existing,
-        ...DEFAULT_TRIP,
-        createdAt: existing.createdAt,
-        updatedAt: Date.now(),
-        schemaVersion: SCHEMA_VERSION,
-      });
-      await setDoc(ref, updated);
-      _currentTrip = updated;
-      return updated;
-    }
-    _currentTrip = existing;
-    return existing;
+
+  // --- Check all trips first; if any are user-created, use the most recent ---
+  const allTrips = await listTrips();
+  const userTrips = allTrips.filter(t => t.userCreated === true);
+  if (userTrips.length > 0) {
+    const first = userTrips[0];
+    _currentTripId = first.id;
+    _currentTrip = first;
+    _baseCurrency = first.baseCurrency ?? _baseCurrency;
+    return first;
   }
 
-  const now = Date.now();
-  const trip = TripSchema.parse({
-    ...DEFAULT_TRIP, createdAt: now, updatedAt: now, schemaVersion: SCHEMA_VERSION,
-  });
-  await setDoc(ref, trip);
-  _currentTrip = trip;
-  return trip;
+  // --- No user-created trips → trigger onboarding regardless of legacy data ---
+  return null;
 }
 
 /**

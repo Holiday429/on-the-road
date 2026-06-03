@@ -19,10 +19,13 @@ import { currentTripId } from '../trip-context.ts';
 export type StoredChecklist = WithMeta<Checklist>;
 export type StoredTemplate  = WithMeta<ChecklistTemplate>;
 
+/** Reserved tripId for checklists not linked to any trip. */
+export const STANDALONE_TRIP_ID = 'standalone';
+
 /* ── Store factories ─────────────────────────────────────────────────────── */
 
-function clStore() {
-  return createCollectionStore(currentTripId(), 'checklists', ChecklistSchema);
+function clStore(tripId?: string) {
+  return createCollectionStore(tripId ?? currentTripId(), 'checklists', ChecklistSchema);
 }
 
 function tplStore() {
@@ -74,16 +77,32 @@ export const templateStore = {
 /* ── Checklists ──────────────────────────────────────────────────────────── */
 
 export const checklistStore = {
-  peek: (): StoredChecklist[] => clStore().peek() as StoredChecklist[],
-  subscribe: (cb: (rows: StoredChecklist[]) => void) => clStore().subscribe(cb as (rows: WithMeta<Checklist>[]) => void),
+  peek: (tripId?: string): StoredChecklist[] => clStore(tripId).peek() as StoredChecklist[],
+  subscribe: (cb: (rows: StoredChecklist[]) => void, tripId?: string) =>
+    clStore(tripId).subscribe(cb as (rows: WithMeta<Checklist>[]) => void),
 
-  async get(id: string): Promise<StoredChecklist | undefined> {
-    const rows = clStore().peek() as StoredChecklist[];
-    return rows.find(c => c.id === id);
+  /** Find the store that owns this checklist id. */
+  storeFor(id: string) {
+    const inTrip = (clStore().peek() as StoredChecklist[]).find(c => c.id === id);
+    if (inTrip) return clStore();
+    const inStandalone = (clStore(STANDALONE_TRIP_ID).peek() as StoredChecklist[]).find(c => c.id === id);
+    if (inStandalone) return clStore(STANDALONE_TRIP_ID);
+    return clStore();
   },
 
-  async create(input: { name: string; templateId?: string | null; tags?: ChecklistTag[]; groups?: ChecklistGroup[] }): Promise<string> {
-    return clStore().set({
+  async get(id: string): Promise<StoredChecklist | undefined> {
+    const fromTrip = (clStore().peek() as StoredChecklist[]).find(c => c.id === id);
+    if (fromTrip) return fromTrip;
+    return (clStore(STANDALONE_TRIP_ID).peek() as StoredChecklist[]).find(c => c.id === id);
+  },
+
+  /**
+   * Create a new checklist.
+   * @param tripId  Pass `STANDALONE_TRIP_ID` to create a checklist not tied to any trip,
+   *                or omit/undefined to link to the current active trip.
+   */
+  async create(input: { name: string; templateId?: string | null; tags?: ChecklistTag[]; groups?: ChecklistGroup[]; tripId?: string }): Promise<string> {
+    return clStore(input.tripId).set({
       name: input.name,
       templateId: input.templateId ?? null,
       tags: input.tags ?? [],
@@ -103,15 +122,15 @@ export const checklistStore = {
   },
 
   async put(checklist: StoredChecklist): Promise<void> {
-    return clStore().update(checklist.id, checklist);
+    return this.storeFor(checklist.id).update(checklist.id, checklist);
   },
 
   async rename(id: string, name: string): Promise<void> {
-    return clStore().update(id, { name });
+    return this.storeFor(id).update(id, { name });
   },
 
   async remove(id: string): Promise<void> {
-    return clStore().remove(id);
+    return this.storeFor(id).remove(id);
   },
 
   /* ── Group ops ─────────────────────────────────────────────────────────── */
@@ -120,7 +139,7 @@ export const checklistStore = {
     const cl = await this.get(checklistId);
     if (!cl) return null;
     const group: ChecklistGroup = { id: genId(), name, icon, order: cl.groups.length, items: [] };
-    await clStore().update(checklistId, { groups: [...cl.groups, group] });
+    await this.storeFor(checklistId).update(checklistId, { groups: [...cl.groups, group] });
     return group;
   },
 
@@ -128,7 +147,7 @@ export const checklistStore = {
     const cl = await this.get(checklistId);
     if (!cl) return;
     const groups = cl.groups.map(g => g.id === groupId ? { ...g, ...patch } : g);
-    await clStore().update(checklistId, { groups });
+    await this.storeFor(checklistId).update(checklistId, { groups });
   },
 
   async removeGroup(checklistId: string, groupId: string): Promise<void> {
@@ -143,7 +162,7 @@ export const checklistStore = {
     const groups = orderedIds
       .map((id, i) => { const g = cl.groups.find(g => g.id === id); return g ? { ...g, order: i } : null; })
       .filter(Boolean) as ChecklistGroup[];
-    await clStore().update(checklistId, { groups });
+    await this.storeFor(checklistId).update(checklistId, { groups });
   },
 
   /* ── Item ops ──────────────────────────────────────────────────────────── */
@@ -157,7 +176,7 @@ export const checklistStore = {
     const groups = cl.groups.map(g =>
       g.id === groupId ? { ...g, items: [...g.items, item] } : g
     );
-    await clStore().update(checklistId, { groups });
+    await this.storeFor(checklistId).update(checklistId, { groups });
     return item;
   },
 
@@ -185,7 +204,7 @@ export const checklistStore = {
         items: g.items.map(it => it.id === itemId ? { ...it, ...patch } : it),
       }
     );
-    await clStore().update(checklistId, { groups });
+    await this.storeFor(checklistId).update(checklistId, { groups });
   },
 
   async removeItem(checklistId: string, groupId: string, itemId: string): Promise<void> {
@@ -194,7 +213,7 @@ export const checklistStore = {
     const groups = cl.groups.map(g =>
       g.id !== groupId ? g : { ...g, items: g.items.filter(it => it.id !== itemId) }
     );
-    await clStore().update(checklistId, { groups });
+    await this.storeFor(checklistId).update(checklistId, { groups });
   },
 
   async reorderItems(checklistId: string, groupId: string, orderedIds: string[]): Promise<void> {
@@ -207,7 +226,7 @@ export const checklistStore = {
         .filter(Boolean) as ChecklistItem[];
       return { ...g, items };
     });
-    await clStore().update(checklistId, { groups });
+    await this.storeFor(checklistId).update(checklistId, { groups });
   },
 };
 

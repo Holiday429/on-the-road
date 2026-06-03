@@ -47,6 +47,9 @@ export const UserProfileSchema = doc({
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;
 
+export const TRAVEL_STYLES = ['solo', 'couple', 'family', 'friends', 'group'] as const;
+export type TravelStyle = typeof TRAVEL_STYLES[number];
+
 export const TripSchema = doc({
   name: z.string(),
   startDate: z.string(),          // ISO date 'YYYY-MM-DD'
@@ -54,6 +57,11 @@ export const TripSchema = doc({
   coverColor: z.string().default('#f9b830'),
   status: z.enum(['planning', 'active', 'past']).default('planning'),
   baseCurrency: z.string().default('EUR'),
+  // Extended profile fields (optional for backwards-compat)
+  travelStyle: z.enum(TRAVEL_STYLES).optional(),
+  destinations: z.array(z.string()).optional(), // e.g. ['France', 'Italy', 'Spain']
+  notes: z.string().optional(),                 // free-text trip notes/motivation
+  userCreated: z.boolean().optional(),          // false/absent = legacy hardcoded seed
 });
 export type Trip = z.infer<typeof TripSchema>;
 

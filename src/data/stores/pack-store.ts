@@ -17,27 +17,36 @@ import {
 
 export type StoredPackList = WithMeta<PackList>;
 
-function store() {
-  return createCollectionStore(currentTripId(), 'packLists', PackListSchema);
+/** Reserved tripId for lists not linked to any trip. */
+export const STANDALONE_TRIP_ID = 'standalone';
+
+function store(tripId?: string) {
+  return createCollectionStore(tripId ?? currentTripId(), 'packLists', PackListSchema);
 }
 
 export const packStore = {
-  peek: (): StoredPackList[] => store().peek() as StoredPackList[],
-  subscribe: (cb: (rows: StoredPackList[]) => void) =>
-    store().subscribe(cb as (rows: WithMeta<PackList>[]) => void),
+  peek: (tripId?: string): StoredPackList[] => store(tripId).peek() as StoredPackList[],
+  subscribe: (cb: (rows: StoredPackList[]) => void, tripId?: string) =>
+    store(tripId).subscribe(cb as (rows: WithMeta<PackList>[]) => void),
 
-  get(id: string): StoredPackList | undefined {
-    return (store().peek() as StoredPackList[]).find(p => p.id === id);
+  get(id: string, tripId?: string): StoredPackList | undefined {
+    return (store(tripId).peek() as StoredPackList[]).find(p => p.id === id);
   },
 
+  /**
+   * Create a new pack list.
+   * @param tripId  Pass `STANDALONE_TRIP_ID` to create a list not linked to any trip,
+   *                or omit/undefined to link to the current active trip.
+   */
   create(input: {
     name: string;
     profile?: Partial<PackProfile>;
     containers?: PackContainer[];
     airline?: Partial<AirlineLimit>;
     items?: PackItem[];
+    tripId?: string;
   }): Promise<string> {
-    return store().set({
+    return store(input.tripId).set({
       name: input.name,
       profile: { days: 7, climate: 'mild', activities: [], ...input.profile },
       containers: input.containers ?? [],
@@ -46,70 +55,87 @@ export const packStore = {
     });
   },
 
+  /**
+   * Return the store that owns this list id. Checks the current trip first,
+   * then the standalone store. Falls back to current-trip store.
+   */
+  storeFor(id: string) {
+    const inTrip = (store().peek() as StoredPackList[]).find(p => p.id === id);
+    if (inTrip) return store();
+    const inStandalone = (store(STANDALONE_TRIP_ID).peek() as StoredPackList[]).find(p => p.id === id);
+    if (inStandalone) return store(STANDALONE_TRIP_ID);
+    return store();
+  },
+
   rename(id: string, name: string) {
-    return store().update(id, { name });
+    return this.storeFor(id).update(id, { name });
   },
 
   remove(id: string) {
-    return store().remove(id);
+    return this.storeFor(id).remove(id);
   },
 
   setProfile(id: string, profile: PackProfile) {
-    return store().update(id, { profile });
+    return this.storeFor(id).update(id, { profile });
   },
 
   setAirline(id: string, airline: AirlineLimit) {
-    return store().update(id, { airline });
+    return this.storeFor(id).update(id, { airline });
   },
 
   /* ── Containers ────────────────────────────────────────────────────────── */
 
   addContainer(id: string, c: Omit<PackContainer, 'id'>): Promise<void> {
-    const list = this.get(id);
+    const s = this.storeFor(id);
+    const list = (s.peek() as StoredPackList[]).find(p => p.id === id);
     if (!list) return Promise.resolve();
     const container: PackContainer = { ...c, id: genId() };
-    return store().update(id, { containers: [...list.containers, container] });
+    return s.update(id, { containers: [...list.containers, container] });
   },
 
   updateContainer(id: string, containerId: string, patch: Partial<Omit<PackContainer, 'id'>>): Promise<void> {
-    const list = this.get(id);
+    const s = this.storeFor(id);
+    const list = (s.peek() as StoredPackList[]).find(p => p.id === id);
     if (!list) return Promise.resolve();
     const containers = list.containers.map(c => c.id === containerId ? { ...c, ...patch } : c);
-    return store().update(id, { containers });
+    return s.update(id, { containers });
   },
 
   removeContainer(id: string, containerId: string): Promise<void> {
-    const list = this.get(id);
+    const s = this.storeFor(id);
+    const list = (s.peek() as StoredPackList[]).find(p => p.id === id);
     if (!list) return Promise.resolve();
-    // Orphan any items that lived in this container.
     const items = list.items.map(it => it.containerId === containerId ? { ...it, containerId: null } : it);
-    return store().update(id, { containers: list.containers.filter(c => c.id !== containerId), items });
+    return s.update(id, { containers: list.containers.filter(c => c.id !== containerId), items });
   },
 
   /* ── Items ─────────────────────────────────────────────────────────────── */
 
   setItems(id: string, items: PackItem[]): Promise<void> {
-    return store().update(id, { items });
+    return this.storeFor(id).update(id, { items });
   },
 
   addItem(id: string, item: Omit<PackItem, 'id' | 'order'>): Promise<void> {
-    const list = this.get(id);
+    const s = this.storeFor(id);
+    const list = (s.peek() as StoredPackList[]).find(p => p.id === id);
     if (!list) return Promise.resolve();
     const full: PackItem = { ...item, id: genId(), order: list.items.length };
-    return store().update(id, { items: [...list.items, full] });
+    return s.update(id, { items: [...list.items, full] });
   },
 
   updateItem(id: string, itemId: string, patch: Partial<Omit<PackItem, 'id'>>): Promise<void> {
-    const list = this.get(id);
+    const s = this.storeFor(id);
+    const list = (s.peek() as StoredPackList[]).find(p => p.id === id);
     if (!list) return Promise.resolve();
     const items = list.items.map(it => it.id === itemId ? { ...it, ...patch } : it);
-    return store().update(id, { items });
+    return s.update(id, { items });
   },
 
   removeItem(id: string, itemId: string): Promise<void> {
-    const list = this.get(id);
+    const s = this.storeFor(id);
+    const list = (s.peek() as StoredPackList[]).find(p => p.id === id);
     if (!list) return Promise.resolve();
-    return store().update(id, { items: list.items.filter(it => it.id !== itemId) });
+    return s.update(id, { items: list.items.filter(it => it.id !== itemId) });
   },
 
   moveItem(id: string, itemId: string, containerId: string | null): Promise<void> {
@@ -117,9 +143,10 @@ export const packStore = {
   },
 
   togglePacked(id: string, itemId: string): Promise<void> {
-    const list = this.get(id);
+    const s = this.storeFor(id);
+    const list = (s.peek() as StoredPackList[]).find(p => p.id === id);
     if (!list) return Promise.resolve();
     const items = list.items.map(it => it.id === itemId ? { ...it, packed: !it.packed } : it);
-    return store().update(id, { items });
+    return this.storeFor(id).update(id, { items });
   },
 };

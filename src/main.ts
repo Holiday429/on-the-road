@@ -5,7 +5,7 @@
 import './core/base.css';
 import './core/app.css';
 
-import { initApp, registerView, renderSession } from './core/app.ts';
+import { initApp, registerView, renderSession, openOnboarding } from './core/app.ts';
 import { onAuth, signInWithGoogle, signOut } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip, restoreActiveTrip } from './data/trip-context.ts';
@@ -154,8 +154,11 @@ async function bootApp() {
   // subscribe under the right tripId (no wrong-trip flash). Also run the
   // one-time migrations: multitrip first (it flattens legacy per-trip legs/
   // journal into the flat collections), then the legacy seeders.
-  try { await ensureDefaultTrip(); }
-  catch (e) { console.warn('Default trip bootstrap skipped:', e); }
+  let needsOnboarding = false;
+  try {
+    const trip = await ensureDefaultTrip();
+    needsOnboarding = trip === null;
+  } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
   try {
     const n = await migrateMultiTrip();
@@ -186,6 +189,11 @@ async function bootApp() {
       signingOut = false;
     }
   });
+
+  // Brand-new user with no trips: show the onboarding wizard.
+  if (needsOnboarding) {
+    openOnboarding();
+  }
 }
 
 onAuth(async ({ user, ready }) => {

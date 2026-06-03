@@ -4,9 +4,12 @@
 
 import type { User } from '../firebase/auth.ts';
 import {
-  currentTrip, listTrips, createTrip, switchTrip, onTripChange,
+  currentTrip, currentTripId, listTrips, createTrip, switchTrip, onTripChange,
+  updateTrip, removeTrip,
   type StoredTrip, type NewTripInput,
 } from '../data/trip-context.ts';
+import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
+import { createDestinationInput, type DestinationInputInstance } from './destination-input.ts';
 import checklistIcon from '../../icon/Checklist.png';
 import guideIcon from '../../icon/Guide.png';
 import itineraryIcon from '../../icon/Itinerary.png';
@@ -227,11 +230,15 @@ function buildTripPill(): string {
 function buildTripMenu(): string {
   const activeId = currentTrip()?.id;
   const rows = tripList.map((t) => `
-    <button class="trip-menu-item${t.id === activeId ? ' is-active' : ''}" data-trip-id="${escapeHtml(t.id)}">
-      <span class="trip-menu-dot" style="background:${escapeHtml(t.coverColor || '#f9b830')}"></span>
-      <span class="trip-menu-name">${escapeHtml(t.name)}</span>
-      ${t.id === activeId ? '<span class="trip-menu-check">✓</span>' : ''}
-    </button>
+    <div class="trip-menu-row" data-trip-id="${escapeHtml(t.id)}">
+      <button class="trip-menu-item${t.id === activeId ? ' is-active' : ''}" data-trip-id="${escapeHtml(t.id)}">
+        <span class="trip-menu-dot" style="background:${escapeHtml(t.coverColor || '#f9b830')}"></span>
+        <span class="trip-menu-name">${escapeHtml(t.name)}</span>
+        ${t.id === activeId ? '<span class="trip-menu-check">✓</span>' : ''}
+      </button>
+      <button class="trip-menu-edit" data-trip-id="${escapeHtml(t.id)}" title="Rename trip" aria-label="Rename ${escapeHtml(t.name)}">✎</button>
+      <button class="trip-menu-delete" data-trip-id="${escapeHtml(t.id)}" title="Delete trip" aria-label="Delete ${escapeHtml(t.name)}">🗑</button>
+    </div>
   `).join('');
 
   return `
@@ -275,7 +282,31 @@ function wireTripSwitcher(sidebar: HTMLElement) {
       e.stopPropagation();
       const id = btn.dataset.tripId!;
       tripMenuOpen = false;
-      await switchTrip(id);   // broadcasts → views re-init; rebuilds sidebar via onTripChange
+      await switchTrip(id);
+    });
+  });
+
+  sidebar.querySelectorAll<HTMLElement>('.trip-menu-edit').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.tripId!;
+      const trip = tripList.find(t => t.id === id);
+      if (!trip) return;
+      tripMenuOpen = false;
+      buildSidebar();
+      openRenameTripModal(trip);
+    });
+  });
+
+  sidebar.querySelectorAll<HTMLElement>('.trip-menu-delete').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.tripId!;
+      const trip = tripList.find(t => t.id === id);
+      if (!trip) return;
+      tripMenuOpen = false;
+      buildSidebar();
+      openDeleteTripModal(trip);
     });
   });
 
@@ -322,74 +353,328 @@ export function renderSession(user: User, _onSignOut: () => void) {
   buildSidebar();
 }
 
-/* ── New-trip modal ──────────────────────────────────────────────────────── */
+/* ── Rename / Delete trip modals ────────────────────────────────────────── */
 
-function openNewTripModal() {
-  buildSidebar(); // close the menu first
+function openRenameTripModal(trip: StoredTrip) {
   const backdrop = document.createElement('div');
   backdrop.className = 'trip-modal-backdrop';
   backdrop.innerHTML = `
-    <div class="trip-modal" role="dialog" aria-modal="true" aria-label="New trip">
-      <h3 class="trip-modal-title">New trip</h3>
+    <div class="trip-modal" role="dialog" aria-modal="true" aria-label="Rename trip">
+      <h3 class="trip-modal-title">Rename trip</h3>
       <label class="trip-modal-field">
-        <span>Name</span>
-        <input id="nt-name" class="input" placeholder="Australia 2027" autocomplete="off">
-      </label>
-      <div class="trip-modal-row">
-        <label class="trip-modal-field">
-          <span>Start</span>
-          <input id="nt-start" class="input" type="date">
-        </label>
-        <label class="trip-modal-field">
-          <span>End</span>
-          <input id="nt-end" class="input" type="date">
-        </label>
-      </div>
-      <label class="trip-modal-field">
-        <span>Base currency</span>
-        <input id="nt-currency" class="input" value="EUR" maxlength="3" style="text-transform:uppercase">
+        <span>Trip name</span>
+        <input id="rt-name" class="input" value="${escapeHtml(trip.name)}" autocomplete="off">
       </label>
       <div class="trip-modal-actions">
-        <button class="btn" id="nt-cancel">Cancel</button>
-        <button class="btn btn-primary" id="nt-create">Create trip</button>
+        <button class="btn" id="rt-cancel">Cancel</button>
+        <button class="btn btn-primary" id="rt-save">Save</button>
       </div>
-      <div class="trip-modal-error" id="nt-error"></div>
+      <div class="trip-modal-error" id="rt-error"></div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  const nameInput = backdrop.querySelector<HTMLInputElement>('#rt-name')!;
+  const errorEl = backdrop.querySelector<HTMLElement>('#rt-error')!;
+  const close = () => backdrop.remove();
+
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector('#rt-cancel')!.addEventListener('click', close);
+
+  nameInput.focus();
+  nameInput.select();
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+
+  async function save() {
+    const name = nameInput.value.trim();
+    if (!name) { errorEl.textContent = 'Name cannot be empty.'; return; }
+    const btn = backdrop.querySelector<HTMLButtonElement>('#rt-save')!;
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await updateTrip(trip.id, { name });
+      tripList = await listTrips();
+      close();
+      buildSidebar();
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Save';
+      errorEl.textContent = e instanceof Error ? e.message : 'Could not rename trip.';
+    }
+  }
+
+  backdrop.querySelector('#rt-save')!.addEventListener('click', save);
+}
+
+function openDeleteTripModal(trip: StoredTrip) {
+  const backdrop = document.createElement('div');
+  backdrop.className = 'trip-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="trip-modal" role="dialog" aria-modal="true" aria-label="Delete trip">
+      <h3 class="trip-modal-title">Delete trip</h3>
+      <p style="font-size:var(--fs-sm);color:var(--ink-2);margin:0 0 var(--sp-4)">
+        Delete <strong>${escapeHtml(trip.name)}</strong>? The trip record will be removed.
+        Your itinerary legs, journal entries, and other data are kept.
+      </p>
+      <div class="trip-modal-actions">
+        <button class="btn" id="dt-cancel">Cancel</button>
+        <button class="btn btn-danger" id="dt-confirm">Delete</button>
+      </div>
+      <div class="trip-modal-error" id="dt-error"></div>
     </div>
   `;
   document.body.appendChild(backdrop);
 
   const close = () => backdrop.remove();
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-  backdrop.querySelector('#nt-cancel')!.addEventListener('click', close);
+  backdrop.querySelector('#dt-cancel')!.addEventListener('click', close);
 
-  const errorEl = backdrop.querySelector<HTMLElement>('#nt-error')!;
-  backdrop.querySelector('#nt-create')!.addEventListener('click', async () => {
-    const name = backdrop.querySelector<HTMLInputElement>('#nt-name')!.value.trim();
-    const startDate = backdrop.querySelector<HTMLInputElement>('#nt-start')!.value;
-    const endDate = backdrop.querySelector<HTMLInputElement>('#nt-end')!.value;
-    const baseCurrency = backdrop.querySelector<HTMLInputElement>('#nt-currency')!.value.trim().toUpperCase() || 'EUR';
-    if (!name || !startDate || !endDate) {
-      errorEl.textContent = 'Name and dates are required.';
-      return;
-    }
-    if (endDate < startDate) {
-      errorEl.textContent = 'End date must be after the start date.';
-      return;
-    }
-    const input: NewTripInput = { name, startDate, endDate, baseCurrency };
+  backdrop.querySelector('#dt-confirm')!.addEventListener('click', async () => {
+    const btn = backdrop.querySelector<HTMLButtonElement>('#dt-confirm')!;
+    const errorEl = backdrop.querySelector<HTMLElement>('#dt-error')!;
+    btn.disabled = true; btn.textContent = 'Deleting…';
     try {
-      const btn = backdrop.querySelector<HTMLButtonElement>('#nt-create')!;
-      btn.disabled = true; btn.textContent = 'Creating…';
-      const id = await createTrip(input);
+      await removeTrip(trip.id);
       tripList = await listTrips();
       close();
-      await switchTrip(id); // jump into the new (empty) trip
+      // If we just deleted the active trip, switch to the first remaining one
+      // (or show onboarding if none left).
+      if (currentTripId() === trip.id) {
+        if (tripList.length > 0) {
+          await switchTrip(tripList[0].id);
+        } else {
+          buildSidebar();
+          openOnboarding();
+        }
+      } else {
+        buildSidebar();
+      }
     } catch (e) {
-      errorEl.textContent = e instanceof Error ? e.message : 'Could not create trip.';
+      btn.disabled = false; btn.textContent = 'Delete';
+      errorEl.textContent = e instanceof Error ? e.message : 'Could not delete trip.';
     }
   });
+}
 
-  backdrop.querySelector<HTMLInputElement>('#nt-name')?.focus();
+/* ── New-trip modal (shared builder) ────────────────────────────────────── */
+
+const STYLE_LABELS: Record<TravelStyle, string> = {
+  solo: 'Solo',
+  couple: 'Couple',
+  family: 'Family',
+  friends: 'Friends',
+  group: 'Group',
+};
+
+const COVER_COLORS = ['#f9b830', '#e07b54', '#5b9bd5', '#6abf69', '#9b7dd4', '#e05c7a'];
+
+/**
+ * Build and mount the full trip-creation form. Used both by the sidebar
+ * "+ New trip" action and the first-run onboarding flow.
+ *
+ * @param opts.isOnboarding  Show welcome copy + hide Cancel button.
+ * @param opts.onCreated     Called with the new trip id after creation.
+ * @param opts.onCancel      Called when user dismisses (only shown when !isOnboarding).
+ */
+function openTripForm(opts: {
+  onCreated: (id: string) => void;
+  onCancel?: () => void;
+}) {
+
+  // State
+  let selectedStyle: TravelStyle | null = null;
+  let selectedColor = COVER_COLORS[0];
+  let destPicker: DestinationInputInstance | null = null;
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'trip-modal-backdrop';
+
+  function renderStylePills(): string {
+    return TRAVEL_STYLES.map(s => `
+      <button type="button" class="trip-style-btn${selectedStyle === s ? ' is-active' : ''}" data-style="${s}">
+        ${STYLE_LABELS[s]}
+      </button>
+    `).join('');
+  }
+
+  function renderColorSwatches(): string {
+    return COVER_COLORS.map(c => `
+      <button type="button" class="trip-color-swatch${c === selectedColor ? ' is-active' : ''}"
+        data-color="${c}" style="background:${c}" title="${c}"></button>
+    `).join('');
+  }
+
+  function buildHtml(): string {
+    return `
+      <div class="trip-modal" role="dialog" aria-modal="true" aria-label="New trip">
+        <h3 class="trip-modal-title">New trip</h3>
+
+        <label class="trip-modal-field">
+          <span>Trip name</span>
+          <input id="nt-name" class="input" placeholder="e.g. Europe Summer 2026" autocomplete="off">
+        </label>
+
+        <div class="trip-modal-row">
+          <label class="trip-modal-field">
+            <span>Start date</span>
+            <input id="nt-start" class="input" type="date">
+          </label>
+          <label class="trip-modal-field">
+            <span>End date</span>
+            <input id="nt-end" class="input" type="date">
+          </label>
+        </div>
+
+        <label class="trip-modal-field">
+          <span>Destinations <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></span>
+          <div id="nt-dest-mount"></div>
+        </label>
+
+        <label class="trip-modal-field">
+          <span>Travelling as <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></span>
+          <div class="trip-style-group" id="nt-style-group">
+            ${renderStylePills()}
+          </div>
+        </label>
+
+        <div class="trip-modal-row">
+          <label class="trip-modal-field">
+            <span>Base currency</span>
+            <input id="nt-currency" class="input" value="EUR" maxlength="3" style="text-transform:uppercase">
+          </label>
+          <label class="trip-modal-field">
+            <span>Cover colour</span>
+            <div class="trip-color-swatches" id="nt-colors">
+              ${renderColorSwatches()}
+            </div>
+          </label>
+        </div>
+
+        <label class="trip-modal-field">
+          <span>Notes <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></span>
+          <input id="nt-notes" class="input" placeholder="What's the vibe? Any goals for this trip?">
+        </label>
+
+        <div class="trip-modal-actions">
+          <button class="btn" id="nt-cancel">Cancel</button>
+          <button class="btn btn-primary" id="nt-create">Create trip</button>
+        </div>
+        <div class="trip-modal-error" id="nt-error"></div>
+      </div>
+    `;
+  }
+
+  function mount() {
+    backdrop.innerHTML = buildHtml();
+    document.body.appendChild(backdrop);
+    // Mount destination picker into its slot
+    const destMount = backdrop.querySelector<HTMLElement>('#nt-dest-mount');
+    if (destMount) {
+      destPicker = createDestinationInput({ container: destMount, placeholder: 'Search countries or cities…' });
+    }
+    backdrop.querySelector<HTMLInputElement>('#nt-name')?.focus();
+    wireEvents();
+  }
+
+  function rerenderPart(selector: string, html: string) {
+    const el = backdrop.querySelector<HTMLElement>(selector);
+    if (el) el.innerHTML = html;
+  }
+
+  function wireEvents() {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) { backdrop.remove(); opts.onCancel?.(); }
+    });
+    backdrop.querySelector('#nt-cancel')?.addEventListener('click', () => {
+      backdrop.remove(); opts.onCancel?.();
+    });
+
+    // Travel style pills — event delegation on the static wrapper; pills re-render inside it
+    backdrop.querySelector('#nt-style-group')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('.trip-style-btn');
+      if (!btn) return;
+      const s = btn.dataset.style as TravelStyle;
+      selectedStyle = selectedStyle === s ? null : s;
+      rerenderPart('#nt-style-group', renderStylePills());
+    });
+
+    // Color swatches
+    backdrop.querySelector('#nt-colors')?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-color]');
+      if (!btn) return;
+      selectedColor = btn.dataset.color!;
+      rerenderPart('#nt-colors', renderColorSwatches());
+    });
+
+    // Create
+    const errorEl = backdrop.querySelector<HTMLElement>('#nt-error')!;
+    backdrop.querySelector('#nt-create')?.addEventListener('click', async () => {
+      const name = backdrop.querySelector<HTMLInputElement>('#nt-name')!.value.trim();
+      const startDate = backdrop.querySelector<HTMLInputElement>('#nt-start')!.value;
+      const endDate = backdrop.querySelector<HTMLInputElement>('#nt-end')!.value;
+      const baseCurrency = backdrop.querySelector<HTMLInputElement>('#nt-currency')!.value.trim().toUpperCase() || 'EUR';
+      const notes = backdrop.querySelector<HTMLInputElement>('#nt-notes')!.value.trim() || undefined;
+
+      if (!name || !startDate || !endDate) {
+        errorEl.textContent = 'Trip name and dates are required.';
+        return;
+      }
+      if (endDate < startDate) {
+        errorEl.textContent = 'End date must be after the start date.';
+        return;
+      }
+
+      const dests = destPicker?.getValues() ?? [];
+      const input: NewTripInput = {
+        name, startDate, endDate, baseCurrency,
+        coverColor: selectedColor,
+        travelStyle: selectedStyle ?? undefined,
+        destinations: dests.length > 0 ? dests : undefined,
+        notes,
+      };
+
+      const btn = backdrop.querySelector<HTMLButtonElement>('#nt-create')!;
+      btn.disabled = true;
+      btn.textContent = 'Creating…';
+      try {
+        const id = await createTrip(input);
+        tripList = await listTrips();
+        destPicker?.destroy();
+        backdrop.remove();
+        await switchTrip(id);
+        opts.onCreated(id);
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Create trip';
+        errorEl.textContent = e instanceof Error ? e.message : 'Could not create trip.';
+      }
+    });
+
+    // Destroy picker on cancel too
+    backdrop.querySelector('#nt-cancel')?.addEventListener('click', () => {
+      destPicker?.destroy();
+    }, { once: true });
+  }
+
+  mount();
+}
+
+function openNewTripModal() {
+  buildSidebar(); // close the menu first
+  openTripForm({
+    onCreated: () => { /* sidebar already rebuilt by switchTrip → onTripChange */ },
+  });
+}
+
+/**
+ * Called once for brand-new users who have no trips.
+ * Delegates to the full-page onboarding screen (not a modal).
+ */
+export function openOnboarding() {
+  import('../views/onboarding/onboarding.ts').then(({ showOnboarding }) => {
+    showOnboarding(() => {
+      // After the trip is created, rebuild the sidebar so it shows the new trip.
+      buildSidebar();
+    });
+  });
 }
 
 export function initApp() {

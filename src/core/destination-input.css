@@ -1,0 +1,129 @@
+/* ==========================================================================
+   On the Road · DestinationInput component
+   ========================================================================== */
+
+.dest-input-wrap {
+  position: relative;
+}
+
+/* Tag + text field container — always-visible border, matches .input */
+.dest-input-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--border, #e5e7eb);
+  border-radius: var(--r-md);
+  padding: 7px 10px;
+  min-height: 44px;
+  background: #fff;
+  cursor: text;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.dest-input-field:focus-within {
+  border-color: var(--amber-500);
+  box-shadow: 0 0 0 3px rgba(249, 184, 48, 0.15);
+}
+
+/* Selected tags */
+.dest-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--amber-50, #fffbeb);
+  border: 1px solid var(--amber-200, #fde68a);
+  border-radius: 999px;
+  padding: 3px 10px 3px 8px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--amber-800, #92400e);
+  white-space: nowrap;
+  max-width: 180px;
+}
+.dest-tag-flag { font-size: 14px; line-height: 1; }
+.dest-tag-label { overflow: hidden; text-overflow: ellipsis; }
+.dest-tag-remove {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--amber-500);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.dest-tag-remove:hover { color: var(--amber-800); }
+
+/* The actual text input inside the field */
+.dest-input-text {
+  border: none;
+  outline: none;
+  font-size: var(--fs-sm);
+  font-family: var(--font-ui);
+  background: transparent;
+  min-width: 120px;
+  flex: 1;
+  padding: 2px 0;
+  color: var(--ink-1);
+}
+.dest-input-text::placeholder { color: var(--ink-faint); }
+
+/* Dropdown */
+.dest-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  z-index: 200;
+  overflow: hidden;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.dest-dropdown-empty {
+  padding: 12px 14px;
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}
+.dest-dropdown-section {
+  padding: 6px 0 2px;
+}
+.dest-dropdown-section-label {
+  padding: 2px 14px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.dest-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  background: none;
+  font-size: var(--fs-sm);
+  font-family: var(--font-ui);
+  color: var(--ink-1);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.dest-dropdown-item:hover,
+.dest-dropdown-item.is-active { background: var(--amber-50, #fffbeb); }
+.dest-dropdown-item-flag { font-size: 16px; line-height: 1; flex-shrink: 0; }
+.dest-dropdown-item-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dest-dropdown-item-type {
+  font-size: 10px;
+  color: var(--ink-faint);
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

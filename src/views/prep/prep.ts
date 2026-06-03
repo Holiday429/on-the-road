@@ -6,9 +6,11 @@ import './prep.css';
 import {
   checklistStore,
   templateStore,
+  STANDALONE_TRIP_ID,
   type StoredChecklist,
   type StoredTemplate,
 } from '../../data/stores/checklist-store.ts';
+import { currentTrip } from '../../data/trip-context.ts';
 import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/schema.ts';
 import { noteColor } from '../../data/palette.ts';
 
@@ -22,9 +24,12 @@ let editingGroupId: string | null = null;
 
 // Live cache — kept fresh by subscriptions
 let _checklists: StoredChecklist[] = [];
+let _tripChecklists: StoredChecklist[] = [];
+let _standaloneChecklists: StoredChecklist[] = [];
 let _templates: StoredTemplate[] = [];
 
 let _unsubChecklists: (() => void) | null = null;
+let _unsubStandaloneChecklists: (() => void) | null = null;
 let _unsubTemplates: (() => void) | null = null;
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -50,12 +55,20 @@ function tagLabel(tag: ChecklistTag): string {
 
 function startSubscriptions() {
   _unsubChecklists?.();
+  _unsubStandaloneChecklists?.();
   _unsubTemplates?.();
 
   _unsubChecklists = checklistStore.subscribe((rows) => {
-    _checklists = rows;
+    _tripChecklists = rows;
+    _checklists = [..._tripChecklists, ..._standaloneChecklists];
     render();
   });
+
+  _unsubStandaloneChecklists = checklistStore.subscribe((rows) => {
+    _standaloneChecklists = rows;
+    _checklists = [..._tripChecklists, ..._standaloneChecklists];
+    render();
+  }, STANDALONE_TRIP_ID);
 
   _unsubTemplates = templateStore.subscribe((rows) => {
     _templates = rows;
@@ -144,13 +157,8 @@ function renderListScreen(container: HTMLElement) {
             <div class="modal-title">New Checklist</div>
             <button class="modal-close" id="close-new-checklist">✕</button>
           </div>
-          <div class="modal-body">
-            <label class="field-label">Name</label>
-            <input class="input" id="new-checklist-name" placeholder="e.g. Paris Weekend Prep" autofocus>
-            <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
-              <button class="btn btn-ghost" id="cancel-new-checklist">Cancel</button>
-              <button class="btn btn-primary" id="confirm-new-checklist">Create</button>
-            </div>
+          <div class="modal-body" id="new-checklist-body">
+            <!-- rendered dynamically in bindEvents -->
           </div>
         </div>
       </div>
@@ -301,20 +309,60 @@ function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
   // New checklist (blank)
   const createBlankBtn = container.querySelector<HTMLElement>('#create-blank-btn');
   const newModal = container.querySelector<HTMLElement>('#new-checklist-modal');
-  createBlankBtn?.addEventListener('click', () => { newModal?.removeAttribute('hidden'); container.querySelector<HTMLInputElement>('#new-checklist-name')?.focus(); });
-  container.querySelector('#cancel-new-checklist')?.addEventListener('click', () => newModal?.setAttribute('hidden', ''));
+  const newModalBody = container.querySelector<HTMLElement>('#new-checklist-body');
+
+  function renderNewChecklistBody() {
+    const trip = currentTrip();
+    const tripOption = trip
+      ? `<label class="pk-scope-option">
+          <input type="radio" name="cl-scope" value="trip" checked>
+          <span class="pk-scope-label">
+            <span class="pk-scope-title">Under <em>${trip.name}</em></span>
+            <span class="pk-scope-desc">Shows up in this trip's checklist</span>
+          </span>
+        </label>` : '';
+    if (newModalBody) {
+      newModalBody.innerHTML = `
+        <label class="field-label">Name</label>
+        <input class="input" id="new-checklist-name" placeholder="e.g. Paris Weekend Prep" autofocus>
+        ${trip ? `<div class="pk-scope-group">
+          ${tripOption}
+          <label class="pk-scope-option">
+            <input type="radio" name="cl-scope" value="standalone">
+            <span class="pk-scope-label">
+              <span class="pk-scope-title">Standalone</span>
+              <span class="pk-scope-desc">Not linked to any trip</span>
+            </span>
+          </label>
+        </div>` : ''}
+        <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
+          <button class="btn btn-ghost" id="cancel-new-checklist">Cancel</button>
+          <button class="btn btn-primary" id="confirm-new-checklist">Create</button>
+        </div>
+      `;
+    }
+    container.querySelector<HTMLInputElement>('#new-checklist-name')?.focus();
+    container.querySelector('#cancel-new-checklist')?.addEventListener('click', () => newModal?.setAttribute('hidden', ''));
+    container.querySelector('#confirm-new-checklist')?.addEventListener('click', async () => {
+      const name = container.querySelector<HTMLInputElement>('#new-checklist-name')?.value.trim();
+      if (!name) return;
+      const scope = (container.querySelector<HTMLInputElement>('input[name="cl-scope"]:checked')?.value) ?? 'trip';
+      const tripId = scope === 'standalone' ? STANDALONE_TRIP_ID : undefined;
+      const id = await checklistStore.create({ name, tripId });
+      activeChecklistId = id;
+      screen = 'detail';
+      render();
+    });
+    container.querySelector<HTMLInputElement>('#new-checklist-name')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') container.querySelector<HTMLButtonElement>('#confirm-new-checklist')?.click();
+    });
+  }
+
+  createBlankBtn?.addEventListener('click', () => {
+    renderNewChecklistBody();
+    newModal?.removeAttribute('hidden');
+  });
   container.querySelector('#close-new-checklist')?.addEventListener('click', () => newModal?.setAttribute('hidden', ''));
-  container.querySelector('#confirm-new-checklist')?.addEventListener('click', async () => {
-    const name = container.querySelector<HTMLInputElement>('#new-checklist-name')?.value.trim();
-    if (!name) return;
-    const id = await checklistStore.create({ name });
-    activeChecklistId = id;
-    screen = 'detail';
-    render();
-  });
-  container.querySelector<HTMLInputElement>('#new-checklist-name')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') container.querySelector<HTMLButtonElement>('#confirm-new-checklist')?.click();
-  });
 
   // Template picker modal
   const pickerModal = container.querySelector<HTMLElement>('#template-picker-modal');

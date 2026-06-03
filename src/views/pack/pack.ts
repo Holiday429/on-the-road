@@ -7,7 +7,8 @@
    ========================================================================== */
 
 import './pack.css';
-import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
+import { packStore, STANDALONE_TRIP_ID, type StoredPackList } from '../../data/stores/pack-store.ts';
+import { currentTrip } from '../../data/trip-context.ts';
 import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
 import { packTemplateStore, type StoredPackTemplate } from '../../data/stores/pack-template-store.ts';
 import {
@@ -34,8 +35,12 @@ let _kit: StoredCoreKitItem[] = [];
 let _templates: StoredPackTemplate[] = [];
 
 let _unsubLists: (() => void) | null = null;
+let _unsubStandaloneLists: (() => void) | null = null;
 let _unsubKit: (() => void) | null = null;
 let _unsubTemplates: (() => void) | null = null;
+
+let _tripLists: StoredPackList[] = [];
+let _standaloneLists: StoredPackList[] = [];
 
 const SLOTS: { key: SlotKey; label: string }[] = [
   { key: 'carryOn', label: 'Carry-on' },
@@ -87,9 +92,19 @@ function listTotalWeight(list: PackList): number {
 
 function startSubscriptions() {
   _unsubLists?.();
+  _unsubStandaloneLists?.();
   _unsubKit?.();
   _unsubTemplates?.();
-  _unsubLists = packStore.subscribe(rows => { _lists = rows; render(); });
+  _unsubLists = packStore.subscribe(rows => {
+    _tripLists = rows;
+    _lists = [..._tripLists, ..._standaloneLists];
+    render();
+  });
+  _unsubStandaloneLists = packStore.subscribe(rows => {
+    _standaloneLists = rows;
+    _lists = [..._tripLists, ..._standaloneLists];
+    render();
+  }, STANDALONE_TRIP_ID);
   _unsubKit = coreKitStore.subscribe(rows => { _kit = rows; render(); });
   _unsubTemplates = packTemplateStore.subscribe(rows => { _templates = rows; render(); });
 }
@@ -467,6 +482,16 @@ function renderItemRow(l: PackList, i: PackItem): string {
 /* ── Modals ──────────────────────────────────────────────────────────────── */
 
 function newListModal(): string {
+  const trip = currentTrip();
+  const tripOption = trip
+    ? `<label class="pk-scope-option">
+        <input type="radio" name="pk-scope" value="trip" checked>
+        <span class="pk-scope-label">
+          <span class="pk-scope-title">Under <em>${escHtml(trip.name)}</em></span>
+          <span class="pk-scope-desc">Shows up in this trip's pack view</span>
+        </span>
+      </label>`
+    : '';
   return `
     <div class="modal-overlay" id="pk-new-modal" hidden>
       <div class="modal-box">
@@ -474,6 +499,16 @@ function newListModal(): string {
         <div class="modal-body">
           <label class="field-label">Name</label>
           <input class="input" id="pk-new-name" placeholder="e.g. Europe Summer — Carry-on">
+          ${trip ? `<div class="pk-scope-group">
+            ${tripOption}
+            <label class="pk-scope-option">
+              <input type="radio" name="pk-scope" value="standalone">
+              <span class="pk-scope-label">
+                <span class="pk-scope-title">Standalone</span>
+                <span class="pk-scope-desc">Not linked to any trip</span>
+              </span>
+            </label>
+          </div>` : ''}
           <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
             <button class="btn btn-ghost" id="pk-cancel-new">Cancel</button>
             <button class="btn btn-primary" id="pk-confirm-new">Create</button>
@@ -518,7 +553,9 @@ function bindList(c: HTMLElement) {
   c.querySelector('#pk-confirm-new')?.addEventListener('click', async () => {
     const name = (c.querySelector<HTMLInputElement>('#pk-new-name')?.value || '').trim();
     if (!name) return;
-    const id = await packStore.create({ name });
+    const scope = (c.querySelector<HTMLInputElement>('input[name="pk-scope"]:checked')?.value) ?? 'trip';
+    const tripId = scope === 'standalone' ? STANDALONE_TRIP_ID : undefined;
+    const id = await packStore.create({ name, tripId });
     activeId = id;
     screen = 'detail';
     render();
