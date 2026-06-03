@@ -40,14 +40,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.ob-logo.auth-eyebrow {
-  font-size: clamp(18px, 1.8vw, 22px);
-  margin: 0;
-  gap: 0.08em;
-  pointer-events: none;
+  margin-bottom: 16px;
 }
 
 .ob-close {
@@ -73,46 +66,34 @@
   font-size: clamp(18px, 2vw, 21px);
   font-weight: 800;
   color: var(--ink);
-  margin: 0 0 18px;
+  margin: 0;
   line-height: 1.15;
 }
 
+/* Grid: destinations and style stack in the left column,
+   notes spans both rows in the right column. */
 .ob-body {
   --ob-short-field-h: 48px;
-  --ob-mid-field-h: 78px;
-  --ob-tall-field-h: 122px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-areas:
-    "name currency"
-    "dates colors"
-    "destinations notes"
-    "style notes";
-  gap: 14px 28px;
+  grid-template-rows: auto;
+  column-gap: 28px;
   align-items: start;
 }
 
-.ob-field {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: 6px;
+.ob-col-left,
+.ob-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
   min-width: 0;
 }
 
-.ob-field-name { grid-area: name; }
-.ob-field-currency { grid-area: currency; }
-.ob-field-dates { grid-area: dates; }
-.ob-field-colors { grid-area: colors; }
-.ob-field-destinations { grid-area: destinations; }
-.ob-field-notes { grid-area: notes; }
-.ob-field-style { grid-area: style; }
-
-.ob-field-notes {
-  margin-top: -14px;
-}
-
-.ob-field-style {
-  margin-top: -72px;
+.ob-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .ob-label,
@@ -142,7 +123,6 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
-  min-height: var(--ob-mid-field-h);
 }
 
 .ob-subfield {
@@ -156,7 +136,6 @@
 }
 
 .ob-color-frame {
-  min-height: var(--ob-short-field-h);
   display: flex;
   align-items: center;
   padding: 0;
@@ -185,9 +164,7 @@
   transform: scale(1.1);
 }
 
-.ob-dest-wrap,
-.ob-notes-area { min-height: var(--ob-tall-field-h); }
-
+/* Destination input: natural height, no tall min-height */
 .ob-dest-wrap .dest-input-wrap,
 .ob-dest-wrap .dest-input-field { height: auto; }
 
@@ -209,7 +186,7 @@
   font-size: var(--fs-sm);
   line-height: 1.5;
   padding-top: 12px;
-  min-height: 108px;
+  height: 80px;
 }
 
 .ob-style-group {
@@ -255,6 +232,8 @@
   line-height: 1;
 }
 
+/* Footer rail: two-column grid so walker-lane sits in the right column,
+   matching the notes column width — same as the last committed version. */
 .ob-footer-rail {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -281,39 +260,39 @@
 
 .ob-walker-gif {
   position: absolute;
-  left: calc(100% - 88px);
+  left: calc(100% - 110px);
   top: 0;
-  width: 88px;
-  height: 88px;
-  transform: translateY(-62%) scaleX(1);
+  width: 110px;
+  height: 110px;
+  transform: translateY(-100%) scaleX(1);
   image-rendering: auto;
   animation: ob-walker-patrol 8.2s linear infinite;
 }
 
 @keyframes ob-walker-patrol {
   0% {
-    left: calc(100% - 88px);
-    transform: translateY(-62%) scaleX(1);
+    left: calc(100% - 110px);
+    transform: translateY(-100%) scaleX(1);
   }
   45% {
     left: 0;
-    transform: translateY(-62%) scaleX(1);
+    transform: translateY(-100%) scaleX(1);
   }
-  49% {
+  46.5% {
     left: 0;
-    transform: translateY(-62%) scaleX(-1);
+    transform: translateY(-100%) scaleX(-1);
   }
   94% {
-    left: calc(100% - 88px);
-    transform: translateY(-62%) scaleX(-1);
+    left: calc(100% - 110px);
+    transform: translateY(-100%) scaleX(-1);
   }
-  98% {
-    left: calc(100% - 88px);
-    transform: translateY(-62%) scaleX(1);
+  95.5% {
+    left: calc(100% - 110px);
+    transform: translateY(-100%) scaleX(1);
   }
   100% {
-    left: calc(100% - 88px);
-    transform: translateY(-62%) scaleX(1);
+    left: calc(100% - 110px);
+    transform: translateY(-100%) scaleX(1);
   }
 }
 
@@ -344,14 +323,11 @@
 
   .ob-body {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "name"
-      "currency"
-      "dates"
-      "colors"
-      "destinations"
-      "notes"
-      "style";
+    column-gap: 0;
+  }
+
+  .ob-col-left,
+  .ob-col-right {
     gap: 14px;
   }
 
@@ -367,14 +343,6 @@
 
   .ob-style-group {
     gap: 8px;
-  }
-
-  .ob-field-style {
-    margin-top: 0;
-  }
-
-  .ob-field-notes {
-    margin-top: 0;
   }
 }
 
