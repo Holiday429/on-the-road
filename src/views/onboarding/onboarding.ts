@@ -39,7 +39,7 @@ export function showOnboarding(onDone: () => void): void {
             <img src="${mapsIcon}" alt="" class="auth-eyebrow-icon" aria-hidden="true">
             <span class="auth-eyebrow-n">n</span>
           </span>
-          <span class="auth-eyebrow-road"> the Road</span>
+          <span class="auth-eyebrow-road">the Road</span>
         </div>
         <button type="button" class="ob-close" id="ob-close" aria-label="Skip for now">✕</button>
       </div>
@@ -48,52 +48,33 @@ export function showOnboarding(onDone: () => void): void {
 
       <div class="ob-body">
 
-        <div class="ob-col ob-col-left">
+        <div class="ob-field ob-field-name">
+          <label class="ob-label" for="ob-name">Trip name</label>
+          <input id="ob-name" class="input" placeholder="e.g. Europe Summer 2026" autocomplete="off">
+        </div>
 
-          <div class="ob-field">
-            <label class="ob-label" for="ob-name">Trip name</label>
-            <input id="ob-name" class="input" placeholder="e.g. Europe Summer 2026" autocomplete="off">
-          </div>
+        <div class="ob-field ob-field-currency">
+          <label class="ob-label" for="ob-currency">Base currency</label>
+          <input id="ob-currency" class="input" value="EUR" maxlength="3" style="text-transform:uppercase">
+        </div>
 
+        <div class="ob-field ob-field-dates">
+          <label class="ob-label">Travel dates</label>
           <div class="ob-row">
-            <div class="ob-field">
-              <label class="ob-label" for="ob-start">Start date</label>
+            <div class="ob-subfield">
+              <label class="ob-sublabel" for="ob-start">Start date</label>
               <input id="ob-start" class="input" type="date">
             </div>
-            <div class="ob-field">
-              <label class="ob-label" for="ob-end">End date</label>
+            <div class="ob-subfield">
+              <label class="ob-sublabel" for="ob-end">End date</label>
               <input id="ob-end" class="input" type="date">
             </div>
           </div>
-
-          <div class="ob-field">
-            <label class="ob-label">Destinations <span class="ob-label-opt">(optional)</span></label>
-            <div id="ob-dest-mount"></div>
-          </div>
-
-          <div class="ob-field">
-            <label class="ob-label">Travelling as <span class="ob-label-opt">(optional)</span></label>
-            <div class="ob-style-group" id="ob-style-group">
-              ${TRAVEL_STYLES.map(s => `
-                <button type="button" class="ob-style-btn" data-style="${s}">
-                  <span class="ob-style-icon">${STYLE_META[s].icon}</span>
-                  ${STYLE_META[s].label}
-                </button>
-              `).join('')}
-            </div>
-          </div>
-
         </div>
 
-        <div class="ob-col ob-col-right">
-
-          <div class="ob-field">
-            <label class="ob-label" for="ob-currency">Base currency</label>
-            <input id="ob-currency" class="input" value="EUR" maxlength="3" style="text-transform:uppercase">
-          </div>
-
-          <div class="ob-field ob-field-colors">
-            <label class="ob-label">Cover colour</label>
+        <div class="ob-field ob-field-colors">
+          <label class="ob-label">Cover colour</label>
+          <div class="ob-color-frame">
             <div class="ob-colors" id="ob-colors">
               ${COVER_COLORS.map(c => `
                 <button type="button" class="ob-color-swatch${c === selectedColor ? ' is-active' : ''}"
@@ -101,21 +82,38 @@ export function showOnboarding(onDone: () => void): void {
               `).join('')}
             </div>
           </div>
+        </div>
 
-          <div class="ob-field ob-field-notes">
-            <label class="ob-label" for="ob-notes">Notes <span class="ob-label-opt">(optional)</span></label>
-            <textarea id="ob-notes" class="input ob-notes-area" placeholder="What's the vibe? Any goals for this trip?" rows="3"></textarea>
+        <div class="ob-field ob-field-destinations">
+          <label class="ob-label">Destinations <span class="ob-label-opt">(optional)</span></label>
+          <div id="ob-dest-mount" class="ob-dest-wrap"></div>
+        </div>
+
+        <div class="ob-field ob-field-notes">
+          <label class="ob-label" for="ob-notes">Notes <span class="ob-label-opt">(optional)</span></label>
+          <textarea id="ob-notes" class="input ob-notes-area" placeholder="What's the vibe? Any goals for this trip?" rows="4"></textarea>
+        </div>
+
+        <div class="ob-field ob-field-style">
+          <label class="ob-label">Travelling as <span class="ob-label-opt">(optional)</span></label>
+          <div class="ob-style-group" id="ob-style-group">
+            ${TRAVEL_STYLES.map(s => `
+              <button type="button" class="ob-style-btn" data-style="${s}">
+                <span class="ob-style-icon">${STYLE_META[s].icon}</span>
+                ${STYLE_META[s].label}
+              </button>
+            `).join('')}
           </div>
-
-          <div class="ob-walker-space">
-            <img src="${logoGif}" class="ob-walker-gif" alt="" aria-hidden="true">
-          </div>
-
         </div>
 
       </div>
 
-      <div class="ob-divider"></div>
+      <div class="ob-footer-rail" aria-hidden="true">
+        <div class="ob-divider"></div>
+        <div class="ob-walker-lane">
+          <img src="${logoGif}" class="ob-walker-gif" alt="">
+        </div>
+      </div>
 
       <div class="ob-footer">
         <span class="ob-error" id="ob-error"></span>

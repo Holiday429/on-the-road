@@ -59,6 +59,7 @@ let tripMenuOpen = false;
 let viewInits: Partial<Record<ViewId, () => void>> = {};
 const mountedViews = new Set<ViewId>();
 let sessionState: { user: User | null } = { user: null };
+let sessionPrimaryAction: (() => void | Promise<void>) | null = null;
 
 function escapeHtml(value: string): string {
   return value
@@ -95,14 +96,15 @@ function buildSidebarHeader(): string {
   if (!user) {
     return `
       <div class="sidebar-header">
-        <div class="sidebar-header-profile">
+        <button type="button" class="sidebar-header-profile sidebar-auth-trigger" id="sidebar-auth-trigger">
           <div class="sidebar-profile-avatar">
             <img src="${profileIcon}" class="sidebar-profile-avatar-image" alt="" aria-hidden="true">
           </div>
           <div class="sidebar-profile-meta">
-            <div class="sidebar-profile-title">on the road</div>
+            <div class="sidebar-profile-title">On the Road</div>
+            <div class="sidebar-profile-subtitle">Sign in with Google</div>
           </div>
-        </div>
+        </button>
       </div>
     `;
   }
@@ -121,6 +123,15 @@ function buildSidebarHeader(): string {
           <div class="sidebar-profile-title">${displayName}</div>
         </div>
       </div>
+    </div>
+  `;
+}
+
+function buildGuestPanel(): string {
+  return `
+    <div class="guest-pill">
+      <div class="guest-pill-title">Guest mode</div>
+      <div class="guest-pill-text">Enter first, then use the avatar above to connect Google whenever you want to sync trips.</div>
     </div>
   `;
 }
@@ -165,7 +176,6 @@ export function reinitForTripChange() {
 }
 
 export function navigateTo(id: ViewId) {
-
   // Hide all views
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
 
@@ -173,11 +183,16 @@ export function navigateTo(id: ViewId) {
   const el = document.getElementById(`view-${id}`);
   if (el) {
     el.classList.add('active');
-    // Lazy init — run once per mount; init fns are idempotent so re-running
-    // on a trip switch is safe.
-    if (viewInits[id] && !mountedViews.has(id)) {
-      viewInits[id]!();
-      mountedViews.add(id);
+    if (sessionState.user) {
+      clearGuestStates();
+      // Lazy init — run once per mount; init fns are idempotent so re-running
+      // on a trip switch is safe.
+      if (viewInits[id] && !mountedViews.has(id)) {
+        viewInits[id]!();
+        mountedViews.add(id);
+      }
+    } else {
+      renderGuestState(id);
     }
   }
 
@@ -191,6 +206,30 @@ export function navigateTo(id: ViewId) {
   activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
   window.location.hash = id;
+}
+
+function clearGuestStates() {
+  document.querySelectorAll('.view-guest-state').forEach((el) => el.remove());
+}
+
+function renderGuestState(id: ViewId) {
+  clearGuestStates();
+  const view = document.getElementById(`view-${id}`);
+  if (!view) return;
+
+  const gate = document.createElement('section');
+  gate.className = 'view-guest-state card';
+  gate.innerHTML = `
+    <div class="view-guest-title">Enter first, sign in later</div>
+    <div class="view-guest-text">Use the top-left avatar to connect Google when you want to load trips and sync data.</div>
+  `;
+
+  const header = view.querySelector('.view-header');
+  if (header?.nextSibling) {
+    view.insertBefore(gate, header.nextSibling);
+  } else {
+    view.appendChild(gate);
+  }
 }
 
 function daysUntil(date: Date): number {
@@ -253,17 +292,23 @@ function buildSidebar() {
   const sidebar = document.getElementById('sidebar')!;
   sidebar.innerHTML = `
     ${buildSidebarHeader()}
-    ${buildTripPill()}
+    ${sessionState.user ? buildTripPill() : buildGuestPanel()}
     <nav class="sidebar-nav" aria-label="Main navigation">
       ${buildNavSections('sidebar')}
     </nav>
   `;
 
+  sidebar.querySelector<HTMLElement>('#sidebar-auth-trigger')?.addEventListener('click', () => {
+    sessionPrimaryAction?.();
+  });
+
   sidebar.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => navigateTo((item as HTMLElement).dataset.view as ViewId));
   });
 
-  wireTripSwitcher(sidebar);
+  if (sessionState.user) {
+    wireTripSwitcher(sidebar);
+  }
 }
 
 /** Wire the trip pill (open/close menu, switch trip, new-trip modal). */
@@ -347,10 +392,15 @@ function buildNavSections(_context: 'sidebar' | 'mobile'): string {
   }).join('');
 }
 
-export function renderSession(user: User, _onSignOut: () => void) {
+export function renderSession(user: User | null, onPrimaryAction: () => void) {
   sessionState = { user };
+  sessionPrimaryAction = onPrimaryAction;
   document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
+  if (!user) {
+    const hash = window.location.hash.replace('#', '') as ViewId;
+    navigateTo(NAV_ITEMS.find((item) => item.id === hash) ? hash : 'prep');
+  }
 }
 
 /* ── Rename / Delete trip modals ────────────────────────────────────────── */
