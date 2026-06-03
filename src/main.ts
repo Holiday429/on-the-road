@@ -37,9 +37,6 @@ registerView('safety',   initSafety);
 
 const authScreen = document.getElementById('auth-screen') as HTMLElement | null;
 const authButton = document.getElementById('auth-google-btn') as HTMLButtonElement | null;
-const authCardTitle = document.getElementById('auth-card-title') as HTMLElement | null;
-const authCardText = document.getElementById('auth-card-text') as HTMLElement | null;
-const authUserPreview = document.getElementById('auth-user-preview') as HTMLElement | null;
 const authStatus = document.getElementById('auth-status') as HTMLElement | null;
 const appRoot = document.getElementById('app') as HTMLElement | null;
 const mapContainer = document.getElementById('landingMap') as HTMLElement | null;
@@ -80,45 +77,6 @@ function currentViewOrDefault(): ViewId {
   return valid.includes(hash) ? hash : 'prep';
 }
 
-function renderAuthPreview(user: User | null) {
-  if (!authUserPreview) return;
-  if (!user) {
-    authUserPreview.setAttribute('hidden', '');
-    authUserPreview.innerHTML = '';
-    return;
-  }
-
-  const source = user.displayName?.trim() || user.email?.trim() || 'Traveler';
-  const initials = source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? '')
-    .join('') || 'OT';
-  const avatar = user.photoURL?.trim()
-    ? `<img src="${user.photoURL}" alt="${source}">`
-    : `<div class="auth-user-preview-fallback">${initials}</div>`;
-
-  authUserPreview.innerHTML = `
-    <div class="auth-user-preview-avatar">${avatar}</div>
-    <div class="auth-user-preview-meta">
-      <div class="auth-user-preview-name">${source}</div>
-      <div class="auth-user-preview-note">Already connected. Enter whenever you want.</div>
-    </div>
-  `;
-  authUserPreview.removeAttribute('hidden');
-}
-
-function renderAuthCard(user: User | null) {
-  if (authCardTitle) authCardTitle.textContent = 'Enter the website';
-  if (authCardText) {
-    authCardText.textContent = user
-      ? 'Your workspace is ready in the background. Enter after you click.'
-      : 'Enter first. If you want to sync trips later, use the avatar in the sidebar to connect Google.';
-  }
-  renderAuthPreview(user);
-}
-
 function showLandingState() {
   authScreen?.removeAttribute('hidden');
   authScreen?.classList.remove('is-exiting');
@@ -128,8 +86,7 @@ function showLandingState() {
   appEntered = false;
   guestShellReady = false;
   preparedUserId = null;
-  renderAuthCard(currentAuthUser);
-  setAuthButtonState('Enter the website', false);
+  setAuthButtonState('Enter', false);
   setAuthStatus('');
 }
 
@@ -236,21 +193,18 @@ async function bootAuthenticatedShell(user: User) {
   }
 }
 
+// Enter button: always just enters the app — no auth state shown on preload screen.
+// If Firebase already resolved a user in the background, boot the authenticated shell;
+// otherwise boot as guest. Google sign-in is handled exclusively via the sidebar avatar.
 authButton?.addEventListener('click', async () => {
-  if (currentAuthUser) {
-    setAuthButtonState('Preparing…', true);
-    setAuthStatus('Loading your workspace…');
-    await bootAuthenticatedShell(currentAuthUser);
-    enterApp();
-    setAuthStatus('');
-    return;
-  }
-
   setAuthButtonState('Entering…', true);
-  setAuthStatus('Opening the website…');
-  await bootGuestShell();
-  enterApp();
   setAuthStatus('');
+  if (currentAuthUser) {
+    await bootAuthenticatedShell(currentAuthUser);
+  } else {
+    await bootGuestShell();
+  }
+  enterApp();
 });
 
 /* Init map when hero starts shrinking (travel.gif 2.5s + hero walk 1.5s). */
@@ -266,33 +220,26 @@ setTimeout(async () => {
 }, 4000);
 
 onAuth(async ({ user, ready }) => {
-  if (!ready) {
-    setAuthStatus('');
-    return;
-  }
+  if (!ready) return;
 
   currentAuthUser = user;
-  renderAuthCard(user);
 
-  if (!user) {
-    preparedUserId = null;
-    if (appEntered) {
+  // If the app is already open (user signed in/out after entering), update the shell.
+  if (appEntered) {
+    if (user) {
+      await bootAuthenticatedShell(user);
+    } else {
+      preparedUserId = null;
       renderSession(null, handleSidebarAuth);
       navigateTo(currentViewOrDefault());
-    } else {
-      showLandingState();
     }
     return;
   }
 
-  if (appEntered) {
-    await bootAuthenticatedShell(user);
-    return;
+  // Preload screen is still showing — wait for the user to click Enter.
+  // Just record the auth user so the Enter button knows which shell to boot.
+  if (!user) {
+    preparedUserId = null;
+    showLandingState();
   }
-
-  setAuthButtonState('Preparing…', true);
-  setAuthStatus('Loading your workspace…');
-  await bootAuthenticatedShell(user);
-  setAuthButtonState('Enter the website', false);
-  setAuthStatus('Ready when you are.');
 });

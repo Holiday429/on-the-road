@@ -53,6 +53,100 @@ const SECTION_LABELS = { before: 'Before', during: 'On The Road', after: 'After'
 let tripList: StoredTrip[] = [];
 let tripMenuOpen = false;
 
+// ── Trip popover (floating panel rendered into <body>) ────────────────────────
+function openTripPopover() {
+  closeTripPopover();
+
+  const pill = document.getElementById('trip-pill');
+  const rect = pill?.getBoundingClientRect();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'trip-popover-backdrop';
+  backdrop.addEventListener('click', () => { tripMenuOpen = false; closeTripPopover(); buildSidebar(); });
+
+  const panel = document.createElement('div');
+  panel.id = 'trip-popover';
+  panel.setAttribute('role', 'menu');
+
+  // Position below pill, clamped so the 280px panel stays on-screen
+  if (rect) {
+    const PANEL_W = 280;
+    const top  = rect.bottom + 8;
+    const left = Math.min(rect.left, window.innerWidth - PANEL_W - 8);
+    panel.style.top  = `${top}px`;
+    panel.style.left = `${left}px`;
+  }
+
+  const activeId = currentTrip()?.id;
+  const rows = tripList.map((t) => `
+    <div class="trip-menu-row" data-trip-id="${escapeHtml(t.id)}">
+      <button class="trip-menu-item${t.id === activeId ? ' is-active' : ''}" data-trip-id="${escapeHtml(t.id)}">
+        <span class="trip-menu-dot" style="background:${escapeHtml(t.coverColor || '#f9b830')}"></span>
+        <span class="trip-menu-name">${escapeHtml(t.name)}</span>
+        ${t.id === activeId ? '<span class="trip-menu-check">✓</span>' : ''}
+      </button>
+      <button class="trip-menu-edit" data-trip-id="${escapeHtml(t.id)}" title="Rename trip" aria-label="Rename ${escapeHtml(t.name)}">✎</button>
+      <button class="trip-menu-delete" data-trip-id="${escapeHtml(t.id)}" title="Delete trip" aria-label="Delete ${escapeHtml(t.name)}">🗑</button>
+    </div>
+  `).join('');
+
+  panel.innerHTML = `
+    <div class="trip-popover-header">My Trips</div>
+    ${rows || '<div class="trip-menu-empty">No trips yet</div>'}
+    <button class="trip-menu-new" id="trip-menu-new">+ New trip</button>
+  `;
+
+  document.body.appendChild(backdrop);
+  document.body.appendChild(panel);
+
+  panel.querySelectorAll<HTMLElement>('.trip-menu-item').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      tripMenuOpen = false;
+      closeTripPopover();
+      await switchTrip(btn.dataset.tripId!);
+    });
+  });
+
+  panel.querySelectorAll<HTMLElement>('.trip-menu-edit').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.tripId!;
+      const trip = tripList.find(t => t.id === id);
+      if (!trip) return;
+      tripMenuOpen = false;
+      closeTripPopover();
+      buildSidebar();
+      openRenameTripModal(trip);
+    });
+  });
+
+  panel.querySelectorAll<HTMLElement>('.trip-menu-delete').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.tripId!;
+      const trip = tripList.find(t => t.id === id);
+      if (!trip) return;
+      tripMenuOpen = false;
+      closeTripPopover();
+      buildSidebar();
+      openDeleteTripModal(trip);
+    });
+  });
+
+  panel.querySelector<HTMLElement>('#trip-menu-new')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    tripMenuOpen = false;
+    closeTripPopover();
+    openNewTripModal();
+  });
+}
+
+function closeTripPopover() {
+  document.getElementById('trip-popover-backdrop')?.remove();
+  document.getElementById('trip-popover')?.remove();
+}
+
 // Each view registers an idempotent init fn. We keep the fn (never delete it)
 // and track which views are currently mounted, so a trip switch can re-init
 // the mounted ones — re-subscribing their stores under the new tripId.
@@ -118,7 +212,7 @@ function buildSidebarHeader(): string {
   return `
     <div class="sidebar-header">
       <div class="sidebar-header-profile">
-        <div class="sidebar-profile-avatar">${avatar}</div>
+        <div class="sidebar-profile-avatar is-user">${avatar}</div>
         <div class="sidebar-profile-meta">
           <div class="sidebar-profile-title">${displayName}</div>
         </div>
@@ -128,12 +222,7 @@ function buildSidebarHeader(): string {
 }
 
 function buildGuestPanel(): string {
-  return `
-    <div class="guest-pill">
-      <div class="guest-pill-title">Guest mode</div>
-      <div class="guest-pill-text">Enter first, then use the avatar above to connect Google whenever you want to sync trips.</div>
-    </div>
-  `;
+  return '';
 }
 
 export function renderViewTitleMarkup(id: ViewId, title?: string): string {
@@ -183,16 +272,12 @@ export function navigateTo(id: ViewId) {
   const el = document.getElementById(`view-${id}`);
   if (el) {
     el.classList.add('active');
-    if (sessionState.user) {
-      clearGuestStates();
-      // Lazy init — run once per mount; init fns are idempotent so re-running
-      // on a trip switch is safe.
-      if (viewInits[id] && !mountedViews.has(id)) {
-        viewInits[id]!();
-        mountedViews.add(id);
-      }
-    } else {
-      renderGuestState(id);
+    clearGuestStates();
+    // Lazy init — run once per mount; init fns are idempotent so re-running
+    // on a trip switch is safe.
+    if (viewInits[id] && !mountedViews.has(id)) {
+      viewInits[id]!();
+      mountedViews.add(id);
     }
   }
 
@@ -212,25 +297,6 @@ function clearGuestStates() {
   document.querySelectorAll('.view-guest-state').forEach((el) => el.remove());
 }
 
-function renderGuestState(id: ViewId) {
-  clearGuestStates();
-  const view = document.getElementById(`view-${id}`);
-  if (!view) return;
-
-  const gate = document.createElement('section');
-  gate.className = 'view-guest-state card';
-  gate.innerHTML = `
-    <div class="view-guest-title">Enter first, sign in later</div>
-    <div class="view-guest-text">Use the top-left avatar to connect Google when you want to load trips and sync data.</div>
-  `;
-
-  const header = view.querySelector('.view-header');
-  if (header?.nextSibling) {
-    view.insertBefore(gate, header.nextSibling);
-  } else {
-    view.appendChild(gate);
-  }
-}
 
 function daysUntil(date: Date): number {
   const now = new Date();
@@ -243,9 +309,23 @@ function daysUntil(date: Date): number {
 function buildTripPill(): string {
   const trip = currentTrip();
   const name = trip?.name ?? 'Loading…';
-  const days = trip ? daysUntil(new Date(`${trip.startDate}T00:00:00`)) : 0;
-  const compactCountdown = days > 0 ? String(days) : String(Math.abs(days));
-  const daysText = !trip
+  const days = trip ? daysUntil(new Date(`${trip.startDate}T00:00:00`)) : null;
+
+  // Collapsed badge: + if no trip, red countdown if pre-trip, green day-count if underway
+  let compactBadge: string;
+  let compactClass: string;
+  if (days === null) {
+    compactBadge = '+';
+    compactClass = 'trip-pill-date--new';
+  } else if (days > 0) {
+    compactBadge = String(days);
+    compactClass = 'trip-pill-date--pre';
+  } else {
+    compactBadge = String(Math.abs(days));
+    compactClass = 'trip-pill-date--on';
+  }
+
+  const daysText = days === null
     ? ''
     : days > 0
     ? `Departing in <strong>${days} days</strong>`
@@ -253,37 +333,12 @@ function buildTripPill(): string {
     ? `Departing <strong>today!</strong> 🎉`
     : `Trip started <strong>${Math.abs(days)} days</strong> ago`;
 
-  const menu = tripMenuOpen ? buildTripMenu() : '';
-
   return `
     <div class="trip-pill${tripMenuOpen ? ' is-open' : ''}" id="trip-pill" role="button" tabindex="0" aria-haspopup="true" aria-expanded="${tripMenuOpen}">
       <div class="trip-pill-label">Current Trip <span class="trip-pill-caret">▾</span></div>
       <div class="trip-pill-name">${escapeHtml(name)}</div>
-      <div class="trip-pill-date">${compactCountdown}</div>
+      <div class="trip-pill-date ${compactClass}">${compactBadge}</div>
       <div class="trip-pill-days">${daysText}</div>
-    </div>
-    ${menu}
-  `;
-}
-
-function buildTripMenu(): string {
-  const activeId = currentTrip()?.id;
-  const rows = tripList.map((t) => `
-    <div class="trip-menu-row" data-trip-id="${escapeHtml(t.id)}">
-      <button class="trip-menu-item${t.id === activeId ? ' is-active' : ''}" data-trip-id="${escapeHtml(t.id)}">
-        <span class="trip-menu-dot" style="background:${escapeHtml(t.coverColor || '#f9b830')}"></span>
-        <span class="trip-menu-name">${escapeHtml(t.name)}</span>
-        ${t.id === activeId ? '<span class="trip-menu-check">✓</span>' : ''}
-      </button>
-      <button class="trip-menu-edit" data-trip-id="${escapeHtml(t.id)}" title="Rename trip" aria-label="Rename ${escapeHtml(t.name)}">✎</button>
-      <button class="trip-menu-delete" data-trip-id="${escapeHtml(t.id)}" title="Delete trip" aria-label="Delete ${escapeHtml(t.name)}">🗑</button>
-    </div>
-  `).join('');
-
-  return `
-    <div class="trip-menu" id="trip-menu" role="menu">
-      ${rows || '<div class="trip-menu-empty">No trips yet</div>'}
-      <button class="trip-menu-new" id="trip-menu-new">+ New trip</button>
     </div>
   `;
 }
@@ -311,54 +366,24 @@ function buildSidebar() {
   }
 }
 
-/** Wire the trip pill (open/close menu, switch trip, new-trip modal). */
+/** Wire the trip pill (open/close popover, switch trip, new-trip modal). */
 function wireTripSwitcher(sidebar: HTMLElement) {
   const pill = sidebar.querySelector<HTMLElement>('#trip-pill');
   pill?.addEventListener('click', async () => {
-    tripMenuOpen = !tripMenuOpen;
-    if (tripMenuOpen) {
-      try { tripList = await listTrips(); } catch (e) { console.warn('listTrips failed:', e); }
+    if (!currentTrip()) {
+      openNewTripModal();
+      return;
     }
+    if (tripMenuOpen) {
+      tripMenuOpen = false;
+      closeTripPopover();
+      buildSidebar();
+      return;
+    }
+    tripMenuOpen = true;
+    try { tripList = await listTrips(); } catch (e) { console.warn('listTrips failed:', e); }
     buildSidebar();
-  });
-
-  sidebar.querySelectorAll<HTMLElement>('.trip-menu-item').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.tripId!;
-      tripMenuOpen = false;
-      await switchTrip(id);
-    });
-  });
-
-  sidebar.querySelectorAll<HTMLElement>('.trip-menu-edit').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.tripId!;
-      const trip = tripList.find(t => t.id === id);
-      if (!trip) return;
-      tripMenuOpen = false;
-      buildSidebar();
-      openRenameTripModal(trip);
-    });
-  });
-
-  sidebar.querySelectorAll<HTMLElement>('.trip-menu-delete').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const id = btn.dataset.tripId!;
-      const trip = tripList.find(t => t.id === id);
-      if (!trip) return;
-      tripMenuOpen = false;
-      buildSidebar();
-      openDeleteTripModal(trip);
-    });
-  });
-
-  sidebar.querySelector<HTMLElement>('#trip-menu-new')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    tripMenuOpen = false;
-    openNewTripModal();
+    openTripPopover();
   });
 }
 

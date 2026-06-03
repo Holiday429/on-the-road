@@ -91,11 +91,17 @@ export async function setBaseCurrency(code: string): Promise<void> {
     updatedAt: Date.now(),
     schemaVersion: SCHEMA_VERSION,
   });
-  await setDoc(ref, updated);
+  await setDoc(ref, stripUndefined(updated));
 }
 
 function tripRef(uid: string, tripId: string) {
   return fbDoc(firestore, `users/${uid}/trips/${tripId}`);
+}
+
+function stripUndefined<T extends object>(obj: T): T {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as T;
 }
 
 function tripsCol(uid: string) {
@@ -163,7 +169,7 @@ export async function createTrip(input: NewTripInput): Promise<string> {
     updatedAt: now,
     schemaVersion: SCHEMA_VERSION,
   });
-  await setDoc(tripRef(u.uid, id), trip);
+  await setDoc(tripRef(u.uid, id), stripUndefined(trip));
   return id;
 }
 
@@ -176,7 +182,7 @@ export async function updateTrip(id: string, patch: Partial<Omit<Trip, 'id' | 'c
   if (!snap.exists()) throw new Error('Trip not found.');
   const existing = snap.data() as Trip;
   const updated = TripSchema.parse({ ...existing, ...patch, id, updatedAt: Date.now(), schemaVersion: SCHEMA_VERSION });
-  await setDoc(ref, updated);
+  await setDoc(ref, stripUndefined(updated));
   if (id === _currentTripId) {
     _currentTrip = updated;
     if (patch.baseCurrency) _baseCurrency = patch.baseCurrency;
