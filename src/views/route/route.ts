@@ -10,11 +10,12 @@
 
 import './route.css';
 import { routeStore } from '../../data/stores/route-store.ts';
-import { currentTrip, currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
+import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
 import { navigateTo } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
+import { openTripChooser } from '../../core/trip-chooser.ts';
 import type {
-  Leg as SchemaLeg, PlanItem, Clip,
+  Leg as SchemaLeg, PlanItem, Clip, PlanDay, ClipCategory,
 } from '../../data/schema.ts';
 
 type Transport = NonNullable<SchemaLeg['arrivalTransport']>;
@@ -35,18 +36,45 @@ const FLAG_MAP: Record<string, string> = {
   'Sweden': '🇸🇪', 'Japan': '🇯🇵', 'Thailand': '🇹🇭',
 };
 
-// Curated plan tags. Free text is allowed too — these just give quick chips.
-const PLAN_TAGS = [
-  { id: 'food', label: 'Food', icon: '🍜' },
-  { id: 'sights', label: 'Sights', icon: '🏛️' },
-  { id: 'walk', label: 'Walk', icon: '🚶' },
-  { id: 'shop', label: 'Shop', icon: '🛍️' },
-  { id: 'nature', label: 'Nature', icon: '🌿' },
-  { id: 'nightlife', label: 'Nightlife', icon: '🍸' },
+// Built-in clip/plan categories — user can add their own on top.
+export const BUILTIN_CATEGORIES: ClipCategory[] = [
+  { id: 'official',  label: '官方 / Tourism', color: '#e2edf3', order: 0 },
+  { id: 'social',    label: '小红书 / Social', color: '#fde8ef', order: 1 },
+  { id: 'food',      label: '美食 Food',       color: '#fef3e2', order: 2 },
+  { id: 'museum',    label: '博物馆 Museum',   color: '#ece2f3', order: 3 },
+  { id: 'nature',    label: '自然 Nature',     color: '#e6f3e6', order: 4 },
+  { id: 'daytrip',   label: '一日游 Day trip', color: '#e2f3ec', order: 5 },
+  { id: 'shopping',  label: '购物 Shopping',   color: '#f3e2e8', order: 6 },
+  { id: 'other',     label: 'Other',           color: '#ebebeb', order: 7 },
 ];
-const TAG_META: Record<string, { label: string; icon: string }> = Object.fromEntries(
-  PLAN_TAGS.map((t) => [t.id, { label: t.label, icon: t.icon }]),
-);
+
+// 10 palette colours the user can pick when creating a custom category.
+export const CATEGORY_PALETTE = [
+  '#fde8ef','#fef3e2','#ece2f3','#e2edf3','#e6f3e6',
+  '#e2f3ec','#f3e2e8','#f3f0e2','#f0e2f3','#ebebeb',
+];
+
+function allCategories(leg: Leg): ClipCategory[] {
+  const custom = leg.clipCategories ?? [];
+  const customIds = new Set(custom.map(c => c.id));
+  return [
+    ...BUILTIN_CATEGORIES.filter(b => !customIds.has(b.id)),
+    ...custom,
+  ].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
+function categoryById(leg: Leg, id: string): ClipCategory | undefined {
+  return allCategories(leg).find(c => c.id === id);
+}
+
+// Plan view modes
+type PlanView = 'timeline' | 'category' | 'calendar';
+let _planView: PlanView = 'timeline';
+
+// Drag state (plan items → day columns)
+let _dragItemId: string | null = null;
+let _dragStartX = 0, _dragStartY = 0;
+let _dragging = false;
 
 let legs: Leg[] = [];
 let addFormOpen = false;
@@ -111,11 +139,6 @@ function legStays(leg: Leg): Accommodation[] {
 function mapHref(a: Accommodation, leg: Leg): string {
   if (a.mapUrl) return a.mapUrl;
   const q = encodeURIComponent(`${a.name} ${leg.city}`.trim());
-  return `https://www.google.com/maps/search/?api=1&query=${q}`;
-}
-function planMapHref(p: PlanItem, leg: Leg): string {
-  if (p.mapUrl) return p.mapUrl;
-  const q = encodeURIComponent(`${p.title} ${leg.city}`.trim());
   return `https://www.google.com/maps/search/?api=1&query=${q}`;
 }
 
@@ -206,22 +229,18 @@ function renderLegCard(leg: Leg): string {
 /** Group consecutive legs by country into headed sections. */
 function renderTimeline(): string {
   if (legs.length === 0) {
-    const trip = currentTrip();
     return `
       ${renderAddForm()}
+      ${addFormOpen ? '' : `
       <div class="route-empty">
         <div class="route-empty-icon">🗺️</div>
         <div class="route-empty-title">No stops yet</div>
-        ${trip
-          ? `<div class="route-empty-trip-badge">${trip.name}</div>
-             <div class="route-empty-text">Add the cities you'll visit. We'll order them by date and track each one as upcoming, current, or visited.</div>
-             <button class="btn btn-primary" id="route-add-toggle">＋ Add your first stop</button>`
-          : `<div class="route-empty-text">Start by linking a trip, then add your cities.</div>
-             <div class="route-empty-actions">
-               <button class="btn btn-primary" id="route-link-trip">Link a trip</button>
-             </div>`
-        }
-      </div>`;
+        <div class="route-empty-text">Link an existing trip to pull in its stops, or add cities manually to start building your route.</div>
+        <div class="route-empty-actions">
+          <button class="btn btn-primary" id="route-add-toggle">＋ Add a stop</button>
+          <button class="btn btn-ghost" id="route-link-trip">Link a trip</button>
+        </div>
+      </div>`}`;
   }
 
   const groups: { country: string; flag: string; legs: Leg[] }[] = [];
@@ -386,87 +405,259 @@ function renderStaysSection(leg: Leg): string {
     </section>`;
 }
 
-function renderPlansSection(leg: Leg): string {
-  const plans = [...(leg.plans ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  // Group by tag; untagged go under "Other".
-  const byTag = new Map<string, PlanItem[]>();
-  for (const p of plans) {
-    const key = p.tag || 'other';
-    if (!byTag.has(key)) byTag.set(key, []);
-    byTag.get(key)!.push(p);
-  }
-  const card = (p: PlanItem) => `
-    <div class="rd-plan ${p.done ? 'done' : ''}" data-plan="${p.id}">
-      <button class="rd-plan-check" data-act="toggle-plan" data-plan="${p.id}">${p.done ? '✓' : ''}</button>
-      <div class="rd-plan-body">
-        <div class="rd-plan-title">${esc(p.title)}</div>
-        ${p.note ? `<div class="rd-plan-note">${esc(p.note)}</div>` : ''}
-      </div>
-      <div class="rd-plan-actions">
-        <a class="rd-icon-btn" href="${esc(planMapHref(p, leg))}" target="_blank" rel="noopener" title="Map">📍</a>
-        <button class="rd-icon-btn rd-danger" data-act="del-plan" data-plan="${p.id}" title="Remove">✕</button>
-      </div>
-    </div>`;
+/* ── Category helpers ────────────────────────────────────────────────────── */
 
-  const groups = [...byTag.entries()].map(([tag, items]) => {
-    const meta = TAG_META[tag];
-    const label = meta ? `${meta.icon} ${meta.label}` : (tag === 'other' ? 'Other' : esc(tag));
-    return `
-      <div class="rd-plan-group">
-        <div class="rd-plan-group-head">${label}</div>
-        <div class="rd-plan-cards">${items.map(card).join('')}</div>
-      </div>`;
-  }).join('');
 
-  return `
-    <section class="rd-section rd-col">
-      <div class="rd-section-head">
-        <h3>✨ Plans</h3>
-        <span class="rd-section-sub">Things to do — no fixed day</span>
-      </div>
-      ${plans.length ? groups : `<div class="rd-placeholder rd-placeholder-soft"><span>Nothing planned yet. Jot what you'd like to do — order, don't schedule.</span></div>`}
-      <div class="rd-add-row">
-        <input class="input rd-add-input" id="rd-plan-input" placeholder="e.g. Brunch at Markthalle Neun">
-        <select class="input select rd-add-tag" id="rd-plan-tag">
-          <option value="">Tag</option>
-          ${PLAN_TAGS.map((t) => `<option value="${t.id}">${t.icon} ${t.label}</option>`).join('')}
-        </select>
-        <button class="btn btn-primary rd-sm" data-act="add-plan">Add</button>
-      </div>
-    </section>`;
+function categorySelectOptions(leg: Leg, selected: string): string {
+  return `<option value="">— category —</option>` +
+    allCategories(leg).map(c =>
+      `<option value="${esc(c.id)}" ${c.id === selected ? 'selected' : ''}>${esc(c.label)}</option>`
+    ).join('');
 }
+
+/* ── Clips section ───────────────────────────────────────────────────────── */
 
 function renderClipsSection(leg: Leg): string {
   const clips = [...(leg.clips ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const icon: Record<Clip['kind'], string> = { link: '🔗', note: '📝', image: '🖼️' };
-  const card = (c: Clip) => `
-    <div class="rd-clip" data-clip="${c.id}">
-      <div class="rd-clip-icon">${icon[c.kind]}</div>
-      <div class="rd-clip-body">
+  const cats = allCategories(leg);
+
+  // active filter stored in data attr of the section element; default = ''
+  const filterAttr = `data-clip-filter=""`;
+
+  const card = (c: Clip) => {
+    const cat = c.category ? categoryById(leg, c.category) : undefined;
+    const color = cat?.color ?? '#ebebeb';
+    return `
+    <div class="rd-clip-card" data-clip="${esc(c.id)}" data-clip-cat="${esc(c.category ?? '')}">
+      <div class="rd-clip-card-color" style="background:${esc(color)}"></div>
+      <div class="rd-clip-card-body">
+        <div class="rd-clip-card-top">
+          ${cat ? `<span class="rd-cat-badge rd-cat-badge--sm" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
+          <div class="rd-clip-card-actions">
+            <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${esc(c.id)}" title="提炼为 Plan">→✨</button>
+            <button class="rd-icon-btn" data-act="edit-clip" data-clip="${esc(c.id)}" title="Edit">✎</button>
+            <button class="rd-icon-btn rd-danger" data-act="del-clip" data-clip="${esc(c.id)}" title="Remove">✕</button>
+          </div>
+        </div>
         ${c.url
-          ? `<a class="rd-clip-title" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title || c.url)}</a>`
-          : `<div class="rd-clip-title">${esc(c.title || 'Note')}</div>`}
-        ${c.body ? `<div class="rd-clip-text">${esc(c.body)}</div>` : ''}
+          ? `<a class="rd-clip-card-title" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title || c.url)}</a>`
+          : `<div class="rd-clip-card-title">${esc(c.title || 'Note')}</div>`}
+        ${c.body ? `<div class="rd-clip-card-body-text">${esc(c.body)}</div>` : ''}
       </div>
-      <div class="rd-clip-actions">
-        <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${c.id}" title="Turn into a plan">→✨</button>
-        <button class="rd-icon-btn rd-danger" data-act="del-clip" data-clip="${c.id}" title="Remove">✕</button>
-      </div>
+    </div>`;
+  };
+
+  const filterBar = `
+    <div class="rd-filter-bar" id="rd-clip-filter-bar">
+      <button class="rd-filter-chip is-active" data-filter="">All</button>
+      ${cats.filter(c => clips.some(cl => cl.category === c.id)).map(c =>
+        `<button class="rd-filter-chip" data-filter="${esc(c.id)}" style="--chip-color:${esc(c.color)}">${esc(c.label)}</button>`
+      ).join('')}
+      <button class="rd-filter-chip rd-filter-chip--add" data-act="add-clip-category" title="New category">＋ 分类</button>
     </div>`;
 
   return `
-    <section class="rd-section rd-col">
+    <section class="rd-section" id="rd-clips-section" ${filterAttr}>
       <div class="rd-section-head">
         <h3>📎 Clips</h3>
-        <span class="rd-section-sub">Collected research</span>
+        <button class="btn btn-ghost rd-sm" data-act="open-add-clip">＋ Add clip</button>
       </div>
-      ${clips.length ? `<div class="rd-clip-list">${clips.map(card).join('')}</div>`
-        : `<div class="rd-placeholder rd-placeholder-soft"><span>Paste links or notes you find. Turn the good ones into plans with →✨.</span></div>`}
-      <div class="rd-add-row rd-add-row-col">
-        <input class="input rd-add-input" id="rd-clip-title" placeholder="Title (optional)">
-        <input class="input rd-add-input" id="rd-clip-url" placeholder="Paste a link, or leave blank for a note">
-        <textarea class="input rd-add-area" id="rd-clip-body" placeholder="Note / details (optional)"></textarea>
-        <button class="btn btn-primary rd-sm" data-act="add-clip">Add clip</button>
+      ${filterBar}
+      ${clips.length
+        ? `<div class="rd-clip-grid">${clips.map(card).join('')}</div>`
+        : `<div class="rd-placeholder rd-placeholder-soft"><span>从小红书、旅游局等来源收集信息，按类别整理成卡片。</span></div>`}
+    </section>`;
+}
+
+/* ── Notes section ───────────────────────────────────────────────────────── */
+
+function renderNotesSection(leg: Leg): string {
+  return `
+    <section class="rd-section rd-section-notes">
+      <div class="rd-section-head">
+        <h3>📝 Notes</h3>
+      </div>
+      <textarea class="input rd-notes-area" id="rd-notes" placeholder="Write anything — ideas, reminders, impressions…">${esc(leg.notes ?? '')}</textarea>
+    </section>`;
+}
+
+/* ── Plan section ────────────────────────────────────────────────────────── */
+
+/** Ensure planDays covers every night of the leg. Returns the canonical list. */
+function ensurePlanDays(leg: Leg): PlanDay[] {
+  const total = daysBetween(leg.dateFrom, leg.dateTo);
+  const existing = [...(leg.planDays ?? [])].sort((a, b) => a.order - b.order);
+
+  // Build expected day list from leg dates
+  const expected: PlanDay[] = Array.from({ length: total }, (_, i) => {
+    const d = new Date(leg.dateFrom + 'T00:00:00');
+    d.setDate(d.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const found = existing.find(e => e.date === iso);
+    return found ?? { id: `day-${iso}`, date: iso, label: '', notes: '', order: i };
+  });
+  return expected;
+}
+
+function renderPlanItem(p: PlanItem, leg: Leg): string {
+  const cat = p.category ? categoryById(leg, p.category) : undefined;
+  const color = cat?.color ?? '#f0f0f0';
+  return `
+    <div class="rd-plan-tag ${p.done ? 'is-done' : ''}" data-id="${esc(p.id)}" data-drag="plan-item">
+      <button class="rd-plan-tag-check" data-act="toggle-plan" data-plan="${esc(p.id)}" title="Mark done">
+        ${p.done ? '✓' : ''}
+      </button>
+      <span class="rd-plan-tag-dot" style="background:${esc(color)}"></span>
+      <span class="rd-plan-tag-name">${esc(p.title)}</span>
+      <button class="rd-plan-tag-open" data-act="open-plan" data-plan="${esc(p.id)}" title="Details">›</button>
+    </div>`;
+}
+
+function renderPlanTimelineView(leg: Leg): string {
+  const days = ensurePlanDays(leg);
+  const plans = leg.plans ?? [];
+  const unassigned = plans.filter(p => !p.dayId).sort((a, b) => a.order - b.order);
+
+  const dayCol = (day: PlanDay, idx: number) => {
+    const items = plans.filter(p => p.dayId === day.id).sort((a, b) => a.order - b.order);
+    const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `
+      <div class="rd-plan-day-col">
+        <div class="rd-plan-day-head">
+          <span class="rd-plan-day-num">Day ${idx + 1}</span>
+          <span class="rd-plan-day-date">${dateLabel}</span>
+          ${day.label ? `<span class="rd-plan-day-label">${esc(day.label)}</span>` : ''}
+        </div>
+        <div class="rd-plan-drop-zone pk-drop-zone" data-day-id="${esc(day.id)}">
+          ${items.map(p => renderPlanItem(p, leg)).join('')}
+          ${items.length === 0 ? `<div class="rd-plan-drop-hint">Drop here</div>` : ''}
+        </div>
+      </div>`;
+  };
+
+  return `
+    <div class="rd-plan-timeline-wrap">
+      <div class="rd-plan-columns">
+        <div class="rd-plan-day-col rd-plan-unassigned">
+          <div class="rd-plan-day-head">
+            <span class="rd-plan-day-num">待定</span>
+            <span class="rd-plan-day-date">Unassigned</span>
+          </div>
+          <div class="rd-plan-drop-zone pk-drop-zone" data-day-id="">
+            ${unassigned.map(p => renderPlanItem(p, leg)).join('')}
+            ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">New items start here</div>` : ''}
+          </div>
+        </div>
+        ${days.map((d, i) => dayCol(d, i)).join('')}
+      </div>
+    </div>
+    <div id="rd-plan-drag-ghost" class="rd-plan-drag-ghost" hidden></div>`;
+}
+
+function renderPlanCategoryView(leg: Leg): string {
+  const plans = leg.plans ?? [];
+  if (!plans.length) return `<div class="rd-placeholder rd-placeholder-soft"><span>添加事项后可在此按类别查看。</span></div>`;
+
+  const days = ensurePlanDays(leg);
+  const dayLabel = (dayId: string | null | undefined) => {
+    if (!dayId) return '待定';
+    const idx = days.findIndex(d => d.id === dayId);
+    return idx >= 0 ? `Day ${idx + 1}` : '待定';
+  };
+
+  const cats = allCategories(leg);
+  const groups = cats.map(cat => {
+    const items = plans.filter(p => (p.category || 'other') === cat.id).sort((a, b) => a.order - b.order);
+    if (!items.length) return '';
+    return `
+      <div class="rd-plan-cat-group">
+        <div class="rd-plan-cat-head">
+          <span class="rd-cat-badge" style="background:${esc(cat.color)}">${esc(cat.label)}</span>
+          <span class="rd-plan-cat-count">${items.length}</span>
+        </div>
+        <div class="rd-plan-cat-rows">
+          ${items.map(p => `
+            <div class="rd-plan-cat-row ${p.done ? 'is-done' : ''}" data-plan="${esc(p.id)}">
+              <button class="rd-plan-tag-check" data-act="toggle-plan" data-plan="${esc(p.id)}">${p.done ? '✓' : ''}</button>
+              <span class="rd-plan-cat-title">${esc(p.title)}</span>
+              <span class="rd-plan-cat-day">${dayLabel(p.dayId)}</span>
+              <button class="rd-icon-btn rd-sm" data-act="open-plan" data-plan="${esc(p.id)}">›</button>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `<div class="rd-plan-cat-list">${groups || '<div class="rd-placeholder rd-placeholder-soft"><span>No items yet.</span></div>'}</div>`;
+}
+
+function renderPlanCalendarView(leg: Leg): string {
+  const days = ensurePlanDays(leg);
+  const plans = leg.plans ?? [];
+
+  const dayBlock = (day: PlanDay, idx: number) => {
+    const items = plans.filter(p => p.dayId === day.id).sort((a, b) => a.order - b.order);
+    const d = new Date(day.date + 'T00:00:00');
+    const weekday = d.toLocaleDateString('en-GB', { weekday: 'long' });
+    const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
+    const isToday = day.date === new Date().toISOString().slice(0, 10);
+    return `
+      <div class="rd-cal-day ${isToday ? 'is-today' : ''}">
+        <div class="rd-cal-day-head">
+          <div class="rd-cal-day-num">Day ${idx + 1}${isToday ? ' · Today' : ''}</div>
+          <div class="rd-cal-day-date">${weekday}, ${dateStr}</div>
+          ${day.label ? `<div class="rd-cal-day-label">${esc(day.label)}</div>` : ''}
+        </div>
+        ${day.notes ? `<div class="rd-cal-day-notes">${esc(day.notes)}</div>` : ''}
+        ${items.length ? `
+          <div class="rd-cal-day-items">
+            ${items.map(p => {
+              const cat = p.category ? categoryById(leg, p.category) : undefined;
+              const color = cat?.color ?? '#ebebeb';
+              return `
+                <div class="rd-cal-item ${p.done ? 'is-done' : ''}" data-plan="${esc(p.id)}">
+                  <button class="rd-plan-tag-check" data-act="toggle-plan" data-plan="${esc(p.id)}">${p.done ? '✓' : ''}</button>
+                  <span class="rd-cal-item-dot" style="background:${esc(color)}"></span>
+                  <span class="rd-cal-item-title">${esc(p.title)}</span>
+                  ${p.duration ? `<span class="rd-cal-item-meta">${esc(p.duration)}</span>` : ''}
+                  <button class="rd-icon-btn" data-act="open-plan" data-plan="${esc(p.id)}">›</button>
+                </div>`;
+            }).join('')}
+          </div>` : `<div class="rd-cal-day-empty">Nothing planned yet — drag items here from Timeline.</div>`}
+      </div>`;
+  };
+
+  return `<div class="rd-cal-list">${days.map((d, i) => dayBlock(d, i)).join('')}</div>`;
+}
+
+function renderPlansSection(leg: Leg): string {
+  const views: { id: PlanView; label: string }[] = [
+    { id: 'timeline', label: '📋 Timeline' },
+    { id: 'category', label: '🏷️ Category' },
+    { id: 'calendar', label: '📅 Calendar' },
+  ];
+
+  const cats = allCategories(leg);
+  const catOptions = `<option value="">— category —</option>` +
+    cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
+
+  let body = '';
+  if (_planView === 'timeline') body = renderPlanTimelineView(leg);
+  else if (_planView === 'category') body = renderPlanCategoryView(leg);
+  else body = renderPlanCalendarView(leg);
+
+  return `
+    <section class="rd-section" id="rd-plan-section">
+      <div class="rd-section-head">
+        <h3>✨ Plan</h3>
+        <div class="rd-view-tabs">
+          ${views.map(v => `<button class="rd-view-tab ${_planView === v.id ? 'is-active' : ''}" data-act="plan-view" data-view="${v.id}">${v.label}</button>`).join('')}
+        </div>
+      </div>
+      ${body}
+      <div class="rd-plan-add-row">
+        <input class="input rd-add-input" id="rd-plan-input" placeholder="Add a plan item…">
+        <select class="input select" id="rd-plan-cat">${catOptions}</select>
+        <button class="btn btn-primary rd-sm" data-act="add-plan">Add</button>
       </div>
     </section>`;
 }
@@ -489,12 +680,14 @@ function renderDetail(leg: Leg): string {
         <span class="rd-status-pill status-${status}">${status === 'active' ? 'Here now' : status === 'past' ? 'Visited' : 'Upcoming'}</span>
         <span>${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)} · ${days} night${days !== 1 ? 's' : ''}</span>
       </div>
-
-      ${renderTransportSection(leg)}
-      ${renderStaysSection(leg)}
-      <div class="rd-split">
-        ${renderPlansSection(leg)}
+      <div class="rd-detail-layout">
+        <div class="rd-detail-grid rd-detail-grid--top">
+          ${renderTransportSection(leg)}
+          ${renderStaysSection(leg)}
+        </div>
         ${renderClipsSection(leg)}
+        ${renderPlansSection(leg)}
+        ${renderNotesSection(leg)}
       </div>
     </div>`;
 }
@@ -505,22 +698,6 @@ function render() {
   const root = document.getElementById('view-route');
   if (!root) return;
   const timeline = root.querySelector<HTMLElement>('.route-timeline')!;
-
-  // No trip linked → guide the user to link/create one.
-  if (!currentTrip()) {
-    timeline.innerHTML = `
-      <div class="route-empty">
-        <div class="route-empty-icon">🧭</div>
-        <div class="route-empty-title">Link a trip first</div>
-        <div class="route-empty-text">Your itinerary lives inside a trip. Pick or create one to start mapping your route.</div>
-        <button class="btn btn-primary" id="route-link-trip">Choose a trip</button>
-      </div>`;
-    // The trip pill in the shell owns trip linking/creation — defer to it.
-    timeline.querySelector('#route-link-trip')?.addEventListener('click', () => {
-      document.getElementById('trip-pill')?.click();
-    });
-    return;
-  }
 
   const selected = selectedLegId ? legs.find((l) => l.id === selectedLegId) : null;
   if (selectedLegId && !selected) selectedLegId = null;
@@ -580,7 +757,7 @@ function mountAddFormPickers(timeline: HTMLElement) {
 function wireList(timeline: HTMLElement) {
   timeline.querySelector('#route-add-toggle')?.addEventListener('click', () => openAddForm(timeline));
   timeline.querySelector('#route-link-trip')?.addEventListener('click', () => {
-    document.getElementById('trip-pill')?.click();
+    openTripChooser({ title: 'Link a trip', subtitle: 'Linking a trip pulls in its stops so you can build your route.' });
   });
 
   timeline.querySelector('#raf-cancel')?.addEventListener('click', () => {
@@ -629,8 +806,6 @@ function wireList(timeline: HTMLElement) {
 
 function persistStays(leg: Leg, stays: Accommodation[]) {
   const reindexed = stays.map((s, i) => ({ ...s, order: i }));
-  // Once the array exists, legStays() ignores the legacy single `accommodation`
-  // field, so we don't need to clear it (and Firestore can't take undefined).
   return patchLeg(leg.id, { accommodations: reindexed });
 }
 
@@ -650,9 +825,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     patchLeg(leg.id, { arrivalTransport: { ...leg.arrivalTransport, confirmed: !leg.arrivalTransport.confirmed } });
   });
   on('del-transport', () => {
-    if (confirm('Remove transport details for this stop?')) {
-      rewriteLeg(leg, ['arrivalTransport']);
-    }
+    if (confirm('Remove transport details for this stop?')) rewriteLeg(leg, ['arrivalTransport']);
   });
   on('edit-transport', () => openTransportEditor(timeline, leg));
 
@@ -666,61 +839,363 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     if (confirm('Remove this stay?')) persistStays(leg, next);
   });
 
-  /* — Plans — */
-  on('add-plan', () => {
-    const input = timeline.querySelector('#rd-plan-input') as HTMLInputElement;
-    const tag = (timeline.querySelector('#rd-plan-tag') as HTMLSelectElement).value;
-    const title = input.value.trim();
-    if (!title) return;
-    const plans = leg.plans ?? [];
-    const next: PlanItem = { id: uid(), title, tag: tag || undefined, done: false, order: plans.length };
-    patchLeg(leg.id, { plans: [...plans, next] });
-  });
-  on('toggle-plan', (el) => {
-    const id = el.dataset.plan!;
-    const plans = (leg.plans ?? []).map((p) => p.id === id ? { ...p, done: !p.done } : p);
-    patchLeg(leg.id, { plans });
-  });
-  on('del-plan', (el) => {
-    const id = el.dataset.plan!;
-    patchLeg(leg.id, { plans: (leg.plans ?? []).filter((p) => p.id !== id) });
-  });
+  /* — Notes — */
+  const notesArea = timeline.querySelector<HTMLTextAreaElement>('#rd-notes');
+  if (notesArea) {
+    let notesTimer: ReturnType<typeof setTimeout>;
+    notesArea.addEventListener('input', () => {
+      clearTimeout(notesTimer);
+      notesTimer = setTimeout(() => patchLeg(leg.id, { notes: notesArea.value }), 800);
+    });
+  }
 
   /* — Clips — */
-  on('add-clip', () => {
-    const title = (timeline.querySelector('#rd-clip-title') as HTMLInputElement).value.trim();
-    const url = (timeline.querySelector('#rd-clip-url') as HTMLInputElement).value.trim();
-    const body = (timeline.querySelector('#rd-clip-body') as HTMLTextAreaElement).value.trim();
-    if (!title && !url && !body) return;
-    const clips = leg.clips ?? [];
-    const next: Clip = {
-      id: uid(),
-      kind: url ? 'link' : 'note',
-      title: title || undefined, url: url || undefined, body: body || undefined,
-      order: clips.length,
-    };
-    patchLeg(leg.id, { clips: [...clips, next] });
+  on('open-add-clip', () => openClipEditor(timeline, leg, null));
+  on('edit-clip', (el) => openClipEditor(timeline, leg, el.dataset.clip!));
+  on('del-clip', (el) => {
+    const id = el.dataset.clip!;
+    if (confirm('Remove this clip?')) patchLeg(leg.id, { clips: (leg.clips ?? []).filter(c => c.id !== id) });
   });
   on('clip-to-plan', (el) => {
     const id = el.dataset.clip!;
-    const clip = (leg.clips ?? []).find((c) => c.id === id);
+    const clip = (leg.clips ?? []).find(c => c.id === id);
     if (!clip) return;
     const plans = leg.plans ?? [];
     const next: PlanItem = {
-      id: uid(),
-      title: clip.title || clip.url || 'Untitled',
-      note: clip.body, done: false, order: plans.length,
+      id: uid(), title: clip.title || clip.url || 'Untitled',
+      note: clip.body, category: clip.category ?? '', dayId: null,
+      done: false, order: plans.length,
     };
     patchLeg(leg.id, { plans: [...plans, next] });
   });
-  on('del-clip', (el) => {
-    const id = el.dataset.clip!;
-    patchLeg(leg.id, { clips: (leg.clips ?? []).filter((c) => c.id !== id) });
+  on('add-clip-category', () => openCategoryEditor(timeline, leg));
+
+  // Clip filter chips
+  const clipFilterBar = timeline.querySelector<HTMLElement>('#rd-clip-filter-bar');
+  if (clipFilterBar) {
+    clipFilterBar.addEventListener('click', (e) => {
+      const chip = (e.target as HTMLElement).closest<HTMLElement>('.rd-filter-chip[data-filter]');
+      if (!chip) return;
+      const filter = chip.dataset.filter!;
+      clipFilterBar.querySelectorAll('.rd-filter-chip').forEach(c => c.classList.remove('is-active'));
+      chip.classList.add('is-active');
+      const grid = timeline.querySelector<HTMLElement>('.rd-clip-grid');
+      if (!grid) return;
+      grid.querySelectorAll<HTMLElement>('.rd-clip-card').forEach(card => {
+        card.hidden = filter !== '' && card.dataset.clipCat !== filter;
+      });
+    });
+  }
+
+  /* — Plan view tabs — */
+  on('plan-view', (el) => {
+    _planView = el.dataset.view as PlanView;
+    render();
   });
 
-  // Enter-to-add for the plan input.
+  /* — Plan add — */
+  on('add-plan', () => {
+    const input = timeline.querySelector<HTMLInputElement>('#rd-plan-input');
+    const catSel = timeline.querySelector<HTMLSelectElement>('#rd-plan-cat');
+    const title = input?.value.trim() ?? '';
+    if (!title) return;
+    const plans = leg.plans ?? [];
+    const next: PlanItem = {
+      id: uid(), title,
+      category: catSel?.value ?? '',
+      dayId: null, done: false, order: plans.length,
+    };
+    if (input) input.value = '';
+    patchLeg(leg.id, { plans: [...plans, next] });
+  });
   timeline.querySelector('#rd-plan-input')?.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Enter') (timeline.querySelector('[data-act="add-plan"]') as HTMLElement)?.click();
+  });
+
+  /* — Plan item actions — */
+  on('toggle-plan', (el) => {
+    const id = el.dataset.plan!;
+    const plans = (leg.plans ?? []).map(p => p.id === id ? { ...p, done: !p.done } : p);
+    patchLeg(leg.id, { plans });
+  });
+  on('open-plan', (el) => openPlanItemDrawer(timeline, leg, el.dataset.plan!));
+  on('del-plan', (el) => {
+    const id = el.dataset.plan!;
+    patchLeg(leg.id, { plans: (leg.plans ?? []).filter(p => p.id !== id) });
+  });
+
+  /* — Plan drag to day — */
+  wirePlanDrag(timeline, leg);
+}
+
+/* ── Plan drag (pointer-based, same pattern as pack.ts) ─────────────────── */
+
+function wirePlanDrag(timeline: HTMLElement, leg: Leg) {
+  const ghost = timeline.querySelector<HTMLElement>('#rd-plan-drag-ghost')!;
+  if (!ghost) return;
+
+  function findDropZone(x: number, y: number): { el: HTMLElement; dayId: string | null } | null {
+    for (const zone of timeline.querySelectorAll<HTMLElement>('.rd-plan-drop-zone')) {
+      const r = zone.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+        const raw = zone.dataset.dayId;
+        return { el: zone, dayId: raw === '' ? null : (raw ?? null) };
+      }
+    }
+    return null;
+  }
+
+  function onMove(e: PointerEvent) {
+    if (!_dragItemId) return;
+    const dx = e.clientX - _dragStartX, dy = e.clientY - _dragStartY;
+    if (!_dragging && Math.hypot(dx, dy) > 6) {
+      _dragging = true;
+      ghost.removeAttribute('hidden');
+      const tag = timeline.querySelector<HTMLElement>(`[data-id="${_dragItemId}"][data-drag="plan-item"]`);
+      ghost.textContent = tag?.querySelector('.rd-plan-tag-name')?.textContent ?? '';
+      document.body.style.cursor = 'grabbing';
+    }
+    if (_dragging) {
+      ghost.style.left = `${e.clientX + 12}px`;
+      ghost.style.top  = `${e.clientY - 12}px`;
+      timeline.querySelectorAll('.rd-plan-drop-zone').forEach(z => z.classList.remove('is-drag-over'));
+      findDropZone(e.clientX, e.clientY)?.el.classList.add('is-drag-over');
+    }
+  }
+
+  function onUp(e: PointerEvent) {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.body.style.cursor = '';
+    ghost.setAttribute('hidden', '');
+    timeline.querySelectorAll('.rd-plan-drop-zone').forEach(z => z.classList.remove('is-drag-over'));
+
+    if (_dragging && _dragItemId) {
+      const zone = findDropZone(e.clientX, e.clientY);
+      if (zone) {
+        const plans = (leg.plans ?? []).map(p =>
+          p.id === _dragItemId ? { ...p, dayId: zone.dayId } : p
+        );
+        patchLeg(leg.id, { plans: clean(plans) });
+      }
+    }
+    _dragItemId = null;
+    _dragging = false;
+  }
+
+  timeline.querySelectorAll<HTMLElement>('[data-drag="plan-item"]').forEach(tag => {
+    tag.addEventListener('pointerdown', e => {
+      if ((e.target as HTMLElement).closest('button')) return;
+      _dragItemId = tag.dataset.id!;
+      _dragStartX = e.clientX;
+      _dragStartY = e.clientY;
+      _dragging = false;
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
+  });
+}
+
+/* ── Plan item detail drawer ─────────────────────────────────────────────── */
+
+function openPlanItemDrawer(timeline: HTMLElement, leg: Leg, planId: string) {
+  const p = (leg.plans ?? []).find(x => x.id === planId);
+  if (!p) return;
+
+  timeline.querySelector('.rd-plan-drawer')?.remove();
+  const drawer = document.createElement('div');
+  drawer.className = 'rd-plan-drawer';
+
+  const catOptions = categorySelectOptions(leg, p.category ?? '');
+
+  drawer.innerHTML = `
+    <div class="rd-drawer-inner">
+      <div class="rd-drawer-header">
+        <button class="rd-plan-tag-check ${p.done ? 'is-done' : ''}" id="drw-done" title="Toggle done">${p.done ? '✓' : ''}</button>
+        <input class="rd-drawer-title-input input" id="drw-title" value="${esc(p.title)}" placeholder="Item title">
+        <button class="rd-icon-btn rd-danger" id="drw-del" title="Delete">✕</button>
+        <button class="rd-icon-btn" id="drw-close" title="Close">✕</button>
+      </div>
+      <div class="rd-drawer-body">
+        <div class="rd-drawer-row">
+          <label class="field-label">Category</label>
+          <select class="input select" id="drw-cat">${catOptions}</select>
+        </div>
+        <div class="rd-drawer-row">
+          <label class="field-label">Notes</label>
+          <textarea class="input rd-drawer-note" id="drw-note" placeholder="Jot what you know about this place…">${esc(p.note ?? '')}</textarea>
+        </div>
+        <div class="rd-drawer-row-2col">
+          <div>
+            <label class="field-label">Duration</label>
+            <input class="input" id="drw-duration" value="${esc(p.duration ?? '')}" placeholder="e.g. 2h">
+          </div>
+          <div>
+            <label class="field-label">Est. cost</label>
+            <input class="input" id="drw-cost" value="${esc(p.cost ?? '')}" placeholder="e.g. €15">
+          </div>
+        </div>
+        <div class="rd-drawer-row">
+          <label class="field-label">Maps link</label>
+          <input class="input" id="drw-map" value="${esc(p.mapUrl ?? '')}" placeholder="Paste Google Maps URL">
+        </div>
+        ${p.address ? `<div class="rd-drawer-row"><label class="field-label">Address</label><input class="input" id="drw-addr" value="${esc(p.address)}"></div>` : ''}
+      </div>
+      <div class="rd-drawer-footer">
+        <button class="btn btn-ghost rd-sm" id="drw-close2">Close</button>
+        <button class="btn btn-primary rd-sm" id="drw-save">Save</button>
+      </div>
+    </div>`;
+
+  timeline.querySelector('.rd-shell')!.appendChild(drawer);
+
+  const save = () => {
+    const patch: Partial<PlanItem> = {
+      title: (drawer.querySelector<HTMLInputElement>('#drw-title'))!.value.trim() || p.title,
+      category: (drawer.querySelector<HTMLSelectElement>('#drw-cat'))!.value,
+      note: (drawer.querySelector<HTMLTextAreaElement>('#drw-note'))!.value.trim() || undefined,
+      duration: (drawer.querySelector<HTMLInputElement>('#drw-duration'))!.value.trim() || undefined,
+      cost: (drawer.querySelector<HTMLInputElement>('#drw-cost'))!.value.trim() || undefined,
+      mapUrl: (drawer.querySelector<HTMLInputElement>('#drw-map'))!.value.trim() || undefined,
+    };
+    const plans = (leg.plans ?? []).map(x => x.id === planId ? { ...x, ...patch } : x);
+    patchLeg(leg.id, { plans: clean(plans) });
+    drawer.remove();
+  };
+
+  drawer.querySelector('#drw-save')?.addEventListener('click', save);
+  drawer.querySelector('#drw-close')?.addEventListener('click', () => drawer.remove());
+  drawer.querySelector('#drw-close2')?.addEventListener('click', () => drawer.remove());
+  drawer.querySelector('#drw-del')?.addEventListener('click', () => {
+    if (confirm('Delete this plan item?')) {
+      patchLeg(leg.id, { plans: (leg.plans ?? []).filter(x => x.id !== planId) });
+      drawer.remove();
+    }
+  });
+  drawer.querySelector('#drw-done')?.addEventListener('click', () => {
+    const plans = (leg.plans ?? []).map(x => x.id === planId ? { ...x, done: !x.done } : x);
+    patchLeg(leg.id, { plans });
+    drawer.remove();
+  });
+}
+
+/* ── Clip editor (add / edit) ────────────────────────────────────────────── */
+
+function openClipEditor(timeline: HTMLElement, leg: Leg, clipId: string | null) {
+  const existing = clipId ? (leg.clips ?? []).find(c => c.id === clipId) : undefined;
+  const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
+  const dlg = document.createElement('div');
+  dlg.className = 'rd-editor-overlay';
+
+  const catOptions = categorySelectOptions(leg, existing?.category ?? '');
+
+  dlg.innerHTML = `
+    <div class="rd-editor">
+      <div class="rd-editor-title">${existing ? 'Edit clip' : 'Add clip'}</div>
+      <div class="rd-editor-grid">
+        <div class="field-full">
+          <label class="field-label">Title</label>
+          <input class="input" id="ce-title" value="${esc(existing?.title)}" placeholder="e.g. 哥本哈根必去博物馆">
+        </div>
+        <div class="field-full">
+          <label class="field-label">Link (optional)</label>
+          <input class="input" id="ce-url" value="${esc(existing?.url)}" placeholder="https://…">
+        </div>
+        <div class="field-full">
+          <label class="field-label">Notes</label>
+          <textarea class="input rd-add-area" id="ce-body" placeholder="Key points, what caught your eye…">${esc(existing?.body ?? '')}</textarea>
+        </div>
+        <div class="field-full">
+          <label class="field-label">Category</label>
+          <select class="input select" id="ce-cat">${catOptions}</select>
+        </div>
+      </div>
+      <div class="rd-editor-btns">
+        <button class="btn btn-ghost" data-ed="cancel">Cancel</button>
+        <button class="btn btn-primary" data-ed="save">${existing ? 'Save' : 'Add clip'}</button>
+      </div>
+    </div>`;
+  host.appendChild(dlg);
+
+  const close = () => dlg.remove();
+  dlg.querySelector('[data-ed="cancel"]')!.addEventListener('click', close);
+  dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
+  dlg.querySelector('[data-ed="save"]')!.addEventListener('click', () => {
+    const title = fieldVal(dlg, 'ce-title');
+    const url = fieldVal(dlg, 'ce-url');
+    const body = fieldVal(dlg, 'ce-body');
+    const category = (dlg.querySelector('#ce-cat') as HTMLSelectElement).value;
+    if (!title && !url && !body) { alert('Add at least a title or link.'); return; }
+    const clips = leg.clips ?? [];
+    if (existing) {
+      const next = clips.map(c => c.id === clipId
+        ? { ...c, title: title || undefined, url: url || undefined, body: body || undefined, category }
+        : c);
+      patchLeg(leg.id, { clips: clean(next) });
+    } else {
+      const next: Clip = {
+        id: uid(), kind: url ? 'link' : 'note',
+        title: title || undefined, url: url || undefined,
+        body: body || undefined, category, order: clips.length,
+      };
+      patchLeg(leg.id, { clips: clean([...clips, next]) });
+    }
+    close();
+  });
+}
+
+/* ── Category editor ─────────────────────────────────────────────────────── */
+
+function openCategoryEditor(timeline: HTMLElement, leg: Leg) {
+  const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
+  const dlg = document.createElement('div');
+  dlg.className = 'rd-editor-overlay';
+
+  const paletteSwatches = CATEGORY_PALETTE.map(c =>
+    `<button class="rd-cat-swatch" data-color="${c}" style="background:${c}" type="button"></button>`
+  ).join('');
+
+  dlg.innerHTML = `
+    <div class="rd-editor" style="max-width:380px">
+      <div class="rd-editor-title">New category</div>
+      <div style="margin-bottom:var(--sp-3)">
+        <label class="field-label">Name</label>
+        <input class="input" id="cate-name" placeholder="e.g. 夜生活 Nightlife">
+      </div>
+      <div style="margin-bottom:var(--sp-4)">
+        <label class="field-label">Color</label>
+        <div class="rd-cat-palette" id="cate-palette">${paletteSwatches}</div>
+        <input type="hidden" id="cate-color" value="${CATEGORY_PALETTE[0]}">
+      </div>
+      <div class="rd-editor-btns">
+        <button class="btn btn-ghost" data-ed="cancel">Cancel</button>
+        <button class="btn btn-primary" data-ed="save">Create</button>
+      </div>
+    </div>`;
+  host.appendChild(dlg);
+
+  // Pre-select first colour
+  dlg.querySelector<HTMLElement>(`.rd-cat-swatch[data-color="${CATEGORY_PALETTE[0]}"]`)?.classList.add('is-selected');
+
+  dlg.querySelectorAll<HTMLElement>('.rd-cat-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      dlg.querySelectorAll('.rd-cat-swatch').forEach(s => s.classList.remove('is-selected'));
+      sw.classList.add('is-selected');
+      (dlg.querySelector('#cate-color') as HTMLInputElement).value = sw.dataset.color!;
+    });
+  });
+
+  const close = () => dlg.remove();
+  dlg.querySelector('[data-ed="cancel"]')!.addEventListener('click', close);
+  dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
+  dlg.querySelector('[data-ed="save"]')!.addEventListener('click', () => {
+    const label = fieldVal(dlg, 'cate-name');
+    const color = (dlg.querySelector('#cate-color') as HTMLInputElement).value;
+    if (!label) { alert('Enter a category name.'); return; }
+    const cats = leg.clipCategories ?? [];
+    const newCat: ClipCategory = { id: uid(), label, color, order: cats.length };
+    patchLeg(leg.id, { clipCategories: clean([...cats, newCat]) });
+    close();
   });
 }
 
