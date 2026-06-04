@@ -218,6 +218,11 @@
   font-weight: 700;
   margin-bottom: var(--sp-5);
 }
+.raf-trip-selector {
+  margin-bottom: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--rule-soft);
+}
 .route-add-form-grid {
   display: grid; grid-template-columns: 1fr 1fr;
   gap: var(--sp-3); margin-bottom: var(--sp-4);

@@ -288,15 +288,109 @@
 .leg-row-city { font-family: var(--font-ui); font-weight: 600; font-size: var(--fs-base); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leg-row-meta { font-size: var(--fs-xs); color: var(--ink-muted); }
 
-/* ── Empty state ───────────────────────────────────────────────────────── */
-.map-empty {
+/* ── All-footprints trip label ─────────────────────────────────────────── */
+.leg-trip-label {
+  padding: 6px 4px 2px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 2px;
+}
+.leg-trip-label:first-child { padding-top: 2px; }
+
+/* ── Empty / idle state ────────────────────────────────────────────────── */
+
+/* Hint banner overlaid on the idle outline world map */
+.map-idle-hint {
+  position: absolute;
+  bottom: var(--sp-6);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-full);
+  padding: 9px 18px;
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.map-idle-hint-text {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+.map-idle-hint-text a {
+  color: var(--accent-deep);
+  font-weight: 600;
+  pointer-events: auto;
+}
+
+/* Legacy art-based empty state (kept for safety, unused in current flow) */
+.map-empty,
+.map-setup-idle {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   text-align: center; padding: var(--sp-12) var(--sp-6); gap: var(--sp-3); min-height: 460px;
 }
 .map-empty-art { width: 96px; height: 96px; opacity: 0.9; }
 .map-empty-title { font-family: var(--font-ui); font-weight: 700; font-size: var(--fs-xl); color: var(--ink); }
 .map-empty-sub { color: var(--ink-muted); max-width: 320px; }
-.map-empty-sub a { color: var(--accent-deep); font-weight: 600; }
+.map-empty-sub a, .map-setup-empty-trips a { color: var(--accent-deep); font-weight: 600; }
+
+/* ── Map setup panel ───────────────────────────────────────────────────── */
+.map-setup {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+.map-setup-section {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.map-setup-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+.map-setup-hint {
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+  margin-bottom: var(--sp-1);
+}
+.map-setup-select { width: 100%; }
+.map-setup-btn { width: 100%; justify-content: center; }
+.map-setup-empty-trips {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  padding: var(--sp-2) 0;
+}
+.map-setup-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-5);
+  color: var(--ink-muted);
+  font-size: var(--fs-xs);
+}
+.map-setup-divider::before,
+.map-setup-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+.map-setup-divider span { flex-shrink: 0; }
 
 /* ── Responsive ────────────────────────────────────────────────────────── */
 @media (max-width: 1180px) {

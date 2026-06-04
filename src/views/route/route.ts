@@ -10,8 +10,9 @@
 
 import './route.css';
 import { routeStore } from '../../data/stores/route-store.ts';
-import { currentTrip } from '../../data/trip-context.ts';
+import { currentTrip, currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
 import { navigateTo } from '../../core/app.ts';
+import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import type {
   Leg as SchemaLeg, PlanItem, Clip,
 } from '../../data/schema.ts';
@@ -51,6 +52,10 @@ let legs: Leg[] = [];
 let addFormOpen = false;
 let selectedLegId: string | null = null;   // null = list view
 let _unsubRoute: (() => void) | null = null;
+let _tripList: StoredTrip[] = [];          // cached for the add-form trip selector
+let _countryPicker: DestinationInputInstance | null = null;
+let _cityPicker: DestinationInputInstance | null = null;
+let _fromPicker: DestinationInputInstance | null = null;
 
 function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
@@ -117,7 +122,7 @@ function planMapHref(p: PlanItem, leg: Leg): string {
 /* ── Mutations (all async → Firestore) ──────────────────────────────────── */
 
 async function addLeg(city: string, country: string, dateFrom: string, dateTo: string,
-                      transportType: string, transportFrom: string) {
+                      transportType: string, transportFrom: string, transportVia: string[] = []) {
   const row: Partial<SchemaLeg> & { id: string } = {
     id: uid(), city, country,
     flag: FLAG_MAP[country] ?? '🗺️',
@@ -128,6 +133,7 @@ async function addLeg(city: string, country: string, dateFrom: string, dateTo: s
     row.arrivalTransport = {
       type: transportType as Transport['type'],
       from: transportFrom, to: city, date: dateFrom,
+      ...(transportVia.length ? { via: transportVia } : {}),
       confirmed: false,
     };
   }
@@ -246,18 +252,38 @@ function renderTimeline(): string {
     </div>`;
 }
 
+function renderTripSelector(): string {
+  if (_tripList.length === 0) return '';
+  const active = currentTripId();
+  const options = _tripList.map((t) =>
+    `<label class="pk-scope-option">
+      <input type="radio" name="raf-trip" value="${esc(t.id)}" ${t.id === active ? 'checked' : ''}>
+      <span class="pk-scope-label">
+        <span class="pk-scope-title">${esc(t.name)}</span>
+        <span class="pk-scope-desc">${t.startDate ? `${t.startDate} → ${t.endDate ?? '…'}` : 'No dates set'}</span>
+      </span>
+    </label>`
+  ).join('');
+  return `
+    <div class="raf-trip-selector">
+      <div class="field-label" style="margin-bottom:var(--sp-2)">Trip</div>
+      <div class="pk-scope-group">${options}</div>
+    </div>`;
+}
+
 function renderAddForm(): string {
   return `
     <div class="route-add-form ${addFormOpen ? 'open' : ''}" id="route-add-form">
       <div class="route-add-form-title">Add a stop</div>
+      ${renderTripSelector()}
       <div class="route-add-form-grid">
         <div>
           <label class="field-label">Country</label>
-          <input class="input" id="raf-country" placeholder="e.g. Czech Republic">
+          <div id="raf-country-mount"></div>
         </div>
         <div>
           <label class="field-label">City</label>
-          <input class="input" id="raf-city" placeholder="e.g. Prague">
+          <div id="raf-city-mount"></div>
         </div>
         <div>
           <label class="field-label">Arrival date</label>
@@ -279,7 +305,7 @@ function renderAddForm(): string {
         </div>
         <div>
           <label class="field-label">Coming from</label>
-          <input class="input" id="raf-from-city" placeholder="e.g. Vienna">
+          <div id="raf-from-mount"></div>
         </div>
       </div>
       <div class="route-add-form-btns">
@@ -508,10 +534,47 @@ function render() {
 
 /* ── Wiring: list ───────────────────────────────────────────────────────── */
 
-function openAddForm(timeline: HTMLElement) {
+function destroyPickers() {
+  _countryPicker?.destroy(); _countryPicker = null;
+  _cityPicker?.destroy();    _cityPicker = null;
+  _fromPicker?.destroy();    _fromPicker = null;
+}
+
+async function openAddForm(timeline: HTMLElement) {
   addFormOpen = true;
+  try { _tripList = await listTrips(); } catch { _tripList = []; }
   render();
+  mountAddFormPickers(timeline);
   timeline.querySelector('#route-add-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function mountAddFormPickers(timeline: HTMLElement) {
+  destroyPickers();
+  const countryMount = timeline.querySelector<HTMLElement>('#raf-country-mount');
+  const cityMount    = timeline.querySelector<HTMLElement>('#raf-city-mount');
+  if (countryMount) {
+    _countryPicker = createDestinationInput({
+      container: countryMount,
+      placeholder: 'e.g. Czech Republic',
+      maxTags: 1,
+    });
+  }
+  if (cityMount) {
+    _cityPicker = createDestinationInput({
+      container: cityMount,
+      placeholder: 'e.g. Prague',
+      maxTags: 1,
+    });
+  }
+  const fromMount = timeline.querySelector<HTMLElement>('#raf-from-mount');
+  if (fromMount) {
+    // Multiple tags = connecting trip (联程): first is the origin, the rest are
+    // stopovers in order, e.g. Harbin · Beijing → (destination).
+    _fromPicker = createDestinationInput({
+      container: fromMount,
+      placeholder: 'Origin, then any stopovers',
+    });
+  }
 }
 
 function wireList(timeline: HTMLElement) {
@@ -521,17 +584,27 @@ function wireList(timeline: HTMLElement) {
   });
 
   timeline.querySelector('#raf-cancel')?.addEventListener('click', () => {
+    destroyPickers();
     addFormOpen = false;
     render();
   });
 
-  timeline.querySelector('#raf-save')?.addEventListener('click', () => {
+  timeline.querySelector('#raf-save')?.addEventListener('click', async () => {
     const val = (id: string) => (timeline.querySelector('#' + id) as HTMLInputElement | HTMLSelectElement)?.value ?? '';
-    const city = val('raf-city'), country = val('raf-country');
+    const country = _countryPicker?.getValues()[0] ?? '';
+    const city    = _cityPicker?.getValues()[0]    ?? '';
     const from = val('raf-from'), to = val('raf-to');
-    const tType = val('raf-transport'), tFrom = val('raf-from-city');
+    const tType = val('raf-transport');
+    const fromChain = _fromPicker?.getValues() ?? [];
+    const tFrom = fromChain[0] ?? '';
+    const tVia  = fromChain.slice(1);   // connecting-flight stopovers (联程)
     if (!city || !from || !to) { alert('Please fill in city and both dates.'); return; }
-    addLeg(city, country, from, to, tType, tFrom);
+    const chosenTripId = (timeline.querySelector<HTMLInputElement>('input[name="raf-trip"]:checked'))?.value;
+    if (chosenTripId && chosenTripId !== currentTripId()) {
+      await switchTrip(chosenTripId);
+    }
+    destroyPickers();
+    addLeg(city, country, from, to, tType, tFrom, tVia);
   });
 
   timeline.querySelectorAll<HTMLElement>('[data-act="open"]').forEach((card) => {
@@ -677,6 +750,10 @@ function openTransportEditor(timeline: HTMLElement, leg: Leg) {
           <input class="input" id="te-from" value="${esc(t?.from)}" placeholder="e.g. Vienna">
         </div>
         <div>
+          <label class="field-label">Via (stopovers)</label>
+          <input class="input" id="te-via" value="${esc((t?.via ?? []).join(', '))}" placeholder="e.g. Beijing (联程)">
+        </div>
+        <div>
           <label class="field-label">Service / number</label>
           <input class="input" id="te-service" value="${esc(t?.service)}" placeholder="e.g. EC 79 / LH 234">
         </div>
@@ -726,9 +803,11 @@ function openTransportEditor(timeline: HTMLElement, leg: Leg) {
   dlg.querySelector('[data-ed="save"]')!.addEventListener('click', () => {
     const from = fieldVal(dlg, 'te-from');
     if (!from) { alert('Add where you\'re coming from.'); return; }
+    const via = fieldVal(dlg, 'te-via').split(',').map((s) => s.trim()).filter(Boolean);
     const next: Transport = {
       type: fieldVal(dlg, 'te-type') as Transport['type'],
       from, to: leg.city, date: leg.dateFrom,
+      ...(via.length ? { via } : {}),
       service: fieldVal(dlg, 'te-service') || undefined,
       bookingRef: fieldVal(dlg, 'te-ref') || undefined,
       time: fieldVal(dlg, 'te-time') || undefined,
@@ -822,6 +901,7 @@ function openStayEditor(timeline: HTMLElement, leg: Leg, stayKey: string | null)
 export function initRoute() {
   // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
   _unsubRoute?.();
+  destroyPickers();
   legs = [];
   selectedLegId = null;
   addFormOpen = false;

@@ -180,6 +180,10 @@ const TransportSchema = z.object({
   type: z.enum(['flight', 'train', 'bus', 'ferry']),
   from: z.string(),
   to: z.string(),
+  // Connecting-flight / multi-segment legs (联程). Ordered list of intermediate
+  // stopover cities between `from` and `to`, e.g. Harbin →[Beijing]→ Copenhagen.
+  // The map animates through these as waypoints; empty/absent = direct.
+  via: z.array(z.string()).optional(),
   date: z.string(),
   time: z.string().optional(),
   arrivalTime: z.string().optional(),   // arrival clock time

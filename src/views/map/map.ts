@@ -1,30 +1,60 @@
 /* ==========================================================================
    On the Road · My Map (amCharts5)
+   --------------------------------------------------------------------------
+   Fully data-driven: plots whatever cities the itinerary contains (bundled
+   coords + online geocoding fallback), lights the countries along the route,
+   auto-fits the camera, and — when every stop is in one country — drills into
+   that country's regions and animates city-to-city inside it.
+
+   The outbound/return "home" flight is derived from the itinerary itself: the
+   first leg's arrivalTransport tells us where the traveller came from, and its
+   `via[]` carries any connecting-flight stopovers (联程). Nothing is hardcoded
+   to a particular trip.
    ========================================================================== */
 
 import './map.css';
 import { renderViewTitleMarkup } from '../../core/app.ts';
-import { cityLocationsFor, isoFor, EUROPE_CENTER } from './geo.ts';
+import { resolveCityLocations, isoFor, EUROPE_CENTER } from './geo.ts';
+import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
 import { MAP_COLORS as C, countryColor } from './map-shared.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
-import { onTripChange } from '../../data/trip-context.ts';
+import {
+  onTripChange, listTrips, switchTrip, currentTripId,
+  type StoredTrip,
+} from '../../data/trip-context.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
 const HERO_GIF  = `${ART}logo.gif`;
 const PLANE_PNG = `${ART}plane.png`;
 
-interface Leg {
+interface StoredLegInput {
   id: string; city: string; country: string; flag: string;
   dateFrom: string; dateTo: string; notes?: string;
+  order?: number; lat?: number; lng?: number;
+  tripId?: string | null;
+  arrivalTransport?: {
+    type: string; from: string; to: string; via?: string[];
+  };
 }
-interface PlottedLeg extends Leg {
+interface PlottedLeg {
+  id: string; city: string; country: string; flag: string;
+  dateFrom: string; dateTo: string; notes?: string;
+  tripId?: string | null;
+  tripName?: string;
   lat: number;
   lng: number;
   iso: string | null;
   stops: Array<{ key: string; name: string; lat: number; lng: number }>;
+}
+interface GeoPt { lat: number; lng: number; }
+/** A derived home flight: an ordered chain of city waypoints. */
+interface FlightChain {
+  label: string;
+  sub: string;
+  waypoints: GeoPt[];
 }
 interface CountryStop {
   key: string;
@@ -38,17 +68,10 @@ interface OverlayItem {
   lat: number;
 }
 
-/* Colors and country data imported from map-shared.ts */
-
-/* ── Flight waypoints ─────────────────────────────────────────────────────── */
-const HARBIN  = { lat: 45.8038, lng: 126.5350 };
-const BEIJING = { lat: 39.9042, lng: 116.4074 };
-const CPH     = { lat: 55.6761, lng:  12.5683 };
-const HOME_COUNTRY_ISO = 'CN';
-
+/* ── Bézier arc helpers ──────────────────────────────────────────────────── */
 /* Quadratic Bézier arc — perpendicular-left bend (flight-map style) */
 function arcPoints(
-  from: {lat:number;lng:number}, to: {lat:number;lng:number},
+  from: GeoPt, to: GeoPt,
   n = 20, bendFraction = 0.15,
 ): [number,number][] {
   const dLng = to.lng - from.lng, dLat = to.lat - from.lat;
@@ -66,20 +89,28 @@ function arcPoints(
   }
   return pts;
 }
-function bezierWaypoints(from:{lat:number;lng:number}, to:{lat:number;lng:number}, bend=0.25, n=30) {
+function bezierWaypoints(from:GeoPt, to:GeoPt, bend=0.25, n=30) {
   return arcPoints(from, to, n, bend).map(([lng,lat]) => ({lat, lng}));
 }
 
 /* Waypoints whose count is proportional to geo distance, so that with a fixed
    per-waypoint duration the plane moves at a constant *visual* speed across
    segments of different lengths. ~one waypoint per `degPerStep` degrees. */
-function evenSpeedWaypoints(
-  from:{lat:number;lng:number}, to:{lat:number;lng:number}, bend=0.25, degPerStep=1.6,
-) {
+function evenSpeedWaypoints(from:GeoPt, to:GeoPt, bend=0.25, degPerStep=1.6) {
   const dLng = to.lng - from.lng, dLat = to.lat - from.lat;
   const chord = Math.sqrt(dLng*dLng + dLat*dLat);
   const n = Math.max(2, Math.round(chord / degPerStep));
   return bezierWaypoints(from, to, bend, n);
+}
+
+/** Even-speed waypoints through a chain of geo points (for connecting flights). */
+function chainWaypoints(chain: GeoPt[], bend = 0.22): GeoPt[] {
+  const out: GeoPt[] = [];
+  for (let i = 0; i < chain.length - 1; i++) {
+    const seg = evenSpeedWaypoints(chain[i], chain[i + 1], bend);
+    out.push(...(i > 0 ? seg.slice(1) : seg));
+  }
+  return out;
 }
 
 /* ── State ────────────────────────────────────────────────────────────────── */
@@ -96,14 +127,18 @@ let _drillSeries: any = null;
 let _drillCode:   string | null = null;
 let _replayTimer:      number | null = null;
 let _planeReplayTimer: number | null = null;
-let _outboundPanTimer: number | null = null;
-let _returnPanTimer: number | null = null;
+let _flightPanTimer: number | null = null;
 let _paused = false;
 let _playing = false;
 let _legsRef: PlottedLeg[] = [];
+let _outboundChain: FlightChain | null = null;
+let _returnChain: FlightChain | null = null;
+let _singleCountryIso: string | null = null;   // set when the whole trip is in one country
 let _regionLabelOverlays: OverlayItem[] = [];
 let _countryPinOverlays: OverlayItem[] = [];
 let _activeMotionId: string | null = null;
+let _buildToken = 0;   // guards against stale async builds after teardown/scope switch
+let _tripNames  = new Map<string, string>();   // tripId → trip name cache
 
 function setReplayBtnLabel(playing: boolean) {
   const btn = document.getElementById('mapReplay');
@@ -111,14 +146,83 @@ function setReplayBtnLabel(playing: boolean) {
 }
 
 /* ── Data ─────────────────────────────────────────────────────────────────── */
-function plot(legs: Leg[]): PlottedLeg[] {
-  return legs.flatMap((leg) => {
-    const stops = cityLocationsFor(leg.city);
-    const anchor = stops[0];
-    if (!anchor) return [];
-    return [{ ...leg, lat: anchor.lat, lng: anchor.lng, iso: isoFor(leg.country), stops }];
-  });
+/**
+ * Resolve every leg's cities to coordinates (bundled + online), persisting the
+ * anchor coords back onto the leg so we don't re-geocode next time. Drops legs
+ * whose city can't be located at all.
+ */
+async function plotLegs(stored: StoredLegInput[]): Promise<PlottedLeg[]> {
+  const out: PlottedLeg[] = [];
+  for (const leg of stored) {
+    const { stops, iso } = await resolveCityLocations(leg.city, leg.country);
+    let anchor = stops[0];
+    // Fall back to any persisted coords on the leg if geocoding came up empty.
+    if (!anchor && leg.lat != null && leg.lng != null) {
+      anchor = { key: leg.city.toLowerCase(), name: leg.city, lat: leg.lat, lng: leg.lng };
+      stops.push(anchor);
+    }
+    if (!anchor) continue;
+    const resolvedIso = iso ?? isoFor(leg.country);
+    const tripName = leg.tripId ? _tripNames.get(leg.tripId) : undefined;
+    out.push({
+      id: leg.id, city: leg.city, country: leg.country, flag: leg.flag,
+      dateFrom: leg.dateFrom, dateTo: leg.dateTo, notes: leg.notes,
+      tripId: leg.tripId, tripName,
+      lat: anchor.lat, lng: anchor.lng, iso: resolvedIso, stops,
+    });
+    // Persist anchor coords if missing/changed, so subsequent loads are instant.
+    if (leg.lat !== anchor.lat || leg.lng !== anchor.lng) {
+      routeStore.update(leg.id, { lat: anchor.lat, lng: anchor.lng }).catch(() => {});
+    }
+  }
+  return out;
 }
+
+/**
+ * Build the outbound home flight from the first leg's arrivalTransport:
+ *   origin (transport.from) →[via…]→ first leg's city.
+ * Returns null when there's no usable origin (e.g. the trip starts at home).
+ */
+async function buildOutboundChain(legs: PlottedLeg[], stored: StoredLegInput[]): Promise<FlightChain | null> {
+  const firstStored = stored.find((s) => s.id === legs[0]?.id);
+  const t = firstStored?.arrivalTransport;
+  if (!t?.from) return null;
+  const names = [t.from, ...(t.via ?? [])];
+  const pts: GeoPt[] = [];
+  const labels: string[] = [];
+  for (const name of names) {
+    const hit = await geocode(name);
+    if (!hit) continue;
+    pts.push({ lat: hit.lat, lng: hit.lng });
+    labels.push(name);
+  }
+  if (pts.length === 0) return null;
+  const dest = legs[0];
+  pts.push({ lat: dest.lat, lng: dest.lng });
+  labels.push(dest.city);
+  return {
+    label: `${labels[0]} → ${dest.city}`,
+    sub: labels.join(' · '),
+    waypoints: chainWaypoints(pts),
+  };
+}
+
+/** Return flight = outbound reversed (back home from the last leg). */
+function buildReturnChain(outbound: FlightChain | null, legs: PlottedLeg[]): FlightChain | null {
+  if (!outbound) return null;
+  const reversed = [...outbound.waypoints].reverse();
+  const last = legs[legs.length - 1];
+  // Start the return from the actual last stop, not the outbound destination.
+  reversed[0] = { lat: last.lat, lng: last.lng };
+  const subParts = outbound.sub.split(' · ');
+  const home = subParts[0];
+  return {
+    label: `${last.city} → ${home}`,
+    sub: [last.city, ...subParts.slice(0, -1).reverse()].join(' · '),
+    waypoints: reversed,
+  };
+}
+
 function fmtRange(from: string, to: string): string {
   const o: Intl.DateTimeFormatOptions = { month:'short', day:'numeric' };
   return `${new Date(from).toLocaleDateString('en-US',o)} – ${new Date(to).toLocaleDateString('en-US',o)}`;
@@ -308,33 +412,11 @@ export function initMap() {
 
   view.querySelector('.view-header')!.innerHTML = `
     <div class="view-title">${renderViewTitleMarkup('map', 'My Map')}</div>
-    <div class="view-subtitle">Your footprint across Europe — click a country to zoom into its regions.</div>`;
+    <div class="view-subtitle">Your footprint, plotted from your itinerary — click a country to zoom into its regions.</div>`;
 
   const body = view.querySelector('.stub-body');
   if (body) {
-    body.outerHTML = `
-      <div class="map-layout">
-        <div class="map-stage">
-          <div id="mapChart" class="map-chart"></div>
-          <div class="map-region-labels" id="mapRegionLabels"></div>
-          <div class="map-country-pins" id="mapCountryPins"></div>
-          <div class="map-tooltip" id="mapTooltip">
-            <span class="map-tooltip-name" id="mapTooltipName"></span>
-            <span class="map-tooltip-meta" id="mapTooltipMeta"></span>
-          </div>
-          <div class="map-toolbar">
-            <button class="map-tool-btn" id="mapReplay" title="Replay route">▶ Replay route</button>
-            <button class="map-tool-btn" id="mapBack" title="Back to Europe" hidden>← Back</button>
-          </div>
-          <div class="map-zoom-controls">
-            <button class="map-zoom-btn" id="mapZoomIn"  title="Zoom in">+</button>
-            <button class="map-zoom-btn" id="mapZoomFit" title="Fit to route">⊡</button>
-            <button class="map-zoom-btn" id="mapZoomOut" title="Zoom out">−</button>
-          </div>
-          <div class="map-loading" id="mapLoading">Loading map…</div>
-        </div>
-        <aside class="map-panel"></aside>
-      </div>`;
+    body.outerHTML = stageMarkup();
   }
 
   // Subscribe to legs for the active scope. Re-runnable: on scope change or
@@ -347,6 +429,37 @@ export function initMap() {
   });
 }
 
+function stageMarkup(): string {
+  return `
+    <div class="map-layout">
+      <div class="map-stage">
+        ${stageInnerMarkup()}
+      </div>
+      <aside class="map-panel"></aside>
+    </div>`;
+}
+
+function stageInnerMarkup(): string {
+  return `
+    <div id="mapChart" class="map-chart"></div>
+    <div class="map-region-labels" id="mapRegionLabels"></div>
+    <div class="map-country-pins" id="mapCountryPins"></div>
+    <div class="map-tooltip" id="mapTooltip">
+      <span class="map-tooltip-name" id="mapTooltipName"></span>
+      <span class="map-tooltip-meta" id="mapTooltipMeta"></span>
+    </div>
+    <div class="map-toolbar">
+      <button class="map-tool-btn" id="mapReplay" title="Replay route">▶ Replay route</button>
+      <button class="map-tool-btn" id="mapBack" title="Back to overview" hidden>← Back</button>
+    </div>
+    <div class="map-zoom-controls">
+      <button class="map-zoom-btn" id="mapZoomIn"  title="Zoom in">+</button>
+      <button class="map-zoom-btn" id="mapZoomFit" title="Fit to route">⊡</button>
+      <button class="map-zoom-btn" id="mapZoomOut" title="Zoom out">−</button>
+    </div>
+    <div class="map-loading" id="mapLoading">Loading map…</div>`;
+}
+
 /** Dispose the amCharts root so the next leg snapshot reboots the chart. */
 function teardownChart() {
   if (_root) { try { _root.dispose(); } catch { /* ignore */ } }
@@ -354,64 +467,222 @@ function teardownChart() {
   _chart = null;
 }
 
+/**
+ * Render a minimal "outline only" world map into #mapChart — no fills, no
+ * route, no pins. Used for the empty / setup state so the stage always shows
+ * a real globe instead of a loading spinner.
+ */
+async function bootIdleChart() {
+  if (_chart) return;
+  const el = document.getElementById('mapChart');
+  if (!el) return;
+  const idleToken = _buildToken;
+  try {
+    await loadAmCharts();
+  } catch { return; }
+  // Bail if legs arrived during the async load (buildAndBoot already took over).
+  if (_chart || idleToken !== _buildToken) return;
+  // Also bail if the DOM element is gone (buildAndBoot replaced the stage HTML).
+  if (!document.getElementById('mapChart')) return;
+
+  const root = am5.Root.new('mapChart');
+  _root = root;
+  if (root._logo) root._logo.dispose();
+
+  const chart = root.container.children.push(am5map.MapChart.new(root, {
+    projection: am5map.geoMercator(),
+    panX: 'translateX', panY: 'translateY',
+    wheelY: 'zoom', pinchZoom: true,
+    zoomStep: 1.4, maxZoomLevel: 16, minZoomLevel: 0.8,
+    wheelSensitivity: 0.6,
+    homeGeoPoint: EUROPE_CENTER,
+  }));
+  _chart = chart;
+
+  const world = chart.series.push(am5map.MapPolygonSeries.new(root, {
+    geoJSON: am5geodata_worldLow, exclude: ['AQ'],
+  }));
+  world.mapPolygons.template.setAll({
+    interactive: false,
+    fill: am5.color('#f7f5f0'),
+    stroke: am5.color('#d8d0c0'),
+    strokeWidth: 0.7,
+    nonScalingStroke: true,
+  });
+
+  chart.appear(600, 80);
+  document.getElementById('mapLoading')?.remove();
+}
+
 function subscribeLegs(view: HTMLElement) {
   _unsubLegs?.();
   teardownChart();
+  // Clear trip-name cache on scope switch so it re-fetches fresh names.
+  _tripNames.clear();
+  const token = ++_buildToken;
   const subscribe = _scope === 'all' ? routeStore.subscribeAll : routeStore.subscribe;
   _unsubLegs = subscribe((storedLegs) => {
-    const legs = plot(storedLegs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) as Leg[]);
+    if (token !== _buildToken) return;
+    // All-footprints: sort chronologically across trips by start date.
+    // Single-trip: preserve the user's custom order within the trip.
+    const stored = (storedLegs as unknown as StoredLegInput[]).slice().sort(
+      _scope === 'all'
+        ? (a, b) => (a.dateFrom ?? '').localeCompare(b.dateFrom ?? '')
+        : (a, b) => (a.dateFrom ?? '').localeCompare(b.dateFrom ?? '') || (a.order ?? 0) - (b.order ?? 0),
+    );
 
-    // Chart already running — just refresh the side panel
-    if (_chart) {
-      renderPanel(view, legs);
+    // Chart already running with real legs — refresh the side panel.
+    if (_chart && _legsRef.length > 0) {
+      renderPanel(view, _legsRef);
       return;
     }
 
-    // No legs yet (empty cache or genuinely empty) — show placeholder and keep listening
-    if (legs.length === 0) {
-      const stage = view.querySelector<HTMLElement>('.map-stage');
-      if (stage && !stage.querySelector('.map-empty')) {
-        stage.innerHTML = `
-          <div class="map-empty">
-            <img src="${ART}earth_trans.png" alt="" class="map-empty-art">
-            <div class="map-empty-title">No route yet</div>
-            <div class="map-empty-sub">Add cities in <a href="#route">Itinerary</a> and they'll appear here.</div>
-          </div>`;
-      }
+    // No legs for this trip yet — show the setup panel.
+    if (stored.length === 0 && _scope === 'trip') {
+      showSetupPanel(view, token);
       return;
     }
 
-    // Legs arrived — restore stage DOM if empty state was shown, then boot chart once
-    const stage = view.querySelector<HTMLElement>('.map-stage');
-    if (stage?.querySelector('.map-empty')) {
-      stage.innerHTML = `
-        <div id="mapChart" class="map-chart"></div>
-        <div class="map-region-labels" id="mapRegionLabels"></div>
-        <div class="map-country-pins" id="mapCountryPins"></div>
-        <div class="map-tooltip" id="mapTooltip">
-          <span class="map-tooltip-name" id="mapTooltipName"></span>
-          <span class="map-tooltip-meta" id="mapTooltipMeta"></span>
-        </div>
-        <div class="map-toolbar">
-          <button class="map-tool-btn" id="mapReplay" title="Replay route">▶ Replay route</button>
-          <button class="map-tool-btn" id="mapBack" title="Back to Europe" hidden>← Back</button>
-        </div>
-        <div class="map-zoom-controls">
-          <button class="map-zoom-btn" id="mapZoomIn"  title="Zoom in">+</button>
-          <button class="map-zoom-btn" id="mapZoomFit" title="Fit to route">⊡</button>
-          <button class="map-zoom-btn" id="mapZoomOut" title="Zoom out">−</button>
-        </div>
-        <div class="map-loading" id="mapLoading">Loading map…</div>`;
+    // No footprints at all in "all" mode — simple empty state.
+    if (stored.length === 0) {
+      showEmpty(view);
+      return;
     }
 
-    renderPanel(view as HTMLElement, legs);
-    loadAmCharts()
-      .then(() => { bootChart(view as HTMLElement, legs); preloadDrilldownCountries(); })
-      .catch((err) => {
-        console.error('amCharts load failed', err);
-        const el = document.getElementById('mapLoading'); if (el) el.textContent = 'Map failed to load.';
-      });
+    // Plot asynchronously (geocoding may hit the network), then boot the chart.
+    buildAndBoot(view, stored, token);
   });
+}
+
+function showEmpty(view: HTMLElement) {
+  const panel = view.querySelector<HTMLElement>('.map-panel');
+  if (panel) panel.innerHTML = scopeToggleMarkup();
+  wireScopeToggle(view);
+  const stage = view.querySelector<HTMLElement>('.map-stage');
+  if (!stage) return;
+  if (!stage.querySelector('.map-idle-hint')) {
+    teardownChart();
+    stage.innerHTML = `
+      <div id="mapChart" class="map-chart"></div>
+      <div class="map-idle-hint">
+        <span class="map-idle-hint-text">No footprints yet — add cities in <a href="#route">Itinerary</a> to build your travel history.</span>
+      </div>`;
+    bootIdleChart();
+  }
+}
+
+/** Show when the current trip has no legs: let user link a trip or add stops manually. */
+async function showSetupPanel(view: HTMLElement, token: number) {
+  const stage = view.querySelector<HTMLElement>('.map-stage');
+  const panel = view.querySelector<HTMLElement>('.map-panel');
+  if (!stage || !panel) return;
+
+  // Stage: outline world map + hint banner overlay.
+  // Always rebuild if we don't already have the idle hint (e.g. stageInnerMarkup
+  // was written during init before we knew the trip had no legs).
+  if (!stage.querySelector('.map-idle-hint')) {
+    teardownChart();
+    stage.innerHTML = `
+      <div id="mapChart" class="map-chart"></div>
+      <div class="map-idle-hint">
+        <span class="map-idle-hint-text">No itinerary yet — link a trip or add stops to plot your route.</span>
+      </div>`;
+    bootIdleChart();
+  }
+
+  // Load trip list for the picker
+  let trips: StoredTrip[] = [];
+  try { trips = await listTrips(); } catch { /* ignore */ }
+  if (token !== _buildToken) return;
+
+  const tripOptions = trips.map((t) => `
+    <option value="${esc(t.id)}"${t.id === currentTripId() ? ' selected' : ''}>${esc(t.name)}</option>`
+  ).join('');
+
+  panel.innerHTML = `
+    ${scopeToggleMarkup()}
+    <div class="map-setup">
+      <div class="map-setup-section">
+        <div class="map-setup-label">Link a trip</div>
+        <div class="map-setup-hint">Pull stops from an existing itinerary</div>
+        ${trips.length ? `
+          <select class="input select map-setup-select" id="mapTripSelect">
+            <option value="">— choose a trip —</option>
+            ${tripOptions}
+          </select>
+          <button class="btn btn-primary map-setup-btn" id="mapLinkTrip">Use this trip</button>
+        ` : `
+          <div class="map-setup-empty-trips">No trips yet. <a href="#route">Go to Itinerary</a> to create one.</div>
+        `}
+      </div>
+      <div class="map-setup-divider"><span>or</span></div>
+      <div class="map-setup-section">
+        <div class="map-setup-label">Add stops manually</div>
+        <div class="map-setup-hint">Go to Itinerary to add your first city</div>
+        <button class="btn btn-ghost map-setup-btn" id="mapAddManual">Go to Itinerary →</button>
+      </div>
+    </div>`;
+
+  wireScopeToggle(view);
+
+  // Wire link-trip button
+  document.getElementById('mapLinkTrip')?.addEventListener('click', async () => {
+    const sel = document.getElementById('mapTripSelect') as HTMLSelectElement | null;
+    const id = sel?.value;
+    if (!id) return;
+    await switchTrip(id);
+    // onTripChange fires subscribeLegs → will re-render with the new trip's legs
+  });
+
+  // Wire manual add → navigate to itinerary
+  document.getElementById('mapAddManual')?.addEventListener('click', () => {
+    import('../../core/app.ts').then(({ navigateTo }) => navigateTo('route'));
+  });
+}
+
+function esc(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!));
+}
+
+async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: number) {
+  const stage = view.querySelector<HTMLElement>('.map-stage');
+  // If we were showing an idle outline chart, tear it down and rebuild with full markup.
+  if (stage?.querySelector('.map-empty, .map-setup-idle, .map-idle-hint')) {
+    teardownChart();
+    stage.innerHTML = stageInnerMarkup();
+  }
+
+  // Pre-load trip names for "all footprints" so leg rows can show the trip label.
+  if (_scope === 'all' && _tripNames.size === 0) {
+    try {
+      const trips = await listTrips();
+      for (const t of trips) _tripNames.set(t.id, t.name);
+    } catch { /* best-effort */ }
+    if (token !== _buildToken) return;
+  }
+
+  const legs = await plotLegs(stored);
+  if (token !== _buildToken) return;   // scope/trip changed mid-geocode
+  if (legs.length === 0) { showEmpty(view); return; }
+
+  _outboundChain = await buildOutboundChain(legs, stored);
+  if (token !== _buildToken) return;
+  _returnChain   = buildReturnChain(_outboundChain, legs);
+
+  // Single-country trip → we'll drill into its regions for the animation.
+  const isos = new Set(legs.map((l) => l.iso).filter(Boolean) as string[]);
+  _singleCountryIso = (isos.size === 1 && DRILLDOWN_COUNTRIES[[...isos][0]]) ? [...isos][0] : null;
+
+  renderPanel(view, legs);
+  try {
+    await loadAmCharts();
+    if (token !== _buildToken) return;
+    bootChart(view, legs);
+    preloadDrilldownCountries();
+  } catch (err) {
+    console.error('amCharts load failed', err);
+    const el = document.getElementById('mapLoading'); if (el) el.textContent = 'Map failed to load.';
+  }
 }
 
 /* ── Chart ────────────────────────────────────────────────────────────────── */
@@ -427,7 +698,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     panX:'translateX', panY:'translateY',
     wheelY:'zoom', pinchZoom:true,
     zoomStep:1.4, maxZoomLevel:64, minZoomLevel:1,
-    wheelSensitivity:0.6, homeGeoPoint:EUROPE_CENTER,
+    wheelSensitivity:0.6, homeGeoPoint:routeCenter(legs),
   }));
   _chart = chart;
 
@@ -472,19 +743,18 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     drillCountry(id, ev.target.dataItem.dataContext?.name??id, legs, ev.target);
   });
 
-  /* Flight arcs */
-  const flightSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
-  flightSeries.mapLines.template.setAll({
-    stroke:am5.color('#7b9bbf'), strokeWidth:2, strokeOpacity:0.65, strokeDasharray:[5,7],
-  });
-  flightSeries.pushDataItem({ geometry:{ type:'LineString', coordinates:[
-    ...arcPoints(HARBIN, BEIJING, 12, 0.25),
-    ...arcPoints(BEIJING, CPH, 40, 0.25),
-  ]}});
-  flightSeries.pushDataItem({ geometry:{ type:'LineString', coordinates:[
-    ...arcPoints(CPH, BEIJING, 40, 0.20),
-    ...arcPoints(BEIJING, HARBIN, 12, 0.20),
-  ]}});
+  /* Home (outbound + return) flight arcs — only when derived from the trip */
+  if (_outboundChain || _returnChain) {
+    const flightSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
+    flightSeries.mapLines.template.setAll({
+      stroke:am5.color('#7b9bbf'), strokeWidth:2, strokeOpacity:0.65, strokeDasharray:[5,7],
+    });
+    for (const chain of [_outboundChain, _returnChain]) {
+      if (!chain) continue;
+      flightSeries.pushDataItem({ geometry:{ type:'LineString',
+        coordinates: chain.waypoints.map((w) => [w.lng, w.lat]) }});
+    }
+  }
 
   /* Trip route arcs */
   const lineSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
@@ -497,7 +767,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     if (i>0) seg.shift();
     routeCoords.push(...seg);
   }
-  lineSeries.pushDataItem({ geometry:{ type:'LineString', coordinates:routeCoords }});
+  if (routeCoords.length) lineSeries.pushDataItem({ geometry:{ type:'LineString', coordinates:routeCoords }});
 
   /* City number pins */
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
@@ -517,7 +787,8 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
 
   /* Plane overlay */
   const planeData = chart.series.push(am5map.MapPointSeries.new(root, {}));
-  const planeItem = planeData.pushDataItem({ longitude:HARBIN.lng, latitude:HARBIN.lat });
+  const planeStart = _outboundChain?.waypoints[0] ?? legs[0];
+  const planeItem = planeData.pushDataItem({ longitude:planeStart.lng, latitude:planeStart.lat });
   (chart as any)._planeItem = planeItem;
   let planeImg = document.querySelector('.map-plane-img') as HTMLImageElement|null;
   if (!planeImg) {
@@ -526,6 +797,8 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     planeImg.src = PLANE_PNG; planeImg.alt = '';
     (document.querySelector('.map-stage') as HTMLElement).appendChild(planeImg);
   }
+  // Hidden until an outbound/return flight chain actually flies it.
+  planeImg.style.opacity = '0';
   (chart as any)._planeImg = planeImg;
   // Track position history to compute a restrained heading + subtle flight motion.
   let _prevPlanePx: {x:number;y:number}|null = null;
@@ -590,8 +863,8 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
 
   chart.appear(700, 100).then(() => {
     document.getElementById('mapLoading')?.remove();
-    // Start at China — so the plane is visible from the first frame
-    chart.zoomToGeoPoint({ longitude: HARBIN.lng, latitude: HARBIN.lat }, 3, true, 0);
+    // Start framed on wherever the plane begins, so it's visible from frame 1.
+    chart.zoomToGeoPoint({ longitude: planeStart.lng, latitude: planeStart.lat }, 3, true, 0);
     setTimeout(() => { syncHero(); syncPlane(); travelSequence(legs); }, 400);
   });
 
@@ -599,17 +872,15 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   const replayBtn = document.getElementById('mapReplay')!;
   replayBtn.addEventListener('click', () => {
     if (_playing) {
-      // Currently playing → pause (freeze in place)
       stopReplayMotion();
     } else {
-      // Stopped or paused → restart the sequence from the beginning
       travelSequence(legs, true);
     }
   });
 
   document.getElementById('mapBack')?.addEventListener('click', () => {
     stopReplayMotion();
-    backToEurope();
+    backToOverview();
   });
   document.getElementById('mapZoomIn')?.addEventListener('click', () => {
     stopReplayMotion();
@@ -625,6 +896,14 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     stopReplayMotion();
     fitToRoute(_legsRef, 700);
   });
+}
+
+/* Centre of the route's footprint — used as the chart's home point. */
+function routeCenter(legs: PlottedLeg[]) {
+  if (legs.length === 0) return EUROPE_CENTER;
+  let n=-90,s=90,e=-180,w=180;
+  for (const l of legs) { n=Math.max(n,l.lat);s=Math.min(s,l.lat);e=Math.max(e,l.lng);w=Math.min(w,l.lng); }
+  return { longitude: (e+w)/2, latitude: (n+s)/2 };
 }
 
 /* ── Tooltip ──────────────────────────────────────────────────────────────── */
@@ -646,16 +925,16 @@ function fitDrilledCountry(series: any, duration = 760) {
   }
 }
 
-async function drillCountry(code: string, name: string, legs: PlottedLeg[], worldPoly?: any) {
+async function drillCountry(code: string, name: string, legs: PlottedLeg[], worldPoly?: any): Promise<boolean> {
   if (_drillCode === code && _drillSeries) {
     if (worldPoly) zoomToCountryPoly(worldPoly);
     else window.setTimeout(() => fitDrilledCountry(_drillSeries), 420);
-    return;
+    return true;
   }
-  await loadCountryGeodata(code);
+  try { await loadCountryGeodata(code); } catch { return false; }
   const meta = DRILLDOWN_COUNTRIES[code];
   const geo  = (window as any)[meta.global];
-  if (!geo) { console.warn('geodata missing for', code); return; }
+  if (!geo) { console.warn('geodata missing for', code); return false; }
 
   if (_drillSeries) { _drillSeries.dispose(); _drillSeries = null; }
   clearDrillOverlays();
@@ -691,32 +970,35 @@ async function drillCountry(code: string, name: string, legs: PlottedLeg[], worl
   _drillSeries = series;
   _drillCode   = code;
 
-  let finalized = false;
-  const finalizeDrill = () => {
-    if (finalized || _drillSeries !== series) return;
-    finalized = true;
-    const cityStops = buildCountryStops(legs, code);
-    // Region labels first dedupe against the city pins (which show city names).
-    renderRegionLabels(series, cityStops);
-    renderCountryPins(cityStops);
-    (document.getElementById('mapBack') as HTMLElement).hidden = false;
+  return await new Promise<boolean>((resolve) => {
+    let finalized = false;
+    const finalizeDrill = () => {
+      if (finalized || _drillSeries !== series) { resolve(false); return; }
+      finalized = true;
+      const cityStops = buildCountryStops(legs, code);
+      // Region labels first dedupe against the city pins (which show city names).
+      renderRegionLabels(series, cityStops);
+      renderCountryPins(cityStops);
+      (document.getElementById('mapBack') as HTMLElement).hidden = false;
 
-    // Show the detailed country polygons immediately (no fade), then snap the
-    // camera to its bounds with no animation.
-    series.show(0);
+      // Show the detailed country polygons immediately (no fade), then snap the
+      // camera to its bounds with no animation.
+      series.show(0);
 
-    if (worldPoly) {
-      zoomToCountryPoly(worldPoly);
-    } else {
-      if (!fitDrilledCountry(series, 0)) {
-        _chart.zoomToGeoPoint(geoCentroidOf(series), 6.5, true, 0);
+      if (worldPoly) {
+        zoomToCountryPoly(worldPoly);
+      } else {
+        if (!fitDrilledCountry(series, 0)) {
+          _chart.zoomToGeoPoint(geoCentroidOf(series), 6.5, true, 0);
+        }
       }
-    }
-  };
+      resolve(true);
+    };
 
-  series.events.on('datavalidated', finalizeDrill);
-  window.setTimeout(finalizeDrill, 0);
-  _root.events.once('frameended', finalizeDrill);
+    series.events.on('datavalidated', finalizeDrill);
+    window.setTimeout(finalizeDrill, 0);
+    _root.events.once('frameended', finalizeDrill);
+  });
 }
 
 function geoCentroidOf(series: any) {
@@ -730,10 +1012,10 @@ function fitToRoute(legs: PlottedLeg[], duration = 700) {
   for (const l of legs) { n=Math.max(n,l.lat);s=Math.min(s,l.lat);e=Math.max(e,l.lng);w=Math.min(w,l.lng); }
   const padLat=Math.max(1.2,(n-s)*0.18), padLng=Math.max(1.2,(e-w)*0.18);
   try { _chart.zoomToGeoBounds({ left:w-padLng,right:e+padLng,top:n+padLat,bottom:s-padLat }, duration); }
-  catch { _chart.zoomToGeoPoint?.(EUROPE_CENTER, 4.8, true, duration); }
+  catch { _chart.zoomToGeoPoint?.(routeCenter(legs), 4.8, true, duration); }
 }
 
-function backToEurope() {
+function backToOverview() {
   if (_drillSeries) { _drillSeries.dispose(); _drillSeries = null; _drillCode = null; }
   clearDrillOverlays();
   (document.getElementById('mapBack') as HTMLElement).hidden = true;
@@ -761,8 +1043,7 @@ function resetLit() {
 function clearAllTimers() {
   if (_replayTimer)      { clearTimeout(_replayTimer);      _replayTimer      = null; }
   if (_planeReplayTimer) { clearTimeout(_planeReplayTimer); _planeReplayTimer = null; }
-  if (_outboundPanTimer) { clearInterval(_outboundPanTimer); _outboundPanTimer = null; }
-  if (_returnPanTimer)   { clearInterval(_returnPanTimer);   _returnPanTimer   = null; }
+  if (_flightPanTimer)   { clearInterval(_flightPanTimer);  _flightPanTimer   = null; }
 }
 
 function stopReplayMotion() {
@@ -789,7 +1070,7 @@ function focusMotion(id: string | null) {
 }
 
 /* ── Plane animation ──────────────────────────────────────────────────────── */
-function animatePlaneThrough(waypoints:{lat:number;lng:number}[], segDuration:number): Promise<void> {
+function animatePlaneThrough(waypoints:GeoPt[], segDuration:number): Promise<void> {
   const item = (_chart as any)?._planeItem;
   if (!item||waypoints.length<2) return Promise.resolve();
   return new Promise((resolve) => {
@@ -816,8 +1097,26 @@ function panToGeoPoint(lng: number, lat: number, duration = 600) {
   } catch {}
 }
 
+/** Pan the camera to keep up with the plane while a flight chain animates. */
+function startFlightPan(segMs: number) {
+  let idx = 0;
+  _flightPanTimer = window.setInterval(() => {
+    if (_paused) { clearAllTimers(); return; }
+    const item = (_chart as any)?._planeItem;
+    if (!item) { clearAllTimers(); return; }
+    const lng = item.get('longitude');
+    const lat = item.get('latitude');
+    if (lng != null && lat != null) panToGeoPoint(lng, lat, 800);
+    idx++;
+    if (idx > 400 && _flightPanTimer) { clearInterval(_flightPanTimer); _flightPanTimer = null; }
+  }, segMs * 4);
+}
+function stopFlightPan() {
+  if (_flightPanTimer) { clearInterval(_flightPanTimer); _flightPanTimer = null; }
+}
+
 /* ── Travel sequence ──────────────────────────────────────────────────────── */
-function travelSequence(legs: PlottedLeg[], replay = false) {
+async function travelSequence(legs: PlottedLeg[], replay = false) {
   const heroItem = (_chart as any)?._heroItem;
   if (!heroItem||legs.length===0) return;
   clearAllTimers();
@@ -826,154 +1125,146 @@ function travelSequence(legs: PlottedLeg[], replay = false) {
   setReplayBtnLabel(true);
   if (replay) resetLit();
 
+  const heroImg  = (_chart as any)?._heroImg  as HTMLImageElement|null;
+  const planeImg = (_chart as any)?._planeImg as HTMLImageElement|null;
+  const planeItem = (_chart as any)?._planeItem;
+
+  // Reduced-motion: skip animation, just light everything and fit.
   if (!replay && window.matchMedia?.('(prefers-reduced-motion:reduce)').matches) {
     const last = legs[legs.length-1];
     heroItem.set('longitude',last.lng); heroItem.set('latitude',last.lat);
-    lightCountry(HOME_COUNTRY_ISO);
     legs.forEach((l)=>lightCountry(l.iso));
+    await settleView(legs);
     _playing = false;
     setReplayBtnLabel(false);
     return;
   }
 
-  // Plane is fast: fixed ms per waypoint. Waypoint count scales with distance
-  // so the plane keeps a constant visual speed across both segments.
   const FLIGHT_SEG = 90;
-  const outboundWpts = [
-    ...evenSpeedWaypoints(HARBIN, BEIJING, 0.25),
-    ...evenSpeedWaypoints(BEIJING, CPH,    0.25).slice(1),
-  ];
 
-  const planeItem = (_chart as any)?._planeItem;
-  if (planeItem) { planeItem.set('longitude',HARBIN.lng); planeItem.set('latitude',HARBIN.lat); }
-  lightCountry(HOME_COUNTRY_ISO);
-  focusMotion('flight-outbound');
-
-  const heroImg  = (_chart as any)?._heroImg  as HTMLImageElement|null;
-  const planeImg = (_chart as any)?._planeImg as HTMLImageElement|null;
-
-  // Outbound: Harbin→CPH is westward → base angle 180° (pointing left)
-  (_chart as any)._setPlaneBase?.(180);
-  if (planeImg) planeImg.style.opacity = '1';
-  if (heroImg) heroImg.style.opacity = '0';
-
-  // Zoom to start at Harbin area
-  panToGeoPoint(HARBIN.lng, HARBIN.lat, 0);
-
-  // Pan camera along with the plane every few waypoints
-  let outboundPanIdx = 0;
-  _outboundPanTimer = window.setInterval(() => {
-    if (_paused) { clearAllTimers(); return; }
-    const item = (_chart as any)?._planeItem;
-    if (!item) { clearAllTimers(); return; }
-    const lng = item.get('longitude');
-    const lat = item.get('latitude');
-    if (lng != null && lat != null) panToGeoPoint(lng, lat, 800);
-    outboundPanIdx++;
-    if (outboundPanIdx > outboundWpts.length + 5 && _outboundPanTimer) {
-      clearInterval(_outboundPanTimer);
-      _outboundPanTimer = null;
-    }
-  }, FLIGHT_SEG * 4);
-
-  animatePlaneThrough(outboundWpts, FLIGHT_SEG).then(() => {
-    if (_outboundPanTimer) {
-      clearInterval(_outboundPanTimer);
-      _outboundPanTimer = null;
-    }
+  // ── 1. Outbound home flight (if derived from the itinerary) ───────────────
+  if (_outboundChain && _outboundChain.waypoints.length > 1) {
+    const wpts = _outboundChain.waypoints;
+    if (planeItem) { planeItem.set('longitude',wpts[0].lng); planeItem.set('latitude',wpts[0].lat); }
+    // Heading: leftward if the flight trends west, else rightward.
+    (_chart as any)._setPlaneBase?.(wpts[wpts.length-1].lng < wpts[0].lng ? 180 : 0);
+    if (planeImg) planeImg.style.opacity = '1';
+    if (heroImg) heroImg.style.opacity = '0';
+    focusMotion('flight-outbound');
+    panToGeoPoint(wpts[0].lng, wpts[0].lat, 0);
+    startFlightPan(FLIGHT_SEG);
+    await animatePlaneThrough(wpts, FLIGHT_SEG);
+    stopFlightPan();
     if (_paused) return;
     if (planeImg) planeImg.style.opacity = '0';
     if (heroImg)  heroImg.style.opacity  = '1';
+  }
 
-    // Fit Europe once plane lands
-    fitToRoute(legs, 800);
-    setTimeout(() => { if (!_paused) travelHeroLegs(legs); }, 900);
+  // ── 2. Settle on the route (fit / drill into a single country) ────────────
+  await settleView(legs);
+  if (_paused) return;
 
-    const LEG_DURATION  = 1800;
-    const STEP_DELAY    = LEG_DURATION + 300;
-    const euroTrip      = legs.length * STEP_DELAY + 1800;
+  // ── 3. Hero hops through the legs in order ────────────────────────────────
+  await new Promise<void>((resolve) => { _replayTimer = window.setTimeout(resolve, 500); });
+  if (_paused) return;
+  await travelHeroLegs(legs);
+  if (_paused) return;
 
-    _planeReplayTimer = window.setTimeout(() => {
+  // ── 4. Return home flight ─────────────────────────────────────────────────
+  if (_returnChain && _returnChain.waypoints.length > 1) {
+    await new Promise<void>((resolve) => { _replayTimer = window.setTimeout(resolve, 600); });
+    if (_paused) return;
+    // If we drilled into a country, pop back out to the world view first.
+    if (_drillSeries) backToOverview();
+    const wpts = _returnChain.waypoints;
+    if (heroImg)  heroImg.style.opacity  = '0';
+    (_chart as any)._setPlaneBase?.(wpts[wpts.length-1].lng < wpts[0].lng ? 180 : 0);
+    if (planeImg) planeImg.style.opacity = '1';
+    if (planeItem) { planeItem.set('longitude',wpts[0].lng); planeItem.set('latitude',wpts[0].lat); }
+    focusMotion('flight-return');
+    panToGeoPoint(wpts[0].lng, wpts[0].lat, 400);
+    startFlightPan(FLIGHT_SEG);
+    await animatePlaneThrough(wpts, FLIGHT_SEG);
+    stopFlightPan();
+    if (_paused) return;
+    if (planeImg) planeImg.style.opacity = '0';
+    if (heroImg)  heroImg.style.opacity  = '1';
+    const home = wpts[wpts.length-1];
+    panToGeoPoint(home.lng, home.lat, 600);
+    await new Promise<void>((resolve) => { _replayTimer = window.setTimeout(resolve, 1200); });
+  }
+
+  if (_paused) return;
+  // Finish: frame the whole route and reset to replayable state.
+  if (_drillSeries) backToOverview();
+  else fitToRoute(legs, 1100);
+  focusMotion(legs[legs.length - 1].id);
+  _playing = false;
+  setReplayBtnLabel(false);
+}
+
+/** After the outbound flight lands, fit the route — drilling into the country
+ *  when the whole trip lives in one. */
+async function settleView(legs: PlottedLeg[]) {
+  if (_singleCountryIso) {
+    const ok = await drillCountry(_singleCountryIso, _singleCountryIso, legs);
+    if (ok) return;
+  }
+  fitToRoute(legs, 800);
+}
+
+function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
+  const item = (_chart as any)?._heroItem;
+  if (!item||legs.length===0) return Promise.resolve();
+  const LEG_DURATION = 1800, STEP_DELAY = LEG_DURATION + 300;
+  return new Promise((resolve) => {
+    let i = 0;
+    item.set('longitude',legs[0].lng); item.set('latitude',legs[0].lat);
+    focusLeg(legs[0].id); lightCountry(legs[0].iso);
+    const stepTo = (idx:number) => {
       if (_paused) return;
-      if (heroImg)  heroImg.style.opacity  = '0';
-      // Return: CPH→Harbin is eastward → base angle 0° (pointing right)
-      (_chart as any)._setPlaneBase?.(0);
-      if (planeImg) planeImg.style.opacity = '1';
-      if (planeItem) { planeItem.set('longitude',CPH.lng); planeItem.set('latitude',CPH.lat); }
-      focusMotion('flight-return');
-
-      // Pan back to CPH area first
-      panToGeoPoint(CPH.lng, CPH.lat, 400);
-
-      const returnWpts = [
-        ...evenSpeedWaypoints(CPH,     BEIJING, 0.20),
-        ...evenSpeedWaypoints(BEIJING, HARBIN,  0.20).slice(1),
-      ];
-
-      // Pan along with return flight too
-      let returnPanIdx = 0;
-      _returnPanTimer = window.setInterval(() => {
-        if (_paused) { clearAllTimers(); return; }
-        const item = (_chart as any)?._planeItem;
-        if (!item) { clearAllTimers(); return; }
-        const lng = item.get('longitude');
-        const lat = item.get('latitude');
-        if (lng != null && lat != null) panToGeoPoint(lng, lat, 800);
-        returnPanIdx++;
-        if (returnPanIdx > returnWpts.length + 5 && _returnPanTimer) {
-          clearInterval(_returnPanTimer);
-          _returnPanTimer = null;
-        }
-      }, FLIGHT_SEG * 4);
-
-      animatePlaneThrough(returnWpts, FLIGHT_SEG).then(() => {
-        if (_returnPanTimer) {
-          clearInterval(_returnPanTimer);
-          _returnPanTimer = null;
-        }
-        if (planeImg) planeImg.style.opacity = '0';
-        if (heroImg)  heroImg.style.opacity  = '1';
-        // Linger on the arrival in China before flying the camera back to Europe.
-        panToGeoPoint(HARBIN.lng, HARBIN.lat, 600);
-        _planeReplayTimer = window.setTimeout(() => {
-          if (_paused) return;
-          fitToRoute(legs, 1100);
-          focusLeg(legs[legs.length - 1].id);
-          // Sequence finished naturally — reset to the replayable state.
-          _playing = false;
-          setReplayBtnLabel(false);
-        }, 1400);
-      });
-    }, euroTrip);
+      const l = legs[idx];
+      item.animate({ key:'longitude', to:l.lng, duration:LEG_DURATION, easing:am5.ease.inOut(am5.ease.cubic) });
+      item.animate({ key:'latitude',  to:l.lat, duration:LEG_DURATION, easing:am5.ease.inOut(am5.ease.cubic) });
+      // In a single-country view, keep the camera gently tracking the traveller.
+      if (_singleCountryIso) {
+        setTimeout(() => { if (!_paused) panToGeoPoint(l.lng, l.lat, LEG_DURATION); }, 0);
+      }
+      // Sync the country fill and the right-hand list when the traveller arrives.
+      setTimeout(() => {
+        if (_paused) return;
+        lightCountry(l.iso);
+        focusLeg(l.id);
+      }, LEG_DURATION * 0.7);
+    };
+    const tick = () => {
+      if (_paused) { resolve(); return; }
+      i++; if (i>=legs.length) { resolve(); return; }
+      stepTo(i);
+      _replayTimer=window.setTimeout(tick,STEP_DELAY);
+    };
+    _replayTimer = window.setTimeout(tick, 700);
   });
 }
 
-function travelHeroLegs(legs: PlottedLeg[]) {
-  const item = (_chart as any)?._heroItem; if (!item||legs.length===0) return;
-  const LEG_DURATION = 1800, STEP_DELAY = LEG_DURATION + 300;
-  let i = 0;
-  item.set('longitude',legs[0].lng); item.set('latitude',legs[0].lat);
-  focusLeg(legs[0].id); lightCountry(legs[0].iso);
-  const stepTo = (idx:number) => {
-    if (_paused) return;
-    const l = legs[idx];
-    item.animate({ key:'longitude', to:l.lng, duration:LEG_DURATION, easing:am5.ease.inOut(am5.ease.cubic) });
-    item.animate({ key:'latitude',  to:l.lat, duration:LEG_DURATION, easing:am5.ease.inOut(am5.ease.cubic) });
-    // Sync the country fill and the right-hand list at the same moment the
-    // little traveller arrives, so map + sidebar light up together.
-    setTimeout(() => {
-      if (_paused) return;
-      lightCountry(l.iso);
-      focusLeg(l.id);
-    }, LEG_DURATION * 0.7);
-  };
-  const tick = () => {
-    if (_paused) return;
-    i++; if (i>=legs.length) return;
-    stepTo(i);
-    _replayTimer=window.setTimeout(tick,STEP_DELAY);
-  };
-  _replayTimer = window.setTimeout(tick, 700);
+/* ── Side panel helpers ───────────────────────────────────────────────────── */
+function scopeToggleMarkup(): string {
+  return `
+    <div class="map-scope">
+      <button class="map-scope-btn${_scope === 'trip' ? ' active' : ''}" data-scope="trip">This trip</button>
+      <button class="map-scope-btn${_scope === 'all' ? ' active' : ''}" data-scope="all">All footprints</button>
+    </div>`;
+}
+
+function wireScopeToggle(view: HTMLElement) {
+  view.querySelectorAll<HTMLButtonElement>('.map-scope-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const next = btn.dataset.scope as 'trip' | 'all';
+      if (next === _scope) return;
+      _scope = next;
+      subscribeLegs(view);
+    });
+  });
 }
 
 /* ── Side panel ───────────────────────────────────────────────────────────── */
@@ -994,52 +1285,54 @@ function summarizeRoute(legs: PlottedLeg[]) {
   };
 }
 
+function flightRowMarkup(chain: FlightChain | null, motionId: string): string {
+  if (!chain) return '';
+  return `
+    <div class="leg-flight-row ${_activeMotionId === motionId ? 'active' : ''}" data-motion-id="${motionId}">
+      <span class="leg-flight-icon">✈️</span>
+      <span class="leg-flight-main">
+        <span class="leg-flight-label">${chain.label}</span>
+        <span class="leg-flight-sub">${chain.sub}</span>
+      </span>
+    </div>`;
+}
+
 function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
   const { cityCount, countryCount } = summarizeRoute(legs);
-  const list = legs.map((l,i) => `
-    <button class="leg-row ${_activeMotionId===l.id ? 'active' : ''}" data-id="${l.id}" data-motion-id="${l.id}">
-      <span class="leg-row-num">${i+1}</span>
-      <span class="leg-row-main">
-        <span class="leg-row-city">${l.flag} ${l.city}</span>
-        <span class="leg-row-meta">${fmtRange(l.dateFrom,l.dateTo)} · ${nights(l.dateFrom,l.dateTo)} nights</span>
-      </span>
-    </button>`).join('');
+
+  // Build leg list. In "all footprints" mode, inject a trip-label separator
+  // whenever the trip changes (legs are sorted chronologically by dateFrom).
+  let lastTripId: string | null | undefined = undefined;
+  const listItems: string[] = [];
+  legs.forEach((l, i) => {
+    if (_scope === 'all' && l.tripId !== lastTripId) {
+      const label = l.tripName ?? l.tripId ?? 'Unknown trip';
+      listItems.push(`<div class="leg-trip-label">${esc(label)}</div>`);
+      lastTripId = l.tripId;
+    }
+    listItems.push(`
+      <button class="leg-row ${_activeMotionId===l.id ? 'active' : ''}" data-id="${l.id}" data-motion-id="${l.id}">
+        <span class="leg-row-num">${i+1}</span>
+        <span class="leg-row-main">
+          <span class="leg-row-city">${l.flag} ${l.city}</span>
+          <span class="leg-row-meta">${fmtRange(l.dateFrom,l.dateTo)} · ${nights(l.dateFrom,l.dateTo)} nights</span>
+        </span>
+      </button>`);
+  });
 
   (view.querySelector('.map-panel') as HTMLElement).innerHTML = `
-    <div class="map-scope">
-      <button class="map-scope-btn${_scope === 'trip' ? ' active' : ''}" data-scope="trip">This trip</button>
-      <button class="map-scope-btn${_scope === 'all' ? ' active' : ''}" data-scope="all">All footprints</button>
-    </div>
+    ${scopeToggleMarkup()}
     <div class="map-stats">
       <div class="map-stat"><div class="map-stat-num">${cityCount}</div><div class="map-stat-label">Cities</div></div>
       <div class="map-stat"><div class="map-stat-num">${countryCount}</div><div class="map-stat-label">Countries</div></div>
     </div>
     <div class="map-legs">
-      <div class="leg-flight-row ${_activeMotionId === 'flight-outbound' ? 'active' : ''}" data-motion-id="flight-outbound">
-        <span class="leg-flight-icon">✈️</span>
-        <span class="leg-flight-main">
-          <span class="leg-flight-label">China → Denmark</span>
-          <span class="leg-flight-sub">Harbin · Beijing · Copenhagen</span>
-        </span>
-      </div>
-      ${list}
-      <div class="leg-flight-row ${_activeMotionId === 'flight-return' ? 'active' : ''}" data-motion-id="flight-return">
-        <span class="leg-flight-icon">✈️</span>
-        <span class="leg-flight-main">
-          <span class="leg-flight-label">Denmark → China</span>
-          <span class="leg-flight-sub">Copenhagen · Beijing · Harbin</span>
-        </span>
-      </div>
+      ${_scope === 'trip' ? flightRowMarkup(_outboundChain, 'flight-outbound') : ''}
+      ${listItems.join('')}
+      ${_scope === 'trip' ? flightRowMarkup(_returnChain, 'flight-return') : ''}
     </div>`;
 
-  view.querySelectorAll<HTMLButtonElement>('.map-scope-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const next = btn.dataset.scope as 'trip' | 'all';
-      if (next === _scope) return;
-      _scope = next;
-      subscribeLegs(view);  // tears down chart + re-subscribes for the new scope
-    });
-  });
+  wireScopeToggle(view);
 
   view.querySelectorAll<HTMLButtonElement>('.leg-row').forEach((btn) => {
     btn.addEventListener('click', () => {
