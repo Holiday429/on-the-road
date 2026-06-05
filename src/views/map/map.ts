@@ -21,9 +21,9 @@ import { MAP_COLORS as C, countryColor } from './map-shared.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import {
-  onTripChange, listTrips, switchTrip, currentTripId,
-  type StoredTrip,
+  onTripChange, listTrips,
 } from '../../data/trip-context.ts';
+import { openTripChooser } from '../../core/trip-chooser.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
@@ -207,20 +207,9 @@ async function buildOutboundChain(legs: PlottedLeg[], stored: StoredLegInput[]):
   };
 }
 
-/** Return flight = outbound reversed (back home from the last leg). */
-function buildReturnChain(outbound: FlightChain | null, legs: PlottedLeg[]): FlightChain | null {
-  if (!outbound) return null;
-  const reversed = [...outbound.waypoints].reverse();
-  const last = legs[legs.length - 1];
-  // Start the return from the actual last stop, not the outbound destination.
-  reversed[0] = { lat: last.lat, lng: last.lng };
-  const subParts = outbound.sub.split(' · ');
-  const home = subParts[0];
-  return {
-    label: `${last.city} → ${home}`,
-    sub: [last.city, ...subParts.slice(0, -1).reverse()].join(' · '),
-    waypoints: reversed,
-  };
+/** Return flight — not auto-derived; only shown when explicitly recorded in the itinerary. */
+function buildReturnChain(_outbound: FlightChain | null, _legs: PlottedLeg[]): FlightChain | null {
+  return null;
 }
 
 function fmtRange(from: string, to: string): string {
@@ -578,8 +567,6 @@ async function showSetupPanel(view: HTMLElement, token: number) {
   if (!stage || !panel) return;
 
   // Stage: outline world map + hint banner overlay.
-  // Always rebuild if we don't already have the idle hint (e.g. stageInnerMarkup
-  // was written during init before we knew the trip had no legs).
   if (!stage.querySelector('.map-idle-hint')) {
     teardownChart();
     stage.innerHTML = `
@@ -590,30 +577,13 @@ async function showSetupPanel(view: HTMLElement, token: number) {
     bootIdleChart();
   }
 
-  // Load trip list for the picker
-  let trips: StoredTrip[] = [];
-  try { trips = await listTrips(); } catch { /* ignore */ }
   if (token !== _buildToken) return;
-
-  const tripOptions = trips.map((t) => `
-    <option value="${esc(t.id)}"${t.id === currentTripId() ? ' selected' : ''}>${esc(t.name)}</option>`
-  ).join('');
 
   panel.innerHTML = `
     ${scopeToggleMarkup()}
     <div class="map-setup">
       <div class="map-setup-section">
-        <div class="map-setup-label">Link a trip</div>
-        <div class="map-setup-hint">Pull stops from an existing itinerary</div>
-        ${trips.length ? `
-          <select class="input select map-setup-select" id="mapTripSelect">
-            <option value="">— choose a trip —</option>
-            ${tripOptions}
-          </select>
-          <button class="btn btn-primary map-setup-btn" id="mapLinkTrip">Use this trip</button>
-        ` : `
-          <div class="map-setup-empty-trips">No trips yet. <a href="#route">Go to Itinerary</a> to create one.</div>
-        `}
+        <button class="btn btn-primary map-setup-btn" id="mapLinkTrip">Link a trip</button>
       </div>
       <div class="map-setup-divider"><span>or</span></div>
       <div class="map-setup-section">
@@ -625,16 +595,10 @@ async function showSetupPanel(view: HTMLElement, token: number) {
 
   wireScopeToggle(view);
 
-  // Wire link-trip button
-  document.getElementById('mapLinkTrip')?.addEventListener('click', async () => {
-    const sel = document.getElementById('mapTripSelect') as HTMLSelectElement | null;
-    const id = sel?.value;
-    if (!id) return;
-    await switchTrip(id);
-    // onTripChange fires subscribeLegs → will re-render with the new trip's legs
+  document.getElementById('mapLinkTrip')?.addEventListener('click', () => {
+    openTripChooser({ title: 'Link a trip', subtitle: 'Linking a trip plots its itinerary stops on the map.' });
   });
 
-  // Wire manual add → navigate to itinerary
   document.getElementById('mapAddManual')?.addEventListener('click', () => {
     import('../../core/app.ts').then(({ navigateTo }) => navigateTo('route'));
   });
@@ -678,7 +642,7 @@ async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: 
     await loadAmCharts();
     if (token !== _buildToken) return;
     bootChart(view, legs);
-    preloadDrilldownCountries();
+    preloadDrilldownCountries(legs.map((l) => l.iso).filter(Boolean) as string[]);
   } catch (err) {
     console.error('amCharts load failed', err);
     const el = document.getElementById('mapLoading'); if (el) el.textContent = 'Map failed to load.';
@@ -800,9 +764,9 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   // Hidden until an outbound/return flight chain actually flies it.
   planeImg.style.opacity = '0';
   (chart as any)._planeImg = planeImg;
-  // Track position history to compute a restrained heading + subtle flight motion.
+  // Track position history to compute heading; no bob/pulse effects.
   let _prevPlanePx: {x:number;y:number}|null = null;
-  let _planeBaseAngle = 180; // outbound starts west-ish
+  let _planeBaseAngle = 180;
   let _planeCurrentAngle = 180;
   const syncPlane = () => {
     const img = (chart as any)._planeImg as HTMLImageElement;
@@ -819,16 +783,12 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
         let delta = rawAngle - _planeBaseAngle;
         while (delta > 180)  delta -= 360;
         while (delta < -180) delta += 360;
-        // Keep the nose close to the base heading — only a subtle wobble.
         delta = Math.max(-6, Math.min(6, delta));
         const targetAngle = _planeBaseAngle + delta;
         _planeCurrentAngle += (targetAngle - _planeCurrentAngle) * 0.1;
       }
     }
-    const flightPhase = performance.now() / 220;
-    const bob = Math.sin(flightPhase) * 1.2;
-    const pulse = 1 + Math.sin(flightPhase * 0.9) * 0.015;
-    img.style.transform = `translate(-50%, calc(-50% + ${bob.toFixed(2)}px)) rotate(${_planeCurrentAngle.toFixed(2)}deg) scale(${pulse.toFixed(3)})`;
+    img.style.transform = `translate(-50%, -50%) rotate(${_planeCurrentAngle.toFixed(2)}deg)`;
     _prevPlanePx = { x:px.x, y:px.y };
     img.style.left = `${px.x}px`; img.style.top = `${px.y}px`;
   };
@@ -836,7 +796,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     _planeBaseAngle    = angle;
     _planeCurrentAngle = angle;
     const img = (chart as any)._planeImg as HTMLImageElement;
-    if (img) img.style.transform = `translate(-50%, -50%) rotate(${angle}deg) scale(1)`;
+    if (img) img.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
   };
   root.events.on('frameended', syncPlane);
 
@@ -863,9 +823,8 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
 
   chart.appear(700, 100).then(() => {
     document.getElementById('mapLoading')?.remove();
-    // Start framed on wherever the plane begins, so it's visible from frame 1.
-    chart.zoomToGeoPoint({ longitude: planeStart.lng, latitude: planeStart.lat }, 3, true, 0);
-    setTimeout(() => { syncHero(); syncPlane(); travelSequence(legs); }, 400);
+    // Fit the whole route on load; animation only starts when the user clicks Play.
+    setTimeout(() => { syncHero(); syncPlane(); fitToRoute(legs, 700); }, 400);
   });
 
   // Replay / Pause button — toggles between playing and paused/stopped.
@@ -1089,11 +1048,11 @@ function animatePlaneThrough(waypoints:GeoPt[], segDuration:number): Promise<voi
 }
 
 /* ── Pan map to follow a geo point ───────────────────────────────────────── */
-function panToGeoPoint(lng: number, lat: number, duration = 600) {
+function panToGeoPoint(lng: number, lat: number, duration = 600, zoomLevel?: number) {
   if (!_chart) return;
   try {
-    const current = _chart.get('zoomLevel') ?? 3;
-    _chart.zoomToGeoPoint({ longitude: lng, latitude: lat }, current, true, duration);
+    const level = zoomLevel ?? Math.min(_chart.get('zoomLevel') ?? 3, 3);
+    _chart.zoomToGeoPoint({ longitude: lng, latitude: lat }, level, true, duration);
   } catch {}
 }
 
@@ -1140,7 +1099,7 @@ async function travelSequence(legs: PlottedLeg[], replay = false) {
     return;
   }
 
-  const FLIGHT_SEG = 90;
+  const FLIGHT_SEG = 45;
 
   // ── 1. Outbound home flight (if derived from the itinerary) ───────────────
   if (_outboundChain && _outboundChain.waypoints.length > 1) {
