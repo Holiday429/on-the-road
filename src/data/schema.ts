@@ -213,26 +213,63 @@ const AccommodationSchema = z.object({
   order: z.number().optional(),
 });
 
-// One "thing I want to do" — not bound to a day. Optionally tagged + mappable.
+// One "thing I want to do". Can be assigned to a plan day (dayId) or left in
+// the unassigned pool. category mirrors ClipCategory for cross-filtering.
 const PlanItemSchema = z.object({
   id: z.string(),
   title: z.string(),
-  note: z.string().optional(),
-  tag: z.string().optional(),           // 'food' | 'sights' | 'walk' | 'shop' | … (free text)
+  note: z.string().optional(),          // user's notes / remarks on this item
+  tag: z.string().optional(),           // legacy free-text tag (kept for back-compat)
+  category: z.string().default(''),     // matches a ClipCategory id ('food', 'museum', …)
+  dayId: z.string().nullable().default(null), // null = unassigned pool
   mapUrl: z.string().optional(),
+  address: z.string().optional(),
+  lat: z.number().optional(),           // cached geocode result
+  lng: z.number().optional(),
+  duration: z.string().optional(),      // estimated time, e.g. "2h"
+  cost: z.string().optional(),          // estimated cost, e.g. "€15"
   done: z.boolean().default(false),
   order: z.number().default(0),
 });
 export type PlanItem = z.infer<typeof PlanItemSchema>;
 
-// A collected piece of research — link, note, or image — that can be turned
-// into a PlanItem once the user has digested it.
+// A user-defined category for clips and plan items. Color chosen from a palette.
+export const ClipCategorySchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  color: z.string(),    // hex, e.g. '#fde8ef'
+  order: z.number().default(0),
+});
+export type ClipCategory = z.infer<typeof ClipCategorySchema>;
+
+// A sticky note card on the leg detail page — title + freeform body.
+export const NoteCardSchema = z.object({
+  id: z.string(),
+  title: z.string().default(''),
+  body: z.string().default(''),
+  color: z.string().default('#fef9c3'), // pastel hex
+  order: z.number().default(0),
+});
+export type NoteCard = z.infer<typeof NoteCardSchema>;
+
+// A plan day container — dates are derived from leg.dateFrom + index.
+export const PlanDaySchema = z.object({
+  id: z.string(),
+  date: z.string(),       // ISO date 'YYYY-MM-DD', auto-derived from leg dates
+  label: z.string().default(''),  // optional user override label, e.g. "Arrival"
+  notes: z.string().default(''),  // per-day notes
+  order: z.number().default(0),
+});
+export type PlanDay = z.infer<typeof PlanDaySchema>;
+
+// A collected piece of research — link or note — with a user-defined category.
 const ClipSchema = z.object({
   id: z.string(),
   kind: z.enum(['link', 'note', 'image']).default('link'),
   title: z.string().optional(),
   url: z.string().optional(),
   body: z.string().optional(),
+  category: z.string().default(''),   // ClipCategory id
   order: z.number().default(0),
 });
 export type Clip = z.infer<typeof ClipSchema>;
@@ -250,9 +287,12 @@ export const LegSchema = doc({
   accommodation: AccommodationSchema.optional(),       // legacy single stay — still read for back-compat
   accommodations: z.array(AccommodationSchema).optional(), // ordered, one city can have several
   arrivalTransport: TransportSchema.optional(),
-  plans: z.array(PlanItemSchema).optional(),           // "things I want to do" (no timeline)
-  clips: z.array(ClipSchema).optional(),               // collected research
-  notes: z.string().optional(),
+  plans: z.array(PlanItemSchema).optional(),
+  planDays: z.array(PlanDaySchema).optional(),         // day containers (auto-seeded from dates)
+  clips: z.array(ClipSchema).optional(),
+  clipCategories: z.array(ClipCategorySchema).optional(), // user-defined clip/plan categories
+  notes: z.string().optional(),                        // legacy single-text notes (back-compat)
+  noteCards: z.array(NoteCardSchema).optional(),       // multi-card sticky notes
   order: z.number().default(0),
   // Reserved for the /map globe — lets us plot legs without re-geocoding.
   lat: z.number().optional(),
@@ -260,25 +300,17 @@ export const LegSchema = doc({
 });
 export type Leg = z.infer<typeof LegSchema>;
 
-/* ── Stay (accommodation comparison) ─────────────────────────────────────── */
-// A Stay is one comparison group, attached to a Leg (one per leg). Candidates
-// are the columns, dimensions the rows. We embed both arrays in the doc (like
-// ChecklistSchema's groups/items) — a group is only a handful of each, so a
-// single read/write per group is the simplest correct model.
-
-// A scoring dimension (one row). `type` decides how the raw value is read and
-// normalized; `higherIsBetter=false` flips it (e.g. price, "need to relocate").
+/* ── Stay (accommodation comparison) — legacy, kept for migration ─────────── */
 export const StayDimensionSchema = z.object({
   id: z.string(),
   label: z.string(),
   type: z.enum(['number', 'rating', 'boolean']),
-  weight: z.number().default(1),          // 0–5 priority slider
+  weight: z.number().default(1),
   higherIsBetter: z.boolean().default(true),
-  builtin: z.boolean().default(false),    // built-ins can't be deleted, only reweighted
+  builtin: z.boolean().default(false),
 });
 export type StayDimension = z.infer<typeof StayDimensionSchema>;
 
-// A candidate accommodation (one column).
 export const StayCandidateSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -287,12 +319,9 @@ export const StayCandidateSchema = z.object({
   address: z.string().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
-  // Price is split so we can compute a comparable per-night figure and surface
-  // hidden costs. The 'price' built-in dimension reads from these, not scores.
-  totalPrice: z.number().optional(),      // room cost over the whole stay
-  extraFees: z.number().default(0),       // cleaning / service fees etc.
+  totalPrice: z.number().optional(),
+  extraFees: z.number().default(0),
   nights: z.number().default(1),
-  // Per-dimension raw values, keyed by dimension id. rating: 0–5, boolean: 0|1.
   scores: z.record(z.string(), z.number()).default({}),
   notes: z.string().optional(),
 });
@@ -300,11 +329,64 @@ export type StayCandidate = z.infer<typeof StayCandidateSchema>;
 
 export const StaySchema = doc({
   legId: z.string(),
-  city: z.string().default(''),           // denormalized for list display
+  city: z.string().default(''),
   dimensions: z.array(StayDimensionSchema).default([]),
   candidates: z.array(StayCandidateSchema).default([]),
 });
 export type Stay = z.infer<typeof StaySchema>;
+
+/* ── Compare (universal multi-criteria comparison) ───────────────────────── */
+// One comparison group. compareType determines the default dimension template
+// and the add-candidate form fields. Groups can be attached to a leg (legId)
+// or be free-standing (legId: null).
+
+export const COMPARE_TYPES = ['accommodation', 'flight', 'train', 'shopping', 'other'] as const;
+export type CompareType = typeof COMPARE_TYPES[number];
+
+// A scoring dimension (one row in the matrix).
+// type='number': raw numeric (min-max normalised); 'rating': 1–5 stars (/5);
+// 'boolean': yes/no toggle (0|1). higherIsBetter=false flips normalisation.
+// builtin=true means the row cannot be deleted, only reweighted.
+export const CompareDimensionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: z.enum(['number', 'rating', 'boolean']),
+  weight: z.number().default(1),           // 0–5 priority slider; 0 = off
+  higherIsBetter: z.boolean().default(true),
+  builtin: z.boolean().default(false),
+});
+export type CompareDimension = z.infer<typeof CompareDimensionSchema>;
+
+// A candidate option (one column in the matrix).
+// `fields` holds type-specific display values (e.g. price, departure time)
+// that are shown in the column header but scored through `scores` like any
+// other dimension. The price dimension is special: its score is auto-derived
+// from fields.price rather than manually entered.
+export const CompareCandidateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  link: z.string().optional(),
+  // Flexible key-value bag for type-specific attributes (price, airline, etc.)
+  // displayed in the column header. Keys are defined per CompareType.
+  fields: z.record(z.string(), z.string()).default({}),
+  // Per-dimension raw scores, keyed by dimension id.
+  // rating: 1–5, boolean: 0|1, number: arbitrary numeric.
+  scores: z.record(z.string(), z.number()).default({}),
+  notes: z.string().optional(),
+});
+export type CompareCandidate = z.infer<typeof CompareCandidateSchema>;
+
+export const CompareGroupSchema = doc({
+  // Which trip this group belongs to.
+  tripId: z.string().nullable().default(null),
+  // Optional: pin to a specific leg (e.g. "flights to Rome on May 3").
+  legId: z.string().nullable().default(null),
+  title: z.string().default(''),           // user-editable group label
+  compareType: z.enum(COMPARE_TYPES).default('accommodation'),
+  dimensions: z.array(CompareDimensionSchema).default([]),
+  candidates: z.array(CompareCandidateSchema).default([]),
+});
+export type CompareGroup = z.infer<typeof CompareGroupSchema>;
 
 /* ── Expenses ────────────────────────────────────────────────────────────── */
 // We keep the user's raw input (amount + currency) forever, and store a

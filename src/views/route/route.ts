@@ -9,13 +9,17 @@
    ========================================================================== */
 
 import './route.css';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
 import { navigateTo } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
+import { coordsFor } from '../map/geo.ts';
+import { geocode, geocodeLocal } from '../map/geocode.ts';
 import type {
-  Leg as SchemaLeg, PlanItem, Clip, PlanDay, ClipCategory,
+  Leg as SchemaLeg, PlanItem, Clip, PlanDay, ClipCategory, NoteCard,
 } from '../../data/schema.ts';
 
 type Transport = NonNullable<SchemaLeg['arrivalTransport']>;
@@ -38,13 +42,13 @@ const FLAG_MAP: Record<string, string> = {
 
 // Built-in clip/plan categories — user can add their own on top.
 export const BUILTIN_CATEGORIES: ClipCategory[] = [
-  { id: 'official',  label: '官方 / Tourism', color: '#e2edf3', order: 0 },
-  { id: 'social',    label: '小红书 / Social', color: '#fde8ef', order: 1 },
-  { id: 'food',      label: '美食 Food',       color: '#fef3e2', order: 2 },
-  { id: 'museum',    label: '博物馆 Museum',   color: '#ece2f3', order: 3 },
-  { id: 'nature',    label: '自然 Nature',     color: '#e6f3e6', order: 4 },
-  { id: 'daytrip',   label: '一日游 Day trip', color: '#e2f3ec', order: 5 },
-  { id: 'shopping',  label: '购物 Shopping',   color: '#f3e2e8', order: 6 },
+  { id: 'official',  label: 'Tourism',  color: '#e2edf3', order: 0 },
+  { id: 'social',    label: 'Social',   color: '#fde8ef', order: 1 },
+  { id: 'food',      label: 'Food',     color: '#fef3e2', order: 2 },
+  { id: 'museum',    label: 'Museum',   color: '#ece2f3', order: 3 },
+  { id: 'nature',    label: 'Nature',   color: '#e6f3e6', order: 4 },
+  { id: 'daytrip',   label: 'Day trip', color: '#e2f3ec', order: 5 },
+  { id: 'shopping',  label: 'Shopping', color: '#f3e2e8', order: 6 },
   { id: 'other',     label: 'Other',           color: '#ebebeb', order: 7 },
 ];
 
@@ -68,8 +72,8 @@ function categoryById(leg: Leg, id: string): ClipCategory | undefined {
 }
 
 // Plan view modes
-type PlanView = 'timeline' | 'category' | 'calendar';
-let _planView: PlanView = 'timeline';
+type PlanView = 'board' | 'feed' | 'category' | 'calendar' | 'map';
+let _planView: PlanView = 'board';
 
 // Drag state (plan items → day columns)
 let _dragItemId: string | null = null;
@@ -80,10 +84,16 @@ let legs: Leg[] = [];
 let addFormOpen = false;
 let selectedLegId: string | null = null;   // null = list view
 let _unsubRoute: (() => void) | null = null;
+// IDs of legs whose note cards were just saved locally — suppress one Firestore echo re-render.
+const _notesSuppressed = new Set<string>();
 let _tripList: StoredTrip[] = [];          // cached for the add-form trip selector
 let _countryPicker: DestinationInputInstance | null = null;
 let _cityPicker: DestinationInputInstance | null = null;
 let _fromPicker: DestinationInputInstance | null = null;
+
+// Plan map view — Leaflet instance
+let _planLeaflet: L.Map | null = null;
+let _planLeafletEl: HTMLElement | null = null;
 
 function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
 
@@ -188,15 +198,40 @@ function rewriteLeg(leg: Leg, omit: (keyof SchemaLeg)[]) {
 function legSummary(leg: Leg): string {
   const t = leg.arrivalTransport;
   const stays = legStays(leg);
-  const plans = leg.plans ?? [];
-  const clips = leg.clips ?? [];
-  const bits: string[] = [];
-  if (t) bits.push(`<span class="route-sum-chip">${TRANSPORT_ICONS[t.type]} ${esc(t.from)}${t.service ? ` · ${esc(t.service)}` : ''}</span>`);
-  if (stays.length) bits.push(`<span class="route-sum-chip">🏨 ${esc(stays[0].name)}${stays.length > 1 ? ` +${stays.length - 1}` : ''}</span>`);
-  if (plans.length) bits.push(`<span class="route-sum-chip">✨ ${plans.length} plan${plans.length !== 1 ? 's' : ''}</span>`);
-  if (clips.length) bits.push(`<span class="route-sum-chip">📎 ${clips.length} clip${clips.length !== 1 ? 's' : ''}</span>`);
-  if (!bits.length) bits.push('<span class="route-sum-chip route-sum-empty">Tap to add transport, stays & plans</span>');
-  return `<div class="route-leg-summary">${bits.join('')}</div>`;
+
+  const leftChips: string[] = [];
+  const rightChips: string[] = [];
+
+  if (t) {
+    const times = t.time
+      ? (t.arrivalTime ? `${esc(t.time)}–${esc(t.arrivalTime)}` : esc(t.time))
+      : '';
+    const parts = [
+      TRANSPORT_ICONS[t.type],
+      esc(t.from),
+      t.service ? `· ${esc(t.service)}` : '',
+      times ? `· ${times}` : '',
+    ].filter(Boolean).join(' ');
+    leftChips.push(`<span class="route-sum-chip route-sum-transport">${parts}</span>`);
+  }
+
+  stays.forEach((a) => {
+    const href = mapHref(a, leg);
+    rightChips.push(
+      `<a class="route-sum-chip route-sum-hotel" href="${esc(href)}" target="_blank" rel="noopener" title="Open in Google Maps">` +
+      `🏨 ${esc(a.name)}</a>`
+    );
+  });
+
+  if (!leftChips.length && !rightChips.length) {
+    return `<div class="route-leg-summary"><span class="route-sum-chip route-sum-empty">Tap to add transport and stays</span></div>`;
+  }
+
+  return `
+    <div class="route-leg-summary">
+      <div class="route-sum-left">${leftChips.join('')}</div>
+      <div class="route-sum-right">${rightChips.join('')}</div>
+    </div>`;
 }
 
 function renderLegCard(leg: Leg): string {
@@ -368,7 +403,7 @@ function renderTransportSection(leg: Leg): string {
 
   return `
     <section class="rd-section">
-      <div class="rd-section-head"><h3>🚆 Getting here</h3></div>
+      <div class="rd-section-head"><h3>🚆 Transportation</h3></div>
       ${body}
     </section>`;
 }
@@ -434,13 +469,13 @@ function renderClipsSection(leg: Leg): string {
         <div class="rd-clip-card-top">
           ${cat ? `<span class="rd-cat-badge rd-cat-badge--sm" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
           <div class="rd-clip-card-actions">
-            <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${esc(c.id)}" title="提炼为 Plan">→✨</button>
+            <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${esc(c.id)}" title="Convert to plan item">→✨</button>
             <button class="rd-icon-btn" data-act="edit-clip" data-clip="${esc(c.id)}" title="Edit">✎</button>
             <button class="rd-icon-btn rd-danger" data-act="del-clip" data-clip="${esc(c.id)}" title="Remove">✕</button>
           </div>
         </div>
         ${c.url
-          ? `<a class="rd-clip-card-title" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title || c.url)}</a>`
+          ? `<a class="rd-clip-card-title" href="${esc(/^https?:\/\//i.test(c.url) ? c.url : 'https://' + c.url)}" target="_blank" rel="noopener">${esc(c.title || c.url)}</a>`
           : `<div class="rd-clip-card-title">${esc(c.title || 'Note')}</div>`}
         ${c.body ? `<div class="rd-clip-card-body-text">${esc(c.body)}</div>` : ''}
       </div>
@@ -453,31 +488,87 @@ function renderClipsSection(leg: Leg): string {
       ${cats.filter(c => clips.some(cl => cl.category === c.id)).map(c =>
         `<button class="rd-filter-chip" data-filter="${esc(c.id)}" style="--chip-color:${esc(c.color)}">${esc(c.label)}</button>`
       ).join('')}
-      <button class="rd-filter-chip rd-filter-chip--add" data-act="add-clip-category" title="New category">＋ 分类</button>
+      <button class="rd-filter-chip rd-filter-chip--add" data-act="add-clip-category" title="New category">＋ Category</button>
     </div>`;
 
   return `
     <section class="rd-section" id="rd-clips-section" ${filterAttr}>
       <div class="rd-section-head">
-        <h3>📎 Clips</h3>
+        <h3>📎 Collection</h3>
         <button class="btn btn-ghost rd-sm" data-act="open-add-clip">＋ Add clip</button>
       </div>
       ${filterBar}
       ${clips.length
         ? `<div class="rd-clip-grid">${clips.map(card).join('')}</div>`
-        : `<div class="rd-placeholder rd-placeholder-soft"><span>从小红书、旅游局等来源收集信息，按类别整理成卡片。</span></div>`}
+        : `<div class="rd-placeholder rd-placeholder-soft"><span>Collect links and notes from travel sources — organised by category.</span></div>`}
     </section>`;
 }
 
 /* ── Notes section ───────────────────────────────────────────────────────── */
 
+const NOTE_COLORS = [
+  '#e2edf3', // Tourism blue-grey
+  '#fde8ef', // Social pink
+  '#fef3e2', // Food warm
+  '#ece2f3', // Museum lavender
+  '#e6f3e6', // Nature green
+  '#e2f3ec', // Day trip mint
+  '#f3e2e8', // Shopping rose
+  '#ebebeb', // Other neutral
+];
+
+function noteColor(idx: number): string {
+  return NOTE_COLORS[idx % NOTE_COLORS.length];
+}
+
+/** If a card has an old/unknown color, remap it to the canonical palette by position. */
+function resolveNoteColor(stored: string, idx: number): string {
+  return NOTE_COLORS.includes(stored) ? stored : noteColor(idx);
+}
+
+/** Migrate legacy `leg.notes` string into a single NoteCard if noteCards is empty.
+ *  Also normalises any out-of-palette colors to the current palette. */
+function legNoteCards(leg: Leg): NoteCard[] {
+  if (leg.noteCards?.length) {
+    return [...leg.noteCards]
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((c, i) => ({ ...c, color: resolveNoteColor(c.color, i) }));
+  }
+  if (leg.notes?.trim()) {
+    return [{ id: 'legacy', title: '', body: leg.notes, color: NOTE_COLORS[0], order: 0 }];
+  }
+  return [];
+}
+
 function renderNotesSection(leg: Leg): string {
+  const cards = legNoteCards(leg);
+
+  const cardHtml = cards.map((c, i) => {
+    const color = resolveNoteColor(c.color, i);
+    return `
+    <div class="rd-note-card" data-note-id="${esc(c.id)}" style="background:${esc(color)}">
+      <div class="rd-note-card-head">
+        <input class="rd-note-title-input" data-note-id="${esc(c.id)}" value="${esc(c.title)}" placeholder="Title…">
+        <div class="rd-note-card-actions">
+          <div class="rd-note-color-picker" data-note-id="${esc(c.id)}">
+            ${NOTE_COLORS.map(col => `<button class="rd-note-color-swatch${col === color ? ' is-active' : ''}" data-color="${col}" data-note-id="${esc(c.id)}" style="background:${col}"></button>`).join('')}
+          </div>
+          <button class="rd-note-del" data-act="del-note" data-note-id="${esc(c.id)}" title="Delete note">✕</button>
+        </div>
+      </div>
+      <textarea class="rd-note-body" data-note-id="${esc(c.id)}" placeholder="Write anything…">${esc(c.body)}</textarea>
+    </div>`;
+  }).join('');
+
   return `
     <section class="rd-section rd-section-notes">
       <div class="rd-section-head">
         <h3>📝 Notes</h3>
+        <button class="btn btn-ghost rd-sm" data-act="add-note">＋ Add note</button>
       </div>
-      <textarea class="input rd-notes-area" id="rd-notes" placeholder="Write anything — ideas, reminders, impressions…">${esc(leg.notes ?? '')}</textarea>
+      ${cards.length
+        ? `<div class="rd-note-grid">${cardHtml}</div>`
+        : `<div class="rd-placeholder rd-placeholder-soft"><span>Add notes for things to remember — precautions, nearby trips, local tips…</span></div>`}
     </section>`;
 }
 
@@ -489,10 +580,11 @@ function ensurePlanDays(leg: Leg): PlanDay[] {
   const existing = [...(leg.planDays ?? [])].sort((a, b) => a.order - b.order);
 
   // Build expected day list from leg dates
+  const pad = (n: number) => String(n).padStart(2, '0');
   const expected: PlanDay[] = Array.from({ length: total }, (_, i) => {
     const d = new Date(leg.dateFrom + 'T00:00:00');
     d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
+    const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const found = existing.find(e => e.date === iso);
     return found ?? { id: `day-${iso}`, date: iso, label: '', notes: '', order: i };
   });
@@ -501,19 +593,21 @@ function ensurePlanDays(leg: Leg): PlanDay[] {
 
 function renderPlanItem(p: PlanItem, leg: Leg): string {
   const cat = p.category ? categoryById(leg, p.category) : undefined;
-  const color = cat?.color ?? '#f0f0f0';
+  const color = cat?.color ?? '#ebebeb';
+  const tooltipParts = [cat?.label, p.note, p.duration, p.cost].filter(Boolean);
+  const tooltip = tooltipParts.join(' · ');
   return `
-    <div class="rd-plan-tag ${p.done ? 'is-done' : ''}" data-id="${esc(p.id)}" data-drag="plan-item">
+    <div class="rd-plan-tag ${p.done ? 'is-done' : ''}" data-id="${esc(p.id)}" data-drag="plan-item" style="background:${esc(color)}"${tooltip ? ` data-tooltip="${esc(tooltip)}"` : ''}>
       <button class="rd-plan-tag-check" data-act="toggle-plan" data-plan="${esc(p.id)}" title="Mark done">
         ${p.done ? '✓' : ''}
       </button>
-      <span class="rd-plan-tag-dot" style="background:${esc(color)}"></span>
       <span class="rd-plan-tag-name">${esc(p.title)}</span>
       <button class="rd-plan-tag-open" data-act="open-plan" data-plan="${esc(p.id)}" title="Details">›</button>
+      <button class="rd-plan-tag-del" data-act="del-plan" data-plan="${esc(p.id)}" title="Delete">✕</button>
     </div>`;
 }
 
-function renderPlanTimelineView(leg: Leg): string {
+function renderPlanBoardView(leg: Leg): string {
   const days = ensurePlanDays(leg);
   const plans = leg.plans ?? [];
   const unassigned = plans.filter(p => !p.dayId).sort((a, b) => a.order - b.order);
@@ -536,19 +630,19 @@ function renderPlanTimelineView(leg: Leg): string {
   };
 
   return `
-    <div class="rd-plan-timeline-wrap">
+    <div class="rd-plan-board-wrap">
       <div class="rd-plan-columns">
+        ${days.map((d, i) => dayCol(d, i)).join('')}
         <div class="rd-plan-day-col rd-plan-unassigned">
           <div class="rd-plan-day-head">
-            <span class="rd-plan-day-num">待定</span>
-            <span class="rd-plan-day-date">Unassigned</span>
+            <span class="rd-plan-day-num">Unassigned</span>
+            <span class="rd-plan-day-date">To be scheduled</span>
           </div>
           <div class="rd-plan-drop-zone pk-drop-zone" data-day-id="">
             ${unassigned.map(p => renderPlanItem(p, leg)).join('')}
-            ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">New items start here</div>` : ''}
+            ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">New items land here</div>` : ''}
           </div>
         </div>
-        ${days.map((d, i) => dayCol(d, i)).join('')}
       </div>
     </div>
     <div id="rd-plan-drag-ghost" class="rd-plan-drag-ghost" hidden></div>`;
@@ -556,13 +650,13 @@ function renderPlanTimelineView(leg: Leg): string {
 
 function renderPlanCategoryView(leg: Leg): string {
   const plans = leg.plans ?? [];
-  if (!plans.length) return `<div class="rd-placeholder rd-placeholder-soft"><span>添加事项后可在此按类别查看。</span></div>`;
+  if (!plans.length) return `<div class="rd-placeholder rd-placeholder-soft"><span>Add plan items to view them by category.</span></div>`;
 
   const days = ensurePlanDays(leg);
   const dayLabel = (dayId: string | null | undefined) => {
-    if (!dayId) return '待定';
+    if (!dayId) return 'Unassigned';
     const idx = days.findIndex(d => d.id === dayId);
-    return idx >= 0 ? `Day ${idx + 1}` : '待定';
+    return idx >= 0 ? `Day ${idx + 1}` : 'Unassigned';
   };
 
   const cats = allCategories(leg);
@@ -590,50 +684,372 @@ function renderPlanCategoryView(leg: Leg): string {
   return `<div class="rd-plan-cat-list">${groups || '<div class="rd-placeholder rd-placeholder-soft"><span>No items yet.</span></div>'}</div>`;
 }
 
-function renderPlanCalendarView(leg: Leg): string {
-  const days = ensurePlanDays(leg);
+function renderPlanFeedView(leg: Leg): string {
   const plans = leg.plans ?? [];
+  const days = ensurePlanDays(leg);
+  const today = new Date().toISOString().slice(0, 10);
 
-  const dayBlock = (day: PlanDay, idx: number) => {
-    const items = plans.filter(p => p.dayId === day.id).sort((a, b) => a.order - b.order);
-    const d = new Date(day.date + 'T00:00:00');
-    const weekday = d.toLocaleDateString('en-GB', { weekday: 'long' });
-    const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' });
-    const isToday = day.date === new Date().toISOString().slice(0, 10);
+  if (!plans.length) {
+    return `<div class="rd-placeholder rd-placeholder-soft"><span>No plan items yet — add some and assign them to days.</span></div>`;
+  }
+
+  // Group by day in chronological order; unassigned appended at end
+  const assigned: { day: PlanDay; items: typeof plans }[] = days
+    .map(day => ({ day, items: plans.filter(p => p.dayId === day.id).sort((a, b) => a.order - b.order) }))
+    .filter(g => g.items.length > 0);
+
+  const unassigned = plans.filter(p => !p.dayId).sort((a, b) => a.order - b.order);
+
+  function dayStatus(date: string): 'active' | 'past' | 'upcoming' {
+    if (date === today) return 'active';
+    if (date < today) return 'past';
+    return 'upcoming';
+  }
+
+  const feedItem = (p: PlanItem, status: 'active' | 'past' | 'upcoming') => {
+    const cat = p.category ? categoryById(leg, p.category) : undefined;
+    const color = cat?.color ?? '#ebebeb';
     return `
-      <div class="rd-cal-day ${isToday ? 'is-today' : ''}">
-        <div class="rd-cal-day-head">
-          <div class="rd-cal-day-num">Day ${idx + 1}${isToday ? ' · Today' : ''}</div>
-          <div class="rd-cal-day-date">${weekday}, ${dateStr}</div>
-          ${day.label ? `<div class="rd-cal-day-label">${esc(day.label)}</div>` : ''}
+      <div class="rd-feed-item ${p.done ? 'is-done' : ''} rd-feed-item--${status}" data-plan="${esc(p.id)}">
+        <div class="rd-feed-item-dot" style="background:${p.done ? 'var(--ink-faint)' : status === 'active' ? 'var(--route-active)' : status === 'past' ? 'var(--route-past)' : 'var(--route-upcoming)'}"></div>
+        <div class="rd-feed-item-body">
+          <div class="rd-feed-item-row">
+            <button class="rd-plan-tag-check ${p.done ? 'is-done' : ''}" data-act="toggle-plan" data-plan="${esc(p.id)}">${p.done ? '✓' : ''}</button>
+            ${cat ? `<span class="rd-cat-badge rd-cat-badge--sm" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
+            <span class="rd-feed-item-title">${esc(p.title)}</span>
+            <button class="rd-icon-btn" data-act="open-plan" data-plan="${esc(p.id)}">›</button>
+          </div>
+          ${p.note ? `<div class="rd-feed-item-note">${esc(p.note)}</div>` : ''}
         </div>
-        ${day.notes ? `<div class="rd-cal-day-notes">${esc(day.notes)}</div>` : ''}
-        ${items.length ? `
-          <div class="rd-cal-day-items">
-            ${items.map(p => {
-              const cat = p.category ? categoryById(leg, p.category) : undefined;
-              const color = cat?.color ?? '#ebebeb';
-              return `
-                <div class="rd-cal-item ${p.done ? 'is-done' : ''}" data-plan="${esc(p.id)}">
-                  <button class="rd-plan-tag-check" data-act="toggle-plan" data-plan="${esc(p.id)}">${p.done ? '✓' : ''}</button>
-                  <span class="rd-cal-item-dot" style="background:${esc(color)}"></span>
-                  <span class="rd-cal-item-title">${esc(p.title)}</span>
-                  ${p.duration ? `<span class="rd-cal-item-meta">${esc(p.duration)}</span>` : ''}
-                  <button class="rd-icon-btn" data-act="open-plan" data-plan="${esc(p.id)}">›</button>
-                </div>`;
-            }).join('')}
-          </div>` : `<div class="rd-cal-day-empty">Nothing planned yet — drag items here from Timeline.</div>`}
       </div>`;
   };
 
-  return `<div class="rd-cal-list">${days.map((d, i) => dayBlock(d, i)).join('')}</div>`;
+  const dayGroups = assigned.map(({ day, items }) => {
+    const status = dayStatus(day.date);
+    const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+    const dayIdx = days.findIndex(d => d.id === day.id);
+    return `
+      <div class="rd-feed-day-group rd-feed-day--${status}">
+        <div class="rd-feed-day-head">
+          <span class="rd-feed-day-dot" style="background:${status === 'active' ? 'var(--route-active)' : status === 'past' ? 'var(--route-past)' : 'var(--route-upcoming)'}"></span>
+          <span class="rd-feed-day-label">Day ${dayIdx + 1}${status === 'active' ? ' · Today' : ''}</span>
+          <span class="rd-feed-day-date">${dateLabel}</span>
+          ${day.label ? `<span class="rd-plan-day-label">${esc(day.label)}</span>` : ''}
+        </div>
+        <div class="rd-feed-items">
+          ${items.map(p => feedItem(p, status)).join('')}
+        </div>
+      </div>`;
+  }).join('');
+
+  const unassignedGroup = unassigned.length ? `
+    <div class="rd-feed-day-group rd-feed-day--unassigned">
+      <div class="rd-feed-day-head">
+        <span class="rd-feed-day-dot" style="background:var(--ink-faint)"></span>
+        <span class="rd-feed-day-label">Unassigned</span>
+        <span class="rd-feed-day-date">Not yet scheduled</span>
+      </div>
+      <div class="rd-feed-items">
+        ${unassigned.map(p => feedItem(p, 'upcoming')).join('')}
+      </div>
+    </div>` : '';
+
+  return `<div class="rd-feed-list">${dayGroups}${unassignedGroup}</div>`;
+}
+
+/** Stored on the section so prev/next buttons can navigate without full re-render. */
+let _calMonth = 0;  // offset in months from leg's start month; reset on new leg
+
+function renderPlanCalendarView(leg: Leg): string {
+  const plans = leg.plans ?? [];
+  const planDays = ensurePlanDays(leg);
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Determine the displayed month
+  const legStart = new Date(leg.dateFrom + 'T00:00:00');
+  const displayDate = new Date(legStart.getFullYear(), legStart.getMonth() + _calMonth, 1);
+  const year = displayDate.getFullYear();
+  const month = displayDate.getMonth(); // 0-based
+
+  const monthLabel = displayDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+
+  // Day-of-week offset (Mon=0 … Sun=6)
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Set of ISO dates that belong to this leg
+  const legDates = new Set(planDays.map(d => d.date));
+
+  // Build calendar cells
+  const totalCells = Math.ceil((firstDow + daysInMonth) / 7) * 7;
+  let cells = '';
+  for (let i = 0; i < totalCells; i++) {
+    const dayNum = i - firstDow + 1;
+    if (dayNum < 1 || dayNum > daysInMonth) {
+      // padding cell
+      const adjDate = dayNum < 1
+        ? new Date(year, month, dayNum).toISOString().slice(0, 10)
+        : new Date(year, month + 1, dayNum - daysInMonth).toISOString().slice(0, 10);
+      cells += `<div class="rd-cal-grid-cell rd-cal-grid-cell--other"><span class="rd-cal-grid-num">${new Date(adjDate + 'T00:00:00').getDate()}</span></div>`;
+      continue;
+    }
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    const isToday = iso === today;
+    const inLeg = legDates.has(iso);
+    const planDay = planDays.find(d => d.date === iso);
+    const items = planDay ? plans.filter(p => p.dayId === planDay.id).sort((a, b) => a.order - b.order) : [];
+
+    cells += `
+      <div class="rd-cal-grid-cell${isToday ? ' is-today' : ''}${inLeg ? ' in-leg' : ''}">
+        <span class="rd-cal-grid-num${isToday ? ' is-today-num' : ''}">${dayNum}</span>
+        ${items.slice(0, 3).map(p => {
+          const cat = p.category ? categoryById(leg, p.category) : undefined;
+          const color = cat?.color ?? '#f0f0f0';
+          return `<div class="rd-cal-grid-item ${p.done ? 'is-done' : ''}" data-plan="${esc(p.id)}" data-act="open-plan" style="background:${esc(color)}" title="${esc(p.title)}">${esc(p.title)}</div>`;
+        }).join('')}
+        ${items.length > 3 ? `<div class="rd-cal-grid-more">+${items.length - 3} more</div>` : ''}
+      </div>`;
+  }
+
+  const DOW_HEADERS = ['MON','TUE','WED','THU','FRI','SAT','SUN'];
+
+  return `
+    <div class="rd-cal-grid-wrap">
+      <div class="rd-cal-grid-nav">
+        <button class="rd-icon-btn" data-act="cal-prev">‹</button>
+        <span class="rd-cal-grid-month">${monthLabel}</span>
+        <button class="rd-icon-btn" data-act="cal-next">›</button>
+      </div>
+      <div class="rd-cal-grid">
+        ${DOW_HEADERS.map(d => `<div class="rd-cal-grid-dow">${d}</div>`).join('')}
+        ${cells}
+      </div>
+    </div>`;
+}
+
+// Palette: one colour per day index (cycles after 14). Each entry is [bg, text].
+const DAY_COLOURS = [
+  '#f97316','#3b82f6','#22c55e','#a855f7','#ec4899',
+  '#14b8a6','#eab308','#ef4444','#6366f1','#84cc16',
+  '#f43f5e','#0ea5e9','#d97706','#8b5cf6',
+];
+
+function dayColour(idx: number): string {
+  return DAY_COLOURS[idx % DAY_COLOURS.length];
+}
+
+/** Render the plan map sidebar item list (synchronous — uses cached coords). */
+function renderPlanMapView(leg: Leg): string {
+  const plans = leg.plans ?? [];
+  const days = ensurePlanDays(leg);
+
+  const itemRow = (p: PlanItem, colour: string) => {
+    const hasCoords = p.lat != null || geocodeLocal(p.address || p.title) != null;
+    return `
+      <div class="rd-pmap-item${hasCoords ? '' : ' rd-pmap-item--pending'}" data-pmap-item="${esc(p.id)}" style="--day-colour:${colour}">
+        <span class="rd-pmap-item-dot" style="background:${hasCoords ? colour : 'var(--ink-faint)'}"></span>
+        <span class="rd-pmap-item-name">${esc(p.title)}</span>
+        ${p.address ? `<span class="rd-pmap-item-addr">${esc(p.address)}</span>` : ''}
+        ${!hasCoords ? `<span class="rd-pmap-item-locating">locating…</span>` : ''}
+      </div>`;
+  };
+
+  // Build sidebar legend rows grouped by day — show ALL items, not just geocoded ones
+  const dayRows = days.map((day, i) => {
+    const items = plans.filter(p => p.dayId === day.id);
+    if (!items.length) return '';
+    const colour = dayColour(i);
+    const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `
+      <div class="rd-pmap-day-group">
+        <div class="rd-pmap-day-head">
+          <span class="rd-pmap-day-dot" style="background:${colour}"></span>
+          <span class="rd-pmap-day-label">Day ${i + 1}</span>
+          <span class="rd-pmap-day-date">${dateLabel}</span>
+        </div>
+        ${items.map(p => itemRow(p, colour)).join('')}
+      </div>`;
+  }).join('');
+
+  const unassigned = plans.filter(p => !p.dayId);
+  const unassignedRows = unassigned.length ? `
+    <div class="rd-pmap-day-group">
+      <div class="rd-pmap-day-head">
+        <span class="rd-pmap-day-dot" style="background:var(--ink-faint)"></span>
+        <span class="rd-pmap-day-label">Unassigned</span>
+      </div>
+      ${unassigned.map(p => itemRow(p, 'var(--ink-faint)')).join('')}
+    </div>` : '';
+
+  const hasAny = plans.length > 0;
+  const hint = !hasAny
+    ? `<div class="rd-placeholder rd-placeholder-soft" style="margin-top:var(--sp-3)"><span>Add plan items — place names are automatically located on the map.</span></div>`
+    : '';
+
+  return `
+    <div class="rd-plan-map-layout">
+      <div class="rd-plan-map-tile" id="rd-plan-leaflet" data-leg-id="${esc(leg.id)}"></div>
+      <aside class="rd-plan-map-panel">
+        <div class="rd-pmap-header">
+          <span class="rd-plan-map-flag">${leg.flag || '🗺️'}</span>
+          <div>
+            <div class="rd-plan-map-city-name">${esc(leg.city)}</div>
+            <div class="rd-plan-map-city-meta">${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)}</div>
+          </div>
+        </div>
+        <div class="rd-pmap-list">
+          ${dayRows}${unassignedRows}${hint}
+        </div>
+      </aside>
+    </div>`;
+}
+
+/** Geocode all plan items that have an address or title, caching lat/lng back to Firestore. */
+async function geocodePlanItems(leg: Leg) {
+  const plans = leg.plans ?? [];
+  const needsGeocode = plans.filter(p => p.lat == null && (p.address || p.title));
+  if (!needsGeocode.length) return;
+
+  const updated = [...plans];
+  let changed = false;
+  for (const p of needsGeocode) {
+    const query = p.address || `${p.title}, ${leg.city}`;
+    const hit = await geocode(query, leg.country);
+    if (!hit) continue;
+    const idx = updated.findIndex(x => x.id === p.id);
+    if (idx >= 0) { updated[idx] = { ...updated[idx], lat: hit.lat, lng: hit.lng }; changed = true; }
+  }
+  if (changed) patchLeg(leg.id, { plans: clean(updated) });
+}
+
+/** Bearing in degrees (0 = north, clockwise) from point A to point B. */
+function bearing(a: [number, number], b: [number, number]): number {
+  const toRad = (d: number) => d * Math.PI / 180;
+  const dLng = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]), lat2 = toRad(b[0]);
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function initPlanLeaflet(timeline: HTMLElement, leg: Leg) {
+  const mapEl = timeline.querySelector<HTMLElement>('#rd-plan-leaflet');
+  if (!mapEl) {
+    if (_planLeaflet) { _planLeaflet.remove(); _planLeaflet = null; _planLeafletEl = null; }
+    return;
+  }
+  if (_planLeaflet && _planLeafletEl === mapEl) { _planLeaflet.invalidateSize(); return; }
+  if (_planLeaflet) { _planLeaflet.remove(); _planLeaflet = null; _planLeafletEl = null; }
+
+  const map = L.map(mapEl, { zoomControl: true, attributionControl: false });
+  _planLeaflet = map;
+  _planLeafletEl = mapEl;
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  L.control.attribution({ prefix: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>' }).addTo(map);
+
+  const days = ensurePlanDays(leg);
+  const plans = leg.plans ?? [];
+  const cityCoords = coordsFor(leg.city);
+
+  const boundsMarkers: L.Marker[] = [];
+
+  // City centre marker (grey)
+  if (cityCoords) {
+    const icon = L.divIcon({
+      className: 'rd-pmap-pin rd-pmap-pin--city',
+      html: `<span class="rd-pmap-pin-label">${leg.city}</span>`,
+      iconSize: [0, 0], iconAnchor: [0, 0],
+    });
+    L.marker([cityCoords.lat, cityCoords.lng], { icon }).addTo(map);
+    boundsMarkers.push(L.marker([cityCoords.lat, cityCoords.lng], { opacity: 0 }).addTo(map));
+  }
+
+  // Per-day: draw dashed route lines with arrowheads, then markers on top
+  days.forEach((day, dayIdx) => {
+    const colour = dayColour(dayIdx);
+    const dayPlans = plans
+      .filter(p => p.dayId === day.id && p.lat != null && p.lng != null)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    if (dayPlans.length >= 2) {
+      const coords: [number, number][] = dayPlans.map(p => [p.lat!, p.lng!]);
+
+      // Dashed polyline
+      L.polyline(coords, {
+        color: colour,
+        weight: 2.5,
+        opacity: 0.85,
+        dashArray: '6 5',
+      }).addTo(map);
+
+      // Arrowhead at midpoint of each segment
+      for (let i = 0; i < coords.length - 1; i++) {
+        const a = coords[i], b = coords[i + 1];
+        const mid: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const deg = bearing(a, b);
+        const arrowIcon = L.divIcon({
+          className: '',
+          html: `<div class="rd-pmap-arrow" style="transform:rotate(${deg - 90}deg);color:${colour}">▶</div>`,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7],
+        });
+        L.marker(mid, { icon: arrowIcon, interactive: false }).addTo(map);
+      }
+    }
+  });
+
+  // Plan item markers coloured by day (rendered after lines so they appear on top)
+  for (const p of plans) {
+    if (p.lat == null || p.lng == null) continue;
+    const dayIdx = p.dayId ? days.findIndex(d => d.id === p.dayId) : -1;
+    const colour = dayIdx >= 0 ? dayColour(dayIdx) : '#94a3b8';
+    const label = dayIdx >= 0 ? `D${dayIdx + 1}` : '?';
+
+    const icon = L.divIcon({
+      className: 'rd-pmap-pin',
+      html: `<span class="rd-pmap-pin-badge" style="background:${colour}">${label}</span><span class="rd-pmap-pin-label">${esc(p.title)}</span>`,
+      iconSize: [0, 0], iconAnchor: [0, 0],
+    });
+    const marker = L.marker([p.lat, p.lng], { icon }).addTo(map);
+    marker.on('click', () => {
+      const el = timeline.querySelector<HTMLElement>(`[data-pmap-item="${p.id}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      el?.classList.add('is-highlighted');
+      setTimeout(() => el?.classList.remove('is-highlighted'), 1500);
+    });
+    boundsMarkers.push(marker);
+  }
+
+  if (boundsMarkers.length > 1) {
+    const group = L.featureGroup(boundsMarkers);
+    map.fitBounds(group.getBounds().pad(0.3));
+  } else if (cityCoords) {
+    map.setView([cityCoords.lat, cityCoords.lng], 13);
+  } else {
+    map.setView([48, 6], 4);
+  }
+
+  // Wire sidebar items to fly-to on map
+  timeline.querySelectorAll<HTMLElement>('[data-pmap-item]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.pmapItem!;
+      const p = plans.find(x => x.id === id);
+      if (p?.lat != null && p?.lng != null) map.flyTo([p.lat, p.lng], 15, { duration: 0.7 });
+    });
+  });
+
+  // Kick off geocoding in background — new coords will arrive via Firestore subscription
+  void geocodePlanItems(leg);
 }
 
 function renderPlansSection(leg: Leg): string {
   const views: { id: PlanView; label: string }[] = [
-    { id: 'timeline', label: '📋 Timeline' },
+    { id: 'board',    label: '📋 Board' },
+    { id: 'feed',     label: '📖 Feed' },
     { id: 'category', label: '🏷️ Category' },
     { id: 'calendar', label: '📅 Calendar' },
+    { id: 'map',      label: '🗺️ Map' },
   ];
 
   const cats = allCategories(leg);
@@ -641,9 +1057,11 @@ function renderPlansSection(leg: Leg): string {
     cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
 
   let body = '';
-  if (_planView === 'timeline') body = renderPlanTimelineView(leg);
+  if (_planView === 'board')       body = renderPlanBoardView(leg);
+  else if (_planView === 'feed')   body = renderPlanFeedView(leg);
   else if (_planView === 'category') body = renderPlanCategoryView(leg);
-  else body = renderPlanCalendarView(leg);
+  else if (_planView === 'calendar') body = renderPlanCalendarView(leg);
+  else body = renderPlanMapView(leg);
 
   return `
     <section class="rd-section" id="rd-plan-section">
@@ -654,10 +1072,19 @@ function renderPlansSection(leg: Leg): string {
         </div>
       </div>
       ${body}
-      <div class="rd-plan-add-row">
-        <input class="input rd-add-input" id="rd-plan-input" placeholder="Add a plan item…">
-        <select class="input select" id="rd-plan-cat">${catOptions}</select>
-        <button class="btn btn-primary rd-sm" data-act="add-plan">Add</button>
+      <div class="rd-plan-add-form" id="rd-plan-add-form">
+        <div class="rd-plan-add-row">
+          <input class="input rd-add-input" id="rd-plan-input" placeholder="Add a plan item…">
+          <select class="input select" id="rd-plan-cat">${catOptions}</select>
+          <button class="btn btn-primary rd-sm" data-act="add-plan">Add</button>
+        </div>
+        <div class="rd-plan-add-details" id="rd-plan-add-details" hidden>
+          <div class="rd-plan-add-details-row">
+            <input class="input" id="rd-plan-note" placeholder="Notes (optional)">
+            <input class="input" id="rd-plan-duration" placeholder="Duration e.g. 2h" style="flex:0 0 120px">
+            <input class="input" id="rd-plan-cost" placeholder="Cost e.g. €15" style="flex:0 0 100px">
+          </div>
+        </div>
       </div>
     </section>`;
 }
@@ -678,7 +1105,10 @@ function renderDetail(leg: Leg): string {
       </div>
       <div class="rd-datebar">
         <span class="rd-status-pill status-${status}">${status === 'active' ? 'Here now' : status === 'past' ? 'Visited' : 'Upcoming'}</span>
-        <span>${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)} · ${days} night${days !== 1 ? 's' : ''}</span>
+        <div class="rd-datebar-dates" id="rd-datebar-dates">
+          <span class="rd-datebar-label">${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)} · ${days} night${days !== 1 ? 's' : ''}</span>
+          <button class="rd-datebar-edit-btn" data-act="edit-dates" title="Edit dates">✎</button>
+        </div>
       </div>
       <div class="rd-detail-layout">
         <div class="rd-detail-grid rd-detail-grid--top">
@@ -701,6 +1131,12 @@ function render() {
 
   const selected = selectedLegId ? legs.find((l) => l.id === selectedLegId) : null;
   if (selectedLegId && !selected) selectedLegId = null;
+
+  // Skip re-render if only note cards changed (suppress one echo to avoid typing flicker).
+  if (selected && _notesSuppressed.has(selected.id)) {
+    _notesSuppressed.delete(selected.id);
+    return;
+  }
 
   timeline.innerHTML = selected ? renderDetail(selected) : renderTimeline();
   timeline.classList.toggle('is-detail', !!selected);
@@ -789,6 +1225,7 @@ function wireList(timeline: HTMLElement) {
       if ((e.target as HTMLElement).closest('[data-act="del"]')) return;
       selectedLegId = card.dataset.id!;
       addFormOpen = false;
+      _calMonth = 0;
       render();
       timeline.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -816,8 +1253,15 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     });
   };
 
-  on('back', () => { selectedLegId = null; render(); });
+  on('back', () => {
+    if (_planLeaflet) { _planLeaflet.remove(); _planLeaflet = null; _planLeafletEl = null; }
+    selectedLegId = null;
+    render();
+  });
   on('open-guide', () => navigateTo('cities'));
+
+  /* — Dates — */
+  on('edit-dates', () => openDatesEditor(timeline, leg));
 
   /* — Transport — */
   on('toggle-transport-confirmed', () => {
@@ -840,14 +1284,80 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   });
 
   /* — Notes — */
-  const notesArea = timeline.querySelector<HTMLTextAreaElement>('#rd-notes');
-  if (notesArea) {
-    let notesTimer: ReturnType<typeof setTimeout>;
-    notesArea.addEventListener('input', () => {
-      clearTimeout(notesTimer);
-      notesTimer = setTimeout(() => patchLeg(leg.id, { notes: notesArea.value }), 800);
-    });
+  function saveNoteCards(cards: NoteCard[]) {
+    // Patch in-memory leg so the Firestore echo finds the same value and render() is suppressed.
+    const idx = legs.findIndex(l => l.id === leg.id);
+    if (idx >= 0) legs[idx] = { ...legs[idx], noteCards: cards };
+    leg.noteCards = cards;
+    _notesSuppressed.add(leg.id);
+    patchLeg(leg.id, { noteCards: clean(cards) });
   }
+
+  // Add note
+  on('add-note', () => {
+    const cards = legNoteCards(leg);
+    const next: NoteCard = {
+      id: uid(), title: '', body: '',
+      color: noteColor(cards.length),
+      order: cards.length,
+    };
+    patchLeg(leg.id, { noteCards: clean([...cards, next]) });
+  });
+
+  // Delete note
+  on('del-note', (el) => {
+    const id = el.dataset.noteId!;
+    const cards = legNoteCards(leg).filter(c => c.id !== id);
+    patchLeg(leg.id, { noteCards: clean(cards) });
+  });
+
+  // Per-card textarea & title — debounced, no re-render
+  let _noteTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+
+  function autoHeight(ta: HTMLTextAreaElement) {
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  }
+
+  timeline.querySelectorAll<HTMLTextAreaElement>('.rd-note-body').forEach(ta => {
+    autoHeight(ta); // set initial height
+    ta.addEventListener('input', () => {
+      autoHeight(ta);
+      const id = ta.dataset.noteId!;
+      clearTimeout(_noteTimers[id]);
+      _noteTimers[id] = setTimeout(() => {
+        const cards = legNoteCards(leg).map(c => c.id === id ? { ...c, body: ta.value } : c);
+        saveNoteCards(cards);
+      }, 800);
+    });
+  });
+
+  timeline.querySelectorAll<HTMLInputElement>('.rd-note-title-input').forEach(inp => {
+    inp.addEventListener('input', () => {
+      const id = inp.dataset.noteId!;
+      clearTimeout(_noteTimers[id + '-title']);
+      _noteTimers[id + '-title'] = setTimeout(() => {
+        const cards = legNoteCards(leg).map(c => c.id === id ? { ...c, title: inp.value } : c);
+        saveNoteCards(cards);
+      }, 600);
+    });
+  });
+
+  // Color swatch picker
+  timeline.querySelectorAll<HTMLButtonElement>('.rd-note-color-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      const id = sw.dataset.noteId!;
+      const color = sw.dataset.color!;
+      const cards = legNoteCards(leg).map(c => c.id === id ? { ...c, color } : c);
+      // Update card background immediately without full re-render
+      const card = timeline.querySelector<HTMLElement>(`.rd-note-card[data-note-id="${id}"]`);
+      if (card) {
+        card.style.background = color;
+        card.querySelectorAll<HTMLButtonElement>('.rd-note-color-swatch').forEach(s => s.classList.toggle('is-active', s.dataset.color === color));
+      }
+      saveNoteCards(cards);
+    });
+  });
 
   /* — Clips — */
   on('open-add-clip', () => openClipEditor(timeline, leg, null));
@@ -893,22 +1403,40 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     render();
   });
 
+  /* — Calendar nav — */
+  on('cal-prev', () => { _calMonth--; render(); });
+  on('cal-next', () => { _calMonth++; render(); });
+
   /* — Plan add — */
+  const planInput = timeline.querySelector<HTMLInputElement>('#rd-plan-input');
+  const planDetails = timeline.querySelector<HTMLElement>('#rd-plan-add-details');
+  planInput?.addEventListener('focus', () => { if (planDetails) planDetails.hidden = false; });
+
   on('add-plan', () => {
     const input = timeline.querySelector<HTMLInputElement>('#rd-plan-input');
     const catSel = timeline.querySelector<HTMLSelectElement>('#rd-plan-cat');
+    const noteEl = timeline.querySelector<HTMLInputElement>('#rd-plan-note');
+    const durEl = timeline.querySelector<HTMLInputElement>('#rd-plan-duration');
+    const costEl = timeline.querySelector<HTMLInputElement>('#rd-plan-cost');
     const title = input?.value.trim() ?? '';
     if (!title) return;
     const plans = leg.plans ?? [];
     const next: PlanItem = {
       id: uid(), title,
       category: catSel?.value ?? '',
+      note: noteEl?.value.trim() || undefined,
+      duration: durEl?.value.trim() || undefined,
+      cost: costEl?.value.trim() || undefined,
       dayId: null, done: false, order: plans.length,
     };
     if (input) input.value = '';
-    patchLeg(leg.id, { plans: [...plans, next] });
+    if (noteEl) noteEl.value = '';
+    if (durEl) durEl.value = '';
+    if (costEl) costEl.value = '';
+    if (planDetails) planDetails.hidden = true;
+    patchLeg(leg.id, { plans: [...plans, clean(next)] });
   });
-  timeline.querySelector('#rd-plan-input')?.addEventListener('keydown', (e) => {
+  planInput?.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Enter') (timeline.querySelector('[data-act="add-plan"]') as HTMLElement)?.click();
   });
 
@@ -926,6 +1454,9 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
 
   /* — Plan drag to day — */
   wirePlanDrag(timeline, leg);
+
+  /* — Plan map — */
+  initPlanLeaflet(timeline, leg);
 }
 
 /* ── Plan drag (pointer-based, same pattern as pack.ts) ─────────────────── */
@@ -1095,7 +1626,7 @@ function openClipEditor(timeline: HTMLElement, leg: Leg, clipId: string | null) 
       <div class="rd-editor-grid">
         <div class="field-full">
           <label class="field-label">Title</label>
-          <input class="input" id="ce-title" value="${esc(existing?.title)}" placeholder="e.g. 哥本哈根必去博物馆">
+          <input class="input" id="ce-title" value="${esc(existing?.title)}" placeholder="e.g. Must-visit museums in Copenhagen">
         </div>
         <div class="field-full">
           <label class="field-label">Link (optional)</label>
@@ -1122,7 +1653,8 @@ function openClipEditor(timeline: HTMLElement, leg: Leg, clipId: string | null) 
   dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
   dlg.querySelector('[data-ed="save"]')!.addEventListener('click', () => {
     const title = fieldVal(dlg, 'ce-title');
-    const url = fieldVal(dlg, 'ce-url');
+    const rawUrl = fieldVal(dlg, 'ce-url');
+    const url = rawUrl && !/^https?:\/\//i.test(rawUrl) ? 'https://' + rawUrl : rawUrl;
     const body = fieldVal(dlg, 'ce-body');
     const category = (dlg.querySelector('#ce-cat') as HTMLSelectElement).value;
     if (!title && !url && !body) { alert('Add at least a title or link.'); return; }
@@ -1160,7 +1692,7 @@ function openCategoryEditor(timeline: HTMLElement, leg: Leg) {
       <div class="rd-editor-title">New category</div>
       <div style="margin-bottom:var(--sp-3)">
         <label class="field-label">Name</label>
-        <input class="input" id="cate-name" placeholder="e.g. 夜生活 Nightlife">
+        <input class="input" id="cate-name" placeholder="e.g. Nightlife">
       </div>
       <div style="margin-bottom:var(--sp-4)">
         <label class="field-label">Color</label>
@@ -1205,6 +1737,43 @@ function fieldVal(scope: HTMLElement, id: string): string {
   return (scope.querySelector('#' + id) as HTMLInputElement | HTMLSelectElement)?.value.trim() ?? '';
 }
 
+function openDatesEditor(timeline: HTMLElement, leg: Leg) {
+  const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
+  const dlg = document.createElement('div');
+  dlg.className = 'rd-editor-overlay';
+  dlg.innerHTML = `
+    <div class="rd-editor" style="max-width:400px">
+      <div class="rd-editor-title">Edit dates · ${esc(leg.city)}</div>
+      <div class="rd-editor-grid">
+        <div>
+          <label class="field-label">Arrival date</label>
+          <input class="input" type="date" id="de-from" value="${esc(leg.dateFrom)}">
+        </div>
+        <div>
+          <label class="field-label">Departure date</label>
+          <input class="input" type="date" id="de-to" value="${esc(leg.dateTo)}">
+        </div>
+      </div>
+      <div class="rd-editor-btns">
+        <button class="btn btn-ghost" data-ed="cancel">Cancel</button>
+        <button class="btn btn-primary" data-ed="save">Save</button>
+      </div>
+    </div>`;
+  host.appendChild(dlg);
+
+  const close = () => dlg.remove();
+  dlg.querySelector('[data-ed="cancel"]')!.addEventListener('click', close);
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) close(); });
+  dlg.querySelector('[data-ed="save"]')!.addEventListener('click', () => {
+    const from = (dlg.querySelector('#de-from') as HTMLInputElement).value;
+    const to = (dlg.querySelector('#de-to') as HTMLInputElement).value;
+    if (!from || !to) { alert('Both dates are required.'); return; }
+    if (from > to) { alert('Arrival must be before departure.'); return; }
+    patchLeg(leg.id, { dateFrom: from, dateTo: to });
+    close();
+  });
+}
+
 function openTransportEditor(timeline: HTMLElement, leg: Leg) {
   const t = leg.arrivalTransport;
   const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
@@ -1212,7 +1781,7 @@ function openTransportEditor(timeline: HTMLElement, leg: Leg) {
   dlg.className = 'rd-editor-overlay';
   dlg.innerHTML = `
     <div class="rd-editor">
-      <div class="rd-editor-title">Getting to ${esc(leg.city)}</div>
+      <div class="rd-editor-title">Transportation to ${esc(leg.city)}</div>
       <div class="rd-editor-grid">
         <div>
           <label class="field-label">Mode</label>
