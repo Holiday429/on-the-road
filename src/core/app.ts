@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   // Before
   { id: 'prep',     label: 'Checklist', iconSrc: checklistIcon, section: 'before' },
   { id: 'pack',     label: 'Pack',      iconSrc: packIcon,      section: 'before' },
-  { id: 'budget',   label: 'Stay',      iconSrc: stayIcon,      section: 'before' },
+  { id: 'budget',   label: 'Compare',   iconSrc: stayIcon,      section: 'before' },
   // During
   { id: 'route',    label: 'Itinerary', iconSrc: itineraryIcon, section: 'during' },
   { id: 'cities',   label: 'Guide',     iconSrc: guideIcon,     section: 'during' },
@@ -102,9 +102,14 @@ function openTripPopover() {
   panel.querySelectorAll<HTMLElement>('.trip-menu-item').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
+      const id = btn.dataset.tripId!;
+      const trip = tripList.find((t) => t.id === id);
       tripMenuOpen = false;
       closeTripPopover();
-      await switchTrip(btn.dataset.tripId!);
+      await switchTrip(id);
+      if (trip) {
+        import('./trip-chooser.ts').then(({ showTripToast }) => showTripToast(trip.name));
+      }
     });
   });
 

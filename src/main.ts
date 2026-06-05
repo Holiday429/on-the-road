@@ -12,6 +12,7 @@ import { ensureDefaultTrip, restoreActiveTrip } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
+import { migrateStaysToCompares } from './data/migrate-stays.ts';
 import { initPrep }     from './views/prep/prep.ts';
 import { initRoute }    from './views/route/route.ts';
 import { initExpenses } from './views/expenses/expenses.ts';
@@ -19,7 +20,7 @@ import { initCities }   from './views/guide/guide.ts';
 import { initJournal }  from './views/journal/index.ts';
 import { initMap }      from './views/map/map.ts';
 import { initNomad }    from './views/nomad/nomad.ts';
-import { initStay }     from './views/stay/stay.ts';
+import { initCompare }  from './views/compare/compare.ts';
 import { initPack }     from './views/pack/pack.ts';
 import { initSafety }   from './views/safety/safety.ts';
 
@@ -31,7 +32,7 @@ registerView('cities',   initCities);
 registerView('journal',  initJournal);
 registerView('map',      initMap);
 registerView('nomad',    initNomad);
-registerView('budget',   initStay);
+registerView('budget',   initCompare);
 registerView('pack',     initPack);
 registerView('safety',   initSafety);
 
@@ -184,6 +185,11 @@ async function bootAuthenticatedShell(user: User) {
       const n = await migrateExpensesToCloud();
       if (n > 0) console.info(`Migrated ${n} expenses to the cloud.`);
     } catch (e) { console.warn('Expense migration skipped:', e); }
+
+    try {
+      const n = await migrateStaysToCompares();
+      if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
+    } catch (e) { console.warn('Stay→compare migration skipped:', e); }
 
     try { await restoreActiveTrip(); }
     catch (e) { console.warn('Restore active trip skipped:', e); }

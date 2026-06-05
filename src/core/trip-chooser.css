@@ -1,0 +1,148 @@
+/* ==========================================================================
+   On the Road · Trip Chooser modal
+   ========================================================================== */
+
+.tc-modal {
+  max-width: 360px;
+  padding: var(--sp-5);
+}
+
+.tc-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.tc-header .trip-modal-title { margin-bottom: 0; }
+.tc-header .trip-modal-subtitle { margin-top: 4px; margin-bottom: 0; }
+.tc-close {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ink-muted);
+  font-size: 16px;
+  padding: 2px 4px;
+  border-radius: var(--r-sm);
+  line-height: 1;
+  margin-top: 2px;
+}
+.tc-close:hover { background: var(--surface-3); color: var(--ink); }
+
+/* ── Trip list ───────────────────────────────────────────────────────────── */
+.tc-trip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 calc(-1 * var(--sp-2));
+  margin-bottom: var(--sp-3);
+}
+
+.tc-trip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-2);
+  border: none;
+  background: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background var(--dur-fast);
+  position: relative;
+}
+.tc-trip-row:hover { background: var(--amber-50); }
+.tc-trip-row.is-active { background: var(--amber-50); }
+.tc-trip-row.is-loading { opacity: 0.6; pointer-events: none; }
+.tc-trip-row.is-loading::after {
+  content: '';
+  position: absolute;
+  right: var(--sp-3);
+  top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px;
+  border: 2px solid var(--amber-300);
+  border-top-color: var(--amber-600);
+  border-radius: 50%;
+  animation: tc-spin 0.7s linear infinite;
+}
+@keyframes tc-spin { to { transform: translateY(-50%) rotate(360deg); } }
+
+.tc-trip-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tc-trip-name {
+  flex: 1;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tc-trip-dates {
+  font-size: var(--fs-xs);
+  color: var(--ink-muted);
+  flex-shrink: 0;
+}
+.tc-trip-check {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber-700);
+  flex-shrink: 0;
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+.tc-empty {
+  text-align: center;
+  padding: var(--sp-6) var(--sp-4);
+  color: var(--ink-muted);
+}
+.tc-empty-icon { font-size: 32px; margin-bottom: var(--sp-2); }
+.tc-empty-text { font-size: var(--fs-sm); }
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+.tc-footer {
+  border-top: 1px solid var(--rule-soft);
+  padding-top: var(--sp-3);
+  margin-top: var(--sp-1);
+}
+.tc-new-btn {
+  width: 100%;
+  justify-content: center;
+  color: var(--amber-700);
+  font-weight: 600;
+}
+.tc-new-btn:hover { background: var(--amber-50); }
+
+/* ── Success toast ────────────────────────────────────────────────────────── */
+.tc-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(16px);
+  background: #1c1917;
+  color: #fff;
+  font-size: var(--fs-sm);
+  font-family: var(--font-ui);
+  padding: 10px 20px;
+  border-radius: var(--r-full);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  opacity: 0;
+  transition: opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out);
+  z-index: 9999;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.tc-toast--visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.tc-toast-check {
+  color: #4ade80;
+  margin-right: 6px;
+}
