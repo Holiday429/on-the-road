@@ -19,6 +19,10 @@ let _unsubLegs: (() => void) | null = null;
 let _wired = false;
 // Selected city from autocomplete (before generate is pressed)
 let _selectedCity: { label: string; country: string } | null = null;
+// Transient sample shown when the API is unreachable — never persisted.
+let _previewIntel: (CityIntel & { id: string }) | null = null;
+// History panel visibility
+let _historyOpen = false;
 
 type TabKey = 'intro' | 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'know' | 'moneyTips';
 
@@ -44,6 +48,9 @@ function slugId(city: string) {
 async function generateGuide(city: string, country: string, query: string): Promise<void> {
   const root = document.getElementById('view-cities')!;
   const id = slugId(city);
+  _previewIntel = null;
+  const statusEl0 = document.getElementById('guide-search-status');
+  if (statusEl0) statusEl0.textContent = '';
 
   showSkeleton(root, city, country);
 
@@ -88,11 +95,18 @@ async function generateGuide(city: string, country: string, query: string): Prom
       }
     }
   } catch (err) {
-    console.warn('Guide API unavailable, using mock:', err);
-    const mock = getMockIntel(city, country);
-    await cityStore.save({ id, ...mock });
+    // API failed — show a sample preview WITHOUT persisting it to Firestore,
+    // so a transient outage never poisons the cache with mock data.
+    console.warn('Guide API unavailable, showing sample (not saved):', err);
+    const statusEl = document.getElementById('guide-search-status');
+    if (statusEl) {
+      statusEl.textContent = 'Couldn’t reach the AI service — showing a sample. Try Regen in a moment.';
+    }
+    const mock = getMockIntel(city, country) as CityIntel & { id: string };
+    mock.id = id;
+    _previewIntel = mock;
     _activeCityId = id;
-    renderCityList(root);
+    renderHistoryBar(root);
     renderCityDetail(root);
   }
 }
@@ -141,32 +155,48 @@ function showSkeleton(_root: HTMLElement, city: string, country: string) {
   detail.classList.add('active');
 }
 
-// ── History bar (compact pill strip above detail) ─────────────────────────────
+// ── History (collapsible panel behind the 🕘 button) ──────────────────────────
 
 function renderHistoryBar(root: HTMLElement) {
-  const bar = root.querySelector<HTMLElement>('#guide-history-bar') ?? document.getElementById('guide-history-bar');
-  if (!bar) return;
-  if (!_cities.length) { bar.innerHTML = ''; return; }
+  const toggle = document.getElementById('guide-history-toggle');
+  const panel  = document.getElementById('guide-history-panel');
+  if (!toggle || !panel) return;
 
-  bar.innerHTML = _cities.map(c => `
-    <div class="guide-history-pill ${c.id === _activeCityId ? 'active' : ''}" data-id="${c.id}">
-      <span>${c.flag || '🗺️'}</span>
-      <span class="guide-history-name">${c.city}</span>
+  // Toggle label shows the count; hide entirely when empty.
+  const wrap = toggle.closest<HTMLElement>('.guide-history-wrap');
+  if (!_cities.length) {
+    if (wrap) wrap.style.display = 'none';
+    panel.classList.remove('open');
+    _historyOpen = false;
+    return;
+  }
+  if (wrap) wrap.style.display = '';
+  toggle.innerHTML = `🕘 History <span class="guide-history-count">${_cities.length}</span>`;
+
+  panel.classList.toggle('open', _historyOpen);
+  panel.innerHTML = _cities.map(c => `
+    <div class="guide-history-row ${c.id === _activeCityId ? 'active' : ''}" data-id="${c.id}">
+      <span class="guide-history-row-flag">${c.flag || '🗺️'}</span>
+      <div class="guide-history-row-text">
+        <div class="guide-history-row-name">${c.city}</div>
+        <div class="guide-history-row-country">${c.country}</div>
+      </div>
       <button class="guide-history-del" data-id="${c.id}" title="Remove">×</button>
     </div>
   `).join('');
 
-  bar.querySelectorAll<HTMLElement>('.guide-history-pill').forEach(el => {
+  panel.querySelectorAll<HTMLElement>('.guide-history-row').forEach(el => {
     el.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).classList.contains('guide-history-del')) return;
       _activeCityId = el.dataset.id!;
       _activeTab = 'intro';
+      _historyOpen = false;
       renderHistoryBar(root);
       renderCityDetail(root);
     });
   });
 
-  bar.querySelectorAll<HTMLElement>('.guide-history-del').forEach(btn => {
+  panel.querySelectorAll<HTMLElement>('.guide-history-del').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id!;
       cityStore.remove(id);
@@ -185,7 +215,9 @@ function renderCityList(root: HTMLElement) { renderHistoryBar(root); }
 
 function renderCityDetail(_root: HTMLElement) {
   const detail = document.querySelector<HTMLElement>('#view-cities .guide-detail')!;
-  const intel = _cities.find(c => c.id === _activeCityId);
+  // Stored cities win; fall back to a transient preview if the API failed.
+  const intel = _cities.find(c => c.id === _activeCityId)
+    ?? (_previewIntel?.id === _activeCityId ? _previewIntel as StoredCityIntel : undefined);
 
   if (!intel) {
     detail.innerHTML = `
@@ -701,6 +733,22 @@ export function initCities() {
   const refineRow   = root.querySelector<HTMLElement>('#guide-refine-row')!;
   const refineInput = root.querySelector<HTMLInputElement>('#guide-refine-input')!;
   const statusEl    = root.querySelector<HTMLElement>('#guide-search-status')!;
+  const historyToggle = root.querySelector<HTMLButtonElement>('#guide-history-toggle')!;
+
+  // ── History toggle ───────────────────────────────────────────────────────
+  historyToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    _historyOpen = !_historyOpen;
+    renderHistoryBar(root);
+  });
+  // Close history when clicking elsewhere
+  document.addEventListener('click', (e) => {
+    if (!_historyOpen) return;
+    if (!(e.target as HTMLElement).closest('.guide-history-wrap')) {
+      _historyOpen = false;
+      renderHistoryBar(root);
+    }
+  });
 
   // ── City autocomplete ────────────────────────────────────────────────────
   let _dropdownOpen = false;

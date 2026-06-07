@@ -97,6 +97,10 @@
           </div>
           <button class="btn btn-primary" id="guide-generate-btn">Generate</button>
           <button class="btn btn-ghost guide-refine-toggle" id="guide-refine-toggle" title="Advanced search">✦ Refine</button>
+          <div class="guide-history-wrap">
+            <button class="btn btn-ghost guide-history-toggle" id="guide-history-toggle" title="Recent guides">🕘 History</button>
+            <div class="guide-history-panel" id="guide-history-panel"></div>
+          </div>
         </div>
         <div class="guide-refine-row" id="guide-refine-row" style="display:none">
           <input class="input" id="guide-refine-input" placeholder="e.g. rainy day indoor activities, vegan food, hidden gems…">
@@ -104,8 +108,7 @@
         <div id="guide-search-status"></div>
       </div>
 
-      <!-- History bar + detail -->
-      <div class="guide-history-bar" id="guide-history-bar"></div>
+      <!-- Detail -->
       <div class="guide-detail"></div>
     </div>
 
