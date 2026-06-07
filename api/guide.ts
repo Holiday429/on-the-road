@@ -140,7 +140,15 @@ Return ONLY valid JSON:
 {
   "flag": "country flag emoji",
   "intro": "3-4 engaging sentences about the city's character and vibe — not Wikipedia-dry",
-  "funFacts": ["surprising fact 1", "surprising fact 2", "surprising fact 3"]
+  "funFacts": ["surprising fact 1", "surprising fact 2", "surprising fact 3", "surprising fact 4"],
+  "overviewSections": [
+    {"icon": "🏛️", "title": "History", "body": "2-3 sentences on the city's origins and key historical turning points"},
+    {"icon": "🗺️", "title": "Geography & Layout", "body": "2-3 sentences on location, terrain, rivers, and how the city is laid out"},
+    {"icon": "🎭", "title": "Culture & Vibe", "body": "2-3 sentences on the local character, art scene, and daily rhythm"},
+    {"icon": "🍽️", "title": "Food & Drink", "body": "2-3 sentences on signature dishes, drinks, and food culture"},
+    {"icon": "📅", "title": "When to Visit", "body": "2-3 sentences on seasons, weather, festivals, and best timing"},
+    {"icon": "💶", "title": "Practical Snapshot", "body": "2-3 sentences on currency, language, rough daily budget, and getting in"}
+  ]
 }`;
 }
 
@@ -312,7 +320,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         deepseek(moneyTipsPrompt(city, moneyCtx)),
       ]);
 
-    const meta = metaRaw as { flag: string; intro: string; funFacts: string[] };
+    const meta = metaRaw as {
+      flag: string; intro: string; funFacts: string[];
+      overviewSections?: { icon: string; title: string; body: string }[];
+    };
     const know = knowRaw as {
       greetings: { phrase: string; pronunciation: string; meaning: string }[];
       customs: string[]; taboos: string[];
@@ -327,6 +338,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       bannerColor: randomBanner(),
       intro: meta.intro ?? '',
       funFacts: meta.funFacts ?? [],
+      overviewSections: meta.overviewSections ?? [],
     });
 
     emit(res, 'know', know);

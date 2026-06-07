@@ -470,6 +470,12 @@ export const CityIntelSchema = doc({
   // ── Know (cultural background) ──────────────────────────────────────────
   intro: z.string().default(''),                    // 3-4 sentence city portrait
   funFacts: z.array(z.string()).default([]),         // 3-5 short punchy facts
+  // Multi-dimensional overview cards: history, geography, when-to-visit, etc.
+  overviewSections: z.array(z.object({
+    icon: z.string().default('📌'),
+    title: z.string(),
+    body: z.string(),
+  })).default([]),
   greetings: z.array(z.object({
     phrase: z.string(), pronunciation: z.string(), meaning: z.string(),
   })).default([]),

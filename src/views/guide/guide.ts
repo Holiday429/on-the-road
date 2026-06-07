@@ -134,7 +134,10 @@ function applySection(intel: Partial<CityIntel> & { id: string }, section: strin
   const p = payload as Record<string, unknown>;
   switch (section) {
     case 'meta':
-      Object.assign(intel, { flag: p.flag, bannerColor: p.bannerColor, intro: p.intro, funFacts: p.funFacts });
+      Object.assign(intel, {
+        flag: p.flag, bannerColor: p.bannerColor, intro: p.intro,
+        funFacts: p.funFacts, overviewSections: p.overviewSections,
+      });
       break;
     case 'know':
       Object.assign(intel, {
@@ -174,26 +177,37 @@ function showSkeleton(_root: HTMLElement, city: string, country: string) {
   detail.classList.add('active');
 }
 
-// ── History (collapsible panel behind the 🕘 button) ──────────────────────────
+// ── History (right-side drawer with filter + scroll) ──────────────────────────
+
+let _historyFilter = '';
 
 function renderHistoryBar(root: HTMLElement) {
-  const toggle = document.getElementById('guide-history-toggle');
-  const panel  = document.getElementById('guide-history-panel');
-  if (!toggle || !panel) return;
+  const toggle  = document.getElementById('guide-history-toggle');
+  const drawer  = document.getElementById('guide-history-drawer');
+  const overlay = document.getElementById('guide-history-overlay');
+  const panel   = document.getElementById('guide-history-panel');
+  if (!toggle || !drawer || !overlay || !panel) return;
 
-  // Toggle label shows the count; hide entirely when empty.
-  const wrap = toggle.closest<HTMLElement>('.guide-history-wrap');
+  // Toggle button: show count, hide when empty.
   if (!_cities.length) {
-    if (wrap) wrap.style.display = 'none';
-    panel.classList.remove('open');
+    toggle.style.display = 'none';
+    drawer.classList.remove('open');
+    overlay.classList.remove('open');
     _historyOpen = false;
     return;
   }
-  if (wrap) wrap.style.display = '';
+  toggle.style.display = '';
   toggle.innerHTML = `🕘 History <span class="guide-history-count">${_cities.length}</span>`;
 
-  panel.classList.toggle('open', _historyOpen);
-  panel.innerHTML = _cities.map(c => `
+  drawer.classList.toggle('open', _historyOpen);
+  overlay.classList.toggle('open', _historyOpen);
+
+  const f = _historyFilter.toLowerCase();
+  const rows = _cities.filter(c =>
+    !f || c.city.toLowerCase().includes(f) || c.country.toLowerCase().includes(f)
+  );
+
+  panel.innerHTML = rows.length ? rows.map(c => `
     <div class="guide-history-row ${c.id === _activeCityId ? 'active' : ''}" data-id="${c.id}">
       <span class="guide-history-row-flag">${c.flag || '🗺️'}</span>
       <div class="guide-history-row-text">
@@ -202,7 +216,7 @@ function renderHistoryBar(root: HTMLElement) {
       </div>
       <button class="guide-history-del" data-id="${c.id}" title="Remove">×</button>
     </div>
-  `).join('');
+  `).join('') : `<div class="guide-history-empty">No matching guides</div>`;
 
   panel.querySelectorAll<HTMLElement>('.guide-history-row').forEach(el => {
     el.addEventListener('click', (e) => {
@@ -251,14 +265,14 @@ function renderCityDetail(_root: HTMLElement) {
 
   detail.classList.add('active');
   detail.innerHTML = `
-    <div class="guide-detail-header" style="background:${intel.bannerColor}20;border-color:${intel.bannerColor}60">
-      <div class="guide-detail-flag">${intel.flag || '🗺️'}</div>
+    <div class="guide-detail-header">
+      <span class="guide-detail-flag">${intel.flag || '🗺️'}</span>
       <div class="guide-detail-header-text">
-        <div class="guide-detail-city">${intel.city}</div>
-        <div class="guide-detail-country">${intel.country}</div>
-        ${intel.generatedQuery ? `<div class="guide-detail-query">🔍 "${intel.generatedQuery}"</div>` : ''}
+        <span class="guide-detail-city">${intel.city}</span>
+        <span class="guide-detail-country">${intel.country}</span>
+        ${intel.generatedQuery ? `<span class="guide-detail-query">🔍 "${intel.generatedQuery}"</span>` : ''}
       </div>
-      <button class="btn btn-ghost guide-regen-btn" data-id="${intel.id}" style="font-size:var(--fs-sm);white-space:nowrap">↺ Regen</button>
+      <button class="btn btn-ghost guide-regen-btn" data-id="${intel.id}">↺ Regen</button>
     </div>
 
     <div class="guide-tabs" role="tablist">
@@ -313,12 +327,31 @@ function renderTabContent(intel: StoredCityIntel): string {
 
 function renderIntroTab(intel: StoredCityIntel): string {
   if (!intel.intro && !intel.funFacts?.length) return renderSectionLoading('Overview is being generated…');
+  const sections = intel.overviewSections ?? [];
   return `
     <div class="guide-intro">
-      ${intel.intro ? `<p class="guide-intro-text">${intel.intro}</p>` : ''}
+      ${intel.intro ? `<p class="guide-intro-lede">${intel.intro}</p>` : ''}
+
+      ${sections.length ? `
+        <div class="guide-overview-grid">
+          ${sections.map(s => `
+            <div class="guide-overview-card">
+              <div class="guide-overview-card-head">
+                <span class="guide-overview-icon">${s.icon || '📌'}</span>
+                <span class="guide-overview-title">${s.title}</span>
+              </div>
+              <p class="guide-overview-body">${s.body}</p>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
       ${intel.funFacts?.length ? `
-        <div class="guide-fun-facts">
-          ${intel.funFacts.map(f => `<div class="guide-fun-fact">⚡ ${f}</div>`).join('')}
+        <div class="guide-funfacts-block">
+          <div class="guide-funfacts-label">⚡ Did you know?</div>
+          <div class="guide-fun-facts">
+            ${intel.funFacts.map(f => `<div class="guide-fun-fact">${f}</div>`).join('')}
+          </div>
         </div>
       ` : ''}
     </div>
@@ -330,8 +363,15 @@ function renderCardGrid(cards: GuideCard[], city: string, type: string): string 
   return `<div class="guide-card-grid">${cards.map((c, i) => renderFlipCard(c, city, type, i)).join('')}</div>`;
 }
 
-function renderFlipCard(card: GuideCard, _city: string, type: string, _i: number): string {
+// Build a Google Maps search/place URL for a card (view details + navigate).
+function mapsUrl(card: { title: string; address?: string }, city: string): string {
+  const q = [card.title, card.address, city].filter(Boolean).join(' ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
+function renderFlipCard(card: GuideCard, city: string, type: string, _i: number): string {
   const s = card.saved;
+  const maps = mapsUrl(card, city);
   return `
     <div class="guide-flip-wrap ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}">
       <div class="guide-flip-inner">
@@ -343,8 +383,8 @@ function renderFlipCard(card: GuideCard, _city: string, type: string, _i: number
             ${card.duration ? `<span>⏱ ${card.duration}</span>` : ''}
             ${card.cost ? `<span>💰 ${card.cost}</span>` : ''}
           </div>
-          <div class="guide-card-hint">tap to flip</div>
           <div class="guide-card-btns">
+            <a class="guide-icon-btn guide-map-btn" href="${maps}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
             <button class="guide-icon-btn guide-save-btn ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}" title="Bookmark">${s ? '★' : '☆'}</button>
             <button class="guide-icon-btn guide-commit-btn" data-card-id="${card.id}" data-card-type="${type}" title="Add to itinerary">＋</button>
           </div>
@@ -354,9 +394,8 @@ function renderFlipCard(card: GuideCard, _city: string, type: string, _i: number
           <p class="guide-card-detail">${card.detail}</p>
           ${card.background ? `<div class="guide-card-bg">💡 ${card.background}</div>` : ''}
           ${card.address ? `<div class="guide-card-addr">📍 ${card.address}</div>` : ''}
-          ${card.searchUrl ? `<a class="guide-card-link" href="${card.searchUrl}" target="_blank" rel="noopener">🔍 Google</a>` : ''}
           <div class="guide-card-btns">
-            <button class="guide-icon-btn guide-save-btn ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}" title="Bookmark">${s ? '★' : '☆'}</button>
+            <a class="guide-icon-btn guide-map-btn" href="${maps}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
             <button class="guide-icon-btn guide-commit-btn" data-card-id="${card.id}" data-card-type="${type}" title="Add to itinerary">＋ Add to trip</button>
           </div>
         </div>
@@ -383,7 +422,6 @@ function renderWalkCard(walk: CityWalk, _city: string, _i: number): string {
             ${walk.duration ? `<span>⏱ ${walk.duration}</span>` : ''}
             ${walk.distance ? `<span>📏 ${walk.distance}</span>` : ''}
           </div>
-          <div class="guide-card-hint">tap to flip</div>
           <div class="guide-card-btns">
             <button class="guide-icon-btn guide-save-btn ${s ? 'saved' : ''}" data-card-id="${walk.id}" data-card-type="cityWalk" title="Bookmark">${s ? '★' : '☆'}</button>
             <button class="guide-icon-btn guide-commit-btn" data-card-id="${walk.id}" data-card-type="cityWalk" title="Add to itinerary">＋</button>
@@ -393,9 +431,8 @@ function renderWalkCard(walk: CityWalk, _city: string, _i: number): string {
           <div class="guide-card-title">${walk.title}</div>
           <p class="guide-card-detail" style="white-space:pre-line">${walk.detail}</p>
           ${walk.background ? `<div class="guide-card-bg">💡 ${walk.background}</div>` : ''}
-          ${walk.searchUrl ? `<a class="guide-card-link" href="${walk.searchUrl}" target="_blank" rel="noopener">🔍 Google</a>` : ''}
           <div class="guide-card-btns">
-            <button class="guide-icon-btn guide-save-btn ${s ? 'saved' : ''}" data-card-id="${walk.id}" data-card-type="cityWalk" title="Bookmark">${s ? '★' : '☆'}</button>
+            ${walk.searchUrl ? `<a class="guide-icon-btn guide-map-btn" href="${walk.searchUrl}" target="_blank" rel="noopener" title="Search route">🔍 Route</a>` : ''}
             <button class="guide-icon-btn guide-commit-btn" data-card-id="${walk.id}" data-card-type="cityWalk" title="Add to itinerary">＋ Add to trip</button>
           </div>
         </div>
@@ -669,6 +706,12 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
       'The old town dates back over 800 years',
       'There are more bicycles than cars in the city centre',
     ],
+    overviewSections: [
+      { icon: '🏛️', title: 'History', body: `${city} has centuries of layered history, from medieval roots to its modern-day character.` },
+      { icon: '🗺️', title: 'Geography & Layout', body: 'A walkable historic core surrounded by lively residential districts and green spaces.' },
+      { icon: '🎭', title: 'Culture & Vibe', body: 'A blend of tradition and contemporary creativity — markets, cafés, and street life.' },
+      { icon: '📅', title: 'When to Visit', body: 'Spring and early autumn offer the best weather and fewer crowds.' },
+    ],
     greetings: [{ phrase: 'Hello', pronunciation: 'heh-LOH', meaning: 'Standard greeting' }],
     customs: ['Greet shopkeepers when entering small shops', 'Tipping customs vary — check local norms'],
     taboos: ['Loud phone calls on public transport are frowned upon'],
@@ -752,21 +795,22 @@ export function initCities() {
   const refineRow   = root.querySelector<HTMLElement>('#guide-refine-row')!;
   const refineInput = root.querySelector<HTMLInputElement>('#guide-refine-input')!;
   const statusEl    = root.querySelector<HTMLElement>('#guide-search-status')!;
-  const historyToggle = root.querySelector<HTMLButtonElement>('#guide-history-toggle')!;
+  const historyToggle  = root.querySelector<HTMLButtonElement>('#guide-history-toggle')!;
+  const historyClose   = root.querySelector<HTMLButtonElement>('#guide-history-close')!;
+  const historyOverlay = root.querySelector<HTMLElement>('#guide-history-overlay')!;
+  const historySearch  = root.querySelector<HTMLInputElement>('#guide-history-search-input')!;
 
-  // ── History toggle ───────────────────────────────────────────────────────
-  historyToggle.addEventListener('click', (e) => {
-    e.stopPropagation();
+  // ── History drawer ───────────────────────────────────────────────────────
+  const closeHistory = () => { _historyOpen = false; renderHistoryBar(root); };
+  historyToggle.addEventListener('click', () => {
     _historyOpen = !_historyOpen;
     renderHistoryBar(root);
   });
-  // Close history when clicking elsewhere
-  document.addEventListener('click', (e) => {
-    if (!_historyOpen) return;
-    if (!(e.target as HTMLElement).closest('.guide-history-wrap')) {
-      _historyOpen = false;
-      renderHistoryBar(root);
-    }
+  historyClose.addEventListener('click', closeHistory);
+  historyOverlay.addEventListener('click', closeHistory);
+  historySearch.addEventListener('input', () => {
+    _historyFilter = historySearch.value.trim();
+    renderHistoryBar(root);
   });
 
   // ── City autocomplete ────────────────────────────────────────────────────
