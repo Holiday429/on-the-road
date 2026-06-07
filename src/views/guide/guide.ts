@@ -64,11 +64,7 @@ async function generateGuide(city: string, country: string, query: string): Prom
       body: JSON.stringify({ city, country, query }),
     });
 
-    if (!res.ok || !res.body) throw new Error(`API error ${res.status}`);
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
+    if (!res.ok) throw new Error(`API error ${res.status}`);
 
     const intel: Partial<CityIntel> & { id: string } = {
       id, city, country,
@@ -76,23 +72,45 @@ async function generateGuide(city: string, country: string, query: string): Prom
       generatedQuery: query,
     };
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop() ?? '';
+    // Apply one SSE "data: {...}" line: parse, merge, persist, re-render.
+    // cityStore.save failures must NOT bubble to the outer catch (which would
+    // wrongly show the mock) — they only mean this chunk didn't persist yet.
+    const applyLine = async (line: string) => {
+      if (!line.startsWith('data: ')) return;
+      let parsed: { section: string; payload: unknown };
+      try { parsed = JSON.parse(line.slice(6)); } catch { return; }
+      applySection(intel, parsed.section, parsed.payload);
+      _activeCityId = id;
+      renderCityDetail(root);
+      try { await cityStore.save(intel as CityIntel & { id: string }); }
+      catch (e) { console.warn('cityStore.save failed for a chunk:', e); }
+    };
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const { section, payload } = JSON.parse(line.slice(6));
-          applySection(intel, section, payload);
-          await cityStore.save(intel as CityIntel & { id: string });
-          _activeCityId = id;
-          renderCityDetail(root);
-        } catch { /* partial JSON */ }
+    if (res.body) {
+      // Streaming path — render sections as they arrive.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let gotAny = false;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) gotAny = true;
+          await applyLine(line);
+        }
       }
+      if (buf.trim()) await applyLine(buf.trim());
+      if (!gotAny) throw new Error('Empty stream');
+    } else {
+      // No readable stream (some HTTP/2 environments) — read the whole text.
+      const text = await res.text();
+      const lines = text.split('\n').filter(l => l.startsWith('data: '));
+      if (!lines.length) throw new Error('Empty response');
+      for (const line of lines) await applyLine(line);
     }
   } catch (err) {
     // API failed — show a sample preview WITHOUT persisting it to Firestore,
@@ -100,7 +118,8 @@ async function generateGuide(city: string, country: string, query: string): Prom
     console.warn('Guide API unavailable, showing sample (not saved):', err);
     const statusEl = document.getElementById('guide-search-status');
     if (statusEl) {
-      statusEl.textContent = 'Couldn’t reach the AI service — showing a sample. Try Regen in a moment.';
+      const reason = (err as Error)?.message ? ` (${(err as Error).message})` : '';
+      statusEl.textContent = `Couldn’t reach the AI service${reason} — showing a sample. Try Regen in a moment.`;
     }
     const mock = getMockIntel(city, country) as CityIntel & { id: string };
     mock.id = id;
