@@ -81,21 +81,31 @@
       <div class="route-timeline"></div>
     </div>
 
-    <!-- /cities -->
+    <!-- /cities — Guide -->
     <div id="view-cities" class="view">
       <div class="view-header">
         <div class="view-title">Guide</div>
-        <div class="view-subtitle">AI-generated cultural briefings — greetings, neighborhoods, safety, hidden gems.</div>
+        <div class="view-subtitle">AI travel guides — attractions, food, culture, and more. Bookmark anything, or send it straight to your itinerary.</div>
       </div>
-      <div class="cities-search-wrap">
-        <div class="cities-search-row">
-          <input class="input" id="cities-search-input" placeholder="Search a city… e.g. Barcelona" style="font-size:var(--fs-md);padding:14px 18px">
-          <button class="btn btn-primary" id="cities-search-btn" style="padding:14px 20px;font-size:var(--fs-md);white-space:nowrap">Generate</button>
+
+      <!-- Search area -->
+      <div class="guide-search-area">
+        <div class="guide-search-row">
+          <div id="guide-city-picker-mount"></div>
+          <button class="btn btn-primary" id="guide-generate-btn">Generate</button>
         </div>
-        <div id="cities-search-status" style="margin-top:16px"></div>
+        <div class="guide-refine-row">
+          <input class="input" id="guide-refine-input" placeholder="Refine: e.g. rainy day indoor activities, vegan food…">
+          <span class="guide-refine-hint">optional — leave blank for a full guide</span>
+        </div>
+        <div id="guide-search-status"></div>
       </div>
-      <div class="city-details-wrap"></div>
-      <div class="cities-grid"></div>
+
+      <!-- Sidebar + detail layout -->
+      <div class="guide-layout">
+        <div class="guide-city-list"></div>
+        <div class="guide-detail"></div>
+      </div>
     </div>
 
     <!-- /pack -->
