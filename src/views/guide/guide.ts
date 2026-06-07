@@ -5,7 +5,7 @@
 import './guide.css';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
-import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
+import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel } from '../../data/schema.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -17,7 +17,8 @@ let _activeTab: TabKey = 'intro';
 let _unsubCities: (() => void) | null = null;
 let _unsubLegs: (() => void) | null = null;
 let _wired = false;
-let _destPicker: DestinationInputInstance | null = null;
+// Selected city from autocomplete (before generate is pressed)
+let _selectedCity: { label: string; country: string } | null = null;
 
 type TabKey = 'intro' | 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'know' | 'moneyTips';
 
@@ -119,8 +120,8 @@ function applySection(intel: Partial<CityIntel> & { id: string }, section: strin
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
-function showSkeleton(root: HTMLElement, city: string, country: string) {
-  const detail = root.querySelector<HTMLElement>('.guide-detail')!;
+function showSkeleton(_root: HTMLElement, city: string, country: string) {
+  const detail = document.querySelector<HTMLElement>('#view-cities .guide-detail')!;
   detail.innerHTML = `
     <div class="guide-detail-header guide-skeleton-header">
       <div class="guide-skeleton guide-skeleton-flag"></div>
@@ -140,36 +141,32 @@ function showSkeleton(root: HTMLElement, city: string, country: string) {
   detail.classList.add('active');
 }
 
-// ── City list sidebar ─────────────────────────────────────────────────────────
+// ── History bar (compact pill strip above detail) ─────────────────────────────
 
-function renderCityList(root: HTMLElement) {
-  const list = root.querySelector<HTMLElement>('.guide-city-list')!;
-  if (!_cities.length) {
-    list.innerHTML = `<div class="guide-empty-list">Search a city above to generate your first guide</div>`;
-    return;
-  }
-  list.innerHTML = _cities.map(c => `
-    <div class="guide-city-item ${c.id === _activeCityId ? 'active' : ''}" data-id="${c.id}">
-      <span class="guide-city-flag">${c.flag || '🗺️'}</span>
-      <div class="guide-city-item-text">
-        <div class="guide-city-item-name">${c.city}</div>
-        <div class="guide-city-item-country">${c.country}</div>
-      </div>
-      <button class="guide-city-delete" data-id="${c.id}" title="Delete">×</button>
+function renderHistoryBar(root: HTMLElement) {
+  const bar = root.querySelector<HTMLElement>('#guide-history-bar') ?? document.getElementById('guide-history-bar');
+  if (!bar) return;
+  if (!_cities.length) { bar.innerHTML = ''; return; }
+
+  bar.innerHTML = _cities.map(c => `
+    <div class="guide-history-pill ${c.id === _activeCityId ? 'active' : ''}" data-id="${c.id}">
+      <span>${c.flag || '🗺️'}</span>
+      <span class="guide-history-name">${c.city}</span>
+      <button class="guide-history-del" data-id="${c.id}" title="Remove">×</button>
     </div>
   `).join('');
 
-  list.querySelectorAll<HTMLElement>('.guide-city-item').forEach(el => {
+  bar.querySelectorAll<HTMLElement>('.guide-history-pill').forEach(el => {
     el.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).classList.contains('guide-city-delete')) return;
+      if ((e.target as HTMLElement).classList.contains('guide-history-del')) return;
       _activeCityId = el.dataset.id!;
       _activeTab = 'intro';
-      renderCityList(root);
+      renderHistoryBar(root);
       renderCityDetail(root);
     });
   });
 
-  list.querySelectorAll<HTMLElement>('.guide-city-delete').forEach(btn => {
+  bar.querySelectorAll<HTMLElement>('.guide-history-del').forEach(btn => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.id!;
       cityStore.remove(id);
@@ -181,10 +178,13 @@ function renderCityList(root: HTMLElement) {
   });
 }
 
+// kept for compatibility — now delegates to renderHistoryBar
+function renderCityList(root: HTMLElement) { renderHistoryBar(root); }
+
 // ── Main detail view ──────────────────────────────────────────────────────────
 
-function renderCityDetail(root: HTMLElement) {
-  const detail = root.querySelector<HTMLElement>('.guide-detail')!;
+function renderCityDetail(_root: HTMLElement) {
+  const detail = document.querySelector<HTMLElement>('#view-cities .guide-detail')!;
   const intel = _cities.find(c => c.id === _activeCityId);
 
   if (!intel) {
@@ -237,8 +237,8 @@ function renderCityDetail(root: HTMLElement) {
   });
 
   detail.querySelector('.guide-regen-btn')?.addEventListener('click', () => {
-    const queryBox = root.querySelector<HTMLInputElement>('#guide-refine-input')!;
-    generateGuide(intel.city, intel.country, queryBox.value.trim());
+    const queryBox = document.getElementById('guide-refine-input') as HTMLInputElement | null;
+    generateGuide(intel.city, intel.country, queryBox?.value.trim() ?? '');
   });
 
   wireTabContent(detail, intel);
@@ -694,43 +694,106 @@ export function initCities() {
 
   const root = document.getElementById('view-cities')!;
 
-  // City picker (destination-input)
-  const pickerMount = root.querySelector<HTMLElement>('#guide-city-picker-mount')!;
-  _destPicker = createDestinationInput({
-    container: pickerMount,
-    placeholder: 'Search a city…  e.g. Barcelona',
-    maxTags: 1,
-    onChange: () => {},
-  });
-
+  const cityInput   = root.querySelector<HTMLInputElement>('#guide-city-input')!;
+  const dropdown    = root.querySelector<HTMLElement>('#guide-city-dropdown')!;
   const generateBtn = root.querySelector<HTMLButtonElement>('#guide-generate-btn')!;
+  const refineToggle = root.querySelector<HTMLButtonElement>('#guide-refine-toggle')!;
+  const refineRow   = root.querySelector<HTMLElement>('#guide-refine-row')!;
   const refineInput = root.querySelector<HTMLInputElement>('#guide-refine-input')!;
   const statusEl    = root.querySelector<HTMLElement>('#guide-search-status')!;
 
-  async function doGenerate() {
-    const vals = _destPicker!.getValues();
-    statusEl.textContent = '';
+  // ── City autocomplete ────────────────────────────────────────────────────
+  let _dropdownOpen = false;
 
-    if (!vals.length) {
-      statusEl.textContent = 'Please select a city first.';
-      return;
+  function showDropdown(q: string) {
+    const results = searchDestinations(q, 8);
+    if (!results.length) { hideDropdown(); return; }
+
+    const cities   = results.filter(d => d.type === 'city');
+    const countries = results.filter(d => d.type === 'country');
+
+    const renderGroup = (label: string, items: typeof results) => items.length ? `
+      <div class="guide-dd-section-label">${label}</div>
+      ${items.map(d => `
+        <div class="guide-dd-item" data-label="${d.label}" data-country="${d.country}">
+          <span>${d.flag}</span><span>${d.label}</span>
+        </div>
+      `).join('')}
+    ` : '';
+
+    dropdown.innerHTML = renderGroup('Cities', cities) + renderGroup('Countries', countries);
+    dropdown.classList.add('open');
+    _dropdownOpen = true;
+
+    dropdown.querySelectorAll<HTMLElement>('.guide-dd-item').forEach(item => {
+      item.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const label   = item.dataset.label!;
+        const countryCode = item.dataset.country!;
+        const countryEntry = COUNTRIES.find(c => c.country === countryCode);
+        _selectedCity = { label, country: countryEntry?.label ?? '' };
+        cityInput.value = label;
+        hideDropdown();
+      });
+    });
+  }
+
+  function hideDropdown() {
+    dropdown.classList.remove('open');
+    dropdown.innerHTML = '';
+    _dropdownOpen = false;
+  }
+
+  cityInput.addEventListener('input', () => {
+    _selectedCity = null;
+    const q = cityInput.value.trim();
+    if (q.length >= 1) showDropdown(q); else hideDropdown();
+  });
+
+  cityInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') hideDropdown();
+    if (e.key === 'Enter') { hideDropdown(); doGenerate(); }
+    if (e.key === 'ArrowDown' && _dropdownOpen) {
+      e.preventDefault();
+      (dropdown.querySelector('.guide-dd-item') as HTMLElement)?.focus();
+    }
+  });
+
+  cityInput.addEventListener('blur', () => setTimeout(hideDropdown, 150));
+
+  // ── Refine toggle ────────────────────────────────────────────────────────
+  refineToggle.addEventListener('click', () => {
+    const open = refineRow.style.display !== 'none';
+    refineRow.style.display = open ? 'none' : 'flex';
+    refineToggle.classList.toggle('active', !open);
+    if (!open) refineInput.focus();
+  });
+
+  // ── Generate ─────────────────────────────────────────────────────────────
+  async function doGenerate() {
+    statusEl.textContent = '';
+    const cityLabel = _selectedCity?.label || cityInput.value.trim();
+    if (!cityLabel) { statusEl.textContent = 'Please select a city first.'; return; }
+
+    // If not picked from dropdown, do a best-effort match
+    if (!_selectedCity) {
+      const match = searchDestinations(cityLabel, 1)[0];
+      const countryEntry = match ? COUNTRIES.find(c => c.country === match.country) : null;
+      _selectedCity = { label: match?.label ?? cityLabel, country: countryEntry?.label ?? '' };
     }
 
-    const cityLabel = vals[0];
-    const { searchDestinations } = await import('../../data/destinations.ts');
-    const match = searchDestinations(cityLabel).find(d => d.label === cityLabel);
-    const country = match ? (match.keywords || match.label) : '';
-
-    const id = slugId(cityLabel);
+    const { label: city, country } = _selectedCity;
+    const id    = slugId(city);
     const query = refineInput.value.trim();
     const existing = _cities.find(c => c.id === id);
 
     if (existing && !query) {
       _activeCityId = id;
       _activeTab = 'intro';
-      renderCityList(root);
+      renderHistoryBar(root);
       renderCityDetail(root);
-      _destPicker!.setValues([]);
+      cityInput.value = '';
+      _selectedCity = null;
       return;
     }
 
@@ -739,23 +802,20 @@ export function initCities() {
     generateBtn.disabled = true;
     generateBtn.textContent = '…';
 
-    // derive country name from destinations
-    const { COUNTRIES } = await import('../../data/destinations.ts');
-    const countryEntry = COUNTRIES.find(c => c.country === match?.country);
-    const countryName = countryEntry?.label ?? country;
-
-    await generateGuide(cityLabel, countryName, query);
+    await generateGuide(city, country, query);
 
     generateBtn.disabled = false;
     generateBtn.textContent = 'Generate';
-    _destPicker!.setValues([]);
+    cityInput.value = '';
+    _selectedCity = null;
     refineInput.value = '';
-    renderCityList(root);
+    refineRow.style.display = 'none';
+    refineToggle.classList.remove('active');
+    renderHistoryBar(root);
   }
 
   generateBtn.addEventListener('click', doGenerate);
-  refineInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doGenerate(); });
 
-  renderCityList(root);
+  renderHistoryBar(root);
   renderCityDetail(root);
 }

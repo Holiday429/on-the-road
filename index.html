@@ -91,21 +91,22 @@
       <!-- Search area -->
       <div class="guide-search-area">
         <div class="guide-search-row">
-          <div id="guide-city-picker-mount"></div>
+          <div class="guide-city-input-wrap">
+            <input class="input guide-city-input" id="guide-city-input" placeholder="Search a city…  e.g. Amsterdam" autocomplete="off" spellcheck="false">
+            <div class="guide-city-dropdown" id="guide-city-dropdown"></div>
+          </div>
           <button class="btn btn-primary" id="guide-generate-btn">Generate</button>
+          <button class="btn btn-ghost guide-refine-toggle" id="guide-refine-toggle" title="Advanced search">✦ Refine</button>
         </div>
-        <div class="guide-refine-row">
-          <input class="input" id="guide-refine-input" placeholder="Refine: e.g. rainy day indoor activities, vegan food…">
-          <span class="guide-refine-hint">optional — leave blank for a full guide</span>
+        <div class="guide-refine-row" id="guide-refine-row" style="display:none">
+          <input class="input" id="guide-refine-input" placeholder="e.g. rainy day indoor activities, vegan food, hidden gems…">
         </div>
         <div id="guide-search-status"></div>
       </div>
 
-      <!-- Sidebar + detail layout -->
-      <div class="guide-layout">
-        <div class="guide-city-list"></div>
-        <div class="guide-detail"></div>
-      </div>
+      <!-- History bar + detail -->
+      <div class="guide-history-bar" id="guide-history-bar"></div>
+      <div class="guide-detail"></div>
     </div>
 
     <!-- /pack -->
