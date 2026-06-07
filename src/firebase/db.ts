@@ -68,7 +68,9 @@ export function createUserCollectionStore<S extends z.ZodTypeAny>(
     },
 
     subscribe(cb) {
-      const uid = requireUid();
+      const u = currentUser();
+      if (!u) { cb([]); return () => {}; }
+      const uid = u.uid;
       const key = userCacheKey(uid, name);
       cb(readCache<T>(key));
       return onSnapshot(query(ref(uid)), (snap) => {
@@ -240,7 +242,9 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
     },
 
     subscribe(cb) {
-      const uid = requireUid();
+      const u = currentUser();
+      if (!u) { cb([]); return () => {}; }
+      const uid = u.uid;
       const key = cacheKey(uid, tripId, name);
       cb(readCache<T>(key)); // instant paint from cache
       return onSnapshot(query(ref(uid)), (snap) => {
