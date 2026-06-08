@@ -68,6 +68,46 @@ function addSearchUrls<T extends { title: string; searchUrl?: string }>(items: T
   }));
 }
 
+// ── Unsplash photos ───────────────────────────────────────────────────────────
+// Used only for landmark-ish cards (attractions / city walks / experiences).
+// Restaurants & cafés are skipped on purpose — Unsplash can't return the actual
+// venue, only a generic mood shot, so we leave those imageless by design.
+
+interface PhotoMeta { imageUrl: string; photographer: string; photographerUrl: string; }
+
+const EMPTY_PHOTO: PhotoMeta = { imageUrl: '', photographer: '', photographerUrl: '' };
+
+async function unsplashPhoto(query: string): Promise<PhotoMeta> {
+  const key = process.env.UNSPLASH_ACCESS_KEY;
+  if (!key) return EMPTY_PHOTO;
+  try {
+    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape&content_filter=high`;
+    const res = await fetch(url, { headers: { Authorization: `Client-ID ${key}` } });
+    if (!res.ok) return EMPTY_PHOTO;
+    const data = await res.json() as {
+      results?: { urls: { regular: string }; user: { name: string; links: { html: string } } }[];
+    };
+    const hit = data.results?.[0];
+    if (!hit) return EMPTY_PHOTO;
+    return {
+      imageUrl: hit.urls.regular,
+      photographer: hit.user?.name ?? '',
+      photographerUrl: hit.user?.links?.html ?? '',
+    };
+  } catch {
+    return EMPTY_PHOTO;
+  }
+}
+
+// Attach an Unsplash photo to each card, in parallel. `city` is appended to the
+// search so "Colosseum" → "Colosseum Rome" lands the right landmark.
+async function addPhotos<T extends { title: string }>(items: T[], city: string): Promise<(T & PhotoMeta)[]> {
+  return Promise.all(items.map(async (item) => ({
+    ...item,
+    ...(await unsplashPhoto(`${item.title} ${city}`)),
+  })));
+}
+
 // ── Tavily search ─────────────────────────────────────────────────────────────
 
 async function tavilySearch(query: string): Promise<string> {
@@ -343,21 +383,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     emit(res, 'know', know);
 
-    emit(res, 'attractions', addSearchUrls(
-      (Array.isArray(attrRaw) ? attrRaw : []) as GuideCard[], city
-    ));
-    emit(res, 'cityWalks', addSearchUrls(
-      (Array.isArray(walkRaw) ? walkRaw : []) as CityWalk[], city
-    ));
+    // Photo-backed sections: attach Unsplash images (landmark-ish content).
+    const attractions = await addPhotos(
+      addSearchUrls((Array.isArray(attrRaw) ? attrRaw : []) as GuideCard[], city), city
+    );
+    emit(res, 'attractions', attractions);
+
+    const cityWalks = await addPhotos(
+      addSearchUrls((Array.isArray(walkRaw) ? walkRaw : []) as CityWalk[], city), city
+    );
+    emit(res, 'cityWalks', cityWalks);
+
+    // Restaurants & cafés: no Unsplash image (only generic mood shots exist).
     emit(res, 'restaurants', addSearchUrls(
       (Array.isArray(restRaw) ? restRaw : []) as GuideCard[], city
     ));
     emit(res, 'cafes', addSearchUrls(
       (Array.isArray(cafeRaw) ? cafeRaw : []) as GuideCard[], city
     ));
-    emit(res, 'experiences', addSearchUrls(
-      (Array.isArray(expRaw) ? expRaw : []) as GuideCard[], city
-    ));
+
+    const experiences = await addPhotos(
+      addSearchUrls((Array.isArray(expRaw) ? expRaw : []) as GuideCard[], city), city
+    );
+    emit(res, 'experiences', experiences);
 
     const tips = (Array.isArray(moneyRaw) ? moneyRaw : []) as GuideTip[];
     emit(res, 'moneyTips', tips.map((t, i) => ({ ...t, id: t.id || `tip-${i}` })));

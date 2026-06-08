@@ -429,13 +429,18 @@ export const GuideCardSchema = z.object({
   id: z.string(),
   title: z.string(),
   highlight: z.string(),           // one-liner shown on card front
-  detail: z.string(),              // full description shown on flip side
+  detail: z.string(),              // full description shown in the detail modal
   background: z.string().default(''),  // cultural/historical context
   searchUrl: z.string().default(''),   // auto-built Google search URL, never AI-generated
   address: z.string().default(''),
   duration: z.string().default(''),    // e.g. "2–3h"
   cost: z.string().default(''),        // e.g. "€10–15"
   category: z.string().default(''),    // matches ClipCategory id in itinerary
+  // Unsplash photo for landmark-ish cards (attractions/experiences). Restaurants
+  // and cafés intentionally have no image — they use a colour-block + emoji.
+  imageUrl: z.string().default(''),
+  photographer: z.string().default(''),  // Unsplash attribution name
+  photographerUrl: z.string().default(''),
   saved: z.boolean().default(false),   // user bookmark
 });
 export type GuideCard = z.infer<typeof GuideCardSchema>;
@@ -450,6 +455,9 @@ export const CityWalkSchema = z.object({
   searchUrl: z.string().default(''),
   duration: z.string().default(''),
   distance: z.string().default(''),  // e.g. "3 km"
+  imageUrl: z.string().default(''),
+  photographer: z.string().default(''),
+  photographerUrl: z.string().default(''),
   saved: z.boolean().default(false),
 });
 export type CityWalk = z.infer<typeof CityWalkSchema>;

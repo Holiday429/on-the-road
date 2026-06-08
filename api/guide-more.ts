@@ -64,6 +64,28 @@ async function deepseek(prompt: string): Promise<unknown> {
   return JSON.parse(data.choices[0].message.content);
 }
 
+interface PhotoMeta { imageUrl: string; photographer: string; photographerUrl: string; }
+const EMPTY_PHOTO: PhotoMeta = { imageUrl: '', photographer: '', photographerUrl: '' };
+
+async function unsplashPhoto(query: string): Promise<PhotoMeta> {
+  const key = process.env.UNSPLASH_ACCESS_KEY;
+  if (!key) return EMPTY_PHOTO;
+  try {
+    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=1&orientation=landscape&content_filter=high`;
+    const res = await fetch(url, { headers: { Authorization: `Client-ID ${key}` } });
+    if (!res.ok) return EMPTY_PHOTO;
+    const data = await res.json() as {
+      results?: { urls: { regular: string }; user: { name: string; links: { html: string } } }[];
+    };
+    const hit = data.results?.[0];
+    if (!hit) return EMPTY_PHOTO;
+    return { imageUrl: hit.urls.regular, photographer: hit.user?.name ?? '', photographerUrl: hit.user?.links?.html ?? '' };
+  } catch { return EMPTY_PHOTO; }
+}
+
+// Sections that get Unsplash imagery (restaurants/cafés/moneyTips do not).
+const PHOTO_SECTIONS = new Set<SectionKey>(['attractions', 'cityWalks', 'experiences']);
+
 // ── Section config ────────────────────────────────────────────────────────────
 
 type SectionKey = 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'moneyTips';
@@ -183,15 +205,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return true;
     });
 
-    // Attach ids + searchUrls (cards/walks have titles; tips only have text).
+    // Attach ids + searchUrls (cards/walks have titles; tips only have text),
+    // plus Unsplash photos for landmark-ish sections.
     const stamp = Date.now();
-    const out = items.map((it, i) => {
+    const wantPhoto = PHOTO_SECTIONS.has(section);
+    const out = await Promise.all(items.map(async (it, i) => {
       if (section === 'moneyTips') {
         return { id: `tip-more-${stamp}-${i}`, text: it.text ?? '' };
       }
       const title = String(it.title ?? '');
-      return { ...it, id: `${slug(title)}-${stamp}-${i}`, searchUrl: searchUrl(title, city) };
-    });
+      const photo = wantPhoto ? await unsplashPhoto(`${title} ${city}`) : EMPTY_PHOTO;
+      return { ...it, ...photo, id: `${slug(title)}-${stamp}-${i}`, searchUrl: searchUrl(title, city) };
+    }));
 
     res.json({ items: out });
   } catch (err) {

@@ -381,36 +381,35 @@ function mapsUrl(card: { title: string; address?: string }, city: string): strin
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
-function renderFlipCard(card: GuideCard, city: string, type: string, _i: number): string {
+// Image-led card. Photo (or colour-block + emoji fallback) on top, info below.
+// Clicking the body opens a detail modal — no flip, no scroll-in-card.
+function renderFlipCard(card: GuideCard, city: string, type: string, idx: number): string {
   const s = card.saved;
   const maps = mapsUrl(card, city);
+  const hasImg = !!card.imageUrl;
+  const bannerColor = CARD_TINTS[idx % CARD_TINTS.length];
+
+  const media = hasImg
+    ? `<div class="guide-card-photo" style="background-image:url('${card.imageUrl}')"></div>`
+    : `<div class="guide-card-tint" style="--tint:${bannerColor}"><span class="guide-card-tint-emoji">${typeEmoji(type)}</span></div>`;
+
   return `
-    <div class="guide-flip-wrap ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}">
-      <div class="guide-flip-inner">
-        <div class="guide-flip-front">
-          <div class="guide-card-badge">${typeEmoji(type)}</div>
-          <div class="guide-card-title">${card.title}</div>
-          <div class="guide-card-highlight">${card.highlight}</div>
-          <div class="guide-card-meta">
-            ${card.duration ? `<span>⏱ ${card.duration}</span>` : ''}
-            ${card.cost ? `<span>💰 ${card.cost}</span>` : ''}
-          </div>
-          <div class="guide-card-btns">
-            <a class="guide-icon-btn guide-map-btn" href="${maps}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
-            <button class="guide-icon-btn guide-save-btn ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}" title="Bookmark">${s ? '★' : '☆'}</button>
-            <button class="guide-icon-btn guide-commit-btn" data-card-id="${card.id}" data-card-type="${type}" title="Add to itinerary">＋</button>
-          </div>
+    <div class="guide-card ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}">
+      <div class="guide-card-media">
+        ${media}
+        <button class="guide-card-fav guide-save-btn ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}" title="Bookmark">${s ? '★' : '☆'}</button>
+      </div>
+      <div class="guide-card-body" data-open-detail="${card.id}" data-card-type="${type}">
+        <div class="guide-card-title">${card.title}</div>
+        <div class="guide-card-highlight">${card.highlight}</div>
+        <div class="guide-card-meta">
+          ${card.duration ? `<span>⏱ ${card.duration}</span>` : ''}
+          ${card.cost ? `<span>💰 ${card.cost}</span>` : ''}
         </div>
-        <div class="guide-flip-back">
-          <div class="guide-card-title">${card.title}</div>
-          <p class="guide-card-detail">${card.detail}</p>
-          ${card.background ? `<div class="guide-card-bg">💡 ${card.background}</div>` : ''}
-          ${card.address ? `<div class="guide-card-addr">📍 ${card.address}</div>` : ''}
-          <div class="guide-card-btns">
-            <a class="guide-icon-btn guide-map-btn" href="${maps}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
-            <button class="guide-icon-btn guide-commit-btn" data-card-id="${card.id}" data-card-type="${type}" title="Add to itinerary">＋ Add to trip</button>
-          </div>
-        </div>
+      </div>
+      <div class="guide-card-actions">
+        <a class="guide-icon-btn guide-map-btn" href="${maps}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
+        <button class="guide-icon-btn guide-commit-btn" data-card-id="${card.id}" data-card-type="${type}" title="Add to itinerary">＋ Add</button>
       </div>
     </div>
   `;
@@ -424,37 +423,38 @@ function renderWalkGrid(walks: CityWalk[], city: string): string {
   `;
 }
 
-function renderWalkCard(walk: CityWalk, _city: string, _i: number): string {
+function renderWalkCard(walk: CityWalk, _city: string, idx: number): string {
   const s = walk.saved;
+  const hasImg = !!walk.imageUrl;
+  const bannerColor = CARD_TINTS[idx % CARD_TINTS.length];
+  const media = hasImg
+    ? `<div class="guide-card-photo" style="background-image:url('${walk.imageUrl}')"></div>`
+    : `<div class="guide-card-tint" style="--tint:${bannerColor}"><span class="guide-card-tint-emoji">🚶</span></div>`;
+
   return `
-    <div class="guide-flip-wrap walk-card ${s ? 'saved' : ''}" data-card-id="${walk.id}" data-card-type="cityWalk">
-      <div class="guide-flip-inner">
-        <div class="guide-flip-front">
-          <div class="guide-card-badge">🚶</div>
-          <div class="guide-card-title">${walk.title}</div>
-          <div class="guide-card-highlight">${walk.highlight}</div>
-          <div class="guide-card-meta">
-            ${walk.duration ? `<span>⏱ ${walk.duration}</span>` : ''}
-            ${walk.distance ? `<span>📏 ${walk.distance}</span>` : ''}
-          </div>
-          <div class="guide-card-btns">
-            <button class="guide-icon-btn guide-save-btn ${s ? 'saved' : ''}" data-card-id="${walk.id}" data-card-type="cityWalk" title="Bookmark">${s ? '★' : '☆'}</button>
-            <button class="guide-icon-btn guide-commit-btn" data-card-id="${walk.id}" data-card-type="cityWalk" title="Add to itinerary">＋</button>
-          </div>
+    <div class="guide-card walk-card ${s ? 'saved' : ''}" data-card-id="${walk.id}" data-card-type="cityWalk">
+      <div class="guide-card-media">
+        ${media}
+        <button class="guide-card-fav guide-save-btn ${s ? 'saved' : ''}" data-card-id="${walk.id}" data-card-type="cityWalk" title="Bookmark">${s ? '★' : '☆'}</button>
+      </div>
+      <div class="guide-card-body" data-open-detail="${walk.id}" data-card-type="cityWalk">
+        <div class="guide-card-title">${walk.title}</div>
+        <div class="guide-card-highlight">${walk.highlight}</div>
+        <div class="guide-card-meta">
+          ${walk.duration ? `<span>⏱ ${walk.duration}</span>` : ''}
+          ${walk.distance ? `<span>📏 ${walk.distance}</span>` : ''}
         </div>
-        <div class="guide-flip-back">
-          <div class="guide-card-title">${walk.title}</div>
-          <p class="guide-card-detail" style="white-space:pre-line">${walk.detail}</p>
-          ${walk.background ? `<div class="guide-card-bg">💡 ${walk.background}</div>` : ''}
-          <div class="guide-card-btns">
-            ${walk.searchUrl ? `<a class="guide-icon-btn guide-map-btn" href="${walk.searchUrl}" target="_blank" rel="noopener" title="Search route">🔍 Route</a>` : ''}
-            <button class="guide-icon-btn guide-commit-btn" data-card-id="${walk.id}" data-card-type="cityWalk" title="Add to itinerary">＋ Add to trip</button>
-          </div>
-        </div>
+      </div>
+      <div class="guide-card-actions">
+        ${walk.searchUrl ? `<a class="guide-icon-btn guide-map-btn" href="${walk.searchUrl}" target="_blank" rel="noopener" title="Search route">🔍 Route</a>` : ''}
+        <button class="guide-icon-btn guide-commit-btn" data-card-id="${walk.id}" data-card-type="cityWalk" title="Add to itinerary">＋ Add</button>
       </div>
     </div>
   `;
 }
+
+// Soft pastel tints for imageless cards (restaurants/cafés or photo misses).
+const CARD_TINTS = ['#fef3c7', '#dbeafe', '#dcfce7', '#fae8ff', '#fee2e2', '#ffedd5', '#cffafe', '#fce7f3'];
 
 function renderKnowTab(intel: StoredCityIntel): string {
   if (!intel.greetings?.length && !intel.customs?.length) return renderSectionLoading('Cultural notes are being generated…');
@@ -543,11 +543,10 @@ function typeEmoji(type: string): string {
 // ── Interactions ──────────────────────────────────────────────────────────────
 
 function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
-  // Flip on card click (not button/link)
-  detail.querySelectorAll<HTMLElement>('.guide-flip-wrap').forEach(wrap => {
-    wrap.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('.guide-icon-btn, a')) return;
-      wrap.classList.toggle('flipped');
+  // Open detail modal when the card body is clicked.
+  detail.querySelectorAll<HTMLElement>('[data-open-detail]').forEach(el => {
+    el.addEventListener('click', () => {
+      openDetailModal(intel, el.dataset.openDetail!, el.dataset.cardType!);
     });
   });
 
@@ -557,14 +556,13 @@ function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
       e.stopPropagation();
       toggleSaved(intel, btn.dataset.cardId!, btn.dataset.cardType!);
       await cityStore.save(intel);
-      // Update all matching buttons for this card (front + back)
       const card = findCard(intel, btn.dataset.cardId!, btn.dataset.cardType!);
       const saved = card?.saved ?? false;
       detail.querySelectorAll<HTMLElement>(`.guide-save-btn[data-card-id="${btn.dataset.cardId}"]`).forEach(b => {
         b.textContent = saved ? '★' : '☆';
         b.classList.toggle('saved', saved);
       });
-      detail.querySelector<HTMLElement>(`.guide-flip-wrap[data-card-id="${btn.dataset.cardId}"]`)?.classList.toggle('saved', saved);
+      detail.querySelector<HTMLElement>(`.guide-card[data-card-id="${btn.dataset.cardId}"]`)?.classList.toggle('saved', saved);
     });
   });
 
@@ -672,6 +670,63 @@ function findCard(intel: StoredCityIntel, cardId: string, cardType: string): Gui
     restaurant: intel.restaurants, cafe: intel.cafes, experience: intel.experiences,
   };
   return listKey[cardType]?.find(c => c.id === cardId) ?? null;
+}
+
+// ── Detail modal (replaces the card back) ─────────────────────────────────────
+
+function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: string) {
+  const card = findCard(intel, cardId, cardType);
+  if (!card) return;
+
+  const isWalk = cardType === 'cityWalk';
+  const g = card as GuideCard;
+  const w = card as CityWalk;
+  const maps = mapsUrl({ title: card.title, address: g.address }, intel.city);
+  const hasImg = !!card.imageUrl;
+
+  document.getElementById('guide-detail-modal')?.remove();
+  const modal = document.createElement('div');
+  modal.id = 'guide-detail-modal';
+  modal.className = 'guide-modal-overlay';
+  modal.innerHTML = `
+    <div class="guide-detail-modal">
+      ${hasImg ? `
+        <div class="guide-detail-modal-photo" style="background-image:url('${card.imageUrl}')">
+          <button class="guide-detail-modal-close">×</button>
+          ${card.photographer ? `<a class="guide-detail-modal-credit" href="${card.photographerUrl || '#'}" target="_blank" rel="noopener">Photo · ${card.photographer} / Unsplash</a>` : ''}
+        </div>
+      ` : `
+        <div class="guide-detail-modal-bar">
+          <span>${typeEmoji(cardType)}</span>
+          <button class="guide-detail-modal-close">×</button>
+        </div>
+      `}
+      <div class="guide-detail-modal-body">
+        <h3 class="guide-detail-modal-title">${card.title}</h3>
+        <div class="guide-detail-modal-meta">
+          ${g.duration ? `<span>⏱ ${g.duration}</span>` : ''}
+          ${g.cost ? `<span>💰 ${g.cost}</span>` : ''}
+          ${isWalk && w.distance ? `<span>📏 ${w.distance}</span>` : ''}
+        </div>
+        <p class="guide-detail-modal-text"${isWalk ? ' style="white-space:pre-line"' : ''}>${card.detail}</p>
+        ${card.background ? `<div class="guide-detail-modal-bg">💡 ${card.background}</div>` : ''}
+        ${g.address ? `<div class="guide-detail-modal-addr">📍 ${g.address}</div>` : ''}
+      </div>
+      <div class="guide-detail-modal-footer">
+        <a class="btn btn-ghost" href="${card.searchUrl || maps}" target="_blank" rel="noopener">${isWalk ? '🔍 Search route' : '📍 Open in Maps'}</a>
+        <button class="btn btn-primary guide-detail-modal-commit">＋ Add to itinerary</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  modal.querySelector('.guide-detail-modal-close')?.addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  modal.querySelector('.guide-detail-modal-commit')?.addEventListener('click', () => {
+    close();
+    openCommitModal(intel, cardId, cardType);
+  });
 }
 
 // ── Commit modal ──────────────────────────────────────────────────────────────
@@ -811,6 +866,7 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
       background: 'Founded in the medieval era, the centre has been UNESCO-listed since 1995.',
       searchUrl: `https://www.google.com/search?q=${enc(`Historic City Centre ${city}`)}`,
       address: 'City Centre', duration: '2–3h', cost: 'Free', category: 'landmark', saved: false,
+      imageUrl: '', photographer: '', photographerUrl: '',
     }],
     cityWalks: [{
       id: 'walk-0', title: 'Old Town Morning Walk', highlight: 'See the city before the crowds arrive',
@@ -818,6 +874,7 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
       background: 'This route follows the original medieval trade route through the city.',
       searchUrl: `https://www.google.com/search?q=${enc(`Old Town walking tour ${city}`)}`,
       duration: '2h', distance: '3 km', saved: false,
+      imageUrl: '', photographer: '', photographerUrl: '',
     }],
     restaurants: [{
       id: 'rest-0', title: 'Local Market Restaurant', highlight: 'Freshest ingredients, authentic local flavours',
@@ -825,6 +882,7 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
       background: 'Market restaurants have fed locals here for generations.',
       searchUrl: `https://www.google.com/search?q=${enc(`best local restaurant ${city}`)}`,
       address: 'Central Market', duration: '', cost: '€€', category: 'food', saved: false,
+      imageUrl: '', photographer: '', photographerUrl: '',
     }],
     cafes: [{
       id: 'cafe-0', title: 'Corner Espresso Bar', highlight: 'Standing espresso, no laptop crowd',
@@ -832,6 +890,7 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
       background: 'Café culture here dates to the 19th century when these bars were neighbourhood gathering points.',
       searchUrl: `https://www.google.com/search?q=${enc(`best coffee cafe ${city}`)}`,
       address: 'Old Quarter', duration: '', cost: '€2–4', category: 'cafe', saved: false,
+      imageUrl: '', photographer: '', photographerUrl: '',
     }],
     experiences: [{
       id: 'exp-0', title: 'Sunday Flea Market', highlight: 'Vintage finds and local life',
@@ -839,6 +898,7 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
       background: 'This market tradition has run continuously since the 1920s.',
       searchUrl: `https://www.google.com/search?q=${enc(`flea market antique market ${city}`)}`,
       address: 'Market Square', duration: '2–3h', cost: 'Free entry', category: 'experience', saved: false,
+      imageUrl: '', photographer: '', photographerUrl: '',
     }],
   };
 }
