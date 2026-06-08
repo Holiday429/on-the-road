@@ -236,11 +236,18 @@ Return ONLY valid JSON array:
 [{
   "title": "Walk route name",
   "highlight": "One sentence hook",
-  "detail": "Description including 4-5 waypoints as a short list",
+  "detail": "1-2 sentence overall description of the route's mood and what you'll see",
+  "waypoints": [
+    {"name": "Specific, geocodable place name (e.g. 'Piazza della Signoria')", "note": "one short line on why to stop / what to see"}
+  ],
   "background": "Theme or historical thread tying the walk together",
   "duration": "e.g. 2-3h",
   "distance": "e.g. 4 km"
-}]`;
+}]
+
+Give each walk 4-6 waypoints, in walking order. Waypoint names MUST be real,
+specific, mappable places (landmarks, squares, streets, bridges) in ${city} —
+not vague directions — so they can be found on a map.`;
 }
 
 function restaurantsPrompt(city: string, searchContext: string, query: string) {

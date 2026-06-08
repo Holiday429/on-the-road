@@ -446,11 +446,22 @@ export const GuideCardSchema = z.object({
 export type GuideCard = z.infer<typeof GuideCardSchema>;
 
 // City walk is a route — waypoints go in the detail field, overall is still one PlanItem.
+// One ordered stop on a walk. lat/lng are filled in client-side by geocoding
+// (Nominatim) so the route can be drawn on a map and exported to Google Maps.
+export const WaypointSchema = z.object({
+  name: z.string(),
+  note: z.string().default(''),    // why stop here / what to see
+  lat: z.number().optional(),      // cached geocode result
+  lng: z.number().optional(),
+});
+export type Waypoint = z.infer<typeof WaypointSchema>;
+
 export const CityWalkSchema = z.object({
   id: z.string(),
   title: z.string(),
   highlight: z.string(),
-  detail: z.string(),              // includes waypoints list
+  detail: z.string(),              // overall prose description of the route
+  waypoints: z.array(WaypointSchema).default([]),  // ordered stops
   background: z.string().default(''),
   searchUrl: z.string().default(''),
   duration: z.string().default(''),

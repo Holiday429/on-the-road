@@ -875,6 +875,78 @@ a.guide-icon-btn { text-decoration: none; }
   padding: var(--sp-4) var(--sp-6) var(--sp-6);
 }
 .guide-detail-modal-footer .btn { flex: 1; justify-content: center; }
+
+/* ── City walk: map + waypoint timeline ──────────────────────────────────── */
+.guide-walk-section { margin-top: var(--sp-5); }
+.guide-walk-map {
+  height: 240px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--rule-soft);
+  margin-bottom: var(--sp-4);
+  background: var(--surface-3);
+  z-index: 0;
+}
+/* Numbered route pin (Leaflet divIcon) */
+.guide-walk-pin {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--amber-500);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  border: 2px solid #fff;
+}
+
+.guide-walk-stops {
+  display: flex;
+  flex-direction: column;
+}
+.guide-walk-stop {
+  display: flex;
+  gap: var(--sp-3);
+  position: relative;
+  padding-bottom: var(--sp-4);
+}
+/* Connector line between stops */
+.guide-walk-stop:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 26px;
+  bottom: 0;
+  width: 2px;
+  background: var(--amber-200);
+}
+.guide-walk-stop-num {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--amber-500);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.guide-walk-stop-text { padding-top: 2px; }
+.guide-walk-stop-name {
+  font-weight: 700;
+  font-size: var(--fs-base);
+  color: var(--ink);
+}
+.guide-walk-stop-note {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  line-height: 1.5;
+  margin-top: 2px;
+}
 .guide-modal-header {
   display: flex;
   align-items: center;

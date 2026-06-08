@@ -126,10 +126,12 @@ Already listed (do NOT repeat): ${ex || 'none'}.
 ${q ? `User interest: "${q}"\n` : ''}${ctx ? `Recent web context:\n${ctx}\n` : ''}
 Return ONLY a valid JSON array of {
   "title": "route name", "highlight": "one sentence hook",
-  "detail": "description with 4-5 waypoints as a short list",
+  "detail": "1-2 sentence overall description of the route",
+  "waypoints": [{"name": "real, mappable place in ${c}", "note": "one short line"}],
   "background": "theme tying it together",
   "duration": "e.g. 2-3h", "distance": "e.g. 4 km"
-}`,
+}
+Give each walk 4-6 waypoints in walking order; names must be specific, geocodable places.`,
   },
   restaurants: {
     count: 6,

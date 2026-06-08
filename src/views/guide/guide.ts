@@ -3,10 +3,13 @@
    ========================================================================== */
 
 import './guide.css';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';
-import type { GuideCard, CityWalk, GuideTip, CityIntel } from '../../data/schema.ts';
+import { geocode } from '../map/geocode.ts';
+import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -683,6 +686,7 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
   const w = card as CityWalk;
   const maps = mapsUrl({ title: card.title, address: g.address }, intel.city);
   const hasImg = !!card.imageUrl;
+  const waypoints = isWalk ? (w.waypoints ?? []) : [];
 
   document.getElementById('guide-detail-modal')?.remove();
   const modal = document.createElement('div');
@@ -708,12 +712,31 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
           ${g.cost ? `<span>💰 ${g.cost}</span>` : ''}
           ${isWalk && w.distance ? `<span>📏 ${w.distance}</span>` : ''}
         </div>
-        <p class="guide-detail-modal-text"${isWalk ? ' style="white-space:pre-line"' : ''}>${card.detail}</p>
+        <p class="guide-detail-modal-text">${card.detail}</p>
         ${card.background ? `<div class="guide-detail-modal-bg">💡 ${card.background}</div>` : ''}
         ${g.address ? `<div class="guide-detail-modal-addr">📍 ${g.address}</div>` : ''}
+
+        ${isWalk && waypoints.length ? `
+          <div class="guide-walk-section">
+            <div class="guide-walk-map" id="guide-walk-map"></div>
+            <div class="guide-walk-stops">
+              ${waypoints.map((wp, i) => `
+                <div class="guide-walk-stop">
+                  <span class="guide-walk-stop-num">${i + 1}</span>
+                  <div class="guide-walk-stop-text">
+                    <div class="guide-walk-stop-name">${wp.name}</div>
+                    ${wp.note ? `<div class="guide-walk-stop-note">${wp.note}</div>` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
       </div>
       <div class="guide-detail-modal-footer">
-        <a class="btn btn-ghost" href="${card.searchUrl || maps}" target="_blank" rel="noopener">${isWalk ? '🔍 Search route' : '📍 Open in Maps'}</a>
+        ${isWalk && waypoints.length
+          ? `<a class="btn btn-ghost guide-walk-route-link" href="#" target="_blank" rel="noopener">🗺️ Open route in Maps</a>`
+          : `<a class="btn btn-ghost" href="${card.searchUrl || maps}" target="_blank" rel="noopener">${isWalk ? '🔍 Search route' : '📍 Open in Maps'}</a>`}
         <button class="btn btn-primary guide-detail-modal-commit">＋ Add to itinerary</button>
       </div>
     </div>
@@ -727,6 +750,89 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
     close();
     openCommitModal(intel, cardId, cardType);
   });
+
+  // City walk: geocode waypoints, draw the route on a Leaflet map, and wire the
+  // Google Maps multi-stop directions deep link.
+  if (isWalk && waypoints.length) {
+    setupWalkMap(intel, waypoints, modal);
+  }
+}
+
+// Geocode each waypoint (cached), persist coords back onto the walk, then draw a
+// numbered Leaflet route and build the Google Maps directions link.
+async function setupWalkMap(
+  intel: StoredCityIntel,
+  waypoints: Waypoint[],
+  modal: HTMLElement,
+) {
+  const mapEl = modal.querySelector<HTMLElement>('#guide-walk-map');
+  const routeLink = modal.querySelector<HTMLAnchorElement>('.guide-walk-route-link');
+  if (!mapEl) return;
+
+  // Resolve coordinates: use cached ones, else geocode "name, city".
+  const resolved: { name: string; lat: number; lng: number }[] = [];
+  let coordsChanged = false;
+  for (const wp of waypoints) {
+    if (wp.lat != null && wp.lng != null) {
+      resolved.push({ name: wp.name, lat: wp.lat, lng: wp.lng });
+      continue;
+    }
+    const hit = await geocode(wp.name, intel.city);
+    if (hit) {
+      wp.lat = hit.lat; wp.lng = hit.lng;
+      coordsChanged = true;
+      resolved.push({ name: wp.name, lat: hit.lat, lng: hit.lng });
+    }
+  }
+
+  // Persist any newly geocoded coords so we don't re-resolve next time.
+  if (coordsChanged) { try { await cityStore.save(intel); } catch { /* best-effort */ } }
+
+  if (!resolved.length) { mapEl.style.display = 'none'; return; }
+
+  // Build the Google Maps multi-stop directions deep link (origin → … → dest).
+  if (routeLink) {
+    const origin = resolved[0];
+    const dest = resolved[resolved.length - 1];
+    const mids = resolved.slice(1, -1);
+    const params = new URLSearchParams({
+      api: '1', travelmode: 'walking',
+      origin: `${origin.lat},${origin.lng}`,
+      destination: `${dest.lat},${dest.lng}`,
+    });
+    if (mids.length) params.set('waypoints', mids.map(m => `${m.lat},${m.lng}`).join('|'));
+    routeLink.href = `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+
+  // Draw the Leaflet route once layout settles.
+  requestAnimationFrame(() => drawWalkRoute(mapEl, resolved));
+}
+
+function drawWalkRoute(mapEl: HTMLElement, stops: { name: string; lat: number; lng: number }[]) {
+  const map = L.map(mapEl, { zoomControl: true, attributionControl: false, scrollWheelZoom: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+  L.control.attribution({ prefix: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>' }).addTo(map);
+
+  const latlngs = stops.map(s => [s.lat, s.lng] as [number, number]);
+
+  // Dashed route line.
+  if (latlngs.length >= 2) {
+    L.polyline(latlngs, { color: '#f59e0b', weight: 3, opacity: 0.85, dashArray: '6 5' }).addTo(map);
+  }
+
+  // Numbered pins.
+  stops.forEach((s, i) => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="guide-walk-pin">${i + 1}</div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+    });
+    L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(`<b>${i + 1}. ${s.name}</b>`);
+  });
+
+  map.fitBounds(L.latLngBounds(latlngs).pad(0.2));
+  setTimeout(() => map.invalidateSize(), 60);
 }
 
 // ── Commit modal ──────────────────────────────────────────────────────────────
@@ -804,10 +910,21 @@ async function commitToItinerary(legId: string, card: GuideCard | CityWalk, card
     attraction: 'museum', restaurant: 'food', cafe: 'cafe', experience: 'experience', cityWalk: 'walk',
   };
 
+  // For a city walk, fold the ordered stops into the note so the itinerary item
+  // carries the full route, not just the title.
+  let baseNote = note || ('detail' in card ? card.detail : '');
+  if (cardType === 'cityWalk') {
+    const wps = (card as CityWalk).waypoints ?? [];
+    if (wps.length) {
+      const stops = wps.map((wp, i) => `${i + 1}. ${wp.name}${wp.note ? ` — ${wp.note}` : ''}`).join('\n');
+      baseNote = baseNote ? `${baseNote}\n\n${stops}` : stops;
+    }
+  }
+
   const newItem = {
     id: `guide-${card.id}-${Date.now()}`,
     title: card.title,
-    note: note || ('detail' in card ? card.detail : ''),
+    note: baseNote,
     category: categoryMap[cardType] ?? '',
     done: false,
     order: leg.plans?.length ?? 0,
@@ -870,7 +987,14 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
     }],
     cityWalks: [{
       id: 'walk-0', title: 'Old Town Morning Walk', highlight: 'See the city before the crowds arrive',
-      detail: '1. Main Square\n2. Cathedral\n3. Old Bridge\n4. Riverside Market\n5. Artisan Quarter',
+      detail: 'A gentle loop through the medieval heart of the city, best done early before the crowds.',
+      waypoints: [
+        { name: 'Main Square', note: 'Start here for the morning light' },
+        { name: 'Cathedral', note: 'Step inside before the tour groups' },
+        { name: 'Old Bridge', note: 'Best river views' },
+        { name: 'Riverside Market', note: 'Grab a coffee and pastry' },
+        { name: 'Artisan Quarter', note: 'Workshops and small galleries' },
+      ],
       background: 'This route follows the original medieval trade route through the city.',
       searchUrl: `https://www.google.com/search?q=${enc(`Old Town walking tour ${city}`)}`,
       duration: '2h', distance: '3 km', saved: false,
