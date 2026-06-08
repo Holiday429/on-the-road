@@ -9,6 +9,7 @@ import {
   type StoredTrip, type NewTripInput,
 } from '../data/trip-context.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
+import { routeStore, type StoredLeg } from '../data/stores/route-store.ts';
 import { createDestinationInput, type DestinationInputInstance } from './destination-input.ts';
 import checklistIcon from '../../icon/Checklist.png';
 import guideIcon from '../../icon/Guide.png';
@@ -390,6 +391,156 @@ function wireTripSwitcher(sidebar: HTMLElement) {
     buildSidebar();
     openTripPopover();
   });
+
+  // Calendar thumbnail hover
+  wireTripCalendarHover(pill);
+}
+
+let calHoverTimer: ReturnType<typeof setTimeout> | null = null;
+
+function wireTripCalendarHover(pill: HTMLElement | null) {
+  if (!pill) return;
+
+  pill.addEventListener('mouseenter', () => {
+    calHoverTimer = setTimeout(() => openCalendarTooltip(pill), 220);
+  });
+  pill.addEventListener('mouseleave', (e) => {
+    if (calHoverTimer) { clearTimeout(calHoverTimer); calHoverTimer = null; }
+    const related = e.relatedTarget as Node | null;
+    const tooltip = document.getElementById('trip-cal-tooltip');
+    if (tooltip && !tooltip.contains(related)) closeCalendarTooltip();
+  });
+}
+
+function closeCalendarTooltip() {
+  document.getElementById('trip-cal-tooltip')?.remove();
+}
+
+function openCalendarTooltip(pill: HTMLElement) {
+  closeCalendarTooltip();
+  const trip = currentTrip();
+  if (!trip) return;
+
+  const legs = routeStore.peek().sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  const startDate = trip.startDate;
+  const endDate = trip.endDate;
+  if (!startDate) return;
+
+  const tooltip = document.createElement('div');
+  tooltip.id = 'trip-cal-tooltip';
+  tooltip.setAttribute('role', 'tooltip');
+  tooltip.innerHTML = buildCalendarHTML(startDate, endDate ?? null, legs);
+
+  document.body.appendChild(tooltip);
+
+  // Position to the right of the pill
+  const rect = pill.getBoundingClientRect();
+  const TW = 272;
+  const left = rect.right + 10;
+  const clampedLeft = Math.min(left, window.innerWidth - TW - 8);
+  tooltip.style.top  = `${rect.top}px`;
+  tooltip.style.left = `${clampedLeft}px`;
+
+  tooltip.addEventListener('mouseenter', () => {
+    if (calHoverTimer) { clearTimeout(calHoverTimer); calHoverTimer = null; }
+  });
+  tooltip.addEventListener('mouseleave', () => closeCalendarTooltip());
+}
+
+function buildCalendarHTML(startDate: string, endDate: string | null, legs: StoredLeg[]): string {
+  // Build a map: ISO-date → list of plan item titles
+  const dayItems = new Map<string, string[]>();
+  const legByDate = new Map<string, StoredLeg>();
+
+  for (const leg of legs) {
+    const from = new Date(`${leg.dateFrom}T00:00:00`);
+    const to   = new Date(`${leg.dateTo}T00:00:00`);
+    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+      const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      legByDate.set(iso, leg);
+    }
+    if (leg.planDays) {
+      for (const pd of leg.planDays) {
+        const items = (leg.plans ?? []).filter(p => p.dayId === pd.id && p.title);
+        if (items.length) dayItems.set(pd.date, items.map(p => p.title));
+      }
+    }
+  }
+
+  // Collect all months to render
+  const tripStart = new Date(`${startDate}T00:00:00`);
+  const tripEnd   = endDate ? new Date(`${endDate}T00:00:00`) : (() => {
+    const last = legs.at(-1);
+    return last ? new Date(`${last.dateTo}T00:00:00`) : tripStart;
+  })();
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const months: { year: number; month: number }[] = [];
+  let cur = new Date(tripStart.getFullYear(), tripStart.getMonth(), 1);
+  const lastMonth = new Date(tripEnd.getFullYear(), tripEnd.getMonth(), 1);
+  while (cur <= lastMonth) {
+    months.push({ year: cur.getFullYear(), month: cur.getMonth() });
+    cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+  }
+
+  const MON = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+  const MNAME = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const blocks = months.map(({ year, month }) => {
+    const firstDay = new Date(year, month, 1);
+    const lastDay  = new Date(year, month + 1, 0);
+    // Monday-start offset
+    const offset = (firstDay.getDay() + 6) % 7;
+
+    let cells = '';
+    for (let i = 0; i < offset; i++) cells += '<span class="tcc-empty"></span>';
+
+    for (let d = 1; d <= lastDay.getDate(); d++) {
+      const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const date = new Date(year, month, d);
+      const isStart  = iso === startDate;
+      const isEnd    = endDate ? iso === endDate : false;
+      const isToday  = date.getTime() === today.getTime();
+      const inTrip   = date >= tripStart && date <= tripEnd;
+      const leg      = legByDate.get(iso);
+      const items    = dayItems.get(iso) ?? [];
+
+      let cls = 'tcc-day';
+      if (isStart)      cls += ' tcc-start';
+      else if (isEnd)   cls += ' tcc-end';
+      else if (inTrip && leg) cls += ' tcc-in-trip';
+      if (isToday)      cls += ' tcc-today';
+
+      const tipItems = items.length
+        ? `<ul class="tcc-tip-list">${items.slice(0,4).map(t => `<li>${escapeHtml(t)}</li>`).join('')}${items.length > 4 ? `<li>+${items.length-4} more</li>` : ''}</ul>`
+        : leg ? `<div class="tcc-tip-city">${escapeHtml(leg.city)}</div>` : '';
+
+      const badge = isStart ? '✈' : isEnd ? '🏠' : isToday ? '●' : String(d);
+
+      cells += `<span class="${cls}" data-date="${iso}">
+        ${badge}
+        ${tipItems ? `<span class="tcc-tip">${tipItems}</span>` : ''}
+      </span>`;
+    }
+
+    return `
+      <div class="tcc-month">
+        <div class="tcc-month-name">${MNAME[month]} ${year}</div>
+        <div class="tcc-grid">
+          ${MON.map(m => `<span class="tcc-dow">${m}</span>`).join('')}
+          ${cells}
+        </div>
+      </div>`;
+  }).join('');
+
+  const daysCount = Math.round((tripEnd.getTime() - tripStart.getTime()) / 86400000) + 1;
+  return `
+    <div class="tcc-header">
+      <span class="tcc-trip-name">${escapeHtml(currentTrip()?.name ?? '')}</span>
+      <span class="tcc-trip-len">${daysCount}d</span>
+    </div>
+    ${blocks}
+  `;
 }
 
 function buildMobileNav() {
