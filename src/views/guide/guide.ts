@@ -358,9 +358,21 @@ function renderIntroTab(intel: StoredCityIntel): string {
   `;
 }
 
+// "Generate more" footer — shown under Do/Budget tabs to append fresh items.
+function moreFooter(label: string): string {
+  return `
+    <div class="guide-more-footer">
+      <button class="btn btn-ghost guide-more-btn" data-more-section="${_activeTab}">✨ ${label}</button>
+    </div>
+  `;
+}
+
 function renderCardGrid(cards: GuideCard[], city: string, type: string): string {
   if (!cards.length) return renderSectionLoading(`Loading ${type} recommendations…`);
-  return `<div class="guide-card-grid">${cards.map((c, i) => renderFlipCard(c, city, type, i)).join('')}</div>`;
+  return `
+    <div class="guide-card-grid">${cards.map((c, i) => renderFlipCard(c, city, type, i)).join('')}</div>
+    ${moreFooter('Generate more')}
+  `;
 }
 
 // Build a Google Maps search/place URL for a card (view details + navigate).
@@ -406,7 +418,10 @@ function renderFlipCard(card: GuideCard, city: string, type: string, _i: number)
 
 function renderWalkGrid(walks: CityWalk[], city: string): string {
   if (!walks.length) return renderSectionLoading('City walk routes are being generated…');
-  return `<div class="guide-card-grid">${walks.map((w, i) => renderWalkCard(w, city, i)).join('')}</div>`;
+  return `
+    <div class="guide-card-grid">${walks.map((w, i) => renderWalkCard(w, city, i)).join('')}</div>
+    ${moreFooter('More routes')}
+  `;
 }
 
 function renderWalkCard(walk: CityWalk, _city: string, _i: number): string {
@@ -507,6 +522,7 @@ function renderMoneyTab(tips: GuideTip[]): string {
         </div>
       `).join('')}
     </div>
+    ${moreFooter('More tips')}
   `;
 }
 
@@ -572,6 +588,73 @@ function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
       }
     });
   });
+
+  // Generate more (append fresh items to the current section)
+  detail.querySelector<HTMLElement>('.guide-more-btn')?.addEventListener('click', (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    loadMore(intel, btn.dataset.moreSection as TabKey, btn);
+  });
+}
+
+// Section key → schema array field on the intel doc.
+const SECTION_FIELD: Record<string, keyof CityIntel> = {
+  attractions: 'attractions', cityWalks: 'cityWalks', restaurants: 'restaurants',
+  cafes: 'cafes', experiences: 'experiences', moneyTips: 'moneyTips',
+};
+
+async function loadMore(intel: StoredCityIntel, section: TabKey, btn: HTMLButtonElement) {
+  const field = SECTION_FIELD[section];
+  if (!field) return;
+
+  const existing = (intel[field] as { title?: string; text?: string }[] | undefined) ?? [];
+  const existingTitles = existing.map(it => it.title ?? it.text ?? '').filter(Boolean);
+
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '✨ Generating…';
+
+  try {
+    const apiBase = window.location.hostname.includes('github.io')
+      ? 'https://easy-on-the-road.vercel.app'
+      : '';
+    const res = await fetch(`${apiBase}/api/guide-more`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        city: intel.city, country: intel.country, section,
+        existingTitles, query: intel.generatedQuery ?? '',
+      }),
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const { items } = await res.json() as { items: unknown[] };
+
+    if (Array.isArray(items) && items.length) {
+      // Dedupe again client-side against current titles, then append.
+      const seen = new Set(existingTitles.map(t => t.toLowerCase().trim()));
+      const fresh = (items as { title?: string; text?: string }[]).filter(it => {
+        const t = (it.title ?? it.text ?? '').toLowerCase().trim();
+        if (!t || seen.has(t)) return false;
+        seen.add(t);
+        return true;
+      });
+      (intel[field] as unknown[]) = [...existing, ...fresh];
+      await cityStore.save(intel);
+      // Re-render the current tab to show appended items.
+      const content = document.getElementById('guide-tab-content');
+      if (content) {
+        content.innerHTML = renderTabContent(intel);
+        wireTabContent(content.closest('.guide-detail') as HTMLElement, intel);
+      }
+    } else {
+      btn.textContent = '✓ No new ones found';
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1800);
+      return;
+    }
+  } catch (err) {
+    console.warn('guide-more failed:', err);
+    btn.textContent = '⚠ Failed — retry';
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1800);
+  }
 }
 
 function toggleSaved(intel: StoredCityIntel, cardId: string, cardType: string) {

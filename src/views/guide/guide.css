@@ -271,8 +271,6 @@
   align-items: baseline;
   gap: var(--sp-3);
   margin-bottom: var(--sp-4);
-  padding-bottom: var(--sp-3);
-  border-bottom: 1px solid var(--rule-soft);
   flex-wrap: wrap;
 }
 .guide-detail-flag { font-size: 28px; line-height: 1; align-self: center; }
@@ -658,6 +656,26 @@ a.guide-icon-btn { text-decoration: none; }
   flex-shrink: 0;
 }
 .guide-tip-save:hover, .guide-tip-save.saved { color: var(--amber-500); }
+
+/* ── "Generate more" footer ──────────────────────────────────────────────── */
+.guide-more-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--sp-6);
+}
+.guide-more-btn {
+  font-size: var(--fs-sm);
+  padding: 10px 22px;
+  border: 1.5px dashed var(--rule);
+  color: var(--ink-muted);
+}
+.guide-more-btn:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--ink);
+}
+.guide-more-btn:disabled { opacity: 0.7; cursor: default; }
 
 /* ── Section loading ─────────────────────────────────────────────────────── */
 .guide-section-loading {
