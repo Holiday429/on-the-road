@@ -832,43 +832,82 @@ a.guide-icon-btn { text-decoration: none; }
   text-decoration: none;
 }
 .guide-detail-modal-body { padding: var(--sp-5) var(--sp-6); }
+.guide-detail-modal-kicker {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: var(--sp-2);
+}
 .guide-detail-modal-title {
   font-family: var(--font-ui);
-  font-size: var(--fs-xl);
+  font-size: var(--fs-2xl);
   font-weight: 800;
-  margin-bottom: var(--sp-3);
+  line-height: 1.15;
+  margin-bottom: var(--sp-2);
+}
+.guide-detail-modal-lede {
+  font-size: var(--fs-md);
+  color: var(--ink-soft);
+  line-height: 1.5;
+  margin-bottom: var(--sp-4);
 }
 .guide-detail-modal-meta {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-5);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--rule-soft);
 }
 .guide-detail-modal-meta span {
   font-size: var(--fs-sm);
-  padding: 3px 11px;
+  padding: 4px 12px;
   background: var(--surface-3);
   border-radius: var(--r-full);
   color: var(--ink-muted);
   font-weight: 500;
 }
+
+/* Labelled content blocks (About / Good to know / Route) */
+.guide-detail-modal-block { margin-bottom: var(--sp-5); }
+.guide-detail-modal-block-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: var(--sp-2);
+}
 .guide-detail-modal-text {
   font-size: var(--fs-base);
   line-height: 1.7;
   color: var(--ink);
-  margin-bottom: var(--sp-4);
 }
 .guide-detail-modal-bg {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   color: var(--ink-soft);
   background: var(--amber-50);
   border-left: 3px solid var(--amber-400);
   border-radius: 0 var(--r-md) var(--r-md) 0;
   padding: var(--sp-3) var(--sp-4);
-  line-height: 1.6;
+  line-height: 1.65;
+}
+.guide-detail-modal-addr {
+  display: inline-block;
+  font-size: var(--fs-sm);
+  color: var(--accent-deep);
+  text-decoration: none;
   margin-bottom: var(--sp-3);
 }
-.guide-detail-modal-addr { font-size: var(--fs-sm); color: var(--ink-muted); }
+.guide-detail-modal-addr:hover { text-decoration: underline; }
+
+/* Google "G" icon inside buttons */
+.g-icon { vertical-align: -2px; margin-right: 5px; }
 .guide-detail-modal-footer {
   display: flex;
   gap: var(--sp-3);

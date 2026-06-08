@@ -384,6 +384,25 @@ function mapsUrl(card: { title: string; address?: string }, city: string): strin
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
+// Multi-stop Google Maps walking-directions URL built from waypoint NAMES (no
+// coordinates needed) — always valid, used as the initial link before geocoding
+// upgrades it to a precise lat/lng version.
+function walkRouteUrlByName(waypoints: Waypoint[], city: string): string {
+  const pts = waypoints.map(w => encodeURIComponent(`${w.name}, ${city}`));
+  if (pts.length < 2) return `https://www.google.com/maps/search/?api=1&query=${pts[0] ?? ''}`;
+  const origin = pts[0];
+  const destination = pts[pts.length - 1];
+  const mids = pts.slice(1, -1).join('|');
+  let url = `https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=${origin}&destination=${destination}`;
+  if (mids) url += `&waypoints=${mids}`;
+  return url;
+}
+
+// Inline Google "G" mark for buttons.
+function googleIcon(): string {
+  return `<svg class="g-icon" width="14" height="14" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/><path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34A21.99 21.99 0 0 0 2 24c0 3.55.85 6.91 2.34 9.88l7.35-5.7z"/><path fill="#EA4335" d="M24 9.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 3.18 29.93 1 24 1 15.4 1 7.96 5.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/></svg>`;
+}
+
 // Image-led card. Photo (or colour-block + emoji fallback) on top, info below.
 // Clicking the body opens a detail modal — no flip, no scroll-in-card.
 function renderFlipCard(card: GuideCard, city: string, type: string, idx: number): string {
@@ -539,9 +558,14 @@ function renderSectionLoading(msg: string): string {
 }
 
 function typeEmoji(type: string): string {
-  const map: Record<string, string> = { attraction: '🏛️', restaurant: '🍽️', cafe: '☕', experience: '✨' };
+  const map: Record<string, string> = { attraction: '🏛️', restaurant: '🍽️', cafe: '☕', experience: '✨', cityWalk: '🚶' };
   return map[type] ?? '📍';
 }
+
+const TYPE_LABEL: Record<string, string> = {
+  attraction: 'Attraction', restaurant: 'Restaurant', cafe: 'Café',
+  experience: 'Experience', cityWalk: 'City walk',
+};
 
 // ── Interactions ──────────────────────────────────────────────────────────────
 
@@ -706,18 +730,37 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
         </div>
       `}
       <div class="guide-detail-modal-body">
+        <div class="guide-detail-modal-kicker">${typeEmoji(cardType)} ${TYPE_LABEL[cardType] ?? ''}</div>
         <h3 class="guide-detail-modal-title">${card.title}</h3>
+        ${card.highlight ? `<p class="guide-detail-modal-lede">${card.highlight}</p>` : ''}
         <div class="guide-detail-modal-meta">
           ${g.duration ? `<span>⏱ ${g.duration}</span>` : ''}
           ${g.cost ? `<span>💰 ${g.cost}</span>` : ''}
           ${isWalk && w.distance ? `<span>📏 ${w.distance}</span>` : ''}
+          ${g.category && !isWalk ? `<span>🏷️ ${g.category}</span>` : ''}
         </div>
-        <p class="guide-detail-modal-text">${card.detail}</p>
-        ${card.background ? `<div class="guide-detail-modal-bg">💡 ${card.background}</div>` : ''}
-        ${g.address ? `<div class="guide-detail-modal-addr">📍 ${g.address}</div>` : ''}
+
+        ${card.detail ? `
+          <div class="guide-detail-modal-block">
+            <div class="guide-detail-modal-block-label">About</div>
+            <p class="guide-detail-modal-text">${card.detail}</p>
+          </div>
+        ` : ''}
+
+        ${card.background ? `
+          <div class="guide-detail-modal-block">
+            <div class="guide-detail-modal-block-label">Good to know</div>
+            <div class="guide-detail-modal-bg">💡 ${card.background}</div>
+          </div>
+        ` : ''}
+
+        ${g.address && !isWalk ? `
+          <a class="guide-detail-modal-addr" href="${maps}" target="_blank" rel="noopener">📍 ${g.address} · open in Maps</a>
+        ` : ''}
 
         ${isWalk && waypoints.length ? `
           <div class="guide-walk-section">
+            <div class="guide-detail-modal-block-label">Route · ${waypoints.length} stops</div>
             <div class="guide-walk-map" id="guide-walk-map"></div>
             <div class="guide-walk-stops">
               ${waypoints.map((wp, i) => `
@@ -735,8 +778,8 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
       </div>
       <div class="guide-detail-modal-footer">
         ${isWalk && waypoints.length
-          ? `<a class="btn btn-ghost guide-walk-route-link" href="#" target="_blank" rel="noopener">🗺️ Open route in Maps</a>`
-          : `<a class="btn btn-ghost" href="${card.searchUrl || maps}" target="_blank" rel="noopener">${isWalk ? '🔍 Search route' : '📍 Open in Maps'}</a>`}
+          ? `<a class="btn btn-ghost guide-walk-route-link" href="${walkRouteUrlByName(waypoints, intel.city)}" target="_blank" rel="noopener">🗺️ Open route in Maps</a>`
+          : `<a class="btn btn-ghost" href="${card.searchUrl || maps}" target="_blank" rel="noopener">${googleIcon()} Search in Google</a>`}
         <button class="btn btn-primary guide-detail-modal-commit">＋ Add to itinerary</button>
       </div>
     </div>
