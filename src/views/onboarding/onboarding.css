@@ -109,6 +109,13 @@
   margin-left: 3px;
 }
 
+.ob-field-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
 .ob-sublabel {
   font-size: 11px;
   color: var(--ink-muted);

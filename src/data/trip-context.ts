@@ -145,6 +145,8 @@ export interface NewTripInput {
   travelStyle?: TravelStyle;
   destinations?: string[];
   notes?: string;
+  homeCity?: string;
+  returnCity?: string;
 }
 
 /** Create a blank trip (metadata only — no seeded checklist/route). Returns id. */
@@ -164,6 +166,8 @@ export async function createTrip(input: NewTripInput): Promise<string> {
     travelStyle: input.travelStyle,
     destinations: input.destinations,
     notes: input.notes,
+    homeCity: input.homeCity,
+    returnCity: input.returnCity,
     userCreated: true,
     createdAt: now,
     updatedAt: now,

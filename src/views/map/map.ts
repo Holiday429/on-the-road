@@ -20,8 +20,11 @@ import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_
 import { MAP_COLORS as C, countryColor } from './map-shared.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
+import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
+import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
+import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import {
-  onTripChange, listTrips,
+  onTripChange, listTrips, currentTrip, currentTripId,
 } from '../../data/trip-context.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
@@ -140,6 +143,25 @@ let _activeMotionId: string | null = null;
 let _buildToken = 0;   // guards against stale async builds after teardown/scope switch
 let _tripNames  = new Map<string, string>();   // tripId → trip name cache
 
+/* ── Data layers (overlays beyond the route itself) ───────────────────────── */
+// Toggleable layers sourced from other features. Pin layers (nomad, journal)
+// live in their own DOM container synced like the country pins; the expense
+// layer instead tints country polygons by spend.
+type LayerId = 'nomad' | 'journal' | 'expenses';
+const _layersOn = new Set<LayerId>();
+
+let _nomadPinOverlays: OverlayItem[] = [];
+let _nomadUnsub: (() => void) | null = null;
+let _nomadSpots: Array<{ spot: StoredNomadSpot; lat: number; lng: number }> = [];
+
+let _journalPinOverlays: OverlayItem[] = [];
+let _journalUnsub: (() => void) | null = null;
+let _journalPlaces: Array<{ destination: string; count: number; lat: number; lng: number }> = [];
+
+let _expenseUnsub: (() => void) | null = null;
+// iso → total spend (base currency). Drives the expense heat tint.
+let _expenseByIso = new Map<string, number>();
+
 function setReplayBtnLabel(playing: boolean) {
   const btn = document.getElementById('mapReplay');
   if (btn) btn.textContent = playing ? '⏸ Pause' : '▶ Replay route';
@@ -179,15 +201,20 @@ async function plotLegs(stored: StoredLegInput[]): Promise<PlottedLeg[]> {
 }
 
 /**
- * Build the outbound home flight from the first leg's arrivalTransport:
- *   origin (transport.from) →[via…]→ first leg's city.
- * Returns null when there's no usable origin (e.g. the trip starts at home).
+ * Build the outbound home flight:
+ *   origin →[via…]→ first leg's city.
+ * Origin is the trip's `homeCity` when set; otherwise we fall back to the first
+ * leg's arrivalTransport.from (legacy behaviour). `via[]` carries any connecting
+ * stopovers. Returns null when there's no usable origin.
  */
 async function buildOutboundChain(legs: PlottedLeg[], stored: StoredLegInput[]): Promise<FlightChain | null> {
+  // Home flights only make sense for a single trip; "all footprints" spans many.
+  if (_scope !== 'trip') return null;
   const firstStored = stored.find((s) => s.id === legs[0]?.id);
   const t = firstStored?.arrivalTransport;
-  if (!t?.from) return null;
-  const names = [t.from, ...(t.via ?? [])];
+  const origin = (currentTrip()?.homeCity ?? '').trim() || t?.from;
+  if (!origin) return null;
+  const names = [origin, ...(t?.via ?? [])];
   const pts: GeoPt[] = [];
   const labels: string[] = [];
   for (const name of names) {
@@ -207,9 +234,29 @@ async function buildOutboundChain(legs: PlottedLeg[], stored: StoredLegInput[]):
   };
 }
 
-/** Return flight — not auto-derived; only shown when explicitly recorded in the itinerary. */
-function buildReturnChain(_outbound: FlightChain | null, _legs: PlottedLeg[]): FlightChain | null {
-  return null;
+/**
+ * Build the return home flight: last leg's city → returnCity (falling back to
+ * homeCity). Explicit and user-controlled — never mirrors the outbound origin,
+ * since people often fly home from a different city than they arrived in.
+ * Returns null when neither returnCity nor homeCity is set.
+ */
+async function buildReturnChain(_outbound: FlightChain | null, legs: PlottedLeg[]): Promise<FlightChain | null> {
+  if (_scope !== 'trip') return null;
+  const trip = currentTrip();
+  const dest = ((trip?.returnCity ?? '').trim() || (trip?.homeCity ?? '').trim());
+  if (!dest || legs.length === 0) return null;
+  const hit = await geocode(dest);
+  if (!hit) return null;
+  const last = legs[legs.length - 1];
+  const pts: GeoPt[] = [
+    { lat: last.lat, lng: last.lng },
+    { lat: hit.lat, lng: hit.lng },
+  ];
+  return {
+    label: `${last.city} → ${dest}`,
+    sub: `${last.city} · ${dest}`,
+    waypoints: chainWaypoints(pts),
+  };
 }
 
 function fmtRange(from: string, to: string): string {
@@ -379,6 +426,175 @@ function clearDrillOverlays() {
   _countryPinOverlays = clearOverlayItems(_countryPinOverlays, 'mapCountryPins');
 }
 
+/* ── Nomad layer ──────────────────────────────────────────────────────────── */
+/** Subscribe to nomad spots for the current scope, resolve coords, render pins. */
+function enableNomadLayer() {
+  _nomadUnsub?.();
+  const tripId = _scope === 'all' ? null : currentTripId();
+  _nomadUnsub = nomadStore.subscribeForTrip(tripId, (rows) => {
+    void resolveNomadSpots(rows);
+  });
+}
+
+function disableNomadLayer() {
+  _nomadUnsub?.();
+  _nomadUnsub = null;
+  _nomadSpots = [];
+  _nomadPinOverlays = clearOverlayItems(_nomadPinOverlays, 'mapDataPins');
+}
+
+/** Resolve each spot to coords by geocoding its address (or name + city), then render. */
+async function resolveNomadSpots(rows: StoredNomadSpot[]) {
+  const token = _buildToken;
+  const resolved: Array<{ spot: StoredNomadSpot; lat: number; lng: number }> = [];
+  for (const spot of rows) {
+    const q = spot.address?.trim()
+      || [spot.name, spot.city, spot.country].filter(Boolean).join(', ');
+    const hit = q ? await geocode(q) : null;
+    if (token !== _buildToken) return;   // scope/trip changed mid-geocode
+    if (!hit) continue;
+    resolved.push({ spot, lat: hit.lat, lng: hit.lng });
+  }
+  if (token !== _buildToken || !_layersOn.has('nomad')) return;
+  _nomadSpots = resolved;
+  renderNomadPins();
+}
+
+function renderNomadPins() {
+  _nomadPinOverlays = clearOverlayItems(_nomadPinOverlays, 'mapDataPins');
+  const layer = overlayLayer('mapDataPins');
+  if (!layer || !_layersOn.has('nomad')) return;
+  for (const { spot, lat, lng } of _nomadSpots) {
+    const el = document.createElement('button');
+    el.className = 'map-nomad-pin';
+    el.type = 'button';
+    el.title = `${spot.name}${spot.city ? ' · ' + spot.city : ''}`;
+    el.innerHTML = `<span class="map-nomad-pin-dot">☕</span>`;
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      import('../nomad/nomad-modal.ts').then(({ openDetailModal }) => {
+        openDetailModal(spot, () => {});
+      });
+    });
+    layer.appendChild(el);
+    _nomadPinOverlays.push({ el, lng, lat });
+  }
+  syncOverlayItems(_nomadPinOverlays);
+}
+
+/* ── Journal layer ────────────────────────────────────────────────────────── */
+/** Subscribe to journal entries for the current scope, group by destination. */
+function enableJournalLayer() {
+  _journalUnsub?.();
+  const subscribe = _scope === 'all' ? journalStore.subscribeAll : journalStore.subscribe;
+  _journalUnsub = subscribe((rows) => { void resolveJournalPlaces(rows); });
+}
+
+function disableJournalLayer() {
+  _journalUnsub?.();
+  _journalUnsub = null;
+  _journalPlaces = [];
+  _journalPinOverlays = clearOverlayItems(_journalPinOverlays, 'mapJournalPins');
+}
+
+/** Group entries by their `destination`, geocode each, then render count pins. */
+async function resolveJournalPlaces(rows: StoredJournalEntry[]) {
+  const token = _buildToken;
+  const counts = new Map<string, number>();
+  for (const e of rows) {
+    const dest = (e.destination ?? '').trim();
+    if (!dest) continue;
+    counts.set(dest, (counts.get(dest) ?? 0) + 1);
+  }
+  const resolved: Array<{ destination: string; count: number; lat: number; lng: number }> = [];
+  for (const [destination, count] of counts) {
+    const hit = await geocode(destination);
+    if (token !== _buildToken) return;
+    if (!hit) continue;
+    resolved.push({ destination, count, lat: hit.lat, lng: hit.lng });
+  }
+  if (token !== _buildToken || !_layersOn.has('journal')) return;
+  _journalPlaces = resolved;
+  renderJournalPins();
+}
+
+function renderJournalPins() {
+  _journalPinOverlays = clearOverlayItems(_journalPinOverlays, 'mapJournalPins');
+  const layer = overlayLayer('mapJournalPins');
+  if (!layer || !_layersOn.has('journal')) return;
+  for (const { destination, count, lat, lng } of _journalPlaces) {
+    const el = document.createElement('button');
+    el.className = 'map-journal-pin';
+    el.type = 'button';
+    el.title = `${destination} · ${count} ${count > 1 ? 'entries' : 'entry'}`;
+    el.innerHTML = `<span class="map-journal-pin-emoji">✍️</span><span class="map-journal-pin-count">${count}</span>`;
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      import('../../core/app.ts').then(({ navigateTo }) => navigateTo('journal'));
+    });
+    layer.appendChild(el);
+    _journalPinOverlays.push({ el, lng, lat });
+  }
+  syncOverlayItems(_journalPinOverlays);
+}
+
+/* ── Expense layer ────────────────────────────────────────────────────────── */
+/** Subscribe to expenses (current trip only), aggregate spend per country ISO. */
+function enableExpenseLayer() {
+  _expenseUnsub?.();
+  // Expense store is per-trip; the heat tint only makes sense for one trip.
+  if (_scope !== 'trip') { _expenseByIso = new Map(); applyExpenseHeat(); return; }
+  // Ensure every visited country is lit so the heat is visible without replaying.
+  _legsRef.forEach((l) => lightCountry(l.iso));
+  _expenseUnsub = expenseStore.subscribe((rows) => aggregateExpenses(rows));
+}
+
+function disableExpenseLayer() {
+  _expenseUnsub?.();
+  _expenseUnsub = null;
+  _expenseByIso = new Map();
+  // Restore the normal "visited" lighting for the countries we tinted.
+  _lit.forEach((iso) => paintCountry(iso, countryColor(iso)));
+}
+
+function aggregateExpenses(rows: StoredExpense[]) {
+  const byIso = new Map<string, number>();
+  for (const e of rows) {
+    const iso = isoFor(e.country);
+    if (!iso) continue;
+    byIso.set(iso, (byIso.get(iso) ?? 0) + (e.baseAmount || 0));
+  }
+  _expenseByIso = byIso;
+  if (_layersOn.has('expenses')) applyExpenseHeat();
+}
+
+/** Tint each visited country by its share of total spend (light → deep amber). */
+function applyExpenseHeat() {
+  if (!_layersOn.has('expenses')) return;
+  _lit.forEach((iso) => paintCountry(iso, litColorFor(iso)));
+}
+
+/** Format a spend total in the trip's base currency for the tooltip. */
+function fmtSpend(n: number): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: currentTrip()?.baseCurrency || 'EUR',
+      maximumFractionDigits: 0,
+    }).format(n);
+  } catch {
+    return `${Math.round(n)}`;
+  }
+}
+
+/** Map a 0..1 intensity to an amber heat colour (light cream → deep orange). */
+function heatColor(t: number): string {
+  const lo = { r: 0xfd, g: 0xee, b: 0xd0 };  // pale amber
+  const hi = { r: 0xe0, g: 0x6b, b: 0x1a };  // deep orange
+  const k = Math.sqrt(Math.min(1, Math.max(0, t)));   // sqrt so small spends still read
+  const ch = (a: number, b: number) => Math.round(a + (b - a) * k);
+  return `rgb(${ch(lo.r, hi.r)}, ${ch(lo.g, hi.g)}, ${ch(lo.b, hi.b)})`;
+}
+
 function zoomToCountryPoly(poly: any) {
   const di = poly?.dataItem;
   if (!_worldSeries || !_chart || !di) return;
@@ -432,6 +648,8 @@ function stageInnerMarkup(): string {
   return `
     <div id="mapChart" class="map-chart"></div>
     <div class="map-region-labels" id="mapRegionLabels"></div>
+    <div class="map-data-pins" id="mapDataPins"></div>
+    <div class="map-data-pins" id="mapJournalPins"></div>
     <div class="map-country-pins" id="mapCountryPins"></div>
     <div class="map-tooltip" id="mapTooltip">
       <span class="map-tooltip-name" id="mapTooltipName"></span>
@@ -509,6 +727,12 @@ function subscribeLegs(view: HTMLElement) {
   // Clear trip-name cache on scope switch so it re-fetches fresh names.
   _tripNames.clear();
   const token = ++_buildToken;
+  // Re-subscribe active data layers under the (possibly new) scope.
+  _nomadPinOverlays = clearOverlayItems(_nomadPinOverlays, 'mapDataPins');
+  _journalPinOverlays = clearOverlayItems(_journalPinOverlays, 'mapJournalPins');
+  if (_layersOn.has('nomad')) enableNomadLayer();
+  if (_layersOn.has('journal')) enableJournalLayer();
+  if (_layersOn.has('expenses')) enableExpenseLayer();
   const subscribe = _scope === 'all' ? routeStore.subscribeAll : routeStore.subscribe;
   _unsubLegs = subscribe((storedLegs) => {
     if (token !== _buildToken) return;
@@ -631,7 +855,8 @@ async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: 
 
   _outboundChain = await buildOutboundChain(legs, stored);
   if (token !== _buildToken) return;
-  _returnChain   = buildReturnChain(_outboundChain, legs);
+  _returnChain   = await buildReturnChain(_outboundChain, legs);
+  if (token !== _buildToken) return;
 
   // Single-country trip → we'll drill into its regions for the animation.
   const isos = new Set(legs.map((l) => l.iso).filter(Boolean) as string[]);
@@ -693,9 +918,12 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     const id = ev.target.dataItem.get('id');
     const legHere = legs.filter((l) => l.iso === id);
     tipName.textContent = ev.target.dataItem.dataContext?.name ?? id;
-    tipMeta.textContent = legHere.length
+    const base = legHere.length
       ? `${legHere.length} stop${legHere.length>1?'s':''}${DRILLDOWN_COUNTRIES[id]?' · click to zoom in':''}`
       : (DRILLDOWN_COUNTRIES[id] ? 'click to zoom in' : '');
+    // When the spend-heat layer is on, lead with the country's total spend.
+    const spend = _layersOn.has('expenses') ? (_expenseByIso.get(id) ?? 0) : 0;
+    tipMeta.textContent = spend > 0 ? `${fmtSpend(spend)}${base ? ' · ' + base : ''}` : base;
     tooltip.classList.add('visible');
   });
   world.mapPolygons.template.events.on('globalpointermove', (ev:any) => positionTooltip(view, ev));
@@ -819,12 +1047,18 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   root.events.on('frameended', () => {
     syncOverlayItems(_regionLabelOverlays);
     syncOverlayItems(_countryPinOverlays);
+    syncOverlayItems(_nomadPinOverlays);
+    syncOverlayItems(_journalPinOverlays);
   });
 
   chart.appear(700, 100).then(() => {
     document.getElementById('mapLoading')?.remove();
     // Fit the whole route on load; animation only starts when the user clicks Play.
     setTimeout(() => { syncHero(); syncPlane(); fitToRoute(legs, 700); }, 400);
+    // Re-paint any active data layers onto the freshly-booted chart.
+    if (_layersOn.has('nomad') && _nomadSpots.length) renderNomadPins();
+    if (_layersOn.has('journal') && _journalPlaces.length) renderJournalPins();
+    if (_layersOn.has('expenses')) applyExpenseHeat();
   });
 
   // Replay / Pause button — toggles between playing and paused/stopped.
@@ -987,10 +1221,20 @@ function paintCountry(iso: string, color: string) {
   poly.set('fill', am5.color(color));
   poly.states.create('hover', { fill:am5.color(C.hover) });
 }
+/** The fill a lit country should have right now — heat tint if the expense layer
+ *  is on and we have spend for it, otherwise its normal visited colour. */
+function litColorFor(iso: string): string {
+  if (_layersOn.has('expenses')) {
+    const max = Math.max(0, ..._expenseByIso.values());
+    const spend = _expenseByIso.get(iso) ?? 0;
+    if (max > 0 && spend > 0) return heatColor(spend / max);
+  }
+  return countryColor(iso);
+}
 function lightCountry(iso: string|null) {
   if (!iso||_lit.has(iso)) return; _lit.add(iso);
   const poly = _polyById.get(iso); if (!poly) return;
-  paintCountry(iso, countryColor(iso));
+  paintCountry(iso, litColorFor(iso));
   poly.animate({ key:'fillOpacity', from:0.4, to:1, duration:700, easing:am5.ease.out(am5.ease.cubic) });
 }
 function resetLit() {
@@ -1226,6 +1470,42 @@ function wireScopeToggle(view: HTMLElement) {
   });
 }
 
+/* ── Layer toggles ────────────────────────────────────────────────────────── */
+const LAYER_META: Record<LayerId, { icon: string; label: string }> = {
+  nomad:    { icon: '☕',  label: 'Work spots' },
+  journal:  { icon: '✍️', label: 'Journal'    },
+  expenses: { icon: '💸', label: 'Spend heat' },
+};
+
+function layersMarkup(): string {
+  const rows = (Object.keys(LAYER_META) as LayerId[]).map((id) => {
+    const m = LAYER_META[id];
+    const on = _layersOn.has(id);
+    return `
+      <button class="map-layer-btn${on ? ' active' : ''}" data-layer="${id}" role="switch" aria-checked="${on}">
+        <span class="map-layer-icon">${m.icon}</span>
+        <span class="map-layer-label">${m.label}</span>
+        <span class="map-layer-switch"></span>
+      </button>`;
+  }).join('');
+  return `<div class="map-layers">${rows}</div>`;
+}
+
+function wireLayerToggles(view: HTMLElement) {
+  view.querySelectorAll<HTMLButtonElement>('.map-layer-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.layer as LayerId;
+      const on = !_layersOn.has(id);
+      if (on) _layersOn.add(id); else _layersOn.delete(id);
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-checked', String(on));
+      if (id === 'nomad')    { on ? enableNomadLayer()   : disableNomadLayer(); }
+      if (id === 'journal')  { on ? enableJournalLayer() : disableJournalLayer(); }
+      if (id === 'expenses') { on ? enableExpenseLayer() : disableExpenseLayer(); }
+    });
+  });
+}
+
 /* ── Side panel ───────────────────────────────────────────────────────────── */
 function summarizeRoute(legs: PlottedLeg[]) {
   const uniqueCountries = new Set<string>();
@@ -1285,6 +1565,7 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
       <div class="map-stat"><div class="map-stat-num">${cityCount}</div><div class="map-stat-label">Cities</div></div>
       <div class="map-stat"><div class="map-stat-num">${countryCount}</div><div class="map-stat-label">Countries</div></div>
     </div>
+    ${layersMarkup()}
     <div class="map-legs">
       ${_scope === 'trip' ? flightRowMarkup(_outboundChain, 'flight-outbound') : ''}
       ${listItems.join('')}
@@ -1292,6 +1573,7 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
     </div>`;
 
   wireScopeToggle(view);
+  wireLayerToggles(view);
 
   view.querySelectorAll<HTMLButtonElement>('.leg-row').forEach((btn) => {
     btn.addEventListener('click', () => {

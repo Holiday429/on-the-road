@@ -62,6 +62,13 @@ export const TripSchema = doc({
   destinations: z.array(z.string()).optional(), // e.g. ['France', 'Italy', 'Spain']
   notes: z.string().optional(),                 // free-text trip notes/motivation
   userCreated: z.boolean().optional(),          // false/absent = legacy hardcoded seed
+  // Home/return anchors for the /map flight arcs. homeCity = where the traveller
+  // departs from (outbound origin). returnCity = where they fly back to at the
+  // end (may differ from home — e.g. out of Paris, back into Berlin). Both
+  // optional; absent = no derived home flight. Outbound still falls back to the
+  // first leg's arrivalTransport.from when homeCity is blank.
+  homeCity: z.string().optional(),
+  returnCity: z.string().optional(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 

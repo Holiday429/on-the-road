@@ -84,6 +84,21 @@ export function showOnboarding(onDone: () => void): void {
           </div>
 
           <div class="ob-field">
+            <label class="ob-label">Home city <span class="ob-label-opt">(optional)</span></label>
+            <div class="ob-row">
+              <div class="ob-subfield">
+                <label class="ob-sublabel" for="ob-home">Flying from</label>
+                <input id="ob-home" class="input" placeholder="e.g. Harbin" autocomplete="off">
+              </div>
+              <div class="ob-subfield">
+                <label class="ob-sublabel" for="ob-return">Flying back to</label>
+                <input id="ob-return" class="input" placeholder="same as home" autocomplete="off">
+              </div>
+            </div>
+            <span class="ob-field-hint">Used to draw your outbound &amp; return flights on the map.</span>
+          </div>
+
+          <div class="ob-field">
             <label class="ob-label">Cover colour</label>
             <div class="ob-color-frame">
               <div class="ob-colors" id="ob-colors">
@@ -167,6 +182,8 @@ export function showOnboarding(onDone: () => void): void {
     const endDate      = (screen.querySelector<HTMLInputElement>('#ob-end')!).value;
     const baseCurrency = (screen.querySelector<HTMLInputElement>('#ob-currency')!).value.trim().toUpperCase() || 'EUR';
     const notes        = (screen.querySelector<HTMLTextAreaElement>('#ob-notes')!).value.trim() || undefined;
+    const homeCity     = (screen.querySelector<HTMLInputElement>('#ob-home')!).value.trim() || undefined;
+    const returnCity   = (screen.querySelector<HTMLInputElement>('#ob-return')!).value.trim() || undefined;
     const destinations = destPicker?.getValues() ?? [];
 
     errorEl.textContent = '';
@@ -184,6 +201,8 @@ export function showOnboarding(onDone: () => void): void {
       travelStyle: selectedStyle ?? undefined,
       destinations: destinations.length > 0 ? destinations : undefined,
       notes,
+      homeCity,
+      returnCity,
     };
 
     try {

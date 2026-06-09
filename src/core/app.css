@@ -707,6 +707,8 @@
 .trip-modal-field > span { font-weight: 600; color: var(--ink-muted); }
 .trip-modal-row { display: flex; gap: var(--sp-3); }
 .trip-modal-row .trip-modal-field { flex: 1; }
+.trip-modal-opt { font-weight: 400; color: var(--ink-faint); }
+.trip-modal-hint { display: block; font-size: 11px; color: var(--ink-faint); margin: calc(-1 * var(--sp-2)) 0 var(--sp-2); }
 .trip-modal-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
 .trip-modal-error { color: #c0392b; font-size: var(--fs-sm); margin-top: var(--sp-2); min-height: 1em; }
 

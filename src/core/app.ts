@@ -590,12 +590,23 @@ function openRenameTripModal(trip: StoredTrip) {
   const backdrop = document.createElement('div');
   backdrop.className = 'trip-modal-backdrop';
   backdrop.innerHTML = `
-    <div class="trip-modal" role="dialog" aria-modal="true" aria-label="Rename trip">
-      <h3 class="trip-modal-title">Rename trip</h3>
+    <div class="trip-modal" role="dialog" aria-modal="true" aria-label="Edit trip">
+      <h3 class="trip-modal-title">Edit trip</h3>
       <label class="trip-modal-field">
         <span>Trip name</span>
         <input id="rt-name" class="input" value="${escapeHtml(trip.name)}" autocomplete="off">
       </label>
+      <div class="trip-modal-row">
+        <label class="trip-modal-field">
+          <span>Home city <span class="trip-modal-opt">(flying from)</span></span>
+          <input id="rt-home" class="input" value="${escapeHtml(trip.homeCity ?? '')}" placeholder="e.g. Harbin" autocomplete="off">
+        </label>
+        <label class="trip-modal-field">
+          <span>Return city <span class="trip-modal-opt">(flying back to)</span></span>
+          <input id="rt-return" class="input" value="${escapeHtml(trip.returnCity ?? '')}" placeholder="same as home" autocomplete="off">
+        </label>
+      </div>
+      <span class="trip-modal-hint">Home &amp; return draw your outbound and return flights on the map.</span>
       <div class="trip-modal-actions">
         <button class="btn" id="rt-cancel">Cancel</button>
         <button class="btn btn-primary" id="rt-save">Save</button>
@@ -606,6 +617,8 @@ function openRenameTripModal(trip: StoredTrip) {
   document.body.appendChild(backdrop);
 
   const nameInput = backdrop.querySelector<HTMLInputElement>('#rt-name')!;
+  const homeInput = backdrop.querySelector<HTMLInputElement>('#rt-home')!;
+  const returnInput = backdrop.querySelector<HTMLInputElement>('#rt-return')!;
   const errorEl = backdrop.querySelector<HTMLElement>('#rt-error')!;
   const close = () => backdrop.remove();
 
@@ -614,21 +627,26 @@ function openRenameTripModal(trip: StoredTrip) {
 
   nameInput.focus();
   nameInput.select();
-  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+  backdrop.querySelectorAll('input').forEach((el) =>
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); }));
 
   async function save() {
     const name = nameInput.value.trim();
     if (!name) { errorEl.textContent = 'Name cannot be empty.'; return; }
+    // Empty string (not undefined) so clearing a field overwrites the stored
+    // value — stripUndefined would otherwise drop the key and keep the old one.
+    const homeCity = homeInput.value.trim();
+    const returnCity = returnInput.value.trim();
     const btn = backdrop.querySelector<HTMLButtonElement>('#rt-save')!;
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
-      await updateTrip(trip.id, { name });
+      await updateTrip(trip.id, { name, homeCity, returnCity });
       tripList = await listTrips();
       close();
       buildSidebar();
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Save';
-      errorEl.textContent = e instanceof Error ? e.message : 'Could not rename trip.';
+      errorEl.textContent = e instanceof Error ? e.message : 'Could not save trip.';
     }
   }
 
