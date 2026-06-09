@@ -14,7 +14,7 @@
 
 import './map.css';
 import { renderViewTitleMarkup } from '../../core/app.ts';
-import { resolveCityLocations, isoFor, EUROPE_CENTER } from './geo.ts';
+import { resolveCityLocations, isoFor, continentFor, EUROPE_CENTER } from './geo.ts';
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
 import { MAP_COLORS as C, countryColor } from './map-shared.ts';
@@ -23,10 +23,12 @@ import { routeStore } from '../../data/stores/route-store.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
+import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import {
   onTripChange, listTrips, currentTrip, currentTripId,
 } from '../../data/trip-context.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
+import { escHtml as esc } from '../../core/utils.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
@@ -123,13 +125,12 @@ let _chart: any = null;
 let _scope: 'trip' | 'all' = 'trip';
 let _unsubLegs: (() => void) | null = null;
 let _worldSeries: any = null;
-let _polyById    = new Map<string, any>();
-let _dataItemById = new Map<string, any>();  // iso → dataItem (unused after zoom refactor)
+let _polyById      = new Map<string, any>();
+let _dataItemById  = new Map<string, any>();
 let _lit         = new Set<string>();
 let _drillSeries: any = null;
 let _drillCode:   string | null = null;
-let _replayTimer:      number | null = null;
-let _planeReplayTimer: number | null = null;
+let _replayTimer:    number | null = null;
 let _flightPanTimer: number | null = null;
 let _paused = false;
 let _playing = false;
@@ -144,23 +145,34 @@ let _buildToken = 0;   // guards against stale async builds after teardown/scope
 let _tripNames  = new Map<string, string>();   // tripId → trip name cache
 
 /* ── Data layers (overlays beyond the route itself) ───────────────────────── */
-// Toggleable layers sourced from other features. Pin layers (nomad, journal)
-// live in their own DOM container synced like the country pins; the expense
-// layer instead tints country polygons by spend.
-type LayerId = 'nomad' | 'journal' | 'expenses';
+type LayerId = 'nomad' | 'journal' | 'guide' | 'stay' | 'expenses';
 const _layersOn = new Set<LayerId>();
 
-let _nomadPinOverlays: OverlayItem[] = [];
-let _nomadUnsub: (() => void) | null = null;
-let _nomadSpots: Array<{ spot: StoredNomadSpot; lat: number; lng: number }> = [];
+// Pin layers share a single state shape; expenses is a separate country-fill layer.
+type PinLayerId = Exclude<LayerId, 'expenses'>;
+interface PinLayer { overlays: OverlayItem[]; unsub: (() => void) | null }
+const _pinLayers: Record<PinLayerId, PinLayer> = {
+  nomad:   { overlays: [], unsub: null },
+  journal: { overlays: [], unsub: null },
+  guide:   { overlays: [], unsub: null },
+  stay:    { overlays: [], unsub: null },
+};
+const PIN_DOM: Record<PinLayerId, string> = {
+  nomad: 'mapDataPins', journal: 'mapJournalPins',
+  guide: 'mapGuidePins', stay: 'mapStayPins',
+};
 
-let _journalPinOverlays: OverlayItem[] = [];
-let _journalUnsub: (() => void) | null = null;
+let _nomadSpots:    Array<{ spot: StoredNomadSpot; lat: number; lng: number }> = [];
 let _journalPlaces: Array<{ destination: string; count: number; lat: number; lng: number }> = [];
+let _guidePlaces:   Array<{ city: string; count: number; lat: number; lng: number }> = [];
+let _stayPlaces:    Array<{ name: string; city: string; legId: string; lat: number; lng: number }> = [];
 
 let _expenseUnsub: (() => void) | null = null;
-// iso → total spend (base currency). Drives the expense heat tint.
 let _expenseByIso = new Map<string, number>();
+
+let _timeline: { minMs: number; maxMs: number } | null = null;
+let _scrubbing = false;
+let _timelineTimer: number | null = null;
 
 function setReplayBtnLabel(playing: boolean) {
   const btn = document.getElementById('mapReplay');
@@ -401,8 +413,10 @@ function renderCountryPins(stops: CountryStop[]) {
   const layer = overlayLayer('mapCountryPins');
   if (!layer) return;
   for (const stop of stops) {
-    const el = document.createElement('div');
+    const el = document.createElement('button');
+    el.type = 'button';
     el.className = 'map-country-pin';
+    el.title = `${stop.name} — click to open Guide`;
 
     const icon = document.createElement('span');
     icon.className = 'map-country-pin-icon';
@@ -415,6 +429,16 @@ function renderCountryPins(stops: CountryStop[]) {
     label.textContent = wrapMapLabel(stop.name, 10);
 
     el.append(icon, label);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cityName = stop.name;
+      import('../../core/app.ts').then(({ navigateTo }) => {
+        navigateTo('cities');
+        setTimeout(() => {
+          import('../guide/guide.ts').then(({ openGuideCity }) => openGuideCity(cityName));
+        }, 80);
+      });
+    });
     layer.appendChild(el);
     _countryPinOverlays.push({ el, lng: stop.lng, lat: stop.lat });
   }
@@ -426,117 +450,186 @@ function clearDrillOverlays() {
   _countryPinOverlays = clearOverlayItems(_countryPinOverlays, 'mapCountryPins');
 }
 
-/* ── Nomad layer ──────────────────────────────────────────────────────────── */
-/** Subscribe to nomad spots for the current scope, resolve coords, render pins. */
+/* ── Pin-layer helpers ────────────────────────────────────────────────────── */
+function clearPinLayer(id: PinLayerId) {
+  const pl = _pinLayers[id];
+  pl.unsub?.(); pl.unsub = null;
+  pl.overlays = clearOverlayItems(pl.overlays, PIN_DOM[id]);
+}
+function addPin(id: PinLayerId, lat: number, lng: number, el: HTMLButtonElement) {
+  overlayLayer(PIN_DOM[id])?.appendChild(el);
+  _pinLayers[id].overlays.push({ el, lng, lat });
+}
+function syncPinLayer(id: PinLayerId) { syncOverlayItems(_pinLayers[id].overlays); }
+
+/* ── Nomad ────────────────────────────────────────────────────────────────── */
 function enableNomadLayer() {
-  _nomadUnsub?.();
+  clearPinLayer('nomad');
   const tripId = _scope === 'all' ? null : currentTripId();
-  _nomadUnsub = nomadStore.subscribeForTrip(tripId, (rows) => {
-    void resolveNomadSpots(rows);
-  });
+  _pinLayers.nomad.unsub = nomadStore.subscribeForTrip(tripId, (rows) => { void resolveNomadSpots(rows); });
 }
+function disableNomadLayer() { _nomadSpots = []; clearPinLayer('nomad'); }
 
-function disableNomadLayer() {
-  _nomadUnsub?.();
-  _nomadUnsub = null;
-  _nomadSpots = [];
-  _nomadPinOverlays = clearOverlayItems(_nomadPinOverlays, 'mapDataPins');
-}
-
-/** Resolve each spot to coords by geocoding its address (or name + city), then render. */
 async function resolveNomadSpots(rows: StoredNomadSpot[]) {
   const token = _buildToken;
-  const resolved: Array<{ spot: StoredNomadSpot; lat: number; lng: number }> = [];
+  const out: typeof _nomadSpots = [];
   for (const spot of rows) {
-    const q = spot.address?.trim()
-      || [spot.name, spot.city, spot.country].filter(Boolean).join(', ');
+    const q = spot.address?.trim() || [spot.name, spot.city, spot.country].filter(Boolean).join(', ');
     const hit = q ? await geocode(q) : null;
-    if (token !== _buildToken) return;   // scope/trip changed mid-geocode
-    if (!hit) continue;
-    resolved.push({ spot, lat: hit.lat, lng: hit.lng });
+    if (token !== _buildToken) return;
+    if (hit) out.push({ spot, lat: hit.lat, lng: hit.lng });
   }
   if (token !== _buildToken || !_layersOn.has('nomad')) return;
-  _nomadSpots = resolved;
+  _nomadSpots = out;
   renderNomadPins();
 }
-
 function renderNomadPins() {
-  _nomadPinOverlays = clearOverlayItems(_nomadPinOverlays, 'mapDataPins');
-  const layer = overlayLayer('mapDataPins');
-  if (!layer || !_layersOn.has('nomad')) return;
+  _pinLayers.nomad.overlays = clearOverlayItems(_pinLayers.nomad.overlays, PIN_DOM.nomad);
+  if (!overlayLayer(PIN_DOM.nomad) || !_layersOn.has('nomad')) return;
   for (const { spot, lat, lng } of _nomadSpots) {
     const el = document.createElement('button');
-    el.className = 'map-nomad-pin';
-    el.type = 'button';
+    el.className = 'map-nomad-pin'; el.type = 'button';
     el.title = `${spot.name}${spot.city ? ' · ' + spot.city : ''}`;
-    el.innerHTML = `<span class="map-nomad-pin-dot">☕</span>`;
+    el.innerHTML = '<span class="map-nomad-pin-dot">☕</span>';
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      import('../nomad/nomad-modal.ts').then(({ openDetailModal }) => {
-        openDetailModal(spot, () => {});
-      });
+      import('../nomad/nomad-modal.ts').then(({ openDetailModal }) => openDetailModal(spot, () => {}));
     });
-    layer.appendChild(el);
-    _nomadPinOverlays.push({ el, lng, lat });
+    addPin('nomad', lat, lng, el);
   }
-  syncOverlayItems(_nomadPinOverlays);
+  syncPinLayer('nomad');
 }
 
-/* ── Journal layer ────────────────────────────────────────────────────────── */
-/** Subscribe to journal entries for the current scope, group by destination. */
+/* ── Journal ──────────────────────────────────────────────────────────────── */
 function enableJournalLayer() {
-  _journalUnsub?.();
-  const subscribe = _scope === 'all' ? journalStore.subscribeAll : journalStore.subscribe;
-  _journalUnsub = subscribe((rows) => { void resolveJournalPlaces(rows); });
+  clearPinLayer('journal');
+  const sub = _scope === 'all' ? journalStore.subscribeAll : journalStore.subscribe;
+  _pinLayers.journal.unsub = sub((rows) => { void resolveJournalPlaces(rows); });
 }
+function disableJournalLayer() { _journalPlaces = []; clearPinLayer('journal'); }
 
-function disableJournalLayer() {
-  _journalUnsub?.();
-  _journalUnsub = null;
-  _journalPlaces = [];
-  _journalPinOverlays = clearOverlayItems(_journalPinOverlays, 'mapJournalPins');
-}
-
-/** Group entries by their `destination`, geocode each, then render count pins. */
 async function resolveJournalPlaces(rows: StoredJournalEntry[]) {
   const token = _buildToken;
   const counts = new Map<string, number>();
   for (const e of rows) {
     const dest = (e.destination ?? '').trim();
-    if (!dest) continue;
-    counts.set(dest, (counts.get(dest) ?? 0) + 1);
+    if (dest) counts.set(dest, (counts.get(dest) ?? 0) + 1);
   }
-  const resolved: Array<{ destination: string; count: number; lat: number; lng: number }> = [];
+  const out: typeof _journalPlaces = [];
   for (const [destination, count] of counts) {
     const hit = await geocode(destination);
     if (token !== _buildToken) return;
-    if (!hit) continue;
-    resolved.push({ destination, count, lat: hit.lat, lng: hit.lng });
+    if (hit) out.push({ destination, count, lat: hit.lat, lng: hit.lng });
   }
   if (token !== _buildToken || !_layersOn.has('journal')) return;
-  _journalPlaces = resolved;
+  _journalPlaces = out;
   renderJournalPins();
 }
-
 function renderJournalPins() {
-  _journalPinOverlays = clearOverlayItems(_journalPinOverlays, 'mapJournalPins');
-  const layer = overlayLayer('mapJournalPins');
-  if (!layer || !_layersOn.has('journal')) return;
+  _pinLayers.journal.overlays = clearOverlayItems(_pinLayers.journal.overlays, PIN_DOM.journal);
+  if (!overlayLayer(PIN_DOM.journal) || !_layersOn.has('journal')) return;
   for (const { destination, count, lat, lng } of _journalPlaces) {
     const el = document.createElement('button');
-    el.className = 'map-journal-pin';
-    el.type = 'button';
+    el.className = 'map-journal-pin'; el.type = 'button';
     el.title = `${destination} · ${count} ${count > 1 ? 'entries' : 'entry'}`;
-    el.innerHTML = `<span class="map-journal-pin-emoji">✍️</span><span class="map-journal-pin-count">${count}</span>`;
+    el.innerHTML = '<span class="map-journal-pin-emoji">✍️</span>' + `<span class="map-journal-pin-count">${count}</span>`;
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       import('../../core/app.ts').then(({ navigateTo }) => navigateTo('journal'));
     });
-    layer.appendChild(el);
-    _journalPinOverlays.push({ el, lng, lat });
+    addPin('journal', lat, lng, el);
   }
-  syncOverlayItems(_journalPinOverlays);
+  syncPinLayer('journal');
 }
+
+/* ── Guide ────────────────────────────────────────────────────────────────── */
+function enableGuideLayer() {
+  clearPinLayer('guide');
+  if (_scope !== 'trip') { _guidePlaces = []; return; }
+  _pinLayers.guide.unsub = cityStore.subscribe((rows) => { void resolveGuidePlaces(rows); });
+}
+function disableGuideLayer() { _guidePlaces = []; clearPinLayer('guide'); }
+
+async function resolveGuidePlaces(rows: StoredCityIntel[]) {
+  const token = _buildToken;
+  const out: typeof _guidePlaces = [];
+  for (const intel of rows) {
+    const count = (intel.attractions?.length ?? 0) + (intel.cityWalks?.length ?? 0)
+      + (intel.restaurants?.length ?? 0) + (intel.experiences?.length ?? 0);
+    const q = [intel.city, intel.country].filter(Boolean).join(', ');
+    const hit = q ? await geocode(q) : null;
+    if (token !== _buildToken) return;
+    if (hit) out.push({ city: intel.city, count, lat: hit.lat, lng: hit.lng });
+  }
+  if (token !== _buildToken || !_layersOn.has('guide')) return;
+  _guidePlaces = out;
+  renderGuidePins();
+}
+function renderGuidePins() {
+  _pinLayers.guide.overlays = clearOverlayItems(_pinLayers.guide.overlays, PIN_DOM.guide);
+  if (!overlayLayer(PIN_DOM.guide) || !_layersOn.has('guide')) return;
+  for (const { city, count, lat, lng } of _guidePlaces) {
+    const el = document.createElement('button');
+    el.className = 'map-guide-pin'; el.type = 'button';
+    el.title = `${city} · ${count} guide ${count === 1 ? 'idea' : 'ideas'}`;
+    el.innerHTML = '<span class="map-guide-pin-emoji">📍</span>' + (count ? `<span class="map-guide-pin-count">${count}</span>` : '');
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      import('../../core/app.ts').then(({ navigateTo }) => navigateTo('cities'));
+    });
+    addPin('guide', lat, lng, el);
+  }
+  syncPinLayer('guide');
+}
+
+/* ── Stay ─────────────────────────────────────────────────────────────────── */
+interface StayLegInput {
+  id: string; city: string; country: string;
+  accommodation?: { name: string; address?: string };
+  accommodations?: Array<{ name: string; address?: string }>;
+}
+function enableStayLayer() {
+  clearPinLayer('stay');
+  const sub = _scope === 'all' ? routeStore.subscribeAll : routeStore.subscribe;
+  _pinLayers.stay.unsub = sub((legs) => { void resolveStayPlaces(legs as any); });
+}
+function disableStayLayer() { _stayPlaces = []; clearPinLayer('stay'); }
+
+async function resolveStayPlaces(legs: StayLegInput[]) {
+  const token = _buildToken;
+  const out: typeof _stayPlaces = [];
+  for (const leg of legs) {
+    const stays = leg.accommodations?.length ? leg.accommodations
+      : (leg.accommodation ? [leg.accommodation] : []);
+    for (const stay of stays) {
+      if (!stay?.name) continue;
+      const q = stay.address?.trim() || `${stay.name}, ${leg.city}, ${leg.country}`;
+      const hit = await geocode(q);
+      if (token !== _buildToken) return;
+      if (hit) out.push({ name: stay.name, city: leg.city, legId: leg.id, lat: hit.lat, lng: hit.lng });
+    }
+  }
+  if (token !== _buildToken || !_layersOn.has('stay')) return;
+  _stayPlaces = out;
+  renderStayPins();
+}
+function renderStayPins() {
+  _pinLayers.stay.overlays = clearOverlayItems(_pinLayers.stay.overlays, PIN_DOM.stay);
+  if (!overlayLayer(PIN_DOM.stay) || !_layersOn.has('stay')) return;
+  for (const { name, city, lat, lng } of _stayPlaces) {
+    const el = document.createElement('button');
+    el.className = 'map-stay-pin'; el.type = 'button';
+    el.title = `${name}${city ? ' · ' + city : ''}`;
+    el.innerHTML = '<span class="map-stay-pin-emoji">🛏️</span>';
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      import('../../core/app.ts').then(({ navigateTo }) => navigateTo('route'));
+    });
+    addPin('stay', lat, lng, el);
+  }
+  syncPinLayer('stay');
+}
+
 
 /* ── Expense layer ────────────────────────────────────────────────────────── */
 /** Subscribe to expenses (current trip only), aggregate spend per country ISO. */
@@ -637,8 +730,12 @@ export function initMap() {
 function stageMarkup(): string {
   return `
     <div class="map-layout">
-      <div class="map-stage">
-        ${stageInnerMarkup()}
+      <div class="map-main">
+        <div class="map-layers-bar" id="mapLayersBar"></div>
+        <div class="map-stage">
+          ${stageInnerMarkup()}
+        </div>
+        <div class="map-timeline-slot" id="mapTimelineSlot"></div>
       </div>
       <aside class="map-panel"></aside>
     </div>`;
@@ -650,6 +747,8 @@ function stageInnerMarkup(): string {
     <div class="map-region-labels" id="mapRegionLabels"></div>
     <div class="map-data-pins" id="mapDataPins"></div>
     <div class="map-data-pins" id="mapJournalPins"></div>
+    <div class="map-data-pins" id="mapGuidePins"></div>
+    <div class="map-data-pins" id="mapStayPins"></div>
     <div class="map-country-pins" id="mapCountryPins"></div>
     <div class="map-tooltip" id="mapTooltip">
       <span class="map-tooltip-name" id="mapTooltipName"></span>
@@ -727,11 +826,13 @@ function subscribeLegs(view: HTMLElement) {
   // Clear trip-name cache on scope switch so it re-fetches fresh names.
   _tripNames.clear();
   const token = ++_buildToken;
-  // Re-subscribe active data layers under the (possibly new) scope.
-  _nomadPinOverlays = clearOverlayItems(_nomadPinOverlays, 'mapDataPins');
-  _journalPinOverlays = clearOverlayItems(_journalPinOverlays, 'mapJournalPins');
+  removeTimelineScrubber();
+  // Clear all pin layers; re-enable whichever are active.
+  (Object.keys(_pinLayers) as PinLayerId[]).forEach(clearPinLayer);
   if (_layersOn.has('nomad')) enableNomadLayer();
   if (_layersOn.has('journal')) enableJournalLayer();
+  if (_layersOn.has('guide')) enableGuideLayer();
+  if (_layersOn.has('stay')) enableStayLayer();
   if (_layersOn.has('expenses')) enableExpenseLayer();
   const subscribe = _scope === 'all' ? routeStore.subscribeAll : routeStore.subscribe;
   _unsubLegs = subscribe((storedLegs) => {
@@ -771,6 +872,9 @@ function showEmpty(view: HTMLElement) {
   const panel = view.querySelector<HTMLElement>('.map-panel');
   if (panel) panel.innerHTML = scopeToggleMarkup();
   wireScopeToggle(view);
+  // No data → no layer chips, no scrubber.
+  const bar = document.getElementById('mapLayersBar'); if (bar) bar.innerHTML = '';
+  removeTimelineScrubber();
   const stage = view.querySelector<HTMLElement>('.map-stage');
   if (!stage) return;
   if (!stage.querySelector('.map-idle-hint')) {
@@ -789,6 +893,9 @@ async function showSetupPanel(view: HTMLElement, token: number) {
   const stage = view.querySelector<HTMLElement>('.map-stage');
   const panel = view.querySelector<HTMLElement>('.map-panel');
   if (!stage || !panel) return;
+
+  const bar = document.getElementById('mapLayersBar'); if (bar) bar.innerHTML = '';
+  removeTimelineScrubber();
 
   // Stage: outline world map + hint banner overlay.
   if (!stage.querySelector('.map-idle-hint')) {
@@ -826,10 +933,6 @@ async function showSetupPanel(view: HTMLElement, token: number) {
   document.getElementById('mapAddManual')?.addEventListener('click', () => {
     import('../../core/app.ts').then(({ navigateTo }) => navigateTo('route'));
   });
-}
-
-function esc(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]!));
 }
 
 async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: number) {
@@ -902,7 +1005,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   });
   world.mapPolygons.template.states.create('hover', { fill:am5.color(C.hover) });
   world.events.on('datavalidated', () => {
-    _polyById.clear(); _dataItemById.clear();
+    _polyById.clear();
     world.mapPolygons.each((poly:any) => {
       const id = poly.dataItem?.get('id');
       if (id) { _polyById.set(id, poly); _dataItemById.set(id, poly.dataItem); }
@@ -1047,8 +1150,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   root.events.on('frameended', () => {
     syncOverlayItems(_regionLabelOverlays);
     syncOverlayItems(_countryPinOverlays);
-    syncOverlayItems(_nomadPinOverlays);
-    syncOverlayItems(_journalPinOverlays);
+    (Object.keys(_pinLayers) as PinLayerId[]).forEach(syncPinLayer);
   });
 
   chart.appear(700, 100).then(() => {
@@ -1058,7 +1160,11 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     // Re-paint any active data layers onto the freshly-booted chart.
     if (_layersOn.has('nomad') && _nomadSpots.length) renderNomadPins();
     if (_layersOn.has('journal') && _journalPlaces.length) renderJournalPins();
+    if (_layersOn.has('guide') && _guidePlaces.length) renderGuidePins();
+    if (_layersOn.has('stay') && _stayPlaces.length) renderStayPins();
     if (_layersOn.has('expenses')) applyExpenseHeat();
+    // All-footprints: offer a timeline scrubber to watch the map fill over time.
+    if (_scope === 'all') buildTimelineScrubber(legs);
   });
 
   // Replay / Pause button — toggles between playing and paused/stopped.
@@ -1244,9 +1350,8 @@ function resetLit() {
 
 /* ── Timer helpers ────────────────────────────────────────────────────────── */
 function clearAllTimers() {
-  if (_replayTimer)      { clearTimeout(_replayTimer);      _replayTimer      = null; }
-  if (_planeReplayTimer) { clearTimeout(_planeReplayTimer); _planeReplayTimer = null; }
-  if (_flightPanTimer)   { clearInterval(_flightPanTimer);  _flightPanTimer   = null; }
+  if (_replayTimer)    { clearTimeout(_replayTimer);    _replayTimer    = null; }
+  if (_flightPanTimer) { clearInterval(_flightPanTimer); _flightPanTimer = null; }
 }
 
 function stopReplayMotion() {
@@ -1450,6 +1555,174 @@ function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
   });
 }
 
+/* ── Timeline scrubber (all footprints) ───────────────────────────────────── */
+function legStartMs(l: PlottedLeg): number { return +new Date(`${l.dateFrom}T00:00:00`); }
+function legEndMs(l: PlottedLeg): number { return +new Date(`${l.dateTo}T00:00:00`); }
+
+function fmtScrubDate(ms: number): string {
+  return new Date(ms).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+/** Build (or rebuild) the date scrubber below the stage for the all-footprints view. */
+function buildTimelineScrubber(legs: PlottedLeg[]) {
+  const slot = document.getElementById('mapTimelineSlot');
+  if (!slot || legs.length < 2) { removeTimelineScrubber(); return; }
+
+  const starts = legs.map(legStartMs);
+  const ends = legs.map(legEndMs);
+  const minMs = Math.min(...starts);
+  const maxMs = Math.max(...ends);
+  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || maxMs <= minMs) {
+    removeTimelineScrubber();
+    return;
+  }
+
+  // Tear down any previous scrubber FIRST (it nulls _timeline), then arm state.
+  removeTimelineScrubber();
+  _timeline = { minMs, maxMs };
+
+  const el = document.createElement('div');
+  el.className = 'map-timeline';
+  el.id = 'mapTimeline';
+  el.innerHTML = `
+    <button class="map-timeline-play" id="mapTimelinePlay" title="Play through time">▶</button>
+    <div class="map-timeline-track" id="mapTimelineTrack">
+      <div class="map-timeline-fill" id="mapTimelineFill"></div>
+      <div class="map-timeline-handle" id="mapTimelineHandle" role="slider"
+           aria-label="Timeline" tabindex="0"></div>
+    </div>
+    <span class="map-timeline-date" id="mapTimelineDate"></span>`;
+  slot.appendChild(el);
+
+  wireTimelineScrubber(legs);
+  // Start fully revealed (the full footprint), matching the default lit state.
+  setScrubFraction(legs, 1);
+}
+
+function removeTimelineScrubber() {
+  stopTimelinePlay();
+  document.getElementById('mapTimeline')?.remove();
+  _timeline = null;
+}
+
+function wireTimelineScrubber(legs: PlottedLeg[]) {
+  const track = document.getElementById('mapTimelineTrack');
+  const handle = document.getElementById('mapTimelineHandle');
+  const playBtn = document.getElementById('mapTimelinePlay');
+  if (!track || !handle) return;
+
+  const fractionFromEvent = (clientX: number): number => {
+    const rect = track.getBoundingClientRect();
+    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  };
+
+  const onMove = (e: PointerEvent) => {
+    if (!_scrubbing) return;
+    setScrubFraction(legs, fractionFromEvent(e.clientX));
+  };
+  const onUp = () => {
+    _scrubbing = false;
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  const startDrag = (e: PointerEvent) => {
+    e.preventDefault();
+    stopTimelinePlay();
+    _scrubbing = true;
+    setScrubFraction(legs, fractionFromEvent(e.clientX));
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  track.addEventListener('pointerdown', startDrag);
+  handle.addEventListener('keydown', (e) => {
+    if (!_timeline) return;
+    const step = (_timeline.maxMs - _timeline.minMs) / 40;
+    const cur = currentScrubMs();
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); setScrubFraction(legs, msToFraction(cur - step)); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); setScrubFraction(legs, msToFraction(cur + step)); }
+  });
+  playBtn?.addEventListener('click', () => {
+    if (_timelineTimer) stopTimelinePlay(); else playTimeline(legs);
+  });
+}
+
+function msToFraction(ms: number): number {
+  if (!_timeline) return 1;
+  return Math.min(1, Math.max(0, (ms - _timeline.minMs) / (_timeline.maxMs - _timeline.minMs)));
+}
+function currentScrubMs(): number {
+  const fill = document.getElementById('mapTimelineFill');
+  const f = fill ? parseFloat(fill.style.width || '100') / 100 : 1;
+  if (!_timeline) return 0;
+  return _timeline.minMs + f * (_timeline.maxMs - _timeline.minMs);
+}
+
+/** Reveal the footprint up to `fraction` of the timeline: light visited
+ *  countries, dim the rest, and park the hero at the latest revealed stop. */
+function setScrubFraction(legs: PlottedLeg[], fraction: number) {
+  if (!_timeline) return;
+  const f = Math.min(1, Math.max(0, fraction));
+  const cursorMs = _timeline.minMs + f * (_timeline.maxMs - _timeline.minMs);
+
+  const fill = document.getElementById('mapTimelineFill');
+  const handle = document.getElementById('mapTimelineHandle');
+  const dateEl = document.getElementById('mapTimelineDate');
+  if (fill) fill.style.width = `${(f * 100).toFixed(2)}%`;
+  if (handle) handle.style.left = `${(f * 100).toFixed(2)}%`;
+  if (dateEl) dateEl.textContent = fmtScrubDate(cursorMs);
+
+  // Re-light from scratch so dragging backward un-lights later countries.
+  resetLit();
+  let latest: PlottedLeg | null = null;
+  for (const leg of legs) {
+    if (legStartMs(leg) <= cursorMs) {
+      lightCountry(leg.iso);
+      latest = leg;
+    }
+  }
+  // Park the hero at the most recently revealed stop (or hide if nothing yet).
+  const heroItem = (_chart as any)?._heroItem;
+  const heroImg = (_chart as any)?._heroImg as HTMLImageElement | null;
+  if (latest && heroItem) {
+    heroItem.set('longitude', latest.lng);
+    heroItem.set('latitude', latest.lat);
+    if (heroImg) heroImg.style.opacity = '1';
+  } else if (heroImg) {
+    heroImg.style.opacity = '0';
+  }
+}
+
+function setPlayBtnLabel(playing: boolean) {
+  const btn = document.getElementById('mapTimelinePlay');
+  if (btn) btn.textContent = playing ? '⏸' : '▶';
+}
+
+function stopTimelinePlay() {
+  if (_timelineTimer) { clearInterval(_timelineTimer); _timelineTimer = null; }
+  setPlayBtnLabel(false);
+}
+
+/** Auto-advance the scrubber from start to end, then leave it fully revealed. */
+function playTimeline(legs: PlottedLeg[]) {
+  if (!_timeline) return;
+  stopReplayMotion();   // stop any route animation, then run our own ticker
+  stopTimelinePlay();
+  setScrubFraction(legs, 0);
+  setPlayBtnLabel(true);
+  const STEP = 0.018, INTERVAL = 80;
+  let f = 0;
+  _timelineTimer = window.setInterval(() => {
+    f += STEP;
+    if (f >= 1) {
+      setScrubFraction(legs, 1);
+      stopTimelinePlay();
+      return;
+    }
+    setScrubFraction(legs, f);
+  }, INTERVAL) as unknown as number;
+}
+
 /* ── Side panel helpers ───────────────────────────────────────────────────── */
 function scopeToggleMarkup(): string {
   return `
@@ -1474,54 +1747,108 @@ function wireScopeToggle(view: HTMLElement) {
 const LAYER_META: Record<LayerId, { icon: string; label: string }> = {
   nomad:    { icon: '☕',  label: 'Work spots' },
   journal:  { icon: '✍️', label: 'Journal'    },
+  guide:    { icon: '📍', label: 'Guide'      },
+  stay:     { icon: '🛏️', label: 'Stays'      },
   expenses: { icon: '💸', label: 'Spend heat' },
 };
 
-function layersMarkup(): string {
-  const rows = (Object.keys(LAYER_META) as LayerId[]).map((id) => {
-    const m = LAYER_META[id];
-    const on = _layersOn.has(id);
-    return `
-      <button class="map-layer-btn${on ? ' active' : ''}" data-layer="${id}" role="switch" aria-checked="${on}">
-        <span class="map-layer-icon">${m.icon}</span>
-        <span class="map-layer-label">${m.label}</span>
-        <span class="map-layer-switch"></span>
-      </button>`;
-  }).join('');
-  return `<div class="map-layers">${rows}</div>`;
+// Guide and Spend-heat are per-trip data sources; hide them in "all footprints".
+const TRIP_ONLY_LAYERS = new Set<LayerId>(['guide', 'expenses']);
+
+function visibleLayers(): LayerId[] {
+  return (Object.keys(LAYER_META) as LayerId[])
+    .filter((id) => _scope === 'trip' || !TRIP_ONLY_LAYERS.has(id));
 }
 
-function wireLayerToggles(view: HTMLElement) {
-  view.querySelectorAll<HTMLButtonElement>('.map-layer-btn').forEach((btn) => {
+function toggleLayer(id: LayerId, on: boolean) {
+  if (on) _layersOn.add(id); else _layersOn.delete(id);
+  if (id === 'nomad')    { on ? enableNomadLayer()   : disableNomadLayer(); }
+  if (id === 'journal')  { on ? enableJournalLayer() : disableJournalLayer(); }
+  if (id === 'guide')    { on ? enableGuideLayer()   : disableGuideLayer(); }
+  if (id === 'stay')     { on ? enableStayLayer()    : disableStayLayer(); }
+  if (id === 'expenses') { on ? enableExpenseLayer() : disableExpenseLayer(); }
+}
+
+/** Render the layer chip row above the map and wire its toggles. */
+function renderLayersBar() {
+  const bar = document.getElementById('mapLayersBar');
+  if (!bar) return;
+  bar.innerHTML = `
+    <span class="map-layers-label">Layers</span>
+    ${visibleLayers().map((id) => {
+      const m = LAYER_META[id];
+      const on = _layersOn.has(id);
+      return `
+        <button class="map-layer-chip${on ? ' active' : ''}" data-layer="${id}"
+                role="switch" aria-checked="${on}">
+          <span class="map-layer-chip-icon">${m.icon}</span>
+          <span class="map-layer-chip-label">${m.label}</span>
+        </button>`;
+    }).join('')}`;
+
+  bar.querySelectorAll<HTMLButtonElement>('.map-layer-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
       const id = btn.dataset.layer as LayerId;
       const on = !_layersOn.has(id);
-      if (on) _layersOn.add(id); else _layersOn.delete(id);
       btn.classList.toggle('active', on);
       btn.setAttribute('aria-checked', String(on));
-      if (id === 'nomad')    { on ? enableNomadLayer()   : disableNomadLayer(); }
-      if (id === 'journal')  { on ? enableJournalLayer() : disableJournalLayer(); }
-      if (id === 'expenses') { on ? enableExpenseLayer() : disableExpenseLayer(); }
+      toggleLayer(id, on);
     });
   });
 }
 
 /* ── Side panel ───────────────────────────────────────────────────────────── */
+/** Great-circle distance between two geo points, in kilometres. */
+function haversineKm(a: GeoPt, b: GeoPt): number {
+  const R = 6371, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const lat1 = a.lat * rad, lat2 = b.lat * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 function summarizeRoute(legs: PlottedLeg[]) {
   const uniqueCountries = new Set<string>();
   const uniqueCities = new Set<string>();
+  const continents = new Set<string>();
+  let nightCount = 0;
+  let distanceKm = 0;
 
-  for (const leg of legs) {
+  for (let i = 0; i < legs.length; i++) {
+    const leg = legs[i];
     uniqueCountries.add(leg.iso ?? leg.country);
+    const cont = leg.iso ? continentFor(leg.iso) : null;
+    if (cont) continents.add(cont);
+    nightCount += nights(leg.dateFrom, leg.dateTo);
     for (const stop of leg.stops) {
       uniqueCities.add(`${leg.iso ?? leg.country}:${stop.key}`);
     }
+    if (i > 0) distanceKm += haversineKm(legs[i - 1], leg);
+  }
+  // Include the home flights in the distance when they exist (trip scope).
+  if (_outboundChain?.waypoints.length) {
+    const w = _outboundChain.waypoints;
+    distanceKm += haversineKm(w[0], w[w.length - 1]);
+  }
+  if (_returnChain?.waypoints.length) {
+    const w = _returnChain.waypoints;
+    distanceKm += haversineKm(w[0], w[w.length - 1]);
   }
 
   return {
     cityCount: uniqueCities.size,
     countryCount: uniqueCountries.size,
+    continentCount: continents.size,
+    nightCount,
+    distanceKm: Math.round(distanceKm),
+    legCount: legs.length,
   };
+}
+
+/** Compact km formatter: 8420 → "8,420", 12500 → "12.5k". */
+function fmtKm(km: number): string {
+  if (km >= 10000) return `${(km / 1000).toFixed(1)}k`;
+  return km.toLocaleString('en-US');
 }
 
 function flightRowMarkup(chain: FlightChain | null, motionId: string): string {
@@ -1536,8 +1863,29 @@ function flightRowMarkup(chain: FlightChain | null, motionId: string): string {
     </div>`;
 }
 
+function statsMarkup(s: ReturnType<typeof summarizeRoute>): string {
+  // Trip scope keeps the familiar two-card summary. "All footprints" adds the
+  // lifetime totals (distance / continents / nights) the user asked for.
+  const card = (num: string, label: string) =>
+    `<div class="map-stat"><div class="map-stat-num">${num}</div><div class="map-stat-label">${label}</div></div>`;
+  if (_scope !== 'all') {
+    return `<div class="map-stats">
+      ${card(String(s.cityCount), 'Cities')}
+      ${card(String(s.countryCount), 'Countries')}
+    </div>`;
+  }
+  return `<div class="map-stats map-stats-all">
+    ${card(String(s.cityCount), 'Cities')}
+    ${card(String(s.countryCount), 'Countries')}
+    ${card(String(s.continentCount), s.continentCount === 1 ? 'Continent' : 'Continents')}
+    ${card(`${fmtKm(s.distanceKm)}`, 'km travelled')}
+    ${card(String(s.nightCount), 'Nights away')}
+    ${card(String(s.legCount), 'Stops')}
+  </div>`;
+}
+
 function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
-  const { cityCount, countryCount } = summarizeRoute(legs);
+  const summary = summarizeRoute(legs);
 
   // Build leg list. In "all footprints" mode, inject a trip-label separator
   // whenever the trip changes (legs are sorted chronologically by dateFrom).
@@ -1561,11 +1909,7 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
 
   (view.querySelector('.map-panel') as HTMLElement).innerHTML = `
     ${scopeToggleMarkup()}
-    <div class="map-stats">
-      <div class="map-stat"><div class="map-stat-num">${cityCount}</div><div class="map-stat-label">Cities</div></div>
-      <div class="map-stat"><div class="map-stat-num">${countryCount}</div><div class="map-stat-label">Countries</div></div>
-    </div>
-    ${layersMarkup()}
+    ${statsMarkup(summary)}
     <div class="map-legs">
       ${_scope === 'trip' ? flightRowMarkup(_outboundChain, 'flight-outbound') : ''}
       ${listItems.join('')}
@@ -1573,7 +1917,8 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
     </div>`;
 
   wireScopeToggle(view);
-  wireLayerToggles(view);
+  // Layer chips live above the map (their own bar), re-rendered with the panel.
+  renderLayersBar();
 
   view.querySelectorAll<HTMLButtonElement>('.leg-row').forEach((btn) => {
     btn.addEventListener('click', () => {

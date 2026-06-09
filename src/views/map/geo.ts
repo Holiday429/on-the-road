@@ -75,6 +75,27 @@ export function isoFor(country: string): string | null {
   return COUNTRY_ISO[country] ?? null;
 }
 
+// ISO2 → continent, for the "continents visited" stat. Covers the countries a
+// traveller is realistically going to log; anything unmapped simply isn't
+// counted (better to undercount than mislabel).
+const CONTINENT_BY_ISO: Record<string, string> = (() => {
+  const groups: Record<string, string[]> = {
+    Europe: ['GB','IE','FR','ES','PT','IT','DE','NL','BE','LU','CH','AT','DK','SE','NO','FI','IS','PL','CZ','SK','HU','SI','HR','BA','RS','ME','MK','AL','GR','BG','RO','EE','LV','LT','UA','BY','MD','RU','MT','CY','LI','MC','AD','SM','VA'],
+    Asia: ['CN','JP','KR','KP','TW','HK','MO','TH','VN','LA','KH','MM','MY','SG','ID','PH','BN','IN','NP','BT','BD','LK','PK','AF','KZ','UZ','TM','KG','TJ','MN','AE','SA','QA','BH','KW','OM','YE','JO','LB','SY','IQ','IR','IL','PS','TR','GE','AM','AZ'],
+    Africa: ['MA','DZ','TN','LY','EG','SD','ET','KE','TZ','UG','RW','ZA','NA','BW','ZW','ZM','MZ','MG','MU','SC','GH','NG','SN','CI','CM','CD','CG','AO'],
+    'North America': ['US','CA','MX','GT','BZ','CR','PA','CU','DO','JM','HT','BS','TT','HN','SV','NI'],
+    'South America': ['BR','AR','CL','PE','CO','EC','BO','PY','UY','VE','GY','SR'],
+    Oceania: ['AU','NZ','FJ','PG','NC','PF','WS','TO','VU'],
+  };
+  const map: Record<string, string> = {};
+  for (const [cont, isos] of Object.entries(groups)) for (const iso of isos) map[iso] = cont;
+  return map;
+})();
+
+export function continentFor(iso: string): string | null {
+  return CONTINENT_BY_ISO[iso] ?? null;
+}
+
 export { cityTokens };
 
 /**

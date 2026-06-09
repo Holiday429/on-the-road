@@ -8,6 +8,47 @@
   gap: var(--sp-6);
   align-items: start;
 }
+.map-main { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+
+/* ── Layer chips (above the map) ───────────────────────────────────────── */
+.map-layers-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.map-layers-bar:empty { display: none; }
+.map-layers-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  margin-right: 2px;
+}
+.map-layer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.map-layer-chip:hover { box-shadow: var(--shadow-sm); }
+.map-layer-chip.active {
+  background: var(--amber-50);
+  border-color: var(--amber-500, #f9b830);
+  color: var(--amber-700);
+}
+.map-layer-chip-icon { font-size: 14px; line-height: 1; }
 
 /* ── Stage / chart ─────────────────────────────────────────────────────── */
 .map-stage {
@@ -57,6 +98,17 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.map-country-pin:hover .map-country-pin-label {
+  background: var(--amber-100);
+  color: var(--amber-700);
+}
+.map-country-pin:hover .map-country-pin-icon {
+  background: var(--amber-500);
 }
 .map-country-pin-icon {
   position: relative;
@@ -211,6 +263,68 @@
 /* "Fit" button uses a slightly smaller symbol */
 #mapZoomFit { font-size: 14px; }
 
+/* ── Timeline scrubber (below the map, all footprints) ─────────────────── */
+.map-timeline-slot:empty { display: none; }
+.map-timeline {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-full);
+  box-shadow: var(--shadow-sm);
+}
+.map-timeline-play {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--accent-deep, #6d4ac0);
+  color: #fff; font-size: 11px; line-height: 1;
+  border: none; cursor: pointer;
+  transition: transform var(--dur-fast);
+}
+.map-timeline-play:hover { transform: scale(1.08); }
+.map-timeline-track {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--rule);
+  cursor: pointer;
+  touch-action: none;
+}
+.map-timeline-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--accent-deep, #6d4ac0);
+  pointer-events: none;
+}
+.map-timeline-handle {
+  position: absolute;
+  top: 50%; left: 100%;
+  width: 16px; height: 16px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent-deep, #6d4ac0);
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+}
+.map-timeline-handle:active { cursor: grabbing; }
+.map-timeline-handle:focus-visible { outline: 2px solid var(--amber-500, #f9b830); outline-offset: 2px; }
+.map-timeline-date {
+  flex-shrink: 0;
+  min-width: 74px;
+  text-align: right;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
 /* ── Loading ───────────────────────────────────────────────────────────── */
 .map-loading {
   position: absolute;
@@ -229,6 +343,10 @@
 .map-scope-btn { flex: 1; border: none; background: none; padding: 6px 10px; border-radius: calc(var(--r-md) - 2px); font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted); cursor: pointer; }
 .map-scope-btn.active { background: #fff; color: var(--amber-700); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
 .map-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+/* All-footprints: lifetime totals in a 3-up grid (distance/continents/nights). */
+.map-stats-all { grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.map-stats-all .map-stat { padding: var(--sp-3) var(--sp-2); }
+.map-stats-all .map-stat-num { font-size: var(--fs-2xl); }
 .map-stat {
   background: var(--surface); border: 1px solid var(--rule);
   border-radius: var(--r-lg); padding: var(--sp-4); text-align: center;
@@ -236,31 +354,7 @@
 .map-stat-num { font-family: var(--font-ui); font-weight: 700; font-size: var(--fs-3xl); color: var(--accent-deep); line-height: 1; }
 .map-stat-label { font-size: var(--fs-sm); color: var(--ink-muted); margin-top: 4px; }
 
-/* ── Layer toggles ─────────────────────────────────────────────────────── */
-.map-layers { display: flex; flex-direction: column; gap: 6px; }
-.map-layer-btn {
-  display: flex; align-items: center; gap: var(--sp-2); width: 100%; text-align: left;
-  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-md);
-  padding: 8px 11px; cursor: pointer;
-  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), background var(--dur-fast);
-}
-.map-layer-btn:hover { box-shadow: var(--shadow-sm); }
-.map-layer-btn.active { border-color: var(--amber-200); background: var(--amber-50); }
-.map-layer-icon { font-size: 15px; line-height: 1; flex-shrink: 0; }
-.map-layer-label { flex: 1; font-family: var(--font-ui); font-weight: 600; font-size: var(--fs-sm); color: var(--ink); }
-.map-layer-switch {
-  flex-shrink: 0; width: 30px; height: 17px; border-radius: 999px;
-  background: var(--rule); position: relative; transition: background var(--dur-fast);
-}
-.map-layer-switch::after {
-  content: ''; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px;
-  border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm);
-  transition: transform var(--dur-fast);
-}
-.map-layer-btn.active .map-layer-switch { background: var(--amber-500, #f9b830); }
-.map-layer-btn.active .map-layer-switch::after { transform: translateX(13px); }
-
-/* ── Data pins (nomad / future layers) ─────────────────────────────────── */
+/* ── Data pins (nomad / journal / guide / stay) ────────────────────────── */
 .map-data-pins { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
 .map-nomad-pin {
   position: absolute; transform: translate(-50%, -50%);
@@ -289,7 +383,42 @@
   font-family: var(--font-ui); font-weight: 700; font-size: 11px;
   color: var(--accent-deep, #6d4ac0); line-height: 1; pointer-events: none;
 }
+
+/* Guide — teal pill with a count of "Do" ideas. */
+.map-guide-pin {
+  position: absolute; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 3px;
+  padding: 3px 8px 3px 6px; border-radius: 999px;
+  background: #fff; border: 2px solid #0e9488;
+  box-shadow: 0 4px 10px rgba(58,29,110,0.22);
+  cursor: pointer; pointer-events: auto;
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+}
+.map-guide-pin:hover { transform: translate(-50%, -50%) scale(1.1); box-shadow: 0 6px 14px rgba(58,29,110,0.3); }
+.map-guide-pin-emoji { font-size: 12px; line-height: 1; pointer-events: none; }
+.map-guide-pin-count {
+  font-family: var(--font-ui); font-weight: 700; font-size: 11px;
+  color: #0e7d72; line-height: 1; pointer-events: none;
+}
+
+/* Stay — rounded marker with a bed glyph. */
+.map-stay-pin {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 26px; height: 26px; border-radius: 8px;
+  display: grid; place-items: center;
+  background: #fff; border: 2px solid #d8743a;
+  box-shadow: 0 4px 10px rgba(58,29,110,0.22);
+  font-size: 13px; line-height: 1; cursor: pointer; pointer-events: auto;
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+}
+.map-stay-pin:hover { transform: translate(-50%, -50%) scale(1.12); box-shadow: 0 6px 14px rgba(58,29,110,0.3); }
+.map-stay-pin-emoji { pointer-events: none; }
+
+/* Stack order across pin layers. */
+#mapDataPins   { z-index: 4; }
 #mapJournalPins { z-index: 4; }
+#mapGuidePins  { z-index: 4; }
+#mapStayPins   { z-index: 4; }
 
 .map-legs { display: flex; flex-direction: column; gap: 6px; max-height: 440px; overflow-y: auto; padding-right: 2px; }
 
