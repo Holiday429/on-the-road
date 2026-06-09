@@ -556,6 +556,16 @@ a.guide-icon-btn { text-decoration: none; }
   border-color: var(--accent-deep);
   color: var(--ink);
 }
+.guide-nomad-btn:hover {
+  background: #fef3e2;
+  border-color: var(--amber-300);
+  color: var(--amber-700);
+}
+.guide-nomad-btn.saved {
+  background: var(--sage-400);
+  border-color: var(--sage-500);
+  color: #14532d;
+}
 
 /* ── Know/Culture tab ────────────────────────────────────────────────────── */
 .guide-know-grid {

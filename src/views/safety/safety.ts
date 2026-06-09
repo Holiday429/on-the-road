@@ -184,6 +184,10 @@ async function generateForCity(city: string, country: string): Promise<void> {
   const id = slugId(city);
   await safetyStore.save({ id, ...data, source: 'ai' });
 
+  // Background-prefetch a city guide for the same place if one doesn't exist yet.
+  void import('../guide/guide.ts').then(({ prefetchGuideForCity }) =>
+    prefetchGuideForCity(city, country));
+
   _genStatus = '';
   _generating = false;
 

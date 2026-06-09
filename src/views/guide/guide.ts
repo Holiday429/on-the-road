@@ -12,6 +12,7 @@ import { geocode } from '../map/geocode.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
 import { slugId } from '../../core/utils.ts';
 import { prefetchSafetyForCity } from '../safety/safety.ts';
+import { nomadStore } from '../../data/stores/nomad-store.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -131,6 +132,60 @@ async function generateGuide(city: string, country: string, query: string): Prom
     _activeCityId = id;
     renderHistoryBar(root);
     renderCityDetail(root);
+  }
+}
+
+/**
+ * Headless guide generation for cross-module prefetch (called by Safety after
+ * it generates a city). Persists to cityStore without touching the DOM, and
+ * does nothing if an intel doc for this city already exists. Fire-and-forget.
+ */
+export async function prefetchGuideForCity(city: string, country: string): Promise<void> {
+  const id = slugId(city);
+  if (_cities.some((c) => c.id === id)) return;
+
+  const apiBase = window.location.hostname.includes('github.io')
+    ? 'https://easy-on-the-road.vercel.app'
+    : '';
+
+  try {
+    const res = await fetch(`${apiBase}/api/guide`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ city, country, query: '' }),
+    });
+    if (!res.ok) return;
+
+    const intel: Partial<CityIntel> & { id: string } = {
+      id, city, country, bannerColor: '#fde68a', generatedQuery: '',
+    };
+    const applyLine = async (line: string) => {
+      if (!line.startsWith('data: ')) return;
+      let parsed: { section: string; payload: unknown };
+      try { parsed = JSON.parse(line.slice(6)); } catch { return; }
+      applySection(intel, parsed.section, parsed.payload);
+      try { await cityStore.save(intel as CityIntel & { id: string }); } catch { /* chunk */ }
+    };
+
+    if (res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) await applyLine(line);
+      }
+      if (buf.trim()) await applyLine(buf.trim());
+    } else {
+      const text = await res.text();
+      for (const line of text.split('\n').filter((l) => l.startsWith('data: '))) await applyLine(line);
+    }
+  } catch {
+    // Silent — background prefetch, failures acceptable.
   }
 }
 
@@ -432,6 +487,7 @@ function renderFlipCard(card: GuideCard, city: string, type: string, idx: number
       </div>
       <div class="guide-card-actions">
         <a class="guide-icon-btn guide-map-btn" href="${maps}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
+        ${(type === 'cafe' || type === 'restaurant') ? `<button class="guide-icon-btn guide-nomad-btn" data-card-id="${card.id}" data-card-type="${type}" title="Save as a work-friendly spot">☕ Nomad</button>` : ''}
         <button class="guide-icon-btn guide-commit-btn" data-card-id="${card.id}" data-card-type="${type}" title="Add to itinerary">＋ Add</button>
       </div>
     </div>
@@ -599,6 +655,32 @@ function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       openCommitModal(intel, btn.dataset.cardId!, btn.dataset.cardType!);
+    });
+  });
+
+  // Save a café/restaurant straight into Nomad spots
+  detail.querySelectorAll<HTMLElement>('.guide-nomad-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const card = findCard(intel, btn.dataset.cardId!, btn.dataset.cardType!);
+      if (!card || !('title' in card)) return;
+      const c = card as GuideCard;
+      await nomadStore.add({
+        name: c.title,
+        city: intel.city,
+        country: intel.country,
+        type: 'Café',
+        ratings: { wifi: 0, power: 0, restroom: 0, coffee: 0, service: 0 },
+        comment: c.highlight || '',
+        photos: [],
+        address: c.address || '',
+        mapsUrl: mapsUrl(c, intel.city),
+        visibility: 'private',
+        ownerId: '',
+      });
+      btn.textContent = '✓ Saved';
+      btn.classList.add('saved');
+      showCommitToast(`${c.title} → Nomad`);
     });
   });
 
