@@ -13,6 +13,7 @@ import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
+import { initNotificationScheduler } from './core/notifications.ts';
 import { initToday }    from './views/today/today.ts';
 import { initCalendar } from './views/calendar/calendar.ts';
 import { initPrep }     from './views/prep/prep.ts';
@@ -203,6 +204,8 @@ async function bootAuthenticatedShell(user: User) {
     navigateTo(currentViewOrDefault());
     preparedUserId = user.uid;
     guestShellReady = false;
+
+    initNotificationScheduler();
 
     if (needsOnboarding) {
       openOnboarding();
