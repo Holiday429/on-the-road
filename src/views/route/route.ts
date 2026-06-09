@@ -18,6 +18,10 @@ import { createDestinationInput, type DestinationInputInstance } from '../../cor
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { flagForCountry } from '../../data/destinations.ts';
+import {
+  TRANSPORT_ICONS, uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
+  legStays, mapHref, NOTE_COLORS, noteColor, resolveNoteColor, dayColour, bearing,
+} from './route-utils.ts';
 import { coordsFor } from '../map/geo.ts';
 import { geocode, geocodeLocal } from '../map/geocode.ts';
 import type {
@@ -27,10 +31,6 @@ import type {
 type Transport = NonNullable<SchemaLeg['arrivalTransport']>;
 type Accommodation = NonNullable<SchemaLeg['accommodations']>[number];
 type Leg = SchemaLeg & { id: string };
-
-const TRANSPORT_ICONS: Record<string, string> = {
-  flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️',
-};
 
 
 // Built-in clip/plan categories — user can add their own on top.
@@ -88,56 +88,7 @@ let _fromPicker: DestinationInputInstance | null = null;
 let _planLeaflet: L.Map | null = null;
 let _planLeafletEl: HTMLElement | null = null;
 
-function uid(): string { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
-
-/* ── Helpers ─────────────────────────────────────────────────────────────── */
-
-/** Drop undefined keys — Firestore rejects undefined values. */
-function clean<T>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj));
-}
-
-function daysBetween(from: string, to: string): number {
-  return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000);
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
-
-type LegStatus = 'past' | 'active' | 'upcoming';
-function legStatus(leg: Leg): LegStatus {
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const from = new Date(leg.dateFrom + 'T00:00:00');
-  const to = new Date(leg.dateTo + 'T00:00:00');
-  if (today > to) return 'past';
-  if (today >= from) return 'active';
-  return 'upcoming';
-}
-
-function sortLegs(rows: Leg[]): Leg[] {
-  return [...rows].sort((a, b) => {
-    const byDate = a.dateFrom.localeCompare(b.dateFrom);
-    if (byDate !== 0) return byDate;
-    return (a.order ?? 0) - (b.order ?? 0);
-  });
-}
-
-/** Stays for a leg, normalising the legacy single `accommodation` field. */
-function legStays(leg: Leg): Accommodation[] {
-  if (leg.accommodations?.length) {
-    return [...leg.accommodations].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  }
-  if (leg.accommodation) return [{ ...leg.accommodation, id: 'legacy' }];
-  return [];
-}
-
-/** Google Maps deep link: pasted URL wins, else search by name + city. */
-function mapHref(a: Accommodation, leg: Leg): string {
-  if (a.mapUrl) return a.mapUrl;
-  const q = encodeURIComponent(`${a.name} ${leg.city}`.trim());
-  return `https://www.google.com/maps/search/?api=1&query=${q}`;
-}
+/* ── Helpers (pure utilities live in route-utils.ts) ─────────────────────── */
 
 /* ── Mutations (all async → Firestore) ──────────────────────────────────── */
 
@@ -493,26 +444,6 @@ function renderClipsSection(leg: Leg): string {
 
 /* ── Notes section ───────────────────────────────────────────────────────── */
 
-const NOTE_COLORS = [
-  '#e2edf3', // Tourism blue-grey
-  '#fde8ef', // Social pink
-  '#fef3e2', // Food warm
-  '#ece2f3', // Museum lavender
-  '#e6f3e6', // Nature green
-  '#e2f3ec', // Day trip mint
-  '#f3e2e8', // Shopping rose
-  '#ebebeb', // Other neutral
-];
-
-function noteColor(idx: number): string {
-  return NOTE_COLORS[idx % NOTE_COLORS.length];
-}
-
-/** If a card has an old/unknown color, remap it to the canonical palette by position. */
-function resolveNoteColor(stored: string, idx: number): string {
-  return NOTE_COLORS.includes(stored) ? stored : noteColor(idx);
-}
-
 /** Migrate legacy `leg.notes` string into a single NoteCard if noteCards is empty.
  *  Also normalises any out-of-palette colors to the current palette. */
 function legNoteCards(leg: Leg): NoteCard[] {
@@ -815,16 +746,6 @@ function renderPlanCalendarView(leg: Leg): string {
 }
 
 // Palette: one colour per day index (cycles after 14). Each entry is [bg, text].
-const DAY_COLOURS = [
-  '#f97316','#3b82f6','#22c55e','#a855f7','#ec4899',
-  '#14b8a6','#eab308','#ef4444','#6366f1','#84cc16',
-  '#f43f5e','#0ea5e9','#d97706','#8b5cf6',
-];
-
-function dayColour(idx: number): string {
-  return DAY_COLOURS[idx % DAY_COLOURS.length];
-}
-
 /** Render the plan map sidebar item list (synchronous — uses cached coords). */
 function renderPlanMapView(leg: Leg): string {
   const plans = leg.plans ?? [];
@@ -910,15 +831,6 @@ async function geocodePlanItems(leg: Leg) {
 }
 
 /** Bearing in degrees (0 = north, clockwise) from point A to point B. */
-function bearing(a: [number, number], b: [number, number]): number {
-  const toRad = (d: number) => d * Math.PI / 180;
-  const dLng = toRad(b[1] - a[1]);
-  const lat1 = toRad(a[0]), lat2 = toRad(b[0]);
-  const y = Math.sin(dLng) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-}
-
 function initPlanLeaflet(timeline: HTMLElement, leg: Leg) {
   const mapEl = timeline.querySelector<HTMLElement>('#rd-plan-leaflet');
   if (!mapEl) {
