@@ -13,6 +13,7 @@ import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
+import { initToday }    from './views/today/today.ts';
 import { initPrep }     from './views/prep/prep.ts';
 import { initRoute }    from './views/route/route.ts';
 import { initExpenses } from './views/expenses/expenses.ts';
@@ -25,6 +26,7 @@ import { initPack }     from './views/pack/pack.ts';
 import { initSafety }   from './views/safety/safety.ts';
 
 // Register lazy view inits (fire once on first navigation)
+registerView('today',    initToday);
 registerView('prep',     initPrep);
 registerView('route',    initRoute);
 registerView('expenses', initExpenses);
@@ -75,8 +77,8 @@ function nextFrame(): Promise<void> {
 
 function currentViewOrDefault(): ViewId {
   const hash = window.location.hash.replace('#', '') as ViewId;
-  const valid: ViewId[] = ['prep', 'route', 'expenses', 'pack', 'cities', 'budget', 'safety', 'journal', 'map', 'nomad'];
-  return valid.includes(hash) ? hash : 'prep';
+  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'pack', 'cities', 'budget', 'safety', 'journal', 'map', 'nomad'];
+  return valid.includes(hash) ? hash : 'today';
 }
 
 function showLandingState() {

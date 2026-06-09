@@ -918,6 +918,13 @@
   height: 28px;
   object-fit: contain;
 }
+.nav-icon-emoji {
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .nav-item .nav-label {
   font-family: var(--font-ui);
   font-size: 16px;

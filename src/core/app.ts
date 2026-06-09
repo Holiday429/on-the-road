@@ -24,16 +24,21 @@ import stayIcon from '../../icon/stay.png';
 import mapsIcon from '../../icon/maps.png';
 import nomadIcon from '../../icon/Nomad.png';
 
-export type ViewId = 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'safety' | 'journal' | 'map' | 'nomad';
+export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'safety' | 'journal' | 'map' | 'nomad';
 
 interface NavItem {
   id: ViewId;
   label: string;
+  // Either a PNG asset path, or an emoji glyph when `emoji` is true.
   iconSrc: string;
-  section: 'before' | 'during' | 'after';
+  emoji?: boolean;
+  // `pinned` items render above the Before/During/After sections (e.g. Today).
+  section: 'pinned' | 'before' | 'during' | 'after';
 }
 
 const NAV_ITEMS: NavItem[] = [
+  // Pinned
+  { id: 'today',    label: 'Today',     iconSrc: '🏠', emoji: true, section: 'pinned' },
   // Before
   { id: 'prep',     label: 'Checklist', iconSrc: checklistIcon, section: 'before' },
   { id: 'pack',     label: 'Pack',      iconSrc: packIcon,      section: 'before' },
@@ -41,11 +46,11 @@ const NAV_ITEMS: NavItem[] = [
   // During
   { id: 'route',    label: 'Itinerary', iconSrc: itineraryIcon, section: 'during' },
   { id: 'cities',   label: 'Guide',     iconSrc: guideIcon,     section: 'during' },
+  { id: 'map',      label: 'Map',       iconSrc: mapsIcon,      section: 'during' },
   { id: 'nomad',    label: 'Nomad',     iconSrc: nomadIcon,     section: 'during' },
   { id: 'safety',   label: 'Safety',    iconSrc: safetyIcon,    section: 'during' },
   // After
   { id: 'expenses', label: 'Expenses',  iconSrc: paymentIcon,   section: 'after'  },
-  { id: 'map',      label: 'Map',       iconSrc: mapsIcon,      section: 'after'  },
   { id: 'journal',  label: 'Journal',   iconSrc: journalIcon,   section: 'after'  },
 ];
 
@@ -181,6 +186,9 @@ function primaryNameFor(user: User): string {
 }
 
 function renderNavIcon(item: NavItem): string {
+  if (item.emoji) {
+    return `<span class="nav-icon-emoji" aria-hidden="true">${item.iconSrc}</span>`;
+  }
   return `<img src="${item.iconSrc}" class="nav-icon-image" alt="" aria-hidden="true">`;
 }
 
@@ -550,20 +558,26 @@ function buildMobileNav() {
   });
 }
 
+function navItemMarkup(item: NavItem): string {
+  return `
+    <div class="nav-item" data-view="${item.id}" role="button" tabindex="0">
+      <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
+      <span class="nav-label">${item.label}</span>
+    </div>`;
+}
+
 function buildNavSections(_context: 'sidebar' | 'mobile'): string {
+  // Pinned items (Today) sit above the labelled sections, with no header.
+  const pinned = NAV_ITEMS.filter(n => n.section === 'pinned').map(navItemMarkup).join('');
   const sections: ('before' | 'during' | 'after')[] = ['before', 'during', 'after'];
-  return sections.map(section => {
+  const grouped = sections.map(section => {
     const items = NAV_ITEMS.filter(n => n.section === section);
     return `
       <div class="nav-section-label">${SECTION_LABELS[section]}</div>
-      ${items.map(item => `
-        <div class="nav-item" data-view="${item.id}" role="button" tabindex="0">
-          <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
-          <span class="nav-label">${item.label}</span>
-        </div>
-      `).join('')}
+      ${items.map(navItemMarkup).join('')}
     `;
   }).join('');
+  return pinned + grouped;
 }
 
 export function renderSession(user: User | null, onPrimaryAction: () => void) {

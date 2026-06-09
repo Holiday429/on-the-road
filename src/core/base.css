@@ -121,6 +121,10 @@ ul, ol { list-style: none; }
 img, svg { display: block; }
 [hidden] { display: none !important; }
 
+/* ── Shared keyframes (canonical home; views may also redeclare locally) ──── */
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
 /* ── Scrollbar ─────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -225,6 +229,10 @@ img, svg { display: block; }
 .view-title-icon .nav-icon-image {
   width: 36px;
   height: 36px;
+}
+.view-title-icon .nav-icon-emoji {
+  font-size: 30px;
+  line-height: 1;
 }
 .view-subtitle {
   font-size: 13px;

@@ -13,7 +13,7 @@
    ========================================================================== */
 
 import './map.css';
-import { renderViewTitleMarkup } from '../../core/app.ts';
+import { renderViewTitleMarkup, navigateTo } from '../../core/app.ts';
 import { resolveCityLocations, isoFor, continentFor, EUROPE_CENTER } from './geo.ts';
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
@@ -416,7 +416,6 @@ function renderCountryPins(stops: CountryStop[]) {
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'map-country-pin';
-    el.title = `${stop.name} — click to open Guide`;
 
     const icon = document.createElement('span');
     icon.className = 'map-country-pin-icon';
@@ -429,15 +428,10 @@ function renderCountryPins(stops: CountryStop[]) {
     label.textContent = wrapMapLabel(stop.name, 10);
 
     el.append(icon, label);
+    el.title = `${stop.name} — Guide · Safety · Itinerary`;
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      const cityName = stop.name;
-      import('../../core/app.ts').then(({ navigateTo }) => {
-        navigateTo('cities');
-        setTimeout(() => {
-          import('../guide/guide.ts').then(({ openGuideCity }) => openGuideCity(cityName));
-        }, 80);
-      });
+      openCityActionSheet(stop.name);
     });
     layer.appendChild(el);
     _countryPinOverlays.push({ el, lng: stop.lng, lat: stop.lat });
@@ -448,6 +442,53 @@ function renderCountryPins(stops: CountryStop[]) {
 function clearDrillOverlays() {
   _regionLabelOverlays = clearOverlayItems(_regionLabelOverlays, 'mapRegionLabels');
   _countryPinOverlays = clearOverlayItems(_countryPinOverlays, 'mapCountryPins');
+}
+
+/* ── City action sheet (Guide / Safety / Itinerary) ───────────────────────── */
+/** Bottom sheet shown when a city pin is clicked — pick where to dive in. */
+function openCityActionSheet(city: string): void {
+  document.getElementById('map-city-sheet')?.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'map-city-sheet';
+  backdrop.className = 'map-sheet-backdrop';
+  backdrop.innerHTML = `
+    <div class="map-sheet" role="dialog" aria-modal="true">
+      <div class="map-sheet-title">${esc(city)}</div>
+      <button class="map-sheet-action" data-go="cities">
+        <span class="map-sheet-icon">🗺️</span>
+        <span><strong>City guide</strong><small>Attractions, food, culture</small></span>
+        <span class="map-sheet-arrow">›</span>
+      </button>
+      <button class="map-sheet-action" data-go="safety">
+        <span class="map-sheet-icon">🛡️</span>
+        <span><strong>Safety</strong><small>Emergency, scams, embassy</small></span>
+        <span class="map-sheet-arrow">›</span>
+      </button>
+      <button class="map-sheet-action" data-go="route">
+        <span class="map-sheet-icon">🧭</span>
+        <span><strong>Itinerary</strong><small>This leg's plan & stays</small></span>
+        <span class="map-sheet-arrow">›</span>
+      </button>
+      <button class="map-sheet-cancel">Cancel</button>
+    </div>`;
+
+  document.body.appendChild(backdrop);
+  const close = () => backdrop.remove();
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+  backdrop.querySelector('.map-sheet-cancel')?.addEventListener('click', close);
+
+  backdrop.querySelectorAll<HTMLElement>('.map-sheet-action').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const go = btn.dataset.go as 'cities' | 'safety' | 'route';
+      close();
+      navigateTo(go);
+      // After the target view mounts, deep-link to this city where supported.
+      if (go === 'cities') {
+        setTimeout(() => import('../guide/guide.ts').then(({ openGuideCity }) => openGuideCity(city)), 80);
+      }
+    });
+  });
 }
 
 /* ── Pin-layer helpers ────────────────────────────────────────────────────── */
@@ -575,7 +616,7 @@ function renderGuidePins() {
     el.innerHTML = '<span class="map-guide-pin-emoji">📍</span>' + (count ? `<span class="map-guide-pin-count">${count}</span>` : '');
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      import('../../core/app.ts').then(({ navigateTo }) => navigateTo('cities'));
+      openCityActionSheet(city);
     });
     addPin('guide', lat, lng, el);
   }
