@@ -290,6 +290,18 @@
   font-size: 11px; font-weight: 600;
   color: var(--ink-faint);
 }
+.exp-cat-budget-btn {
+  font-size: 11px;
+  line-height: 1;
+  color: var(--ink-faint);
+  padding: 2px 5px;
+  border-radius: var(--r-sm);
+  opacity: 0;
+  transition: all var(--dur-fast);
+}
+.exp-cat-row:hover .exp-cat-budget-btn { opacity: 1; }
+.exp-cat-budget-btn:hover { background: var(--surface-3); color: var(--ink); }
+.exp-cat-row-over .exp-cat-name-sub { color: var(--coral-500); }
 
 /* ── Analysis dimension tabs ─────────────────────────────────────────────── */
 .exp-analysis-tabs {

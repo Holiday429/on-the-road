@@ -70,6 +70,9 @@ export const TripSchema = doc({
   homeCity: z.string().optional(),
   returnCity: z.string().optional(),
   totalBudget: z.number().optional(), // overall trip budget in baseCurrency
+  // Per-category budget caps in baseCurrency, keyed by category id (e.g.
+  // 'food', 'accommodation', or a custom category id). Absent keys = no cap.
+  categoryBudgets: z.record(z.string(), z.number()).optional(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 

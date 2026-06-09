@@ -15,7 +15,10 @@
 import './expenses.css';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
-import { baseCurrency, setBaseCurrency, tripBudget, setTripBudget, onTripChange } from '../../data/trip-context.ts';
+import {
+  baseCurrency, setBaseCurrency, tripBudget, setTripBudget,
+  categoryBudgets, setCategoryBudget, onTripChange,
+} from '../../data/trip-context.ts';
 import {
   expenseCategoryStore, type StoredExpenseCategory,
 } from '../../data/stores/expense-category-store.ts';
@@ -567,21 +570,25 @@ function renderList(el: HTMLElement) {
 
 /* ── Render: analysis ────────────────────────────────────────────────────── */
 
-interface Row { label: string; sum: number; color: string; sub?: string; }
+interface Row { label: string; sum: number; color: string; sub?: string; catId?: string; budget?: number; }
 
 /** Group expenses for the active dimension into sorted, displayable rows. */
 function analysisRows(): Row[] {
   if (analysisDim === 'category') {
-    const rows = categories()
+    const caps = categoryBudgets();
+    const rows: Row[] = categories()
       .map((cat) => ({
         label: `${cat.icon} ${cat.label}`,
         sum: expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0),
         color: cat.color === '#f3f4f6' ? '#d1d5db' : cat.color,
+        catId: cat.id,
+        budget: caps[cat.id],
       }));
     const unsorted = expenses.filter((e) => e.category === UNCLASSIFIED).reduce((s, e) => s + inBase(e), 0);
     if (unsorted > 0) rows.push({ label: '🗂️ Unsorted', sum: unsorted, color: '#d1d5db' });
+    // Keep a row if it has spend OR a budget cap (so you can watch an empty cap fill up).
     return rows
-      .filter((r) => r.sum > 0)
+      .filter((r) => r.sum > 0 || (r.budget ?? 0) > 0)
       .sort((a, b) => b.sum - a.sum);
   }
 
@@ -622,15 +629,30 @@ function renderBreakdown(el: HTMLElement) {
         `).join('')}
       </div>
       ${rows.map((r) => {
-        const pct = (r.sum / maxAmount) * 100;
+        const hasBudget = (r.budget ?? 0) > 0;
+        // When a budget exists, the bar tracks spend against the cap (capped at
+        // 100%) and recolours by usage; otherwise it's a relative spend bar.
+        const pct = hasBudget
+          ? Math.min(100, (r.sum / r.budget!) * 100)
+          : (r.sum / maxAmount) * 100;
+        const usage = hasBudget ? (r.sum / r.budget!) : 0;
+        const barColor = hasBudget
+          ? (usage >= 1 ? 'var(--coral-500)' : usage >= 0.8 ? '#f59e0b' : 'var(--sage-500)')
+          : r.color;
+        const budgetTag = hasBudget
+          ? `<span class="exp-cat-name-sub">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' · over' : ''}</span>`
+          : (r.sub ? `<span class="exp-cat-name-sub">${r.sub}</span>` : '');
+        const setBtn = r.catId
+          ? `<button class="exp-cat-budget-btn" data-cat-budget="${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
+          : '';
         return `
-          <div class="exp-cat-row">
+          <div class="exp-cat-row${hasBudget && r.sum > r.budget! ? ' exp-cat-row-over' : ''}">
             <div class="exp-cat-name">
-              <span class="exp-cat-name-label">${r.label}</span>
-              ${r.sub ? `<span class="exp-cat-name-sub">${r.sub}</span>` : ''}
+              <span class="exp-cat-name-label">${r.label} ${setBtn}</span>
+              ${budgetTag}
             </div>
             <div class="exp-cat-bar-track">
-              <div class="exp-cat-bar-fill" style="width:${pct}%;background:${r.color}"></div>
+              <div class="exp-cat-bar-fill" style="width:${pct}%;background:${barColor}"></div>
             </div>
             <div class="exp-cat-amount">${fmt(r.sum)}</div>
           </div>
@@ -645,6 +667,63 @@ function renderBreakdown(el: HTMLElement) {
       analysisDim = (btn as HTMLElement).dataset.dim as AnalysisDim;
       renderBreakdown(el);
     });
+  });
+
+  el.querySelectorAll<HTMLElement>('.exp-cat-budget-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openCategoryBudgetModal(btn.dataset.catBudget!, el);
+    });
+  });
+}
+
+/** Modal to set/clear a single category's budget cap. */
+function openCategoryBudgetModal(catId: string, breakdownEl: HTMLElement) {
+  document.getElementById('exp-catbudget-backdrop')?.remove();
+  const cat = categoryById(catId);
+  const current = categoryBudgets()[catId];
+  const sym = currencySymbol(baseCurrency());
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'exp-catbudget-backdrop';
+  backdrop.className = 'exp-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="exp-modal" role="dialog" aria-modal="true">
+      <div class="exp-modal-header">
+        <div class="exp-modal-title">${cat ? `${cat.icon} ${cat.label}` : 'Category'} budget</div>
+        <button class="exp-modal-close" id="exp-catbudget-close">✕</button>
+      </div>
+      <div class="exp-modal-body">
+        <label class="field-label">Cap for this category (${sym}, ${baseCurrency()})</label>
+        <input class="input" type="number" id="exp-catbudget-input" min="0" step="1"
+          placeholder="e.g. 800" value="${current ?? ''}">
+        <p class="exp-modal-hint">The category bar will track spend against this cap and turn amber, then red, as you approach it.</p>
+      </div>
+      <div class="exp-modal-footer">
+        ${current ? `<button class="btn btn-danger" id="exp-catbudget-remove">Remove</button>` : ''}
+        <button class="btn btn-primary" id="exp-catbudget-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(backdrop);
+
+  const input = backdrop.querySelector('#exp-catbudget-input') as HTMLInputElement;
+  input.focus();
+  const close = () => backdrop.remove();
+  backdrop.querySelector('#exp-catbudget-close')?.addEventListener('click', close);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+
+  const save = async () => {
+    const val = parseFloat(input.value);
+    await setCategoryBudget(catId, val > 0 ? val : null);
+    close();
+    renderBreakdown(breakdownEl);
+  };
+  backdrop.querySelector('#exp-catbudget-save')?.addEventListener('click', save);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+  backdrop.querySelector('#exp-catbudget-remove')?.addEventListener('click', async () => {
+    await setCategoryBudget(catId, null);
+    close();
+    renderBreakdown(breakdownEl);
   });
 }
 
@@ -676,10 +755,8 @@ export function initExpenses() {
   unsubLegs?.();
   unsubCategories?.();
   unsubTripChange?.();
-  unsubTripChange = onTripChange(() => {
-    const summaryEl = root.querySelector('.exp-summary') as HTMLElement | null;
-    if (summaryEl) renderSummary(summaryEl);
-  });
+  // A trip switch changes base currency, total budget AND category caps — repaint everything.
+  unsubTripChange = onTripChange(() => render());
   unsub = expenseStore.subscribe((rows) => {
     expenses = rows;
     render();
