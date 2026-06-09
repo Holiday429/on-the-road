@@ -272,7 +272,34 @@ export function reinitForTripChange() {
   }
 }
 
-export function navigateTo(id: ViewId) {
+/* ── Navigation intent ──────────────────────────────────────────────────────
+   A lightweight "deep-link payload" passed alongside navigateTo so an aggregator
+   page (Today) can ask a destination view to scroll to / open a specific record
+   (e.g. a route leg + day). The target view reads it once on activation via
+   consumeNavIntent(view) and clears it, so a later plain navigateTo() is inert.
+   Kept deliberately loose (Record) so any view can define its own keys without
+   touching this file. */
+export interface NavIntent {
+  legId?: string;
+  dayId?: string;
+  [key: string]: string | undefined;
+}
+
+let _pendingIntent: { view: ViewId; intent: NavIntent } | null = null;
+
+/** Read & clear the pending intent for `view`. Returns null if none targets it. */
+export function consumeNavIntent(view: ViewId): NavIntent | null {
+  if (_pendingIntent?.view === view) {
+    const { intent } = _pendingIntent;
+    _pendingIntent = null;
+    return intent;
+  }
+  return null;
+}
+
+export function navigateTo(id: ViewId, intent?: NavIntent) {
+  _pendingIntent = intent ? { view: id, intent } : null;
+
   // Hide all views
   document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
 
