@@ -29,6 +29,7 @@ import {
 } from '../../data/trip-context.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
+import { openSheet } from '../../core/modal.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
@@ -447,14 +448,9 @@ function clearDrillOverlays() {
 /* ── City action sheet (Guide / Safety / Itinerary) ───────────────────────── */
 /** Bottom sheet shown when a city pin is clicked — pick where to dive in. */
 function openCityActionSheet(city: string): void {
-  document.getElementById('map-city-sheet')?.remove();
-
-  const backdrop = document.createElement('div');
-  backdrop.id = 'map-city-sheet';
-  backdrop.className = 'map-sheet-backdrop';
-  backdrop.innerHTML = `
-    <div class="map-sheet" role="dialog" aria-modal="true">
-      <div class="map-sheet-title">${esc(city)}</div>
+  const m = openSheet({
+    title: city,
+    body: `
       <button class="map-sheet-action" data-go="cities">
         <span class="map-sheet-icon">🗺️</span>
         <span><strong>City guide</strong><small>Attractions, food, culture</small></span>
@@ -469,19 +465,13 @@ function openCityActionSheet(city: string): void {
         <span class="map-sheet-icon">🧭</span>
         <span><strong>Itinerary</strong><small>This leg's plan & stays</small></span>
         <span class="map-sheet-arrow">›</span>
-      </button>
-      <button class="map-sheet-cancel">Cancel</button>
-    </div>`;
+      </button>`,
+  });
 
-  document.body.appendChild(backdrop);
-  const close = () => backdrop.remove();
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-  backdrop.querySelector('.map-sheet-cancel')?.addEventListener('click', close);
-
-  backdrop.querySelectorAll<HTMLElement>('.map-sheet-action').forEach((btn) => {
+  m.root.querySelectorAll<HTMLElement>('.map-sheet-action').forEach((btn) => {
     btn.addEventListener('click', () => {
       const go = btn.dataset.go as 'cities' | 'safety' | 'route';
-      close();
+      m.close();
       navigateTo(go);
       // After the target view mounts, deep-link to this city where supported.
       if (go === 'cities') {

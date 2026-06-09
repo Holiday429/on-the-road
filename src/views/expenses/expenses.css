@@ -431,53 +431,13 @@
 }
 .exp-budget-set:hover { background: var(--amber-200); }
 
-/* ── Budget modal ────────────────────────────────────────────────────────── */
-.exp-modal-backdrop {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 1000;
-  animation: fadeIn var(--dur-fast) var(--ease-out);
-}
-@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-.exp-modal {
-  background: var(--surface);
-  border-radius: var(--r-xl);
-  padding: var(--sp-6);
-  width: 360px;
-  max-width: calc(100vw - 32px);
-  box-shadow: var(--shadow-lg);
-  animation: slideUp var(--dur-mid) var(--ease-out);
-}
-@keyframes slideUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:none } }
-.exp-modal-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: var(--sp-5);
-}
-.exp-modal-title {
-  font-family: var(--font-ui);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-}
-.exp-modal-close {
-  width: 28px; height: 28px;
-  border-radius: var(--r-sm);
-  color: var(--ink-faint);
-  font-size: 14px;
-  display: flex; align-items: center; justify-content: center;
-  transition: all var(--dur-fast);
-}
-.exp-modal-close:hover { background: var(--surface-3); color: var(--ink); }
-.exp-modal-body { margin-bottom: var(--sp-5); }
-.exp-modal-body .input { margin-top: var(--sp-2); }
+/* ── Budget modal body bits (shell comes from core/modal.ts) ───────────────── */
+.otr-modal-body .input { margin-top: var(--sp-2); }
 .exp-modal-hint {
   font-size: var(--fs-sm);
   color: var(--ink-muted);
   margin-top: var(--sp-3);
   line-height: 1.5;
-}
-.exp-modal-footer {
-  display: flex; gap: var(--sp-3); justify-content: flex-end;
 }
 
 /* ── City toggle ─────────────────────────────────────────────────────────── */

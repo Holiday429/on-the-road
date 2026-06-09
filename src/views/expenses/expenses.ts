@@ -25,6 +25,7 @@ import {
 import {
   CURRENCIES, currencySymbol, getRateTable, peekRateTable, type RateTable,
 } from '../../data/rates.ts';
+import { openModal } from '../../core/modal.ts';
 
 interface Category { id: string; label: string; icon: string; color: string; builtin: boolean; }
 
@@ -258,55 +259,33 @@ function renderSummary(el: HTMLElement) {
 }
 
 function openBudgetModal(summaryEl: HTMLElement) {
-  const existing = document.getElementById('exp-budget-modal-backdrop');
-  if (existing) { existing.remove(); return; }
-
   const budget = tripBudget();
   const sym = currencySymbol(baseCurrency());
 
-  const backdrop = document.createElement('div');
-  backdrop.id = 'exp-budget-modal-backdrop';
-  backdrop.className = 'exp-modal-backdrop';
-  backdrop.innerHTML = `
-    <div class="exp-modal" role="dialog" aria-modal="true">
-      <div class="exp-modal-header">
-        <div class="exp-modal-title">Trip budget</div>
-        <button class="exp-modal-close" id="exp-budget-close">✕</button>
-      </div>
-      <div class="exp-modal-body">
-        <label class="field-label">Total budget (${sym}, ${baseCurrency()})</label>
-        <input class="input" type="number" id="exp-budget-input" min="0" step="1"
-          placeholder="e.g. 5000" value="${budget ?? ''}">
-        <p class="exp-modal-hint">Set your total trip budget. This appears as a bar in the summary so you can track spend vs plan at a glance.</p>
-      </div>
-      <div class="exp-modal-footer">
-        ${budget ? `<button class="btn btn-danger" id="exp-budget-remove">Remove</button>` : ''}
-        <button class="btn btn-primary" id="exp-budget-save">Save</button>
-      </div>
-    </div>
-  `;
+  const m = openModal({
+    title: 'Trip budget',
+    body: `
+      <label class="field-label">Total budget (${sym}, ${baseCurrency()})</label>
+      <input class="input" type="number" id="exp-budget-input" min="0" step="1"
+        placeholder="e.g. 5000" value="${budget ?? ''}">
+      <p class="exp-modal-hint">Set your total trip budget. This appears as a bar in the summary so you can track spend vs plan at a glance.</p>`,
+    footer: `
+      ${budget ? `<button class="btn btn-danger" data-act="remove">Remove</button>` : ''}
+      <button class="btn btn-primary" data-act="save">Save</button>`,
+  });
 
-  document.body.appendChild(backdrop);
-
-  const input = backdrop.querySelector('#exp-budget-input') as HTMLInputElement;
-  input.focus();
-
-  const close = () => backdrop.remove();
-  backdrop.querySelector('#exp-budget-close')?.addEventListener('click', close);
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-
+  const input = m.root.querySelector('#exp-budget-input') as HTMLInputElement;
   const save = async () => {
     const val = parseFloat(input.value);
     await setTripBudget(val > 0 ? val : null);
-    close();
+    m.close();
     renderSummary(summaryEl);
   };
-  backdrop.querySelector('#exp-budget-save')?.addEventListener('click', save);
+  m.root.querySelector('[data-act="save"]')?.addEventListener('click', save);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-
-  backdrop.querySelector('#exp-budget-remove')?.addEventListener('click', async () => {
+  m.root.querySelector('[data-act="remove"]')?.addEventListener('click', async () => {
     await setTripBudget(null);
-    close();
+    m.close();
     renderSummary(summaryEl);
   });
 }
@@ -679,50 +658,34 @@ function renderBreakdown(el: HTMLElement) {
 
 /** Modal to set/clear a single category's budget cap. */
 function openCategoryBudgetModal(catId: string, breakdownEl: HTMLElement) {
-  document.getElementById('exp-catbudget-backdrop')?.remove();
   const cat = categoryById(catId);
   const current = categoryBudgets()[catId];
   const sym = currencySymbol(baseCurrency());
 
-  const backdrop = document.createElement('div');
-  backdrop.id = 'exp-catbudget-backdrop';
-  backdrop.className = 'exp-modal-backdrop';
-  backdrop.innerHTML = `
-    <div class="exp-modal" role="dialog" aria-modal="true">
-      <div class="exp-modal-header">
-        <div class="exp-modal-title">${cat ? `${cat.icon} ${cat.label}` : 'Category'} budget</div>
-        <button class="exp-modal-close" id="exp-catbudget-close">✕</button>
-      </div>
-      <div class="exp-modal-body">
-        <label class="field-label">Cap for this category (${sym}, ${baseCurrency()})</label>
-        <input class="input" type="number" id="exp-catbudget-input" min="0" step="1"
-          placeholder="e.g. 800" value="${current ?? ''}">
-        <p class="exp-modal-hint">The category bar will track spend against this cap and turn amber, then red, as you approach it.</p>
-      </div>
-      <div class="exp-modal-footer">
-        ${current ? `<button class="btn btn-danger" id="exp-catbudget-remove">Remove</button>` : ''}
-        <button class="btn btn-primary" id="exp-catbudget-save">Save</button>
-      </div>
-    </div>`;
-  document.body.appendChild(backdrop);
+  const m = openModal({
+    title: `${cat ? `${cat.icon} ${cat.label}` : 'Category'} budget`,
+    body: `
+      <label class="field-label">Cap for this category (${sym}, ${baseCurrency()})</label>
+      <input class="input" type="number" id="exp-catbudget-input" min="0" step="1"
+        placeholder="e.g. 800" value="${current ?? ''}">
+      <p class="exp-modal-hint">The category bar will track spend against this cap and turn amber, then red, as you approach it.</p>`,
+    footer: `
+      ${current ? `<button class="btn btn-danger" data-act="remove">Remove</button>` : ''}
+      <button class="btn btn-primary" data-act="save">Save</button>`,
+  });
 
-  const input = backdrop.querySelector('#exp-catbudget-input') as HTMLInputElement;
-  input.focus();
-  const close = () => backdrop.remove();
-  backdrop.querySelector('#exp-catbudget-close')?.addEventListener('click', close);
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-
+  const input = m.root.querySelector('#exp-catbudget-input') as HTMLInputElement;
   const save = async () => {
     const val = parseFloat(input.value);
     await setCategoryBudget(catId, val > 0 ? val : null);
-    close();
+    m.close();
     renderBreakdown(breakdownEl);
   };
-  backdrop.querySelector('#exp-catbudget-save')?.addEventListener('click', save);
+  m.root.querySelector('[data-act="save"]')?.addEventListener('click', save);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-  backdrop.querySelector('#exp-catbudget-remove')?.addEventListener('click', async () => {
+  m.root.querySelector('[data-act="remove"]')?.addEventListener('click', async () => {
     await setCategoryBudget(catId, null);
-    close();
+    m.close();
     renderBreakdown(breakdownEl);
   });
 }

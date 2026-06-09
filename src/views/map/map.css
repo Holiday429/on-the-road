@@ -595,37 +595,7 @@
   .map-chart { height: 420px; }
 }
 
-/* ── City action sheet (Guide / Safety / Itinerary) ───────────────────────── */
-.map-sheet-backdrop {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.4);
-  display: flex; align-items: flex-end; justify-content: center;
-  z-index: 1000;
-  animation: fadeIn var(--dur-fast) var(--ease-out);
-}
-@media (min-width: 720px) {
-  .map-sheet-backdrop { align-items: center; }
-}
-.map-sheet {
-  background: var(--surface);
-  border-radius: var(--r-2xl) var(--r-2xl) 0 0;
-  padding: var(--sp-5);
-  width: 100%;
-  max-width: 420px;
-  box-shadow: var(--shadow-lg);
-  animation: mapSheetUp var(--dur-mid) var(--ease-out);
-}
-@media (min-width: 720px) {
-  .map-sheet { border-radius: var(--r-2xl); }
-}
-@keyframes mapSheetUp { from { transform: translateY(100%) } to { transform: none } }
-.map-sheet-title {
-  font-family: var(--font-ui);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-  text-align: center;
-  margin-bottom: var(--sp-4);
-}
+/* ── City action sheet rows (shell comes from core/modal.ts) ──────────────── */
 .map-sheet-action {
   display: flex; align-items: center; gap: var(--sp-3);
   width: 100%;
@@ -643,15 +613,3 @@
 .map-sheet-action strong { font-family: var(--font-ui); font-size: var(--fs-base); font-weight: 700; }
 .map-sheet-action small { font-size: var(--fs-sm); color: var(--ink-muted); }
 .map-sheet-arrow { font-size: 20px; color: var(--ink-faint); }
-.map-sheet-cancel {
-  width: 100%;
-  padding: var(--sp-3);
-  margin-top: var(--sp-2);
-  border-radius: var(--r-lg);
-  font-family: var(--font-ui);
-  font-weight: 600;
-  color: var(--ink-muted);
-  background: var(--surface-3);
-  cursor: pointer;
-}
-.map-sheet-cancel:hover { background: var(--surface-4); }

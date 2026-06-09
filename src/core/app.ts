@@ -12,6 +12,7 @@ import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
 import { routeStore, type StoredLeg } from '../data/stores/route-store.ts';
 import { createDestinationInput, type DestinationInputInstance } from './destination-input.ts';
 import { escHtml as escapeHtml } from './utils.ts';
+import { openModal } from './modal.ts';
 import checklistIcon from '../../icon/Checklist.png';
 import guideIcon from '../../icon/Guide.png';
 import itineraryIcon from '../../icon/Itinerary.png';
@@ -594,11 +595,10 @@ export function renderSession(user: User | null, onPrimaryAction: () => void) {
 /* ── Rename / Delete trip modals ────────────────────────────────────────── */
 
 function openRenameTripModal(trip: StoredTrip) {
-  const backdrop = document.createElement('div');
-  backdrop.className = 'trip-modal-backdrop';
-  backdrop.innerHTML = `
-    <div class="trip-modal" role="dialog" aria-modal="true" aria-label="Edit trip">
-      <h3 class="trip-modal-title">Edit trip</h3>
+  const m = openModal({
+    title: 'Edit trip',
+    className: 'trip-edit-modal',
+    body: `
       <label class="trip-modal-field">
         <span>Trip name</span>
         <input id="rt-name" class="input" value="${escapeHtml(trip.name)}" autocomplete="off">
@@ -614,27 +614,20 @@ function openRenameTripModal(trip: StoredTrip) {
         </label>
       </div>
       <span class="trip-modal-hint">Home &amp; return draw your outbound and return flights on the map.</span>
-      <div class="trip-modal-actions">
-        <button class="btn" id="rt-cancel">Cancel</button>
-        <button class="btn btn-primary" id="rt-save">Save</button>
-      </div>
-      <div class="trip-modal-error" id="rt-error"></div>
-    </div>
-  `;
-  document.body.appendChild(backdrop);
+      <div class="trip-modal-error" id="rt-error"></div>`,
+    footer: `
+      <button class="btn" data-otr-close>Cancel</button>
+      <button class="btn btn-primary" id="rt-save">Save</button>`,
+  });
 
-  const nameInput = backdrop.querySelector<HTMLInputElement>('#rt-name')!;
-  const homeInput = backdrop.querySelector<HTMLInputElement>('#rt-home')!;
-  const returnInput = backdrop.querySelector<HTMLInputElement>('#rt-return')!;
-  const errorEl = backdrop.querySelector<HTMLElement>('#rt-error')!;
-  const close = () => backdrop.remove();
-
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-  backdrop.querySelector('#rt-cancel')!.addEventListener('click', close);
+  const nameInput = m.root.querySelector<HTMLInputElement>('#rt-name')!;
+  const homeInput = m.root.querySelector<HTMLInputElement>('#rt-home')!;
+  const returnInput = m.root.querySelector<HTMLInputElement>('#rt-return')!;
+  const errorEl = m.root.querySelector<HTMLElement>('#rt-error')!;
 
   nameInput.focus();
   nameInput.select();
-  backdrop.querySelectorAll('input').forEach((el) =>
+  m.root.querySelectorAll('input').forEach((el) =>
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); }));
 
   async function save() {
@@ -644,12 +637,12 @@ function openRenameTripModal(trip: StoredTrip) {
     // value — stripUndefined would otherwise drop the key and keep the old one.
     const homeCity = homeInput.value.trim();
     const returnCity = returnInput.value.trim();
-    const btn = backdrop.querySelector<HTMLButtonElement>('#rt-save')!;
+    const btn = m.root.querySelector<HTMLButtonElement>('#rt-save')!;
     btn.disabled = true; btn.textContent = 'Saving…';
     try {
       await updateTrip(trip.id, { name, homeCity, returnCity });
       tripList = await listTrips();
-      close();
+      m.close();
       buildSidebar();
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Save';
@@ -657,40 +650,32 @@ function openRenameTripModal(trip: StoredTrip) {
     }
   }
 
-  backdrop.querySelector('#rt-save')!.addEventListener('click', save);
+  m.root.querySelector('#rt-save')!.addEventListener('click', save);
 }
 
 function openDeleteTripModal(trip: StoredTrip) {
-  const backdrop = document.createElement('div');
-  backdrop.className = 'trip-modal-backdrop';
-  backdrop.innerHTML = `
-    <div class="trip-modal" role="dialog" aria-modal="true" aria-label="Delete trip">
-      <h3 class="trip-modal-title">Delete trip</h3>
-      <p style="font-size:var(--fs-sm);color:var(--ink-2);margin:0 0 var(--sp-4)">
+  const m = openModal({
+    title: 'Delete trip',
+    className: 'trip-edit-modal',
+    body: `
+      <p style="font-size:var(--fs-sm);color:var(--ink-muted);margin:0">
         Delete <strong>${escapeHtml(trip.name)}</strong>? The trip record will be removed.
         Your itinerary legs, journal entries, and other data are kept.
       </p>
-      <div class="trip-modal-actions">
-        <button class="btn" id="dt-cancel">Cancel</button>
-        <button class="btn btn-danger" id="dt-confirm">Delete</button>
-      </div>
-      <div class="trip-modal-error" id="dt-error"></div>
-    </div>
-  `;
-  document.body.appendChild(backdrop);
+      <div class="trip-modal-error" id="dt-error"></div>`,
+    footer: `
+      <button class="btn" data-otr-close>Cancel</button>
+      <button class="btn btn-danger" id="dt-confirm">Delete</button>`,
+  });
 
-  const close = () => backdrop.remove();
-  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-  backdrop.querySelector('#dt-cancel')!.addEventListener('click', close);
-
-  backdrop.querySelector('#dt-confirm')!.addEventListener('click', async () => {
-    const btn = backdrop.querySelector<HTMLButtonElement>('#dt-confirm')!;
-    const errorEl = backdrop.querySelector<HTMLElement>('#dt-error')!;
+  m.root.querySelector('#dt-confirm')!.addEventListener('click', async () => {
+    const btn = m.root.querySelector<HTMLButtonElement>('#dt-confirm')!;
+    const errorEl = m.root.querySelector<HTMLElement>('#dt-error')!;
     btn.disabled = true; btn.textContent = 'Deleting…';
     try {
       await removeTrip(trip.id);
       tripList = await listTrips();
-      close();
+      m.close();
       // If we just deleted the active trip, switch to the first remaining one
       // (or show onboarding if none left).
       if (currentTripId() === trip.id) {
