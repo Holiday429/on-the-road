@@ -126,10 +126,9 @@ function renderSos(): string {
   const card = _loc.card ?? cardFor(cityName);
   const general = card?.generalEmergency || '112';
 
+  // Only show a badge when GPS is actively confirmed; itinerary is the default, no need to label it
   const locBadge = _loc.source === 'gps'
     ? `<span class="sos-loc-badge sos-loc-badge-gps">📍 Live</span>`
-    : _loc.source === 'itinerary'
-    ? `<span class="sos-loc-badge sos-loc-badge-itinerary">🗓 Itinerary</span>`
     : '';
 
   const nums = (card?.emergencyNumbers ?? []).filter((n) => n.number).slice(0, 4);

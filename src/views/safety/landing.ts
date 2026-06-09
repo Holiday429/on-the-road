@@ -51,13 +51,27 @@ function renderEntryRow(hasProfile: boolean): string {
 /* ── City grid ───────────────────────────────────────────────────────────── */
 function renderCityGrid(cards: StoredCitySafety[], legs: StoredLeg[]): string {
   const haveSlugs = new Set(cards.map((c) => c.id));
+  const seenPending = new Set<string>();
   const pending = legs
-    .filter((l) => !haveSlugs.has(slugId(l.city)))
+    .filter((l) => {
+      const id = slugId(l.city);
+      if (haveSlugs.has(id) || seenPending.has(id)) return false;
+      seenPending.add(id);
+      return true;
+    })
     .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
 
-  const cardTiles = cards.map((c) => `
+  // Prefer the itinerary leg's flag (always correct); fall back to card's stored flag
+  const legFlagFor = (cityId: string): string => {
+    const match = legs.find((l) => slugId(l.city) === cityId);
+    return match?.flag ?? '';
+  };
+
+  const cardTiles = cards.map((c) => {
+    const flag = legFlagFor(c.id) || c.flag || '🛡️';
+    return `
     <button class="sfy-tile" data-city-id="${esc(c.id)}">
-      <div class="sfy-tile-flag">${esc(c.flag) || '🛡️'}</div>
+      <div class="sfy-tile-flag">${esc(flag)}</div>
       <div class="sfy-tile-name">${esc(c.city)}</div>
       <div class="sfy-tile-country">${esc(c.country)}</div>
       <div class="sfy-tile-icons">
@@ -66,7 +80,8 @@ function renderCityGrid(cards: StoredCitySafety[], legs: StoredLeg[]): string {
         <span title="Hospital">🏥</span>
         <span title="Phrases">💬</span>
       </div>
-    </button>`).join('');
+    </button>`;
+  }).join('');
 
   const pendingTiles = pending.map((l) => `
     <button class="sfy-tile sfy-tile-pending"

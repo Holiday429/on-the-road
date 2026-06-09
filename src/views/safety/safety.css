@@ -170,15 +170,16 @@
 .sfy-sheet-overlay {
   position: fixed; inset: 0; z-index: 1000;
   background: rgba(0,0,0,0.45); backdrop-filter: blur(4px);
-  display: flex; align-items: flex-end; justify-content: center;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--sp-4);
   animation: fadeIn var(--dur-fast) var(--ease-out);
 }
 .sfy-sheet {
-  width: 100%; max-width: 780px; max-height: 92dvh;
-  background: var(--surface); border-radius: var(--r-xl) var(--r-xl) 0 0;
+  width: 100%; max-width: 780px; max-height: 90dvh;
+  background: var(--surface); border-radius: var(--r-xl);
   display: flex; flex-direction: column;
-  box-shadow: 0 -8px 40px rgba(0,0,0,0.18);
-  animation: slideUp var(--dur-mid) var(--ease-out);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  animation: fadeUp var(--dur-mid) var(--ease-out);
 }
 @keyframes slideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
@@ -412,6 +413,6 @@
   .sos-share { width: 100%; justify-content: center; }
   .sfy-entry-row { grid-template-columns: 1fr; }
   .sfyp-form-grid { grid-template-columns: 1fr; }
-  .sfym-overlay { align-items: flex-end; padding: 0; }
-  .sfym-panel { border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 95dvh; }
+  .sfym-overlay { padding: var(--sp-2); }
+  .sfym-panel { max-height: 95dvh; }
 }
