@@ -12,6 +12,31 @@
 
 .pk-sm { font-size: var(--fs-sm); padding: 6px 14px; }
 
+/* ── Trip itinerary bar ──────────────────────────────────────────────────── */
+.pack-trip-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3);
+  background: var(--surface-2); border: 1px solid var(--rule-soft);
+  border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+.pack-trip-bar-label {
+  font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--ink-muted); white-space: nowrap;
+}
+.pack-trip-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); flex: 1; }
+.pack-trip-chip {
+  display: flex; align-items: center; gap: 5px;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: var(--r-full); padding: 4px 10px;
+  text-decoration: none; color: var(--ink);
+  font-size: var(--fs-xs); transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.pack-trip-chip:hover { border-color: var(--accent); background: var(--surface-3); }
+.pack-trip-chip-flag { font-size: 14px; }
+.pack-trip-chip-city { font-weight: 600; }
+.pack-trip-chip-date { color: var(--ink-muted); }
+.pack-trip-bar-hint { font-size: var(--fs-xs); color: var(--ink-faint); white-space: nowrap; }
+
 /* ── List screen ─────────────────────────────────────────────────────────── */
 .pack-action-bar { display: flex; gap: var(--sp-3); margin-bottom: var(--sp-6); flex-wrap: wrap; }
 

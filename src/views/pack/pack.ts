@@ -13,7 +13,9 @@
 
 import './pack.css';
 import { packStore, STANDALONE_TRIP_ID, type StoredPackList } from '../../data/stores/pack-store.ts';
-import { currentTrip } from '../../data/trip-context.ts';
+import { currentTrip, currentTripId } from '../../data/trip-context.ts';
+import { routeStore } from '../../data/stores/route-store.ts';
+import { openModal } from '../../core/modal.ts';
 import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
 import { itemWeightG, formatKg } from '../../data/packing-formula.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
@@ -188,11 +190,40 @@ function render() {
   else { screen = 'list'; renderList(body); }
 }
 
+/* ── Trip itinerary bar ──────────────────────────────────────────────────── */
+
+function renderTripBar(): string {
+  const tripId = currentTripId();
+  if (!tripId) return '';
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = routeStore.peek()
+    .filter((l) => l.tripId === tripId && l.dateTo >= today)
+    .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom))
+    .slice(0, 6);
+  if (!upcoming.length) return '';
+
+  const chips = upcoming.map((l) => {
+    const weatherUrl = `https://www.google.com/search?q=weather+${encodeURIComponent(l.city)}`;
+    return `<a class="pack-trip-chip" href="${weatherUrl}" target="_blank" rel="noopener" title="Check weather in ${escHtml(l.city)}">
+      <span class="pack-trip-chip-flag">${escHtml(l.flag || '🗺️')}</span>
+      <span class="pack-trip-chip-city">${escHtml(l.city)}</span>
+      <span class="pack-trip-chip-date">${escHtml(l.dateFrom.slice(5))}</span>
+    </a>`;
+  }).join('');
+
+  return `<div class="pack-trip-bar">
+    <span class="pack-trip-bar-label">Upcoming</span>
+    <div class="pack-trip-chips">${chips}</div>
+    <span class="pack-trip-bar-hint">Tap a city to check weather</span>
+  </div>`;
+}
+
 /* ── List screen ─────────────────────────────────────────────────────────── */
 
 function renderList(c: HTMLElement) {
   const kitTotal = _kit.reduce((s, k) => s + k.weightG, 0);
   c.innerHTML = `
+    ${renderTripBar()}
     <div class="pack-action-bar">
       <button class="btn btn-primary" id="pk-new">+ New Pack List</button>
     </div>
@@ -229,7 +260,6 @@ function renderList(c: HTMLElement) {
       </div>
     </div>
 
-    ${newListModal()}
   `;
   bindList(c);
 }
@@ -484,7 +514,7 @@ function renderPackCheck(l: PackList): string {
 
 /* ── Modals ──────────────────────────────────────────────────────────────── */
 
-function newListModal(): string {
+function openNewListModal() {
   const trip = currentTrip();
   const tripOption = trip
     ? `<label class="pk-scope-option">
@@ -495,35 +525,53 @@ function newListModal(): string {
         </span>
       </label>`
     : '';
-  return `
-    <div class="modal-overlay" id="pk-new-modal" hidden>
-      <div class="modal-box">
-        <div class="modal-header"><div class="modal-title">New Pack List</div><button class="modal-close" id="pk-close-new">✕</button></div>
-        <div class="modal-body">
-          <label class="field-label">Name</label>
-          <input class="input" id="pk-new-name" placeholder="e.g. Europe Summer — Carry-on">
-          ${trip ? `<div class="pk-scope-group">
-            ${tripOption}
-            <label class="pk-scope-option">
-              <input type="radio" name="pk-scope" value="standalone">
-              <span class="pk-scope-label">
-                <span class="pk-scope-title">Standalone</span>
-                <span class="pk-scope-desc">Not linked to any trip</span>
-              </span>
-            </label>
-          </div>` : ''}
-          ${_kit.length > 0 ? `<label class="pk-kit-bring">
-            <input type="checkbox" id="pk-bring-kit" checked>
-            <span>Bring in my Core Kit (${_kit.length} items · ${formatKg(_kit.reduce((s, k) => s + k.weightG, 0))})</span>
-          </label>` : ''}
-          <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
-            <button class="btn btn-ghost" id="pk-cancel-new">Cancel</button>
-            <button class="btn btn-primary" id="pk-confirm-new">Create</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+
+  const m = openModal({
+    title: 'New Pack List',
+    variant: 'sheet',
+    body: `
+      <label class="field-label">Name</label>
+      <input class="input" id="pk-new-name" placeholder="e.g. Europe Summer — Carry-on">
+      ${trip ? `<div class="pk-scope-group">
+        ${tripOption}
+        <label class="pk-scope-option">
+          <input type="radio" name="pk-scope" value="standalone">
+          <span class="pk-scope-label">
+            <span class="pk-scope-title">Standalone</span>
+            <span class="pk-scope-desc">Not linked to any trip</span>
+          </span>
+        </label>
+      </div>` : ''}
+      ${_kit.length > 0 ? `<label class="pk-kit-bring">
+        <input type="checkbox" id="pk-bring-kit" checked>
+        <span>Bring in my Core Kit (${_kit.length} items · ${formatKg(_kit.reduce((s, k) => s + k.weightG, 0))})</span>
+      </label>` : ''}
+    `,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm">Create</button>
+    `,
+  });
+
+  requestAnimationFrame(() => m.root.querySelector<HTMLInputElement>('#pk-new-name')?.focus());
+
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const name = (m.root.querySelector<HTMLInputElement>('#pk-new-name')?.value || '').trim();
+    if (!name) return;
+    const scope = (m.root.querySelector<HTMLInputElement>('input[name="pk-scope"]:checked')?.value) ?? 'trip';
+    const tripId = scope === 'standalone' ? STANDALONE_TRIP_ID : undefined;
+    const bringKit = m.root.querySelector<HTMLInputElement>('#pk-bring-kit')?.checked ?? false;
+    const id = await packStore.create({
+      name, tripId,
+      items: bringKit ? coreKitItems() : [],
+    });
+    m.close();
+    activeId = id;
+    screen = 'detail';
+    packCheckMode = false;
+    render();
+  });
 }
 
 /** Build PackItems from the Core Kit, all landing in Unassigned, locked. */
@@ -546,26 +594,7 @@ function coreKitItems(): PackItem[] {
 /* ── Bind: list screen ───────────────────────────────────────────────────── */
 
 function bindList(c: HTMLElement) {
-  const newModal = c.querySelector<HTMLElement>('#pk-new-modal');
-
-  c.querySelector('#pk-new')?.addEventListener('click', () => newModal?.removeAttribute('hidden'));
-  c.querySelector('#pk-close-new')?.addEventListener('click', () => newModal?.setAttribute('hidden', ''));
-  c.querySelector('#pk-cancel-new')?.addEventListener('click', () => newModal?.setAttribute('hidden', ''));
-  c.querySelector('#pk-confirm-new')?.addEventListener('click', async () => {
-    const name = (c.querySelector<HTMLInputElement>('#pk-new-name')?.value || '').trim();
-    if (!name) return;
-    const scope = (c.querySelector<HTMLInputElement>('input[name="pk-scope"]:checked')?.value) ?? 'trip';
-    const tripId = scope === 'standalone' ? STANDALONE_TRIP_ID : undefined;
-    const bringKit = c.querySelector<HTMLInputElement>('#pk-bring-kit')?.checked ?? false;
-    const id = await packStore.create({
-      name, tripId,
-      items: bringKit ? coreKitItems() : [],
-    });
-    activeId = id;
-    screen = 'detail';
-    packCheckMode = false;
-    render();
-  });
+  c.querySelector('#pk-new')?.addEventListener('click', () => openNewListModal());
 
   /* Unit selector */
   c.querySelector<HTMLSelectElement>('#pk-unit-sel')?.addEventListener('change', e => {

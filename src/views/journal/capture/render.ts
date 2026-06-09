@@ -68,16 +68,33 @@ interface CaptureRenderModel {
   calendarCells: CalendarCell[];
   currentMonthLabel: string;
   legs: StoredLeg[];
+  savedGuidePlaces?: Array<{ id: string; title: string; type: string }>;
 }
 
+
+function renderFirstTimeGuide(): string {
+  // Find the Quick Log template (lightest one)
+  const quickLog = templates().find((t) => t.id === 'quick') ?? templates()[0];
+  if (!quickLog) return '';
+  return `
+    <div class="journal-first-guide">
+      <div class="journal-first-guide-icon">${quickLog.emoji}</div>
+      <div class="journal-first-guide-text">
+        <strong>Start here</strong> — tap <em>${escHtml(quickLog.label)}</em> above to capture your first moment.
+        Pick any stamp that fits your mood.
+      </div>
+    </div>
+  `;
+}
 
 export function renderCapture(model: CaptureRenderModel): string {
   return `
     <div class="journal-shell">
       ${renderStamps(model.state)}
+      ${model.allEntries.length === 0 && !model.state.composerOpen ? renderFirstTimeGuide() : ''}
 
       ${model.state.templateBuilderOpen ? renderTemplateBuilder(model.state) : ''}
-      ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs)}</div></div>` : ''}
+      ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs, model.savedGuidePlaces ?? [])}</div></div>` : ''}
 
       <div class="journal-view-surface">
         ${renderActiveView(model)}
@@ -180,6 +197,7 @@ function renderComposer(
   state: CaptureState,
   entries: StoredJournalEntry[],
   legs: StoredLeg[],
+  savedGuidePlaces: Array<{ id: string; title: string; type: string }> = [],
 ): string {
   const item = template(state.draft.template);
   const prompt = item.prompts[state.promptIndex % item.prompts.length];
@@ -234,12 +252,40 @@ function renderComposer(
       </div>
 
       ${renderTypeExtras(item, state)}
+      ${savedGuidePlaces.length ? renderGuidePlacesPicker(savedGuidePlaces, state.draft.linkedPlaces) : ''}
 
       <div class="journal-composer-actions">
         <button class="btn btn-ghost" data-journal-cancel type="button">Cancel</button>
         <button class="btn btn-primary" data-journal-save type="button">${state.editingId ? 'Save' : 'Add to capture'}</button>
       </div>
     </section>
+  `;
+}
+
+function typeIcon(type: string): string {
+  const map: Record<string, string> = { attraction: '🏛️', restaurant: '🍽️', cafe: '☕', experience: '🎭' };
+  return map[type] ?? '📍';
+}
+
+function renderGuidePlacesPicker(
+  places: Array<{ id: string; title: string; type: string }>,
+  linked: string[],
+): string {
+  return `
+    <details class="journal-guide-places">
+      <summary class="journal-guide-places-toggle">
+        📌 Saved places${linked.length ? ` · ${linked.length} linked` : ''}
+      </summary>
+      <div class="journal-guide-places-list">
+        ${places.map((p) => `
+          <label class="journal-guide-place-item ${linked.includes(p.id) ? 'is-linked' : ''}">
+            <input type="checkbox" name="journal-linked-place" value="${escHtml(p.id)}" ${linked.includes(p.id) ? 'checked' : ''}>
+            <span class="journal-guide-place-icon">${typeIcon(p.type)}</span>
+            <span class="journal-guide-place-title">${escHtml(p.title)}</span>
+          </label>
+        `).join('')}
+      </div>
+    </details>
   `;
 }
 
@@ -385,6 +431,7 @@ function renderTimelineEntry(entry: StoredJournalEntry, editingId: string | null
         <p class="journal-timeline-body">${escHtml(excerpt(entry.body, 160))}</p>
         ${entry.coverImage ? `<img src="${escHtml(entry.coverImage)}" alt="" class="journal-timeline-img">` : ''}
         ${entry.tags.length ? `<div class="journal-timeline-tags">${entry.tags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
+        ${(entry.linkedPlaces?.length ?? 0) > 0 ? `<div class="journal-linked-places">📌 ${entry.linkedPlaces!.length} place${entry.linkedPlaces!.length > 1 ? 's' : ''} visited</div>` : ''}
       </div>
     </div>
   `;

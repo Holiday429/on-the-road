@@ -654,6 +654,7 @@ export const JournalEntrySchema = doc({
   slug: z.string().default(''),
   coverImage: z.string().optional(), // data URL or remote URL
   imageRatio: z.number().optional(),  // width / height, e.g. 1.5 for 3:2
+  linkedPlaces: z.array(z.string()).optional(), // Guide card ids saved for this entry
 });
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;
 

@@ -1,6 +1,8 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { journalStore, type StoredJournalEntry } from '../../../data/stores/journal-store.ts';
+import { cityStore } from '../../../data/stores/city-store.ts';
+import type { GuideCard } from '../../../data/schema.ts';
 import { journalTemplateStore } from '../../../data/stores/journal-template-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import { coordsFor, primaryCity } from '../../map/geo.ts';
@@ -48,6 +50,23 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     gallerySquare: false,
   };
 
+  function savedGuideCards(): { id: string; title: string; type: string }[] {
+    const city = state.draft.destination.trim();
+    if (!city) return [];
+    const allIntel = cityStore.peek();
+    const intel = allIntel.find((c) => c.city.toLowerCase() === city.toLowerCase());
+    if (!intel) return [];
+    const types: Array<{ cards: GuideCard[]; type: string }> = [
+      { cards: intel.attractions, type: 'attraction' },
+      { cards: intel.restaurants, type: 'restaurant' },
+      { cards: intel.cafes, type: 'cafe' },
+      { cards: intel.experiences, type: 'experience' },
+    ];
+    return types.flatMap(({ cards, type }) =>
+      cards.filter((c) => c.saved).map((c) => ({ id: c.id, title: c.title, type }))
+    ).slice(0, 8);
+  }
+
   function render(): string {
     const allEntries = sortEntries(deps.getEntries());
     const visibleEntries = filteredEntries(allEntries);
@@ -76,6 +95,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         year: 'numeric',
       }),
       legs: deps.getLegs(),
+      savedGuidePlaces: savedGuideCards(),
     });
   }
 
@@ -432,6 +452,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       happenedOn: new Date().toISOString().slice(0, 10),
       coverImage: '',
       imageRatio: undefined,
+      linkedPlaces: [],
     };
   }
 
@@ -475,11 +496,14 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       happenedOn: entry.happenedOn,
       coverImage: entry.coverImage ?? '',
       imageRatio: entry.imageRatio,
+      linkedPlaces: entry.linkedPlaces ?? [],
     };
   }
 
   function syncDraftFromDom(root: HTMLElement) {
     const get = <T extends HTMLElement>(selector: string) => root.querySelector<T>(selector);
+    const linkedChecked = [...root.querySelectorAll<HTMLInputElement>('input[name="journal-linked-place"]:checked')]
+      .map((el) => el.value);
     state.draft = {
       body: get<HTMLTextAreaElement>('#journal-body')?.value ?? state.draft.body,
       title: get<HTMLInputElement>('#journal-title')?.value ?? state.draft.title,
@@ -490,6 +514,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       happenedOn: get<HTMLInputElement>('#journal-date')?.value ?? state.draft.happenedOn,
       coverImage: state.draft.coverImage,
       imageRatio: state.draft.imageRatio,
+      linkedPlaces: linkedChecked.length ? linkedChecked : state.draft.linkedPlaces,
     };
   }
 
@@ -524,6 +549,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     if (state.draft.coverImage && typeof state.draft.imageRatio === 'number') {
       payload.imageRatio = state.draft.imageRatio;
     }
+    if (state.draft.linkedPlaces.length) payload.linkedPlaces = state.draft.linkedPlaces;
 
     try {
       if (state.editingId) await journalStore.update(state.editingId, payload);

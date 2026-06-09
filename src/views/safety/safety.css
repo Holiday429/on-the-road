@@ -53,6 +53,29 @@
 }
 .sos-loc-badge-gps { background: #dcfce7; color: #15803d; }
 .sos-loc-badge-itinerary { background: #e0f2fe; color: #0369a1; }
+.sos-loc-badge-manual { background: #fef9c3; color: #854d0e; }
+
+.sos-city-edit-btn {
+  background: none; border: none; cursor: pointer; padding: 0 4px;
+  font-size: 13px; opacity: 0.6; vertical-align: middle; line-height: 1;
+  transition: opacity var(--dur-fast);
+}
+.sos-city-edit-btn:hover { opacity: 1; }
+
+/* ── City picker sheet ───────────────────────────────────────────────────── */
+.sos-picker-list { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) 0; }
+.sos-picker-item {
+  display: flex; align-items: center; gap: var(--sp-3);
+  background: var(--surface); border: 1.5px solid var(--rule-soft);
+  border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4);
+  cursor: pointer; text-align: left; transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.sos-picker-item:hover { border-color: var(--accent); background: var(--surface-2); }
+.sos-picker-item.active { border-color: var(--coral-500); background: #fff1f2; }
+.sos-picker-flag { font-size: 22px; }
+.sos-picker-city { font-weight: 600; flex: 1; }
+.sos-picker-dates { font-size: var(--fs-xs); color: var(--ink-muted); }
+
 .sos-share {
   background: var(--coral-500); color: #fff; white-space: nowrap;
   box-shadow: 0 4px 14px rgba(239,68,68,0.28);

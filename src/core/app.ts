@@ -326,6 +326,13 @@ export function navigateTo(id: ViewId, intent?: NavIntent) {
   activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
   window.location.hash = id;
+
+  // Notify an already-mounted target view that it was (re-)activated with an
+  // intent — fresh mounts pick it up via consumeNavIntent() in their init, but
+  // a view that was mounted earlier won't re-init, so it listens for this.
+  if (_pendingIntent?.view === id) {
+    window.dispatchEvent(new CustomEvent('otr:nav-intent', { detail: { view: id } }));
+  }
 }
 
 function clearGuestStates() {

@@ -11,6 +11,7 @@ import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';
 import { geocode } from '../map/geocode.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
 import { slugId } from '../../core/utils.ts';
+import { openModal } from '../../core/modal.ts';
 import { prefetchSafetyForCity } from '../safety/safety.ts';
 import { nomadStore } from '../../data/stores/nomad-store.ts';
 
@@ -972,58 +973,46 @@ function openCommitModal(intel: StoredCityIntel, cardId: string, cardType: strin
     intel.city.toLowerCase().includes(l.city.toLowerCase())
   );
   const otherLegs = _legs.filter(l => !matchedLegs.includes(l));
+  const highlight = ('highlight' in card ? (card as GuideCard).highlight : '') || '';
 
-  document.getElementById('guide-commit-modal')?.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'guide-commit-modal';
-  modal.className = 'guide-modal-overlay';
-  modal.innerHTML = `
-    <div class="guide-modal">
-      <div class="guide-modal-header">
-        <div class="guide-modal-title">Add to itinerary</div>
-        <button class="guide-modal-close btn btn-ghost" style="padding:6px 10px">×</button>
+  const m = openModal({
+    title: 'Add to itinerary',
+    variant: 'sheet',
+    body: `
+      <div class="guide-modal-card-preview">
+        <span>${typeEmoji(cardType)}</span>
+        <strong>${card.title}</strong>
       </div>
-      <div class="guide-modal-body">
-        <div class="guide-modal-card-preview">
-          <span>${typeEmoji(cardType)}</span>
-          <strong>${card.title}</strong>
-        </div>
-        <label class="guide-modal-label">Choose leg</label>
-        <select class="input guide-modal-leg-select" ${!_legs.length ? 'disabled' : ''}>
-          ${matchedLegs.length ? `
-            <optgroup label="📍 Matching — ${intel.city}">
-              ${matchedLegs.map(l => `<option value="${l.id}">${l.flag || ''} ${l.city} · ${l.dateFrom} – ${l.dateTo}</option>`).join('')}
-            </optgroup>
-          ` : ''}
-          ${otherLegs.length ? `
-            <optgroup label="Other legs">
-              ${otherLegs.map(l => `<option value="${l.id}">${l.flag || ''} ${l.city} · ${l.dateFrom} – ${l.dateTo}</option>`).join('')}
-            </optgroup>
-          ` : ''}
-          ${!_legs.length ? `<option value="">No legs yet — add destinations in Itinerary first</option>` : ''}
-        </select>
-        <label class="guide-modal-label" style="margin-top:var(--sp-4)">Note (optional)</label>
-        <input class="input guide-modal-note" placeholder="Your notes…" value="${('highlight' in card ? (card as GuideCard).highlight : '') || ''}">
-      </div>
-      <div class="guide-modal-footer">
-        <button class="btn btn-ghost guide-modal-cancel">Cancel</button>
-        <button class="btn btn-primary guide-modal-confirm" ${!_legs.length ? 'disabled' : ''}>Add to itinerary</button>
-      </div>
-    </div>
-  `;
+      <label class="guide-modal-label">Choose leg</label>
+      <select class="input guide-modal-leg-select" id="gcm-leg" ${!_legs.length ? 'disabled' : ''}>
+        ${matchedLegs.length ? `
+          <optgroup label="📍 Matching — ${intel.city}">
+            ${matchedLegs.map(l => `<option value="${l.id}">${l.flag || ''} ${l.city} · ${l.dateFrom} – ${l.dateTo}</option>`).join('')}
+          </optgroup>
+        ` : ''}
+        ${otherLegs.length ? `
+          <optgroup label="Other legs">
+            ${otherLegs.map(l => `<option value="${l.id}">${l.flag || ''} ${l.city} · ${l.dateFrom} – ${l.dateTo}</option>`).join('')}
+          </optgroup>
+        ` : ''}
+        ${!_legs.length ? `<option value="">No legs yet — add destinations in Itinerary first</option>` : ''}
+      </select>
+      <label class="guide-modal-label" style="margin-top:var(--sp-4)">Note (optional)</label>
+      <input class="input" id="gcm-note" placeholder="Your notes…" value="${highlight}">
+    `,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm" ${!_legs.length ? 'disabled' : ''}>Add to itinerary</button>
+    `,
+  });
 
-  document.body.appendChild(modal);
-  modal.querySelector('.guide-modal-close')?.addEventListener('click', () => modal.remove());
-  modal.querySelector('.guide-modal-cancel')?.addEventListener('click', () => modal.remove());
-  modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
-
-  modal.querySelector('.guide-modal-confirm')?.addEventListener('click', async () => {
-    const legId = (modal.querySelector('.guide-modal-leg-select') as HTMLSelectElement).value;
-    const note = (modal.querySelector('.guide-modal-note') as HTMLInputElement).value.trim();
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const legId = (m.root.querySelector<HTMLSelectElement>('#gcm-leg'))!.value;
+    const note = (m.root.querySelector<HTMLInputElement>('#gcm-note'))!.value.trim();
     if (!legId) return;
     await commitToItinerary(legId, card, cardType, note);
-    modal.remove();
+    m.close();
     showCommitToast(card.title);
   });
 }

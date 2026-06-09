@@ -91,21 +91,29 @@ function renderJournal() {
   body.innerHTML = `
     <div class="journal-mode-shell">
       <div class="journal-topbar">
-        <div class="journal-mode-tabs">
-          <button class="journal-mode-tab ${mode === 'capture' ? 'active' : ''}" data-journal-mode="capture" type="button">Capture</button>
-          <button class="journal-mode-tab ${mode === 'story' ? 'active' : ''}" data-journal-mode="story" type="button">Story</button>
+        <div class="journal-topbar-left">
+          <span class="journal-topbar-title${mode === 'story' ? ' is-story' : ''}">
+            ${mode === 'story' ? '📖 Story' : 'Capture'}
+          </span>
+          ${mode === 'capture' ? `
+            <div class="journal-scope">
+              <button class="journal-scope-btn ${entryScope === 'trip' ? 'active' : ''}" data-journal-scope="trip" type="button">This trip</button>
+              <button class="journal-scope-btn ${entryScope === 'all' ? 'active' : ''}" data-journal-scope="all" type="button">All</button>
+            </div>
+          ` : ''}
         </div>
-        ${mode === 'capture' ? `
-          <div class="journal-layout-bar">
-            ${(['feed','places','categories','gallery','map','calendar'] as const).map((id) => `
-              <button class="journal-layout-tab ${capture.currentView() === id ? 'active' : ''}" data-journal-view="${id}" type="button">${id.charAt(0).toUpperCase() + id.slice(1)}</button>
-            `).join('')}
-          </div>
-          <div class="journal-scope">
-            <button class="journal-scope-btn ${entryScope === 'trip' ? 'active' : ''}" data-journal-scope="trip" type="button">This trip</button>
-            <button class="journal-scope-btn ${entryScope === 'all' ? 'active' : ''}" data-journal-scope="all" type="button">All memories</button>
-          </div>
-        ` : ''}
+        <div class="journal-topbar-right">
+          ${mode === 'capture' ? `
+            <div class="journal-layout-bar">
+              ${(['feed','places','categories','gallery','map','calendar'] as const).map((id) => `
+                <button class="journal-layout-tab ${capture.currentView() === id ? 'active' : ''}" data-journal-view="${id}" type="button">${id.charAt(0).toUpperCase() + id.slice(1)}</button>
+              `).join('')}
+            </div>
+          ` : ''}
+          <button class="btn journal-story-btn ${mode === 'story' ? 'btn-primary' : 'btn-ghost'}" data-journal-mode="${mode === 'story' ? 'capture' : 'story'}" type="button">
+            ${mode === 'story' ? '← Entries' : '📖 Story'}
+          </button>
+        </div>
       </div>
       ${captureHtml}${storyHtml}
     </div>

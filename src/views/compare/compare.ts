@@ -20,6 +20,7 @@ import {
 import type { CompareCandidate, CompareDimension, CompareType } from '../../data/schema.ts';
 import { COMPARE_TYPES } from '../../data/schema.ts';
 import { escHtml as esc } from '../../core/utils.ts';
+import { consumeNavIntent } from '../../core/app.ts';
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
@@ -77,6 +78,7 @@ let addFormGroupId: string | null = null;
 let filterType: CompareType | 'all' = 'all';
 // When set, a "new group" form is shown on the list page.
 let newGroupForm = false;
+let _pendingIntentLabel = '';
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -622,13 +624,24 @@ export function initCompare() {
   groups = []; loaded = false;
   selectedGroupId = null; addFormGroupId = null; newGroupForm = false;
 
+  // Deep-link: if Route passed a NavIntent, open the new-group form pre-filled
+  const intent = consumeNavIntent('budget');
+  if (intent?.city) {
+    newGroupForm = true;
+    _pendingIntentLabel = [intent.city, intent.dateFrom].filter(Boolean).join(' · ');
+  }
+
   _unsub = compareStore.subscribe((rows) => {
     groups = rows;
     loaded = true;
-    // If the selected group was deleted, go back to the list.
     if (selectedGroupId && !groups.find((g) => g.id === selectedGroupId)) {
       selectedGroupId = null;
     }
     render();
+    // After first render, pre-fill the label input if we have a pending intent label
+    if (_pendingIntentLabel) {
+      const titleInput = document.querySelector<HTMLInputElement>('#ng-title');
+      if (titleInput) { titleInput.value = _pendingIntentLabel; _pendingIntentLabel = ''; }
+    }
   });
 }

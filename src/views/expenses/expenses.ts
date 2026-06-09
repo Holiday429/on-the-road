@@ -17,7 +17,7 @@ import { expenseStore, type StoredExpense } from '../../data/stores/expense-stor
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import {
   baseCurrency, setBaseCurrency, tripBudget, setTripBudget,
-  categoryBudgets, setCategoryBudget, onTripChange,
+  categoryBudgets, setCategoryBudget, onTripChange, currentTripId,
 } from '../../data/trip-context.ts';
 import {
   expenseCategoryStore, type StoredExpenseCategory,
@@ -549,7 +549,7 @@ function renderList(el: HTMLElement) {
 
 /* ── Render: analysis ────────────────────────────────────────────────────── */
 
-interface Row { label: string; sum: number; color: string; sub?: string; catId?: string; budget?: number; }
+interface Row { label: string; sum: number; color: string; sub?: string; catId?: string; budget?: number; isDay?: boolean; }
 
 /** Group expenses for the active dimension into sorted, displayable rows. */
 function analysisRows(): Row[] {
@@ -577,7 +577,7 @@ function analysisRows(): Row[] {
     for (const e of expenses) byDay.set(e.date, (byDay.get(e.date) ?? 0) + inBase(e));
     return [...byDay.entries()]
       .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-      .map(([date, sum]) => ({ label: date, sum, color: 'var(--accent)' }));
+      .map(([date, sum]) => ({ label: date, sum, color: 'var(--accent)', isDay: true }));
   }
 
   // country | city — total plus a per-day average using days at that place.
@@ -596,9 +596,23 @@ function analysisRows(): Row[] {
     .sort((a, b) => b.sum - a.sum);
 }
 
+function dailyBudgetAmount(): number | null {
+  const budget = tripBudget();
+  if (!budget) return null;
+  const legs = routeStore.peek().filter((l) => l.tripId === currentTripId());
+  if (!legs.length) return null;
+  const dates = legs.flatMap((l) => [l.dateFrom, l.dateTo]);
+  const minDate = dates.reduce((a, b) => (a < b ? a : b));
+  const maxDate = dates.reduce((a, b) => (a > b ? a : b));
+  const days = Math.max(1, Math.round((new Date(maxDate).getTime() - new Date(minDate).getTime()) / 86_400_000));
+  return budget / days;
+}
+
 function renderBreakdown(el: HTMLElement) {
   const rows = analysisRows();
   const maxAmount = Math.max(...rows.map((r) => r.sum), 1);
+  const dailyBudget = analysisDim === 'time' ? dailyBudgetAmount() : null;
+  const dailyBudgetPct = dailyBudget ? Math.min(100, (dailyBudget / maxAmount) * 100) : null;
 
   el.innerHTML = `
     <div class="exp-breakdown">
@@ -607,6 +621,12 @@ function renderBreakdown(el: HTMLElement) {
           <button class="exp-analysis-tab ${d.id === analysisDim ? 'active' : ''}" data-dim="${d.id}">${d.label}</button>
         `).join('')}
       </div>
+      ${dailyBudget && dailyBudgetPct ? `
+        <div class="exp-daily-budget-legend">
+          <span class="exp-daily-budget-swatch"></span>
+          Budget target: ${fmt(dailyBudget)}/day
+        </div>
+      ` : ''}
       ${rows.map((r) => {
         const hasBudget = (r.budget ?? 0) > 0;
         // When a budget exists, the bar tracks spend against the cap (capped at
@@ -615,23 +635,31 @@ function renderBreakdown(el: HTMLElement) {
           ? Math.min(100, (r.sum / r.budget!) * 100)
           : (r.sum / maxAmount) * 100;
         const usage = hasBudget ? (r.sum / r.budget!) : 0;
+        // For time rows: color by relation to daily budget if available.
+        const isOver = r.isDay && dailyBudget ? r.sum > dailyBudget : hasBudget && r.sum > r.budget!;
         const barColor = hasBudget
           ? (usage >= 1 ? 'var(--coral-500)' : usage >= 0.8 ? '#f59e0b' : 'var(--sage-500)')
-          : r.color;
+          : (r.isDay && dailyBudget
+            ? (r.sum > dailyBudget * 1.2 ? 'var(--coral-500)' : r.sum > dailyBudget ? '#f59e0b' : r.color)
+            : r.color);
         const budgetTag = hasBudget
           ? `<span class="exp-cat-name-sub">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' · over' : ''}</span>`
           : (r.sub ? `<span class="exp-cat-name-sub">${r.sub}</span>` : '');
         const setBtn = r.catId
           ? `<button class="exp-cat-budget-btn" data-cat-budget="${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
           : '';
+        const dailyLine = (r.isDay && dailyBudgetPct)
+          ? `<div class="exp-daily-budget-line" style="left:${dailyBudgetPct}%"></div>`
+          : '';
         return `
-          <div class="exp-cat-row${hasBudget && r.sum > r.budget! ? ' exp-cat-row-over' : ''}">
+          <div class="exp-cat-row${isOver ? ' exp-cat-row-over' : ''}">
             <div class="exp-cat-name">
               <span class="exp-cat-name-label">${r.label} ${setBtn}</span>
               ${budgetTag}
             </div>
             <div class="exp-cat-bar-track">
               <div class="exp-cat-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+              ${dailyLine}
             </div>
             <div class="exp-cat-amount">${fmt(r.sum)}</div>
           </div>

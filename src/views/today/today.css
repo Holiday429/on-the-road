@@ -1,31 +1,111 @@
 /* ==========================================================================
-   On the Road · Today dashboard
+   On the Road · Today dashboard (personal trip board)
    ========================================================================== */
 
 #view-today { animation: fadeUp var(--dur-mid) var(--ease-out); }
 
-.today-greeting {
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+.today-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  background: linear-gradient(135deg, var(--amber-50), #ffffff 70%);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-2xl);
+  padding: var(--sp-6) var(--sp-6);
+  margin-bottom: var(--sp-5);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+.today-hero-greet {
   font-family: var(--font-ui);
-  font-size: var(--fs-lg);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.today-hero-trip {
+  font-family: var(--font-ui);
+  font-size: var(--fs-3xl);
   font-weight: 700;
   color: var(--ink);
-  margin-bottom: var(--sp-4);
+  line-height: 1.1;
+  margin-top: 2px;
+}
+.today-hero-anchor {
+  font-size: var(--fs-md);
+  color: var(--ink-soft);
+  margin-top: var(--sp-2);
+}
+.today-hero-anchor strong { color: var(--accent-deep); font-weight: 700; }
+
+/* Slot for the decorative illustration (set a background-image later). */
+.today-hero-art {
+  width: 92px; height: 92px;
+  flex-shrink: 0;
+  border-radius: var(--r-xl);
+  background: var(--amber-100) center/contain no-repeat;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 44px;
+}
+.today-hero-art[data-art="before"]::before { content: '🧳'; }
+.today-hero-art[data-art="during"]::before { content: '✈️'; }
+.today-hero-art[data-art="after"]::before  { content: '📸'; }
+@media (max-width: 560px) { .today-hero-art { display: none; } }
+
+/* Phase progress rail */
+.today-phase {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+.today-phase-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+.today-phase-step i {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--surface-4);
+  flex-shrink: 0;
+}
+.today-phase-step.is-done { color: var(--ink-muted); }
+.today-phase-step.is-done i { background: var(--amber-300); }
+.today-phase-step.is-on { color: var(--accent-deep); }
+.today-phase-step.is-on i { background: var(--accent); box-shadow: 0 0 0 4px var(--amber-100); }
+.today-phase-rail {
+  flex: 1;
+  max-width: 28px;
+  height: 2px;
+  background: var(--surface-4);
+  border-radius: var(--r-full);
 }
 
+/* ── Bento grid ───────────────────────────────────────────────────────────── */
 .today-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--sp-4);
+  align-items: start;
 }
+.today-span-2 { grid-column: span 2; }
 @media (max-width: 720px) {
   .today-grid { grid-template-columns: 1fr; }
+  .today-span-2 { grid-column: span 1; }
 }
 
-/* ── Shared card shell ───────────────────────────────────────────────────── */
+/* ── Shared card shell ────────────────────────────────────────────────────── */
 .today-card {
   display: flex;
-  align-items: center;
-  gap: var(--sp-4);
+  flex-direction: column;
+  gap: var(--sp-3);
   width: 100%;
   text-align: left;
   background: var(--surface);
@@ -37,45 +117,32 @@
   cursor: pointer;
 }
 .today-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--amber-200); }
-.today-card:active { transform: scale(0.99); }
+.today-card:active { transform: scale(0.995); }
 
-.today-card-icon { font-size: 28px; flex-shrink: 0; }
-.today-card-body { flex: 1; min-width: 0; }
-.today-card-title {
-  font-family: var(--font-ui);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-  color: var(--ink);
-}
-.today-card-sub {
-  font-size: var(--fs-sm);
-  color: var(--ink-muted);
-  margin-top: 2px;
-}
-.today-card-arrow { font-size: 22px; color: var(--ink-faint); flex-shrink: 0; }
-.today-card-empty { opacity: 0.9; }
-
-.today-card-label {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--ink-muted);
-  letter-spacing: 0.01em;
-}
-.today-card-big {
-  font-family: var(--font-ui);
-  font-size: var(--fs-3xl);
-  font-weight: 700;
-  color: var(--ink);
-  line-height: 1.05;
-}
-.today-card-mid {
-  font-family: var(--font-ui);
-  font-size: var(--fs-xl);
-  font-weight: 700;
-  color: var(--ink-soft);
+/* Cards that wrap an inline action use a non-interactive shell + a tap zone. */
+.today-c-spend, .today-c-check, .today-c-safety, .today-c-safety-slim { cursor: default; }
+.today-c-spend:hover, .today-c-check:hover, .today-c-safety:hover { transform: none; box-shadow: var(--shadow-sm); }
+.today-card-tap {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
 }
 
-/* ── Location card ───────────────────────────────────────────────────────── */
+.today-c-head { display: flex; align-items: center; gap: var(--sp-4); }
+.today-c-emoji { font-size: 30px; flex-shrink: 0; }
+.today-c-title { font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700; color: var(--ink); }
+.today-c-sub { font-size: var(--fs-sm); color: var(--ink-muted); margin-top: 2px; }
+.today-c-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-muted); letter-spacing: 0.01em; }
+.today-c-big { font-family: var(--font-ui); font-size: var(--fs-3xl); font-weight: 700; color: var(--ink); line-height: 1.05; }
+.today-c-mid { font-family: var(--font-ui); font-size: var(--fs-xl); font-weight: 700; color: var(--ink-soft); }
+.today-c-row { display: flex; align-items: flex-end; justify-content: space-between; }
+.today-c-aside { text-align: right; }
+
+.today-c-mini { gap: var(--sp-2); }
+
+/* ── Location card ────────────────────────────────────────────────────────── */
+.today-c-loc { background: linear-gradient(135deg, #fffdf7, #ffffff); }
 .today-loc-flag { font-size: 34px; flex-shrink: 0; }
 .today-loc-status {
   display: inline-block;
@@ -86,29 +153,92 @@
   border-radius: var(--r-full);
   margin-bottom: 4px;
 }
-.today-loc-status-active   { background: #dcfce7; color: #15803d; }
-.today-loc-status-upcoming { background: var(--amber-100); color: var(--amber-700); }
-.today-loc-status-past     { background: var(--surface-3); color: var(--ink-muted); }
+.today-loc-status-during   { background: #dcfce7; color: #15803d; }
+.today-loc-status-before   { background: var(--amber-100); color: var(--amber-700); }
+.today-loc-status-after    { background: var(--surface-3); color: var(--ink-muted); }
+.today-loc-stay { font-size: var(--fs-sm); color: var(--ink-soft); }
 
-/* ── Budget card ─────────────────────────────────────────────────────────── */
-.today-card-budget { flex-direction: column; align-items: stretch; gap: var(--sp-3); }
-.today-card-row { display: flex; align-items: flex-end; justify-content: space-between; }
-.today-card-aside { text-align: right; }
-.today-budget-bar-track {
-  height: 8px;
-  background: var(--surface-3);
-  border-radius: var(--r-full);
-  overflow: hidden;
+/* Inline plan timeline + checklist next-item (shared row style) */
+.today-loc-timeline { display: flex; flex-direction: column; gap: 4px; }
+.today-tl-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px 8px;
+  border-radius: var(--r-md);
+  width: 100%;
+  text-align: left;
+  transition: background var(--dur-fast);
+  cursor: pointer;
 }
-.today-budget-bar-fill { height: 100%; border-radius: var(--r-full); transition: width var(--dur-slow) var(--ease-out); }
-.today-budget-foot { display: flex; align-items: center; justify-content: space-between; }
-.today-budget-remain { font-size: var(--fs-sm); font-weight: 600; color: #15803d; }
-.today-budget-over   { font-size: var(--fs-sm); font-weight: 600; color: var(--coral-500); }
-.today-budget-pct    { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted); }
-.today-budget-hint   { font-size: var(--fs-sm); color: var(--ink-faint); }
+.today-tl-row:hover { background: var(--surface-3); }
+.today-tl-check {
+  width: 18px; height: 18px;
+  border-radius: 6px;
+  border: 1.5px solid var(--surface-4);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
+.today-tl-row.is-done .today-tl-check { background: var(--sage-500); border-color: var(--sage-500); }
+.today-tl-text { font-size: var(--fs-sm); color: var(--ink-soft); }
+.today-tl-row.is-done .today-tl-text { color: var(--ink-faint); text-decoration: line-through; }
 
-/* ── Checklist ring ──────────────────────────────────────────────────────── */
-.today-check-ring {
+/* ── Spend card ───────────────────────────────────────────────────────────── */
+.today-bar-track { height: 8px; background: var(--surface-3); border-radius: var(--r-full); overflow: hidden; margin-top: var(--sp-3); }
+.today-bar-fill { height: 100%; border-radius: var(--r-full); transition: width var(--dur-slow) var(--ease-out); }
+.today-bar-foot { display: flex; align-items: center; justify-content: space-between; margin-top: var(--sp-2); }
+.today-money-remain { font-size: var(--fs-sm); font-weight: 600; color: #15803d; }
+.today-money-over   { font-size: var(--fs-sm); font-weight: 600; color: var(--coral-500); }
+.today-money-pct    { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted); }
+.today-money-hint   { font-size: var(--fs-sm); color: var(--ink-faint); }
+
+.today-quickadd-toggle {
+  align-self: flex-start;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--accent-deep);
+  background: var(--amber-50);
+  padding: 6px 14px;
+  border-radius: var(--r-full);
+  transition: background var(--dur-fast);
+}
+.today-quickadd-toggle:hover { background: var(--amber-100); }
+.today-quickadd-toggle.is-open { color: var(--ink-muted); background: var(--surface-3); }
+
+.today-quickadd {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  animation: fadeUp var(--dur-fast) var(--ease-out);
+}
+.today-quickadd-sym { font-family: var(--font-ui); font-weight: 700; color: var(--ink-muted); }
+.today-quickadd-amt, .today-quickadd-desc {
+  padding: 8px 12px;
+  border: 1.5px solid var(--surface-4);
+  border-radius: var(--r-md);
+  font-size: var(--fs-base);
+  outline: none;
+  min-width: 0;
+}
+.today-quickadd-amt { width: 90px; }
+.today-quickadd-desc { flex: 1; }
+.today-quickadd-amt:focus, .today-quickadd-desc:focus { border-color: var(--accent); }
+.today-quickadd-save {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--accent);
+  padding: 8px 16px;
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-amber);
+  flex-shrink: 0;
+}
+
+/* ── Checklist ring ───────────────────────────────────────────────────────── */
+.today-ring {
   --pct: 0;
   width: 56px; height: 56px;
   border-radius: 50%;
@@ -116,7 +246,7 @@
   display: flex; align-items: center; justify-content: center;
   background: conic-gradient(var(--amber-400) calc(var(--pct) * 1%), var(--surface-3) 0);
 }
-.today-check-ring span {
+.today-ring span {
   width: 42px; height: 42px;
   border-radius: 50%;
   background: var(--surface);
@@ -127,29 +257,14 @@
   color: var(--ink);
 }
 
-/* ── Safety card ─────────────────────────────────────────────────────────── */
-.today-card-safety {
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--sp-3);
-  cursor: default;
+/* ── Safety / SOS ─────────────────────────────────────────────────────────── */
+.today-c-safety {
   background: linear-gradient(135deg, #fff1f2, #ffffff);
   border-color: #fecaca;
 }
-.today-card-safety:hover { transform: none; box-shadow: var(--shadow-sm); border-color: #fecaca; }
-.today-sos-dial {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-top: 4px;
-}
+.today-sos-dial { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .today-sos-icon { font-size: 20px; }
-.today-sos-num {
-  font-family: var(--font-ui);
-  font-size: var(--fs-2xl);
-  font-weight: 700;
-  color: var(--coral-500);
-}
+.today-sos-num { font-family: var(--font-ui); font-size: var(--fs-2xl); font-weight: 700; color: var(--coral-500); }
 .today-sos-more {
   align-self: flex-start;
   font-family: var(--font-ui);
@@ -160,6 +275,6 @@
   padding: 6px 14px;
   border-radius: var(--r-full);
   transition: background var(--dur-fast);
-  cursor: pointer;
 }
 .today-sos-more:hover { background: var(--surface-4); }
+.today-c-safety-slim:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }

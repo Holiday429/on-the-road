@@ -381,6 +381,21 @@
 }
 .rd-placeholder-soft { border: none; padding: var(--sp-3) 0; }
 
+/* ── Plans onboarding banner ─────────────────────────────────────────────── */
+.rd-plans-onboard {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  background: #fffbeb; border: 1.5px dashed #fcd34d; border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3);
+  font-size: var(--fs-sm); color: var(--ink-soft);
+}
+.rd-plans-onboard strong { color: var(--ink); }
+.rd-plans-onboard-close {
+  background: none; border: none; cursor: pointer; font-size: var(--fs-sm);
+  color: var(--ink-faint); padding: 0 4px; flex-shrink: 0;
+  transition: color var(--dur-fast);
+}
+.rd-plans-onboard-close:hover { color: var(--ink); }
+
 /* ── Notes ───────────────────────────────────────────────────────────────── */
 .rd-note-grid {
   display: grid;

@@ -20,7 +20,7 @@ export interface LocationState {
   city: string;
   country: string;
   flag: string;
-  source: 'gps' | 'itinerary' | 'none';
+  source: 'gps' | 'itinerary' | 'none' | 'manual';
   card: StoredCitySafety | null;
   loading: boolean;
 }

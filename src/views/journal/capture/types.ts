@@ -19,6 +19,7 @@ export interface DraftState {
   happenedOn: string;
   coverImage: string;
   imageRatio: number | undefined;
+  linkedPlaces: string[];
 }
 
 export interface TemplateBuilderState {

@@ -19,6 +19,7 @@ import { openProfileSheet } from './profile-sheet.ts';
 import { openEssentialsSheet } from './essentials-sheet.ts';
 import { fetchCitySafety } from './generate.ts';
 import { escHtml as esc, slugId } from '../../core/utils.ts';
+import { openModal } from '../../core/modal.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let _cards: StoredCitySafety[] = [];
@@ -129,7 +130,9 @@ function renderSos(): string {
   // Only show a badge when GPS is actively confirmed; itinerary is the default, no need to label it
   const locBadge = _loc.source === 'gps'
     ? `<span class="sos-loc-badge sos-loc-badge-gps">📍 Live</span>`
-    : '';
+    : _loc.source === 'manual'
+      ? `<span class="sos-loc-badge sos-loc-badge-manual">✏️ Manual</span>`
+      : '';
 
   const nums = (card?.emergencyNumbers ?? []).filter((n) => n.number).slice(0, 4);
   const numChips = nums.length
@@ -146,7 +149,10 @@ function renderSos(): string {
         <div class="sos-loc-row">
           ${flag ? `<span class="sos-loc-flag">${esc(flag)}</span>` : ''}
           <div>
-            <div class="sos-label">${esc(cityName)}${country && country !== cityName ? ` <span class="sos-label-country">· ${esc(country)}</span>` : ''}</div>
+            <div class="sos-label">
+              ${esc(cityName)}${country && country !== cityName ? ` <span class="sos-label-country">· ${esc(country)}</span>` : ''}
+              <button class="sos-city-edit-btn" id="sos-city-edit" title="Change city">✏️</button>
+            </div>
             ${locBadge}
           </div>
         </div>
@@ -219,6 +225,13 @@ function wireAll(root: HTMLElement): void {
     shareBtn.addEventListener('click', shareLocation);
   }
 
+  // Manual city override
+  const cityEditBtn = root.querySelector<HTMLButtonElement>('#sos-city-edit');
+  if (cityEditBtn && !cityEditBtn.dataset.wired) {
+    cityEditBtn.dataset.wired = '1';
+    cityEditBtn.addEventListener('click', openCityPicker);
+  }
+
   wireLanding(root, {
     onCityClick: (card) => openCityModal(card, (c) => void generateForCity(c.city, c.country), () => {}),
     onCityGenerate: (city, country) => void generateForCity(city, country),
@@ -227,6 +240,37 @@ function wireAll(root: HTMLElement): void {
     onSearch: (city) => void generateForCity(city, ''),
     onLocationRefresh: () => { _gpsAttempted = false; void detectLocation(); },
   }, _cards);
+}
+
+// ── Manual city picker ────────────────────────────────────────────────────────
+function openCityPicker(): void {
+  const legs = [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  if (!legs.length) return;
+
+  const items = legs.map((l) =>
+    `<button class="sos-picker-item${_loc.city === l.city ? ' active' : ''}" data-city="${esc(l.city)}" data-country="${esc(l.country)}" data-flag="${esc(l.flag)}">
+      <span class="sos-picker-flag">${esc(l.flag)}</span>
+      <span class="sos-picker-city">${esc(l.city)}</span>
+      <span class="sos-picker-dates">${esc(l.dateFrom)} – ${esc(l.dateTo)}</span>
+    </button>`
+  ).join('');
+
+  const m = openModal({
+    title: 'Select city for SOS',
+    body: `<div class="sos-picker-list">${items}</div>`,
+    variant: 'sheet',
+  });
+
+  m.root.querySelectorAll<HTMLButtonElement>('.sos-picker-item').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const city = btn.dataset.city!;
+      const country = btn.dataset.country!;
+      const flag = btn.dataset.flag!;
+      _loc = { city, country, flag, source: 'manual', card: cardFor(city), loading: false };
+      renderAll();
+      m.close();
+    });
+  });
 }
 
 // ── Share location ────────────────────────────────────────────────────────────

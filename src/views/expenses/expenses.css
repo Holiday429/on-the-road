@@ -329,17 +329,27 @@
   box-shadow: var(--shadow-sm);
 }
 .exp-cat-bar-track {
-  flex: 1;
-  height: 6px;
-  background: var(--surface-3);
-  border-radius: var(--r-full);
-  overflow: hidden;
+  flex: 1; height: 6px;
+  background: var(--surface-3); border-radius: var(--r-full);
+  overflow: visible; position: relative;
 }
 .exp-cat-bar-fill {
-  height: 100%;
-  border-radius: var(--r-full);
+  height: 100%; border-radius: var(--r-full);
   background: var(--accent);
   transition: width var(--dur-slow) var(--ease-out);
+  overflow: hidden; position: relative; max-width: 100%;
+}
+.exp-daily-budget-line {
+  position: absolute; top: -3px; bottom: -3px; width: 2px;
+  background: #f59e0b; border-radius: 1px; pointer-events: none; z-index: 1;
+}
+.exp-daily-budget-legend {
+  display: flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-xs); color: var(--ink-muted); margin-bottom: var(--sp-3);
+}
+.exp-daily-budget-swatch {
+  display: inline-block; width: 12px; height: 3px;
+  background: #f59e0b; border-radius: 1px;
 }
 .exp-cat-amount {
   font-family: var(--font-ui);

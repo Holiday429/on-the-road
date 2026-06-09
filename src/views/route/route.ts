@@ -13,7 +13,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
-import { navigateTo } from '../../core/app.ts';
+import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
@@ -77,6 +77,7 @@ let legs: Leg[] = [];
 let addFormOpen = false;
 let selectedLegId: string | null = null;   // null = list view
 let _unsubRoute: (() => void) | null = null;
+let _navIntentBound = false;   // window listener for Today deep-links, bound once
 // IDs of legs whose note cards were just saved locally — suppress one Firestore echo re-render.
 const _notesSuppressed = new Set<string>();
 let _tripList: StoredTrip[] = [];          // cached for the add-form trip selector
@@ -942,6 +943,8 @@ function initPlanLeaflet(timeline: HTMLElement, leg: Leg) {
   void geocodePlanItems(leg);
 }
 
+const PLANS_ONBOARDED_KEY = 'route-plans-onboarded';
+
 function renderPlansSection(leg: Leg): string {
   const views: { id: PlanView; label: string }[] = [
     { id: 'board',    label: '📋 Board' },
@@ -962,6 +965,14 @@ function renderPlansSection(leg: Leg): string {
   else if (_planView === 'calendar') body = renderPlanCalendarView(leg);
   else body = renderPlanMapView(leg);
 
+  const showOnboard = !localStorage.getItem(PLANS_ONBOARDED_KEY) && !(leg.plans?.length);
+  const onboardBanner = showOnboard ? `
+    <div class="rd-plans-onboard" id="rd-plans-onboard">
+      <span>👆 Start with <strong>📋 Board</strong> — add plan items below, then assign them to days.</span>
+      <button class="rd-plans-onboard-close" data-act="dismiss-onboard" title="Dismiss">✕</button>
+    </div>
+  ` : '';
+
   return `
     <section class="rd-section" id="rd-plan-section">
       <div class="rd-section-head">
@@ -970,6 +981,7 @@ function renderPlansSection(leg: Leg): string {
           ${views.map(v => `<button class="rd-view-tab ${_planView === v.id ? 'is-active' : ''}" data-act="plan-view" data-view="${v.id}">${v.label}</button>`).join('')}
         </div>
       </div>
+      ${onboardBanner}
       ${body}
       <div class="rd-plan-add-form" id="rd-plan-add-form">
         <div class="rd-plan-add-row">
@@ -1001,6 +1013,7 @@ function renderDetail(leg: Leg): string {
           <span class="rd-title-country">${esc(leg.country)}</span>
         </div>
         <button class="btn btn-ghost rd-sm rd-guide-link" data-act="open-guide">${leg.flag || ''} City guide ↗</button>
+        <button class="btn btn-ghost rd-sm" data-act="open-compare">⚖ Compare</button>
       </div>
       <div class="rd-datebar">
         <span class="rd-status-pill status-${status}">${status === 'active' ? 'Here now' : status === 'past' ? 'Visited' : 'Upcoming'}</span>
@@ -1158,6 +1171,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     render();
   });
   on('open-guide', () => navigateTo('cities'));
+  on('open-compare', () => navigateTo('budget', { city: leg.city, dateFrom: leg.dateFrom } satisfies NavIntent));
 
   /* — Dates — */
   on('edit-dates', () => openDatesEditor(timeline, leg));
@@ -1300,6 +1314,11 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   on('plan-view', (el) => {
     _planView = el.dataset.view as PlanView;
     render();
+  });
+
+  on('dismiss-onboard', () => {
+    localStorage.setItem(PLANS_ONBOARDED_KEY, '1');
+    timeline.querySelector('#rd-plans-onboard')?.remove();
   });
 
   /* — Calendar nav — */
@@ -1841,6 +1860,21 @@ function openStayEditor(timeline: HTMLElement, leg: Leg, stayKey: string | null)
 
 /* ── Boot ───────────────────────────────────────────────────────────────── */
 
+/** Open a specific leg (and remember a day to scroll to) from a nav intent. */
+function applyNavIntent() {
+  const intent = consumeNavIntent('route');
+  if (!intent?.legId) return;
+  selectedLegId = intent.legId;
+  addFormOpen = false;
+  _calMonth = 0;
+  render();
+  const root = document.getElementById('view-route');
+  const target = intent.dayId
+    ? root?.querySelector<HTMLElement>(`[data-day-id="${intent.dayId}"]`)
+    : root?.querySelector<HTMLElement>('.route-timeline');
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 export function initRoute() {
   // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
   _unsubRoute?.();
@@ -1851,5 +1885,15 @@ export function initRoute() {
   _unsubRoute = routeStore.subscribe((rows) => {
     legs = sortLegs(rows as Leg[]);
     render();
+    applyNavIntent();
   });
+
+  // A re-activation (view already mounted) won't re-run init — listen so a
+  // Today deep-link can still open the right leg.
+  if (!_navIntentBound) {
+    _navIntentBound = true;
+    window.addEventListener('otr:nav-intent', (e) => {
+      if ((e as CustomEvent).detail?.view === 'route') applyNavIntent();
+    });
+  }
 }

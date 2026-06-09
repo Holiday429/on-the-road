@@ -80,7 +80,9 @@ function buildMapsEmbedUrl(spot: NomadSpot): string {
 
 export function openAddModal(
   onAdd: (spot: NomadSpot) => void,
-  onClose: () => void
+  onClose: () => void,
+  prefill?: { city?: string; country?: string },
+  legCities?: Array<{ city: string; country: string }>,
 ) {
   const ratings: NomadRatings = { wifi: 3, power: 3, restroom: 3, coffee: 3, service: 3 };
   let selectedPlaceId = '';
@@ -104,11 +106,12 @@ export function openAddModal(
           <div class="nomad-form-row" style="gap:var(--sp-3);margin-bottom:var(--sp-3)">
             <div class="nomad-field">
               <label>Country</label>
-              <input class="input" id="na-country" placeholder="Spain" required>
+              <input class="input" id="na-country" placeholder="Spain" required value="">
             </div>
             <div class="nomad-field">
               <label>City</label>
-              <input class="input" id="na-city" placeholder="Barcelona" required>
+              <input class="input" id="na-city" placeholder="Barcelona" required list="na-city-list" value="">
+              <datalist id="na-city-list"></datalist>
             </div>
           </div>
           <div class="nomad-field">
@@ -175,6 +178,27 @@ export function openAddModal(
   `;
 
   document.body.appendChild(backdrop);
+
+  // Populate city datalist from trip legs and apply prefill
+  const cityInput = backdrop.querySelector<HTMLInputElement>('#na-city')!;
+  const countryInput = backdrop.querySelector<HTMLInputElement>('#na-country')!;
+  const cityDatalist = backdrop.querySelector<HTMLDataListElement>('#na-city-list')!;
+
+  if (legCities?.length) {
+    legCities.forEach(({ city }) => {
+      const opt = document.createElement('option');
+      opt.value = city;
+      cityDatalist.appendChild(opt);
+    });
+    // Auto-fill country when a leg city is selected
+    cityInput.addEventListener('change', () => {
+      const match = legCities.find((l) => l.city.toLowerCase() === cityInput.value.trim().toLowerCase());
+      if (match && !countryInput.value.trim()) countryInput.value = match.country;
+    });
+  }
+
+  if (prefill?.city) cityInput.value = prefill.city;
+  if (prefill?.country) countryInput.value = prefill.country;
 
   const modal = backdrop.querySelector('.nomad-modal')!;
   const nameInput = backdrop.querySelector<HTMLInputElement>('#na-name')!;

@@ -8,6 +8,7 @@ import { currentTripId } from '../../data/trip-context.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { type NomadSpot, composite, scoreClass } from './nomad-types.ts';
 import { openAddModal, openDetailModal } from './nomad-modal.ts';
+import { routeStore } from '../../data/stores/route-store.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -181,6 +182,10 @@ export function initNomad() {
   });
 
   addBtn.addEventListener('click', () => {
+    const tripId = currentTripId();
+    const legCities = tripId
+      ? routeStore.peek().filter(l => l.tripId === tripId).map(l => ({ city: l.city, country: l.country }))
+      : [];
     openAddModal(
       (newSpot) => {
         void nomadStore.add({
@@ -199,7 +204,9 @@ export function initNomad() {
           ownerId: currentUser()?.uid ?? '',
         });
       },
-      () => {}
+      () => {},
+      undefined,
+      legCities,
     );
   });
 }
