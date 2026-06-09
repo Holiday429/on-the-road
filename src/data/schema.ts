@@ -553,9 +553,30 @@ export const SafetyProfileSchema = doc({
   insuranceHotline: z.string().default(''),     // hotline stored as single string (often intl already)
   insurancePdfUrl: z.string().default(''),      // Firebase Storage download URL
   insurancePdfName: z.string().default(''),     // original filename for display
+  medicalDocUrl: z.string().default(''),        // medical card / summary doc
+  medicalDocName: z.string().default(''),
   notes: z.string().default(''),
 });
 export type SafetyProfile = z.infer<typeof SafetyProfileSchema>;
+
+/* ── Safety content (remote-controlled, app-global) ─────────────────────────
+   Essentials checklists and any app-wide safety content editable via Firestore
+   without a code redeploy. Each doc id = group slug (e.g. 'accommodation').   */
+
+export const EssentialItemSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  sortOrder: z.number().default(0),
+});
+export type EssentialItem = z.infer<typeof EssentialItemSchema>;
+
+export const EssentialGroupSchema = doc({
+  icon: z.string().default('📋'),
+  title: z.string(),
+  sortOrder: z.number().default(0),
+  items: z.array(EssentialItemSchema).default([]),
+});
+export type EssentialGroup = z.infer<typeof EssentialGroupSchema>;
 
 // One labelled emergency number (Police / Ambulance / Fire / Women's helpline).
 export const SafetyNumberSchema = z.object({
