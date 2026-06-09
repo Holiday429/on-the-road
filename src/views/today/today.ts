@@ -13,7 +13,7 @@ import { journalStore, type StoredJournalEntry } from '../../data/stores/journal
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
 import { currentTrip, baseCurrency, tripBudget, onTripChange } from '../../data/trip-context.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES } from '../../data/rates.ts';
-import { navigateTo, type ViewId, type NavIntent } from '../../core/app.ts';
+import { navigateTo, type ViewId, type NavIntent, openNewTrip } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
@@ -86,7 +86,6 @@ function greetingWord(): string {
 }
 
 /* ── Currency pair for rate widget ───────────────────────────────────────── */
-// Maps country name substring → ISO code for the likely local currency.
 const COUNTRY_CURRENCY: Array<[string, string]> = [
   ['Denmark',     'DKK'], ['Sweden',     'SEK'], ['Norway',     'NOK'],
   ['Switzerland', 'CHF'], ['UK',         'GBP'], ['Britain',    'GBP'],
@@ -96,9 +95,19 @@ const COUNTRY_CURRENCY: Array<[string, string]> = [
 function localCurrency(): string {
   const leg = currentLeg();
   if (!leg) return 'USD';
-  // If base IS euro and leg is eurozone, show DKK as a useful pair instead.
   const match = COUNTRY_CURRENCY.find(([k]) => leg.country.includes(k));
   return match ? match[1] : (baseCurrency() === 'EUR' ? 'DKK' : 'EUR');
+}
+function tripCurrencies(): string[] {
+  const base = baseCurrency();
+  // Always show CNY (user's home currency) + base + trip-leg currencies, deduped
+  const seen = new Set<string>(['CNY', base]);
+  for (const leg of _legs) {
+    const match = COUNTRY_CURRENCY.find(([k]) => leg.country.includes(k));
+    if (match) seen.add(match[1]);
+  }
+  // Max 4 currencies to avoid overflow
+  return Array.from(seen).slice(0, 4);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -107,7 +116,11 @@ function localCurrency(): string {
 
 /* ── Greeting headline (above hero) ──────────────────────────────────────── */
 function renderGreeting(): string {
-  return `<div class="td-greeting">${greetingWord()}, ${esc(firstName())}! 👋</div>`;
+  return `
+    <div class="td-greeting-row">
+      <div class="td-greeting">${greetingWord()}, ${esc(firstName())}! 👋</div>
+      <button class="btn btn-ghost td-new-trip-btn" data-action="new-trip">+ New trip</button>
+    </div>`;
 }
 
 /* ── Hero banner ─────────────────────────────────────────────────────────── */
@@ -118,7 +131,11 @@ function renderHero(phase: Phase): string {
   const leg  = currentLeg();
   const ART  = `${(import.meta as any).env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
 
+  const TICON: Record<string, string> = { flight: '✈️', train: '🚂', bus: '🚌', ferry: '⛴️' };
+
   let anchor = '';
+  let details = '';
+
   if (phase === 'before' && leg) {
     const d = daysBetween(todayIso(), leg.dateFrom);
     anchor = `<strong>${d}</strong> day${d === 1 ? '' : 's'} to go · next stop ${esc(leg.flag)} ${esc(leg.city)}`;
@@ -127,25 +144,31 @@ function renderHero(phase: Phase): string {
     const dayN = daysBetween(leg.dateFrom, todayIso()) + 1;
     const tot  = daysBetween(leg.dateFrom, leg.dateTo) + 1;
     anchor = `${esc(leg.flag)} ${esc(leg.city)} · stop ${idx}/${legs.length} · day ${dayN} of ${tot}`;
+    // Transport + accommodation info chips
+    const chips: string[] = [];
+    const t = leg.arrivalTransport;
+    if (t) {
+      const icon = TICON[t.type] ?? '🚀';
+      const time = t.time ? ` ${t.time}` : '';
+      chips.push(`<span class="td-hero-chip td-hero-chip-transport">${icon} ${esc(t.from)} → ${esc(t.to)}${esc(time)}</span>`);
+    }
+    const accs = leg.accommodations?.length ? leg.accommodations : leg.accommodation ? [leg.accommodation] : [];
+    if (accs[0]) {
+      chips.push(`<span class="td-hero-chip td-hero-chip-acc">🏠 ${esc(accs[0].name)}</span>`);
+    }
+    if (chips.length) details = `<div class="td-hero-chips">${chips.join('')}</div>`;
   } else if (phase === 'after') {
     const countries = new Set(legs.map(l => l.country)).size;
     const len = trip ? daysBetween(trip.startDate, trip.endDate) + 1 : null;
     anchor = `Trip complete${len ? ` · ${len} days` : ''}${countries ? ` · ${countries} countr${countries === 1 ? 'y' : 'ies'}` : ''}`;
   }
 
-  const steps: Array<[Phase, string]> = [['before', 'Before'], ['during', 'On the road'], ['after', 'After']];
-  const phaseRail = steps.map(([p, label], i) => {
-    const active = p === phase;
-    const done   = steps.findIndex(s => s[0] === phase) > i;
-    return `${i > 0 ? '<span class="td-phase-rail"></span>' : ''}<span class="td-phase-step ${active ? 'is-on' : done ? 'is-done' : ''}"><i></i>${label}</span>`;
-  }).join('');
-
   return `
     <div class="td-hero" data-phase="${phase}">
       <div class="td-hero-left">
         <div class="td-hero-name">${esc(name)}</div>
         ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
-        <div class="td-phase">${phaseRail}</div>
+        ${details}
       </div>
       <img class="td-hero-logo" src="${ART}logo.gif" alt="On the Road">
     </div>`;
@@ -155,17 +178,25 @@ function renderHero(phase: Phase): string {
 function renderCurrencyWidget(): string {
   const base  = baseCurrency();
   const local = localCurrency();
-  const rate  = _rates[local] ? (1 / _rates[local]) : null; // 1 base = ? local
-  const displayRate = rate != null ? rate.toFixed(4) : '—';
+  const rate  = _rates[local] ? (1 / _rates[local]) : null;
   const inputAmt = _rateInput !== '' ? parseFloat(_rateInput) : null;
   const converted = (inputAmt != null && rate != null) ? (inputAmt * rate).toFixed(2) : '';
   const localFlag = CURRENCIES.find(c => c.code === local)?.flag ?? '';
   const baseFlag  = CURRENCIES.find(c => c.code === base)?.flag ?? '';
 
+  // Extra rate rows: all trip-relevant currencies vs base
+  const extras = tripCurrencies().filter(c => c !== local && c !== base);
+  const extraRows = extras.map(code => {
+    const r = _rates[code] ? (1 / _rates[code]) : null;
+    const flag = CURRENCIES.find(c => c.code === code)?.flag ?? '';
+    const display = r != null ? r.toFixed(4) : '—';
+    return `<div class="td-currency-extra">1 ${baseFlag} ${esc(base)} = <strong>${display}</strong> ${flag} ${esc(code)}</div>`;
+  }).join('');
+
   return `
     <div class="td-widget td-w-currency">
       <div class="td-widget-label">💱 Currency</div>
-      <div class="td-currency-rate">1 ${baseFlag} ${esc(base)} = <strong>${displayRate}</strong> ${localFlag} ${esc(local)}</div>
+      ${extraRows}
       <div class="td-currency-row">
         <div class="td-currency-side">
           <span class="td-currency-flag">${baseFlag}</span>
@@ -322,67 +353,84 @@ function renderMapWidget(): string {
     </div>`;
 }
 
-/* ── Upcoming itinerary widget ────────────────────────────────────────────── */
+/* ── Upcoming itinerary widget — plan-items feed for current destination ──── */
+const PLAN_CATEGORY_ICON: Record<string, string> = {
+  restaurant: '🍽️', food: '🍽️',
+  attraction: '🎡', sightseeing: '🎡',
+  museum: '🏛️',
+  activity: '🎯',
+  shopping: '🛍️',
+  transport: '🚉',
+  accommodation: '🏠',
+  cafe: '☕', coffee: '☕',
+  bar: '🍻', nightlife: '🎶',
+  nature: '🌿', park: '🌳',
+  event: '🎟️',
+};
+function planIcon(category: string): string {
+  const lc = (category ?? '').toLowerCase();
+  return PLAN_CATEGORY_ICON[lc] ?? '📌';
+}
+
 function renderUpcomingWidget(): string {
-  const today  = todayIso();
-  const leg    = currentLeg();
-  const sorted = sortedLegs();
+  const today = todayIso();
+  const leg   = currentLeg();
 
-  // Show current leg + next 2 upcoming
-  const display = leg
-    ? [leg, ...sorted.filter(l => l.dateFrom > today).slice(0, 2)]
-    : sorted.filter(l => l.dateFrom >= today).slice(0, 3);
-
-  if (!display.length) {
-    return `
-      <div class="td-widget td-w-upcoming">
-        <div class="td-widget-header">
-          <div class="td-widget-label">📍 Upcoming</div>
-          <button class="td-link" data-nav="route">Itinerary ›</button>
-        </div>
-        <div class="td-upcoming-empty">No itinerary yet — add stops in the Route view.</div>
-      </div>`;
+  if (!leg) {
+    const sorted = sortedLegs();
+    const next = sorted.find(l => l.dateFrom >= today);
+    if (!next) {
+      return `
+        <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
+          <div class="td-widget-header">
+            <div class="td-widget-label">📍 Plans</div>
+            <button class="td-link" data-nav="route">Itinerary ›</button>
+          </div>
+          <div class="td-upcoming-empty">No itinerary yet — add stops in the Route view.</div>
+        </div>`;
+    }
+    // Show next leg's plan items
+    return renderPlanFeed(next, false);
   }
 
-  const cards = display.map((l, i) => {
-    const isCurrent = l.id === leg?.id;
-    const daysLeft  = daysBetween(today, l.dateTo);
-    const daysAway  = !isCurrent ? daysBetween(today, l.dateFrom) : null;
-    const accs = l.accommodations?.length ? l.accommodations : l.accommodation ? [l.accommodation] : [];
-    const accName = accs[0]?.name ?? '';
-    const t = l.arrivalTransport;
-    const transportChip = t && i > 0
-      ? `<span class="td-up-chip td-up-transport">${
-          t.type === 'flight' ? '✈️' : t.type === 'train' ? '🚂' : t.type === 'bus' ? '🚌' : '⛴️'
-        } ${esc(t.from)} → ${esc(t.to)}</span>`
-      : '';
-    const plans = (l.plans ?? []).filter(p => !p.done);
-    const planChip = plans.length
-      ? `<span class="td-up-chip td-up-plans">${plans.length} plan item${plans.length > 1 ? 's' : ''}</span>` : '';
+  return renderPlanFeed(leg, true);
+}
 
-    return `
-      <div class="td-up-card ${isCurrent ? 'is-current' : ''}" data-nav="route" data-intent='${esc(JSON.stringify({ legId: l.id } satisfies NavIntent))}'>
-        <div class="td-up-flag">${esc(l.flag)}</div>
-        <div class="td-up-body">
-          <div class="td-up-city">${esc(l.city)}</div>
-          <div class="td-up-dates">${esc(l.dateFrom)} – ${esc(l.dateTo)}${
-            isCurrent ? ` · <strong>${daysLeft + 1} day${daysLeft > 0 ? 's' : ''} left</strong>` :
-            daysAway !== null ? ` · in ${daysAway} day${daysAway !== 1 ? 's' : ''}` : ''
-          }</div>
-          ${accName ? `<div class="td-up-acc">🏠 ${esc(accName)}</div>` : ''}
-          <div class="td-up-chips">${transportChip}${planChip}</div>
-        </div>
-        <span class="td-up-arrow">›</span>
-      </div>`;
-  }).join('');
+function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
+  const today = todayIso();
+  const plans = (leg.plans ?? []) as PlanItem[];
+  const sorted = [...plans].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const pending = sorted.filter(p => !p.done);
+  const done    = sorted.filter(p => p.done);
+  const displayed = [...pending, ...done].slice(0, 8);
+
+  const daysLeft = daysBetween(today, leg.dateTo);
+  const daysAway = !isCurrent ? daysBetween(today, leg.dateFrom) : null;
+  const subtitle = isCurrent
+    ? `Day ${daysBetween(leg.dateFrom, today) + 1} · ${daysLeft + 1} day${daysLeft > 0 ? 's' : ''} left`
+    : `In ${daysAway} day${daysAway !== 1 ? 's' : ''}`;
+
+  const items = displayed.length
+    ? displayed.map(p => {
+        const icon = planIcon(p.category ?? '');
+        return `
+          <div class="td-plan-row ${p.done ? 'is-done' : ''}" data-toggle-plan="${esc(leg.id)}:${esc(p.id)}">
+            <span class="td-plan-icon">${icon}</span>
+            <span class="td-plan-title">${esc(p.title)}</span>
+            <span class="td-plan-check">${p.done ? '✓' : ''}</span>
+          </div>`;
+      }).join('')
+    : `<div class="td-upcoming-empty">No plan items for this stop yet.</div>`;
 
   return `
-    <div class="td-widget td-w-upcoming">
+    <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
       <div class="td-widget-header">
-        <div class="td-widget-label">📍 Upcoming</div>
-        <button class="td-link" data-nav="route">Full itinerary ›</button>
+        <div class="td-widget-label">📍 ${esc(leg.flag)} ${esc(leg.city)}</div>
+        <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
       </div>
-      ${cards}
+      <div class="td-plan-subtitle">${esc(subtitle)}</div>
+      <div class="td-plan-feed">${items}</div>
+      ${pending.length > 8 ? `<div class="td-plan-more">+${pending.length - 8} more tasks</div>` : ''}
     </div>`;
 }
 
@@ -402,12 +450,11 @@ function renderJournalWidget(_phase: Phase): string {
     </button>`).join('');
 
   return `
-    <div class="td-widget td-w-journal">
+    <div class="td-widget td-w-journal" data-widget-id="journal">
       <div class="td-widget-header">
         <div class="td-widget-label">📔 Journal</div>
         <button class="td-link" data-nav="journal">All entries ›</button>
       </div>
-      <div class="td-jq-hint">Capture this moment</div>
       <div class="td-jq-grid">${buttons}</div>
     </div>`;
 }
@@ -492,27 +539,59 @@ function renderSafetyMini(): string {
     </div>`;
 }
 
+/* ── Widget order persistence ─────────────────────────────────────────────── */
+const LAYOUT_KEY = 'otr:dashboard-layout';
+const DEFAULT_ORDER = ['currency', 'calendar', 'todo', 'leftcol', 'map', 'upcoming', 'journal'];
+function savedOrder(): string[] {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as string[];
+      if (Array.isArray(parsed) && parsed.length === DEFAULT_ORDER.length) return parsed;
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_ORDER;
+}
+
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 function layout(phase: Phase): string {
   // Row 1: currency | calendar | todo  (3 equal cols)
   // Row 2: [spend / prep / safety stacked left] + [map tall right]
   // Row 3: upcoming (left) | journal quick-entry (right)
-  return `
-    <div class="td-grid">
-      ${renderCurrencyWidget()}
-      ${renderCalendarWidget()}
-      ${renderTodoWidget()}
-      <div class="td-left-col">
-        ${renderSpendWidget()}
-        <div class="td-mini-row">
-          ${renderPrepMini()}
-          ${renderSafetyMini()}
-        </div>
+  const calWidget = renderCalendarWidget();
+  const todoWidget = renderTodoWidget();
+  const currWidget = renderCurrencyWidget();
+  const leftCol = `
+    <div class="td-left-col td-draggable" data-widget-id="leftcol" draggable="true">
+      ${renderSpendWidget()}
+      <div class="td-mini-row">
+        ${renderPrepMini()}
+        ${renderSafetyMini()}
       </div>
-      ${renderMapWidget()}
-      ${renderUpcomingWidget()}
-      ${renderJournalWidget(phase)}
     </div>`;
+  const mapWidget = renderMapWidget();
+  const upWidget  = renderUpcomingWidget();
+  const jrnWidget = renderJournalWidget(phase);
+
+  // Inject data-widget-id and draggable on widget divs
+  function tag(html: string, id: string): string {
+    return html.replace(/^(\s*<div class="td-widget)/, `$1 td-draggable" data-widget-id="${id}" draggable="true`);
+  }
+
+  const widgetMap: Record<string, string> = {
+    currency: tag(currWidget, 'currency'),
+    calendar: tag(calWidget,  'calendar'),
+    todo:     tag(todoWidget, 'todo'),
+    leftcol:  leftCol,
+    map:      tag(mapWidget,  'map'),
+    upcoming: tag(upWidget,   'upcoming'),
+    journal:  tag(jrnWidget,  'journal'),
+  };
+
+  const order = savedOrder();
+  const widgets = order.map(id => widgetMap[id] ?? '').join('\n');
+
+  return `<div class="td-grid" id="td-grid">${widgets}</div>`;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -534,29 +613,55 @@ function openJournalComposer(template = 'moment', placeholder = 'What happened t
   const icon = ICON[template] ?? '📔';
   const leg = currentLeg();
   const today = todayIso();
+
+  // Destination options from legs
+  const legCities = sortedLegs().map(l => `<option value="${esc(l.city)}">${esc(l.flag)} ${esc(l.city)}</option>`).join('');
+
   const handle = openModal({
     title: `${icon} ${template.charAt(0).toUpperCase() + template.slice(1)}`,
     body: `
       <div class="td-compose-body">
+        <textarea class="input td-cmp-text" id="td-cmp-body" placeholder="${esc(placeholder)}" rows="5" autofocus></textarea>
         <input class="input" id="td-cmp-title" placeholder="Title (optional)">
-        <textarea class="input td-cmp-text" id="td-cmp-body" placeholder="${esc(placeholder)}" rows="5"></textarea>
+        <div class="td-compose-row">
+          <input class="input" id="td-cmp-date" type="date" value="${esc(today)}">
+          <select class="input" id="td-cmp-dest">
+            <option value="">Destination…</option>
+            ${legCities}
+            <option value="__custom__">Other…</option>
+          </select>
+        </div>
+        <input class="input" id="td-cmp-tags" placeholder="Tags (comma-separated)">
       </div>`,
     footer: `
       <button class="btn btn-ghost" id="td-cmp-cancel">Cancel</button>
       <button class="btn btn-primary" id="td-cmp-save">Save</button>`,
   });
 
+  // Pre-select current leg city if available
+  const destEl = handle.root.querySelector<HTMLSelectElement>('#td-cmp-dest');
+  if (destEl && leg) {
+    const opt = Array.from(destEl.options).find(o => o.value === leg.city);
+    if (opt) destEl.value = leg.city;
+  }
+
   handle.root.querySelector('#td-cmp-cancel')?.addEventListener('click', () => handle.close());
   handle.root.querySelector('#td-cmp-save')?.addEventListener('click', async () => {
-    const titleEl = handle.root.querySelector<HTMLInputElement>('#td-cmp-title');
     const bodyEl  = handle.root.querySelector<HTMLTextAreaElement>('#td-cmp-body');
-    const title   = titleEl?.value.trim() ?? '';
+    const titleEl = handle.root.querySelector<HTMLInputElement>('#td-cmp-title');
+    const dateEl  = handle.root.querySelector<HTMLInputElement>('#td-cmp-date');
+    const tagsEl  = handle.root.querySelector<HTMLInputElement>('#td-cmp-tags');
     const body    = bodyEl?.value.trim() ?? '';
     if (!body) { bodyEl?.focus(); return; }
+    const tags = tagsEl?.value.split(',').map(t => t.trim()).filter(Boolean) ?? [];
+    let destination = destEl?.value ?? '';
+    if (destination === '__custom__') destination = '';
     await journalStore.save({
-      title, body, template,
-      destination: leg?.city ?? '',
-      tags: [], happenedOn: today,
+      title:       titleEl?.value.trim() ?? '',
+      body, template,
+      destination,
+      tags,
+      happenedOn: dateEl?.value || today,
     });
     handle.close();
     render();
@@ -651,6 +756,68 @@ function wire(body: HTMLElement): void {
     if (!text) return;
     await todoStore.add({ text, dueDate: null });
     if (input) input.value = '';
+  });
+
+  // New trip button.
+  body.querySelector<HTMLButtonElement>('[data-action="new-trip"]')?.addEventListener('click', () => {
+    openNewTrip();
+  });
+
+  // Drag-and-drop widget reordering.
+  wireDragDrop(body);
+}
+
+function wireDragDrop(body: HTMLElement): void {
+  const grid = body.querySelector<HTMLElement>('#td-grid');
+  if (!grid) return;
+
+  let dragId: string | null = null;
+
+  grid.addEventListener('dragstart', e => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
+    if (!target) return;
+    dragId = target.dataset.widgetId ?? null;
+    target.classList.add('td-dragging');
+    e.dataTransfer!.effectAllowed = 'move';
+  });
+
+  grid.addEventListener('dragend', e => {
+    (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]')?.classList.remove('td-dragging');
+    grid.querySelectorAll('.td-drag-over').forEach(el => el.classList.remove('td-drag-over'));
+    dragId = null;
+  });
+
+  grid.addEventListener('dragover', e => {
+    e.preventDefault();
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
+    if (!target || target.dataset.widgetId === dragId) return;
+    grid.querySelectorAll('.td-drag-over').forEach(el => el.classList.remove('td-drag-over'));
+    target.classList.add('td-drag-over');
+  });
+
+  grid.addEventListener('drop', e => {
+    e.preventDefault();
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
+    if (!target || !dragId || target.dataset.widgetId === dragId) return;
+    target.classList.remove('td-drag-over');
+
+    // Reorder in DOM
+    const items = Array.from(grid.children) as HTMLElement[];
+    const fromIdx = items.findIndex(el => el.dataset.widgetId === dragId);
+    const toIdx   = items.findIndex(el => el.dataset.widgetId === target.dataset.widgetId);
+    if (fromIdx < 0 || toIdx < 0) return;
+
+    if (fromIdx < toIdx) {
+      grid.insertBefore(items[fromIdx], items[toIdx].nextSibling);
+    } else {
+      grid.insertBefore(items[fromIdx], items[toIdx]);
+    }
+
+    // Persist new order
+    const newOrder = (Array.from(grid.children) as HTMLElement[]).map(el => el.dataset.widgetId ?? '');
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(newOrder)); } catch { /* ignore */ }
+
+    dragId = null;
   });
 }
 

@@ -66,10 +66,10 @@ export async function initDashboardMap(
   world.mapPolygons.template.setAll({
     interactive:      false,
     fill:             am5.color(MAP_COLORS.land),
-    fillOpacity:      0.6,
+    fillOpacity:      0.9,
     stroke:           am5.color(MAP_COLORS.landStroke),
-    strokeWidth:      0.7,
-    strokeOpacity:    0.5,
+    strokeWidth:      1,
+    strokeOpacity:    1,
     nonScalingStroke: true,
   });
 
