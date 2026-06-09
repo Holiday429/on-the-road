@@ -1,14 +1,21 @@
 /* ==========================================================================
    On the Road · Dashboard
-   Flexible bento grid — warm amber, consistent with app tokens.
    ========================================================================== */
 
 #view-today { animation: fadeUp var(--dur-mid) var(--ease-out); }
+.today-body  { padding-top: var(--sp-5); }
 
-/* Top padding since Dashboard has no view-header */
-.today-body { padding-top: var(--sp-5); }
+/* ── Greeting headline (above banner) ────────────────────────────────────── */
+.td-greeting {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: var(--sp-3);
+  line-height: 1.15;
+}
 
-/* ── Hero ─────────────────────────────────────────────────────────────────── */
+/* ── Hero banner ─────────────────────────────────────────────────────────── */
 .td-hero {
   display: flex;
   align-items: center;
@@ -20,23 +27,15 @@
   padding: var(--sp-4) var(--sp-6);
   margin-bottom: var(--sp-4);
   box-shadow: var(--shadow-sm);
-  position: relative;
   overflow: hidden;
 }
-/* The greeting IS the big headline */
-.td-hero-greet {
-  font-family: var(--font-ui);
-  font-size: var(--fs-2xl);
-  font-weight: 700;
-  color: var(--ink);
-  line-height: 1.15;
-}
+.td-hero-left { flex: 1; min-width: 0; }
 .td-hero-name {
   font-family: var(--font-ui);
-  font-size: var(--fs-lg);
-  font-weight: 600;
-  color: var(--ink-soft);
-  margin-top: 2px;
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
 }
 .td-hero-anchor {
   font-size: var(--fs-sm);
@@ -44,11 +43,8 @@
   margin-top: var(--sp-1);
 }
 .td-hero-anchor strong { color: var(--accent-deep); font-weight: 700; }
-
-/* Logo — no background, just the GIF */
 .td-hero-logo {
-  width: 76px;
-  height: 76px;
+  width: 68px; height: 68px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -62,74 +58,67 @@
   margin-top: var(--sp-3);
 }
 .td-phase-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
   color: var(--ink-faint);
 }
 .td-phase-step i {
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  background: var(--surface-4);
-  flex-shrink: 0;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--surface-4); flex-shrink: 0;
 }
 .td-phase-step.is-done { color: var(--ink-muted); }
 .td-phase-step.is-done i { background: var(--amber-300); }
 .td-phase-step.is-on { color: var(--accent-deep); }
 .td-phase-step.is-on i { background: var(--accent); box-shadow: 0 0 0 3px var(--amber-100); }
-.td-phase-rail {
-  width: 28px; height: 2px;
-  background: var(--surface-4);
-  border-radius: var(--r-full);
-  flex-shrink: 0;
-}
+.td-phase-rail { width: 24px; height: 2px; background: var(--surface-4); border-radius: var(--r-full); flex-shrink: 0; }
 
 /* ── Bento grid ──────────────────────────────────────────────────────────────
-   4 columns: [currency 200px] [cal col-A] [cal+todo col-B] [map col-C]
-   Map spans rows 1–3 (tall right column).
+   3-col equal top row: currency | calendar | todo
+   2-col main row:      [left-col: spend+mini] | [map: tall right]
+   2-col bottom row:    upcoming | journal-quick
    ─────────────────────────────────────────────────────────────────────────── */
 .td-grid {
   display: grid;
-  grid-template-columns: 200px 1fr 1fr 1.5fr;
-  grid-auto-rows: auto;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: var(--sp-4);
   align-items: start;
 }
 
-/* Row 1 */
-.td-w-currency { grid-column: 1;          grid-row: 1; }
-.td-w-calendar { grid-column: 2 / span 2; grid-row: 1; }
-.td-w-map      { grid-column: 4;          grid-row: 1 / span 3; }
+/* Row 1: 3 equal cols */
+.td-w-currency { grid-column: 1; }
+.td-w-calendar { grid-column: 2; }
+.td-w-todo     { grid-column: 3; }
 
-/* Row 2 */
-.td-w-todo     { grid-column: 1 / span 3; grid-row: 2; }
+/* Row 2: left-col spans 2, map spans 1 */
+.td-left-col   { grid-column: 1 / span 2; display: flex; flex-direction: column; gap: var(--sp-4); }
+.td-w-map      { grid-column: 3; }
 
-/* Row 3 */
-.td-w-spend    { grid-column: 1 / span 3; grid-row: 3; }
+/* Row 3: upcoming (2 cols) + journal (1 col) */
+.td-w-upcoming { grid-column: 1 / span 2; }
+.td-w-journal  { grid-column: 3; }
 
-/* Row 4 */
-.td-w-journal  { grid-column: 1 / span 2; grid-row: 4; }
-.td-w-prep     { grid-column: 3;          grid-row: 4; }
-.td-w-safety   { grid-column: 4;          grid-row: 4; }
-
-@media (max-width: 1000px) {
-  .td-grid { grid-template-columns: 1fr 1fr 1fr; }
-  .td-w-currency { grid-column: 1;          grid-row: auto; }
-  .td-w-calendar { grid-column: 2 / span 2; grid-row: auto; }
-  .td-w-map      { grid-column: 1 / span 3; grid-row: auto; min-height: 240px; }
-  .td-w-todo     { grid-column: 1 / span 3; grid-row: auto; }
-  .td-w-spend    { grid-column: 1 / span 3; grid-row: auto; }
-  .td-w-journal  { grid-column: 1 / span 2; grid-row: auto; }
-  .td-w-prep     { grid-column: 3;          grid-row: auto; }
-  .td-w-safety   { grid-column: 1 / span 3; grid-row: auto; }
+/* Mini row inside left-col */
+.td-mini-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
 }
-@media (max-width: 640px) {
+
+@media (max-width: 900px) {
+  .td-grid { grid-template-columns: 1fr 1fr; }
+  .td-w-currency { grid-column: 1; }
+  .td-w-calendar { grid-column: 2; }
+  .td-w-todo     { grid-column: 1 / span 2; }
+  .td-left-col   { grid-column: 1 / span 2; }
+  .td-w-map      { grid-column: 1 / span 2; }
+  .td-w-upcoming { grid-column: 1 / span 2; }
+  .td-w-journal  { grid-column: 1 / span 2; }
+}
+@media (max-width: 560px) {
   .td-grid { grid-template-columns: 1fr; }
-  .td-w-currency,.td-w-calendar,.td-w-map,.td-w-todo,
-  .td-w-spend,.td-w-journal,.td-w-prep,.td-w-safety { grid-column: 1; grid-row: auto; }
+  .td-w-currency,.td-w-calendar,.td-w-todo,.td-left-col,
+  .td-w-map,.td-w-upcoming,.td-w-journal { grid-column: 1; }
+  .td-mini-row { grid-template-columns: 1fr; }
 }
 
 /* ── Widget shell ─────────────────────────────────────────────────────────── */
@@ -151,156 +140,69 @@
 .td-widget[data-nav]:active { transform: scale(0.995); }
 
 .td-widget-label {
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  color: var(--ink-muted);
-  letter-spacing: 0.01em;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
+  color: var(--ink-muted); letter-spacing: 0.01em;
 }
 .td-widget-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
 }
 .td-link {
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  color: var(--accent-deep);
-  cursor: pointer;
-  background: none;
-  flex-shrink: 0;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
+  color: var(--accent-deep); cursor: pointer; background: none; flex-shrink: 0;
 }
 .td-link:hover { text-decoration: underline; }
 
-/* ── Currency widget ──────────────────────────────────────────────────────── */
-.td-currency-rate {
-  font-size: var(--fs-xs);
-  color: var(--ink-soft);
-}
+/* ── Currency ─────────────────────────────────────────────────────────────── */
+.td-currency-rate { font-size: var(--fs-xs); color: var(--ink-soft); }
 .td-currency-rate strong { font-weight: 700; color: var(--ink); font-family: var(--font-ui); }
-.td-currency-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
+.td-currency-row { display: flex; align-items: center; gap: var(--sp-2); }
 .td-currency-side {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--surface-3);
-  border-radius: var(--r-md);
-  padding: 7px 8px;
-  min-width: 0;
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 4px;
+  background: var(--surface-3); border-radius: var(--r-md); padding: 7px 8px;
 }
 .td-currency-result { background: var(--amber-50); }
 .td-currency-flag { font-size: 14px; flex-shrink: 0; }
 .td-currency-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--ink);
-  outline: none;
-  width: 0; /* let flex control width */
+  flex: 1; min-width: 0; width: 0;
+  border: none; background: transparent;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600;
+  color: var(--ink); outline: none;
 }
 .td-currency-value {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  color: var(--accent-deep);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex: 1; min-width: 0;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
+  color: var(--accent-deep); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.td-currency-code {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--ink-muted);
-  flex-shrink: 0;
-}
-.td-currency-swap {
-  font-size: 16px;
-  color: var(--ink-faint);
-  flex-shrink: 0;
-}
+.td-currency-code { font-size: 10px; font-weight: 700; color: var(--ink-muted); flex-shrink: 0; }
+.td-currency-swap { font-size: 16px; color: var(--ink-faint); flex-shrink: 0; }
 
-/* ── Calendar widget (compact/square) ────────────────────────────────────── */
-.td-cal-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-}
+/* ── Calendar mini ────────────────────────────────────────────────────────── */
+.td-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
 .td-cal-hdr {
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--ink-faint);
-  text-align: center;
-  padding: 2px 0 3px;
+  font-family: var(--font-ui); font-size: 10px; font-weight: 700;
+  color: var(--ink-faint); text-align: center; padding: 2px 0 3px;
 }
 .td-cal-cell {
-  position: relative;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--ink-soft);
-  text-align: center;
-  padding: 4px 1px 8px;
-  border-radius: var(--r-sm);
-  line-height: 1;
+  position: relative; font-size: 11px; font-weight: 500; color: var(--ink-soft);
+  text-align: center; padding: 4px 1px 8px; border-radius: var(--r-sm); line-height: 1;
 }
 .td-cal-cell.td-cal-empty { visibility: hidden; }
 .td-cal-cell.is-today {
-  background: var(--accent);
-  color: var(--ink);
-  font-weight: 700;
-  border-radius: 50%;
-  width: 24px; height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
-  padding: 0;
+  background: var(--accent); color: var(--ink); font-weight: 700; border-radius: 50%;
+  width: 24px; height: 24px; display: inline-flex; align-items: center;
+  justify-content: center; margin: 0 auto; padding: 0;
 }
 .td-cal-dots {
-  position: absolute;
-  bottom: 1px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 2px;
+  position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 2px;
 }
-.td-cal-dot {
-  display: inline-block;
-  width: 4px; height: 4px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.td-cal-legend {
-  display: flex;
-  gap: var(--sp-2);
-  font-size: 10px;
-  color: var(--ink-muted);
-  flex-wrap: wrap;
-}
-.td-cal-legend span {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
+.td-cal-dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
+.td-cal-legend { display: flex; gap: var(--sp-2); font-size: 10px; color: var(--ink-muted); flex-wrap: wrap; }
+.td-cal-legend span { display: flex; align-items: center; gap: 3px; }
 
-/* ── Spend widget ─────────────────────────────────────────────────────────── */
-.td-spend-top {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-}
+/* ── Spend ────────────────────────────────────────────────────────────────── */
+.td-spend-top { display: flex; align-items: flex-end; justify-content: space-between; }
 .td-spend-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-muted); }
 .td-spend-big { font-family: var(--font-ui); font-size: var(--fs-2xl); font-weight: 700; color: var(--ink); line-height: 1.05; }
 .td-spend-mid { font-family: var(--font-ui); font-size: var(--fs-xl); font-weight: 700; color: var(--ink-soft); }
@@ -312,126 +214,56 @@
 .td-over   { font-size: var(--fs-xs); font-weight: 600; color: var(--coral-500); }
 .td-pct    { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-muted); }
 
-/* Quick-add form */
-.td-quickadd {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
+.td-quickadd { display: flex; align-items: center; gap: var(--sp-2); }
 .td-quickadd-sym { font-family: var(--font-ui); font-weight: 700; color: var(--ink-muted); flex-shrink: 0; }
 .td-quickadd-amt {
-  width: 80px;
-  flex-shrink: 0;
-  padding: 6px 8px;
-  border: 1.5px solid var(--surface-4);
-  border-radius: var(--r-md);
-  font-size: var(--fs-sm);
-  outline: none;
-  background: var(--surface);
+  width: 80px; flex-shrink: 0; padding: 6px 8px;
+  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
+  font-size: var(--fs-sm); outline: none; background: var(--surface);
 }
 .td-quickadd-desc {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 8px;
-  border: 1.5px solid var(--surface-4);
-  border-radius: var(--r-md);
-  font-size: var(--fs-sm);
-  outline: none;
-  background: var(--surface);
+  flex: 1; min-width: 0; padding: 6px 8px;
+  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
+  font-size: var(--fs-sm); outline: none; background: var(--surface);
 }
 .td-quickadd-amt:focus, .td-quickadd-desc:focus { border-color: var(--accent); }
 .td-quickadd-save { flex-shrink: 0; padding: 6px 14px; font-size: var(--fs-sm); }
 
-/* 30-day bar chart */
 .td-barchart {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 44px;
-  padding-top: 2px;
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 40px; padding-top: 2px;
 }
-.td-bar {
-  flex: 1;
-  min-width: 2px;
-  background: var(--surface-4);
-  border-radius: 2px 2px 0 0;
-  transition: background var(--dur-fast);
-}
+.td-bar { flex: 1; min-width: 2px; background: var(--surface-4); border-radius: 2px 2px 0 0; transition: background var(--dur-fast); }
 .td-bar.is-today { background: var(--amber-400); }
 .td-bar:hover    { background: var(--amber-300); }
-.td-barchart-label {
-  font-size: 10px;
-  color: var(--ink-faint);
-  text-align: right;
-}
+.td-barchart-label { font-size: 10px; color: var(--ink-faint); text-align: right; }
 
-/* ── Map widget ───────────────────────────────────────────────────────────── */
-.td-w-map {
-  /* No cursor pointer on shell — use the "Full map" button instead */
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-}
+/* ── Map ──────────────────────────────────────────────────────────────────── */
+.td-w-map { display: flex; flex-direction: column; gap: var(--sp-3); }
 .td-map-container {
-  flex: 1;
-  min-height: 260px;
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  background: var(--surface-3);
+  flex: 1; min-height: 300px;
+  border-radius: var(--r-lg); overflow: hidden; background: var(--surface-3);
 }
 .td-map-legend {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  font-size: 10px;
-  color: var(--ink-muted);
+  display: flex; align-items: center; gap: var(--sp-3);
+  font-size: 10px; color: var(--ink-muted);
 }
 .td-map-dot {
-  display: inline-block;
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 1.5px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
 }
-
-/* ── Journal widget ───────────────────────────────────────────────────────── */
-.td-journal-entry {
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--surface-3);
-  border-radius: var(--r-md);
-  cursor: pointer;
-  transition: background var(--dur-fast);
-}
-.td-journal-entry:hover { background: var(--surface-4); }
-.td-journal-date  { font-size: 10px; color: var(--ink-faint); margin-bottom: 2px; }
-.td-journal-title { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-soft); }
-.td-journal-empty { font-size: var(--fs-sm); color: var(--ink-faint); font-style: italic; }
-.td-journal-compose { align-self: flex-start; padding: 7px 14px; font-size: var(--fs-sm); }
-
-/* Journal composer modal body */
-.td-compose-body { display: flex; flex-direction: column; gap: var(--sp-3); }
-.td-cmp-text { resize: vertical; min-height: 100px; }
 
 /* ── Prep mini ────────────────────────────────────────────────────────────── */
 .td-prep-row { display: flex; align-items: center; gap: var(--sp-3); }
 .td-prep-ring {
-  --pct: 0;
-  width: 44px; height: 44px;
-  border-radius: 50%;
-  flex-shrink: 0;
+  --pct: 0; width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: conic-gradient(var(--amber-400) calc(var(--pct) * 1%), var(--surface-3) 0);
 }
 .td-prep-ring span {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  background: var(--surface);
+  width: 28px; height: 28px; border-radius: 50%; background: var(--surface);
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--ink);
+  font-family: var(--font-ui); font-size: 10px; font-weight: 700; color: var(--ink);
 }
 .td-prep-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
 .td-prep-sub   { font-size: var(--fs-xs); color: var(--ink-muted); }
@@ -440,65 +272,83 @@
 .td-safety-city { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
 .td-safety-hint { font-size: var(--fs-xs); color: var(--ink-muted); }
 
-/* ── To-do widget ─────────────────────────────────────────────────────────── */
+/* ── To-do ────────────────────────────────────────────────────────────────── */
 .td-todo-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
+  display: flex; align-items: center; gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r-md);
-  background: var(--surface-3);
+  border-radius: var(--r-md); background: var(--surface-3);
   transition: background var(--dur-fast);
 }
 .td-todo-row:hover { background: var(--surface-4); }
 .td-todo-check {
-  width: 18px; height: 18px;
-  border-radius: 5px;
-  border: 1.5px solid var(--surface-4);
-  flex-shrink: 0;
-  background: transparent;
-  transition: background var(--dur-fast), border-color var(--dur-fast);
-  cursor: pointer;
+  width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--surface-4);
+  flex-shrink: 0; background: transparent;
+  transition: background var(--dur-fast), border-color var(--dur-fast); cursor: pointer;
 }
 .td-todo-check:hover { border-color: var(--sage-500); background: var(--amber-50); }
-.td-todo-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
+.td-todo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .td-todo-label {
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--ink-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .td-todo-due { font-size: 10px; color: var(--ink-faint); }
 .td-todo-due.is-overdue { color: var(--coral-500); font-weight: 600; }
-.td-todo-empty {
-  font-size: var(--fs-sm);
-  color: var(--ink-faint);
-  font-style: italic;
-  padding: var(--sp-1) 0;
-}
-.td-todo-add {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
+.td-todo-empty { font-size: var(--fs-sm); color: var(--ink-faint); font-style: italic; padding: var(--sp-1) 0; }
+.td-todo-add { display: flex; align-items: center; gap: var(--sp-2); }
 .td-todo-add-input {
-  flex: 1;
-  min-width: 0;
-  padding: 6px 10px;
-  border: 1.5px solid var(--surface-4);
-  border-radius: var(--r-md);
-  font-size: var(--fs-sm);
-  outline: none;
-  background: var(--surface);
-  color: var(--ink);
+  flex: 1; min-width: 0; padding: 6px 10px;
+  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
+  font-size: var(--fs-sm); outline: none; background: var(--surface); color: var(--ink);
 }
 .td-todo-add-input:focus { border-color: var(--accent); }
 .td-todo-add-btn { flex-shrink: 0; padding: 6px 12px; font-size: var(--fs-sm); }
+
+/* ── Upcoming itinerary ───────────────────────────────────────────────────── */
+.td-up-card {
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-3); border-radius: var(--r-md);
+  background: var(--surface-3); cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.td-up-card:hover { background: var(--surface-4); }
+.td-up-card.is-current {
+  background: var(--amber-50); border-left: 3px solid var(--accent);
+  padding-left: calc(var(--sp-3) - 3px);
+}
+.td-up-flag { font-size: 26px; flex-shrink: 0; line-height: 1; margin-top: 2px; }
+.td-up-body { flex: 1; min-width: 0; }
+.td-up-city {
+  font-family: var(--font-ui); font-size: var(--fs-base); font-weight: 700; color: var(--ink);
+}
+.td-up-dates { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; }
+.td-up-dates strong { color: var(--accent-deep); }
+.td-up-acc  { font-size: var(--fs-xs); color: var(--ink-faint); margin-top: 2px; }
+.td-up-chips { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: 5px; }
+.td-up-chip {
+  font-size: 10px; font-weight: 600; border-radius: var(--r-sm); padding: 2px 7px;
+}
+.td-up-transport { background: var(--amber-50); color: var(--amber-700); border: 1px solid var(--amber-200); }
+.td-up-plans     { background: var(--surface); color: var(--ink-muted); border: 1px solid var(--rule-soft); }
+.td-up-arrow { margin-left: auto; color: var(--ink-faint); font-size: 18px; flex-shrink: 0; align-self: center; }
+.td-upcoming-empty { font-size: var(--fs-sm); color: var(--ink-faint); font-style: italic; }
+
+/* ── Journal quick-entry ──────────────────────────────────────────────────── */
+.td-jq-hint { font-size: var(--fs-xs); color: var(--ink-faint); }
+.td-jq-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2);
+}
+.td-jq-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: var(--sp-3) var(--sp-2);
+  background: var(--surface-3); border-radius: var(--r-md);
+  border: 1.5px solid transparent;
+  cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast);
+  text-align: center;
+}
+.td-jq-btn:hover { background: var(--amber-50); border-color: var(--amber-200); }
+.td-jq-icon  { font-size: 22px; line-height: 1; }
+.td-jq-label { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; color: var(--ink-soft); }
+
+/* Journal composer modal */
+.td-compose-body { display: flex; flex-direction: column; gap: var(--sp-3); }
+.td-cmp-text { resize: vertical; min-height: 100px; }

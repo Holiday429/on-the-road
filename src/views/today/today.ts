@@ -105,7 +105,12 @@ function localCurrency(): string {
    WIDGET RENDERERS
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* ── Hero ─────────────────────────────────────────────────────────────────── */
+/* ── Greeting headline (above hero) ──────────────────────────────────────── */
+function renderGreeting(): string {
+  return `<div class="td-greeting">${greetingWord()}, ${esc(firstName())}! 👋</div>`;
+}
+
+/* ── Hero banner ─────────────────────────────────────────────────────────── */
 function renderHero(phase: Phase): string {
   const trip = currentTrip();
   const name = trip?.name ?? 'Your trip';
@@ -138,7 +143,6 @@ function renderHero(phase: Phase): string {
   return `
     <div class="td-hero" data-phase="${phase}">
       <div class="td-hero-left">
-        <div class="td-hero-greet">${greetingWord()}, ${esc(firstName())}! 👋</div>
         <div class="td-hero-name">${esc(name)}</div>
         ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
         <div class="td-phase">${phaseRail}</div>
@@ -318,28 +322,93 @@ function renderMapWidget(): string {
     </div>`;
 }
 
-/* ── Journal widget ───────────────────────────────────────────────────────── */
-function renderJournalWidget(phase: Phase): string {
-  const recent = [..._journal]
-    .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn))
-    .slice(0, 2);
+/* ── Upcoming itinerary widget ────────────────────────────────────────────── */
+function renderUpcomingWidget(): string {
+  const today  = todayIso();
+  const leg    = currentLeg();
+  const sorted = sortedLegs();
 
-  const entries = recent.map(e => `
-    <div class="td-journal-entry" data-nav="journal">
-      <div class="td-journal-date">${esc(e.happenedOn)}</div>
-      <div class="td-journal-title">${esc(e.title || e.body.slice(0, 60))}</div>
-    </div>`).join('');
+  // Show current leg + next 2 upcoming
+  const display = leg
+    ? [leg, ...sorted.filter(l => l.dateFrom > today).slice(0, 2)]
+    : sorted.filter(l => l.dateFrom >= today).slice(0, 3);
 
-  const cta = phase === 'after' ? 'Make your trip recap →' : 'Write a moment →';
+  if (!display.length) {
+    return `
+      <div class="td-widget td-w-upcoming">
+        <div class="td-widget-header">
+          <div class="td-widget-label">📍 Upcoming</div>
+          <button class="td-link" data-nav="route">Itinerary ›</button>
+        </div>
+        <div class="td-upcoming-empty">No itinerary yet — add stops in the Route view.</div>
+      </div>`;
+  }
+
+  const cards = display.map((l, i) => {
+    const isCurrent = l.id === leg?.id;
+    const daysLeft  = daysBetween(today, l.dateTo);
+    const daysAway  = !isCurrent ? daysBetween(today, l.dateFrom) : null;
+    const accs = l.accommodations?.length ? l.accommodations : l.accommodation ? [l.accommodation] : [];
+    const accName = accs[0]?.name ?? '';
+    const t = l.arrivalTransport;
+    const transportChip = t && i > 0
+      ? `<span class="td-up-chip td-up-transport">${
+          t.type === 'flight' ? '✈️' : t.type === 'train' ? '🚂' : t.type === 'bus' ? '🚌' : '⛴️'
+        } ${esc(t.from)} → ${esc(t.to)}</span>`
+      : '';
+    const plans = (l.plans ?? []).filter(p => !p.done);
+    const planChip = plans.length
+      ? `<span class="td-up-chip td-up-plans">${plans.length} plan item${plans.length > 1 ? 's' : ''}</span>` : '';
+
+    return `
+      <div class="td-up-card ${isCurrent ? 'is-current' : ''}" data-nav="route" data-intent='${esc(JSON.stringify({ legId: l.id } satisfies NavIntent))}'>
+        <div class="td-up-flag">${esc(l.flag)}</div>
+        <div class="td-up-body">
+          <div class="td-up-city">${esc(l.city)}</div>
+          <div class="td-up-dates">${esc(l.dateFrom)} – ${esc(l.dateTo)}${
+            isCurrent ? ` · <strong>${daysLeft + 1} day${daysLeft > 0 ? 's' : ''} left</strong>` :
+            daysAway !== null ? ` · in ${daysAway} day${daysAway !== 1 ? 's' : ''}` : ''
+          }</div>
+          ${accName ? `<div class="td-up-acc">🏠 ${esc(accName)}</div>` : ''}
+          <div class="td-up-chips">${transportChip}${planChip}</div>
+        </div>
+        <span class="td-up-arrow">›</span>
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="td-widget td-w-upcoming">
+      <div class="td-widget-header">
+        <div class="td-widget-label">📍 Upcoming</div>
+        <button class="td-link" data-nav="route">Full itinerary ›</button>
+      </div>
+      ${cards}
+    </div>`;
+}
+
+/* ── Journal quick-entry widget ───────────────────────────────────────────── */
+function renderJournalWidget(_phase: Phase): string {
+  const ENTRY_TYPES: Array<{ template: string; icon: string; label: string; placeholder: string }> = [
+    { template: 'moment',      icon: '✨', label: 'Moment',      placeholder: 'A feeling, a scene, a flash of something real…' },
+    { template: 'note',        icon: '📝', label: 'Note',        placeholder: 'Practical info, tips, things to remember…' },
+    { template: 'interesting', icon: '💡', label: 'Interesting', placeholder: 'Something that surprised you, made you think…' },
+    { template: 'place',       icon: '📍', label: 'Place',       placeholder: 'What is this place beyond its name on a map…' },
+  ];
+
+  const buttons = ENTRY_TYPES.map(e => `
+    <button class="td-jq-btn" data-journal-template="${esc(e.template)}" data-journal-placeholder="${esc(e.placeholder)}">
+      <span class="td-jq-icon">${e.icon}</span>
+      <span class="td-jq-label">${e.label}</span>
+    </button>`).join('');
 
   return `
     <div class="td-widget td-w-journal">
       <div class="td-widget-header">
         <div class="td-widget-label">📔 Journal</div>
-        <button class="td-link" data-nav="journal">${cta}</button>
+        <button class="td-link" data-nav="journal">All entries ›</button>
       </div>
-      ${entries || '<div class="td-journal-empty">No entries yet — capture today\'s first memory.</div>'}
-      <button class="td-journal-compose btn btn-primary" data-compose-journal>+ Write now</button>
+      <div class="td-jq-hint">Capture this moment</div>
+      <div class="td-jq-grid">${buttons}</div>
     </div>`;
 }
 
@@ -425,20 +494,24 @@ function renderSafetyMini(): string {
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 function layout(phase: Phase): string {
-  // Flexible bento: widgets declare their own col-span via CSS class.
-  // Row 1: currency (narrow) + calendar (wide)
-  // Row 2: spend (wide, 2col) + map (wide, 2col) — spans 2 cols each on a 4-col grid
-  // Row 3: journal (wide) + prep mini + safety mini
+  // Row 1: currency | calendar | todo  (3 equal cols)
+  // Row 2: [spend / prep / safety stacked left] + [map tall right]
+  // Row 3: upcoming (left) | journal quick-entry (right)
   return `
     <div class="td-grid">
       ${renderCurrencyWidget()}
       ${renderCalendarWidget()}
       ${renderTodoWidget()}
-      ${renderSpendWidget()}
+      <div class="td-left-col">
+        ${renderSpendWidget()}
+        <div class="td-mini-row">
+          ${renderPrepMini()}
+          ${renderSafetyMini()}
+        </div>
+      </div>
       ${renderMapWidget()}
+      ${renderUpcomingWidget()}
       ${renderJournalWidget(phase)}
-      ${renderPrepMini()}
-      ${renderSafetyMini()}
     </div>`;
 }
 
@@ -456,15 +529,17 @@ function quickAddSpend(amount: number, desc: string): void {
   });
 }
 
-function openJournalComposer(): void {
+function openJournalComposer(template = 'moment', placeholder = 'What happened today? A thought, a scene, a feeling…'): void {
+  const ICON: Record<string, string> = { moment: '✨', note: '📝', interesting: '💡', place: '📍' };
+  const icon = ICON[template] ?? '📔';
   const leg = currentLeg();
   const today = todayIso();
   const handle = openModal({
-    title: '📔 Write a moment',
+    title: `${icon} ${template.charAt(0).toUpperCase() + template.slice(1)}`,
     body: `
       <div class="td-compose-body">
         <input class="input" id="td-cmp-title" placeholder="Title (optional)">
-        <textarea class="input td-cmp-text" id="td-cmp-body" placeholder="What happened today? A thought, a scene, a feeling…" rows="5"></textarea>
+        <textarea class="input td-cmp-text" id="td-cmp-body" placeholder="${esc(placeholder)}" rows="5"></textarea>
       </div>`,
     footer: `
       <button class="btn btn-ghost" id="td-cmp-cancel">Cancel</button>
@@ -479,7 +554,7 @@ function openJournalComposer(): void {
     const body    = bodyEl?.value.trim() ?? '';
     if (!body) { bodyEl?.focus(); return; }
     await journalStore.save({
-      title, body, template: 'moment',
+      title, body, template,
       destination: leg?.city ?? '',
       tags: [], happenedOn: today,
     });
@@ -496,7 +571,7 @@ function render(): void {
   const body = document.querySelector<HTMLElement>('#view-today .today-body');
   if (!body) return;
   const phase = tripPhase();
-  body.innerHTML = `${renderHero(phase)}${layout(phase)}`;
+  body.innerHTML = `${renderGreeting()}${renderHero(phase)}${layout(phase)}`;
   wire(body);
   bootMap();
 }
@@ -548,10 +623,14 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Journal quick compose.
-  body.querySelector('[data-compose-journal]')?.addEventListener('click', e => {
-    e.stopPropagation();
-    openJournalComposer();
+  // Journal quick-entry template buttons.
+  body.querySelectorAll<HTMLElement>('[data-journal-template]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const template    = btn.dataset.journalTemplate ?? 'moment';
+      const placeholder = btn.dataset.journalPlaceholder ?? '';
+      openJournalComposer(template, placeholder);
+    });
   });
 
   // Todo inline toggle.
