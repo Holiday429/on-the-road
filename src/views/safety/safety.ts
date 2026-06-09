@@ -18,6 +18,7 @@ import { openCityModal } from './city-modal.ts';
 import { openProfileSheet } from './profile-sheet.ts';
 import { openEssentialsSheet } from './essentials-sheet.ts';
 import type { CitySafety } from '../../data/schema.ts';
+import { escHtml as esc, slugId } from '../../core/utils.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let _cards: StoredCitySafety[] = [];
@@ -34,14 +35,6 @@ let _unsubProfile: (() => void) | null = null;
 let _gpsAttempted = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function esc(v: string): string {
-  return v
-    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-}
-function slugId(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
 function telHref(number: string): string {
   return `tel:${number.replace(/[^+0-9]/g, '')}`;
 }
@@ -125,11 +118,19 @@ function applyItineraryFallback(): void {
   renderAll();
 }
 
-// ── SOS bar ───────────────────────────────────────────────────────────────────
+// ── SOS bar (merged with location card) ──────────────────────────────────────
 function renderSos(): string {
   const cityName = _loc.city || currentLeg()?.city || 'your destination';
+  const flag = _loc.flag || currentLeg()?.flag || '';
+  const country = _loc.country || currentLeg()?.country || '';
   const card = _loc.card ?? cardFor(cityName);
   const general = card?.generalEmergency || '112';
+
+  const locBadge = _loc.source === 'gps'
+    ? `<span class="sos-loc-badge sos-loc-badge-gps">📍 Live</span>`
+    : _loc.source === 'itinerary'
+    ? `<span class="sos-loc-badge sos-loc-badge-itinerary">🗓 Itinerary</span>`
+    : '';
 
   const nums = (card?.emergencyNumbers ?? []).filter((n) => n.number).slice(0, 4);
   const numChips = nums.length
@@ -143,7 +144,13 @@ function renderSos(): string {
   return `
     <div class="sos-bar">
       <div class="sos-main">
-        <div class="sos-label">Emergency · ${esc(cityName)}</div>
+        <div class="sos-loc-row">
+          ${flag ? `<span class="sos-loc-flag">${esc(flag)}</span>` : ''}
+          <div>
+            <div class="sos-label">${esc(cityName)}${country && country !== cityName ? ` <span class="sos-label-country">· ${esc(country)}</span>` : ''}</div>
+            ${locBadge}
+          </div>
+        </div>
         <a class="sos-dial" href="${telHref(general)}">
           <span class="sos-dial-icon">☎</span>
           <span class="sos-dial-num">${esc(general)}</span>
@@ -201,7 +208,7 @@ function renderAll(): void {
   root.querySelector('.sfy-sos-wrap')!.innerHTML = renderSos();
 
   const landingWrap = root.querySelector<HTMLElement>('.sfy-landing-wrap')!;
-  landingWrap.innerHTML = renderLanding(_loc, _cards, _legs, _hasProfile, _generating, _genStatus);
+  landingWrap.innerHTML = renderLanding(_cards, _legs, _hasProfile, _generating, _genStatus);
 
   wireAll(root);
 }
@@ -244,6 +251,39 @@ async function shareLocation(): Promise<void> {
     () => { btn.textContent = 'Location blocked'; setTimeout(() => { btn.textContent = '📍 Share location'; }, 2500); },
     { enableHighAccuracy: true, timeout: 10000 },
   );
+}
+
+// ── Background prefetch (called by Guide after a city is generated) ───────────
+/**
+ * Silently generate a safety card for `city` if one doesn't already exist.
+ * Fires and forgets — Guide doesn't need to await it.
+ */
+export async function prefetchSafetyForCity(city: string, country: string): Promise<void> {
+  const id = slugId(city);
+  const already = _cards.find((c) => c.id === id);
+  if (already) return;
+
+  const base = window.location.hostname.includes('github.io')
+    ? 'https://easy-on-the-road.vercel.app'
+    : '';
+
+  try {
+    const res = await fetch(`${base}/api/safety`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mode: 'generate',
+        city: city.trim(),
+        country,
+        nationality: _nationality ? nationalityLabel(_nationality) : '',
+      }),
+    });
+    if (!res.ok) return;
+    const data = await res.json() as Omit<CitySafety, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion' | 'source'>;
+    await safetyStore.save({ id, ...data, source: 'ai' });
+  } catch {
+    // Silent — this is a background prefetch, failures are acceptable
+  }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

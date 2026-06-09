@@ -4,6 +4,7 @@
 
 import type { StoredCitySafety } from '../../data/stores/safety-store.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
+import { escHtml as esc, slugId } from '../../core/utils.ts';
 
 export interface LandingCallbacks {
   onCityClick: (card: StoredCitySafety) => void;
@@ -14,21 +15,7 @@ export interface LandingCallbacks {
   onLocationRefresh: () => void;
 }
 
-function esc(v: string): string {
-  return v
-    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-}
-
-function slugId(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
-
-function mapSearchUrl(name: string, city: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${city}`)}`;
-}
-
-/* ── Current-location quick card ─────────────────────────────────────────── */
+/* ── LocationState (exported, used by safety.ts SOS bar) ─────────────────── */
 export interface LocationState {
   city: string;
   country: string;
@@ -36,62 +23,6 @@ export interface LocationState {
   source: 'gps' | 'itinerary' | 'none';
   card: StoredCitySafety | null;
   loading: boolean;
-}
-
-function renderLocationCard(loc: LocationState): string {
-  if (loc.loading) {
-    return `<div class="sfy-loc-card sfy-loc-loading">
-      <span class="sfy-spinner"></span> Locating…
-    </div>`;
-  }
-  if (loc.source === 'none') return '';
-
-  const { city, country, flag, card } = loc;
-  const emergency = card?.generalEmergency || '112';
-  const hospital = card?.hospitals?.[0];
-  const embassyName = card?.embassy?.name;
-
-  const quickLinks = `
-    <div class="sfy-loc-links">
-      <a class="sfy-loc-link" href="tel:${emergency.replace(/[^+0-9]/g, '')}">
-        <span class="sfy-loc-link-icon">☎</span>
-        <span>${esc(emergency)}</span>
-      </a>
-      ${hospital ? `<a class="sfy-loc-link" href="${mapSearchUrl(hospital.name, city)}" target="_blank" rel="noopener">
-        <span class="sfy-loc-link-icon">🏥</span>
-        <span>Hospital</span>
-      </a>` : ''}
-      ${embassyName ? `<a class="sfy-loc-link" href="${mapSearchUrl(embassyName, city)}" target="_blank" rel="noopener">
-        <span class="sfy-loc-link-icon">🏛</span>
-        <span>Embassy</span>
-      </a>` : ''}
-      ${card ? `<button class="sfy-loc-link sfy-loc-link-btn" data-open-city="${esc(card.id)}">
-        <span class="sfy-loc-link-icon">🛡</span>
-        <span>Full card</span>
-      </button>` : ''}
-    </div>`;
-
-  const badge = loc.source === 'gps'
-    ? `<span class="sfy-loc-badge sfy-loc-badge-gps">📍 Live</span>`
-    : `<span class="sfy-loc-badge sfy-loc-badge-itinerary">🗓 Itinerary</span>`;
-
-  return `
-    <div class="sfy-loc-card">
-      <div class="sfy-loc-head">
-        <div class="sfy-loc-place">
-          <span class="sfy-loc-flag">${esc(flag) || '📍'}</span>
-          <div>
-            <div class="sfy-loc-city">${esc(city)}</div>
-            <div class="sfy-loc-country">${esc(country)}</div>
-          </div>
-        </div>
-        <div class="sfy-loc-meta">
-          ${badge}
-          ${!card ? `<span class="sfy-loc-hint">Tap a city card below to generate</span>` : ''}
-        </div>
-      </div>
-      ${quickLinks}
-    </div>`;
 }
 
 /* ── Profile + Essentials entry row ──────────────────────────────────────── */
@@ -161,7 +92,6 @@ function renderCityGrid(cards: StoredCitySafety[], legs: StoredLeg[]): string {
 
 /* ── Full landing render ─────────────────────────────────────────────────── */
 export function renderLanding(
-  loc: LocationState,
   cards: StoredCitySafety[],
   legs: StoredLeg[],
   hasProfile: boolean,
@@ -170,10 +100,6 @@ export function renderLanding(
 ): string {
   return `
     <div class="sfy-landing">
-      <div class="sfy-loc-wrap" id="sfy-loc-wrap">
-        ${renderLocationCard(loc)}
-      </div>
-
       ${renderEntryRow(hasProfile)}
 
       <div class="sfy-section-head sfy-section-head-row">
