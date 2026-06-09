@@ -14,6 +14,7 @@ import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
 import { initToday }    from './views/today/today.ts';
+import { initCalendar } from './views/calendar/calendar.ts';
 import { initPrep }     from './views/prep/prep.ts';
 import { initRoute }    from './views/route/route.ts';
 import { initExpenses } from './views/expenses/expenses.ts';
@@ -27,6 +28,7 @@ import { initSafety }   from './views/safety/safety.ts';
 
 // Register lazy view inits (fire once on first navigation)
 registerView('today',    initToday);
+registerView('calendar', initCalendar);
 registerView('prep',     initPrep);
 registerView('route',    initRoute);
 registerView('expenses', initExpenses);
@@ -77,7 +79,7 @@ function nextFrame(): Promise<void> {
 
 function currentViewOrDefault(): ViewId {
   const hash = window.location.hash.replace('#', '') as ViewId;
-  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'pack', 'cities', 'budget', 'safety', 'journal', 'map', 'nomad'];
+  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'pack', 'cities', 'budget', 'safety', 'journal', 'map', 'nomad', 'calendar'];
   return valid.includes(hash) ? hash : 'today';
 }
 

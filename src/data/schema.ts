@@ -716,6 +716,23 @@ export const NomadRatingsSchema = z.object({
 });
 export type NomadRatings = z.infer<typeof NomadRatingsSchema>;
 
+/* ── To-Do ───────────────────────────────────────────────────────────────── */
+// User-scoped reminders / tasks. tripId null = global (cross-trip); set to
+// a trip id to scope to that trip. dueDate is ISO date; remindAt is epoch ms.
+export const TodoSchema = doc({
+  tripId:   z.string().nullable().default(null),
+  text:     z.string(),
+  done:     z.boolean().default(false),
+  dueDate:  z.string().nullable().default(null),   // ISO date 'YYYY-MM-DD'
+  remindAt: z.number().nullable().default(null),   // epoch ms
+  order:    z.number().default(0),
+});
+export type Todo = z.infer<typeof TodoSchema>;
+
+/* ── Nomad (work-friendly spots) ─────────────────────────────────────────── */
+// Flattened to users/{uid}/nomadSpots with a tripId tag so the gallery can
+// show one trip or all trips, and filter by country. `visibility`/`ownerId`
+// are reserved for a future community/sharing layer (not queried yet).
 export const NomadSpotSchema = doc({
   tripId: z.string().nullable().default(null),
   name: z.string(),

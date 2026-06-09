@@ -1,427 +1,453 @@
 /* ==========================================================================
-   On the Road · Today — personal trip dashboard
+   On the Road · Today — personal dashboard
    --------------------------------------------------------------------------
-   The app's home screen and command centre. Not a list of jump-off buttons but
-   an aggregated, time-aware board: it reads the trip's dates to decide which
-   "phase" the traveller is in (before departure / on the road / after the trip)
-   and lays out a bento grid of cards drawn from every module's "today slice".
-
-   Three principles:
-     · time-aware  — the Hero and card order change with the trip phase.
-     · aggregation — every card is a read-only subscription to an existing
-                     store; this view owns no data of its own.
-     · actionable  — high-frequency actions happen inline (log a spend, tick a
-                     plan/checklist item) without leaving the page; everything
-                     else deep-links into its source view, with a nav-intent so
-                     a card can open a specific leg/day rather than just a view.
+   The app's home screen: a flexible bento grid of widgets.
+   Every widget subscribes to an existing store; this view owns no data itself.
    ========================================================================== */
 
 import './today.css';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
-import { checklistStore, type StoredChecklist } from '../../data/stores/checklist-store.ts';
-import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
-import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
-import { compareStore, type StoredGroup as StoredCompare } from '../../data/stores/compare-store.ts';
-import { currentTrip, currentTripId, baseCurrency, tripBudget, onTripChange } from '../../data/trip-context.ts';
-import { currencySymbol, getRateTable, peekRateTable, type RateTable } from '../../data/rates.ts';
+import { checklistStore } from '../../data/stores/checklist-store.ts';
+import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
+import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
+import { currentTrip, baseCurrency, tripBudget, onTripChange } from '../../data/trip-context.ts';
+import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES } from '../../data/rates.ts';
 import { navigateTo, type ViewId, type NavIntent } from '../../core/app.ts';
-import { escHtml as esc, slugId } from '../../core/utils.ts';
-import type { PlanItem, ChecklistItem } from '../../data/schema.ts';
+import { currentUser } from '../../firebase/auth.ts';
+import { escHtml as esc } from '../../core/utils.ts';
+import { openModal } from '../../core/modal.ts';
+import type { PlanItem } from '../../data/schema.ts';
+import { initDashboardMap, disposeDashboardMap } from './dashboard-map.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
 let _expenses: StoredExpense[] = [];
-let _checklists: StoredChecklist[] = [];
-let _cards: StoredCitySafety[] = [];
-let _nomad: StoredNomadSpot[] = [];
-let _compare: StoredCompare[] = [];
+let _checklists: ReturnType<typeof checklistStore.peek> = [];
+let _journal: StoredJournalEntry[] = [];
+let _todos:   StoredTodo[]         = [];
 let _rates: RateTable = {};
-let _quickAddOpen = false;   // inline expense form toggle (preserved across re-paints)
-
+let _rateInput = '';          // currency converter left-side amount
+let _mapBooted = false;       // init dashboard map only once per view mount
 let _unsubs: Array<() => void> = [];
 
-/* ── Time helpers ────────────────────────────────────────────────────────── */
+/* ── Helpers ─────────────────────────────────────────────────────────────── */
 type Phase = 'before' | 'during' | 'after';
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
-
-function daysBetween(fromIso: string, toIso: string): number {
-  const ms = new Date(toIso + 'T00:00:00').getTime() - new Date(fromIso + 'T00:00:00').getTime();
-  return Math.round(ms / 86400000);
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(b + 'T00:00:00').getTime() - new Date(a + 'T00:00:00').getTime()) / 86400000);
 }
-function daysUntil(iso: string): number {
-  return daysBetween(todayIso(), iso);
-}
-
 function sortedLegs(): StoredLeg[] {
   return [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
 }
-
-/** Which phase the trip is in today, from the trip dates (legs as fallback). */
 function tripPhase(): Phase {
   const trip = currentTrip();
   const today = todayIso();
   const legs = sortedLegs();
-  const start = trip?.startDate || legs[0]?.dateFrom;
-  const end = trip?.endDate || legs[legs.length - 1]?.dateTo;
-  if (!start || !end) return 'before';
+  const start = trip?.startDate ?? legs[0]?.dateFrom;
+  const end   = trip?.endDate   ?? legs[legs.length - 1]?.dateTo;
+  if (!start) return 'before';
   if (today < start) return 'before';
-  if (today > end) return 'after';
+  if (end && today > end) return 'after';
   return 'during';
 }
-
-/** The leg covering today, else the next upcoming one, else the last past one. */
 function currentLeg(): StoredLeg | null {
   const sorted = sortedLegs();
   if (!sorted.length) return null;
   const today = todayIso();
-  const here = sorted.find((l) => l.dateFrom <= today && l.dateTo >= today);
-  return here ?? sorted.find((l) => l.dateFrom >= today) ?? sorted[sorted.length - 1];
+  return sorted.find(l => l.dateFrom <= today && l.dateTo >= today)
+    ?? sorted.find(l => l.dateFrom >= today)
+    ?? sorted[sorted.length - 1];
 }
-
-function legStatus(leg: StoredLeg): Phase {
-  const today = todayIso();
-  if (leg.dateTo < today) return 'after';
-  if (leg.dateFrom > today) return 'before';
-  return 'during';
-}
-
-/* ── Money helpers ───────────────────────────────────────────────────────── */
 function inBase(e: StoredExpense): number {
   const target = baseCurrency();
   if (e.baseCurrency === target) return e.baseAmount;
   const cross = _rates[e.baseCurrency];
   return cross ? e.baseAmount * cross : e.baseAmount;
 }
-function fmt(n: number): string {
-  return `${currencySymbol(baseCurrency())}${Math.round(n).toLocaleString()}`;
+function fmt(n: number, decimals = 0): string {
+  return `${currencySymbol(baseCurrency())}${n.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`;
 }
-
-/* ── Greeting ────────────────────────────────────────────────────────────── */
+function firstName(): string {
+  const user = currentUser();
+  if (!user) return 'Traveller';
+  const name = user.displayName?.trim() || user.email?.split('@')[0] || 'Traveller';
+  return name.split(/\s+/)[0];
+}
 function greetingWord(): string {
   const h = new Date().getHours();
-  if (h < 5) return 'Still up';
+  if (h < 5)  return 'Still up';
   if (h < 12) return 'Good morning';
   if (h < 18) return 'Good afternoon';
   return 'Good evening';
 }
 
-/* ── Hero ────────────────────────────────────────────────────────────────── */
+/* ── Currency pair for rate widget ───────────────────────────────────────── */
+// Maps country name substring → ISO code for the likely local currency.
+const COUNTRY_CURRENCY: Array<[string, string]> = [
+  ['Denmark',     'DKK'], ['Sweden',     'SEK'], ['Norway',     'NOK'],
+  ['Switzerland', 'CHF'], ['UK',         'GBP'], ['Britain',    'GBP'],
+  ['Japan',       'JPY'], ['China',      'CNY'], ['US',         'USD'],
+  ['Czech',       'CZK'],
+];
+function localCurrency(): string {
+  const leg = currentLeg();
+  if (!leg) return 'USD';
+  // If base IS euro and leg is eurozone, show DKK as a useful pair instead.
+  const match = COUNTRY_CURRENCY.find(([k]) => leg.country.includes(k));
+  return match ? match[1] : (baseCurrency() === 'EUR' ? 'DKK' : 'EUR');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WIDGET RENDERERS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
 function renderHero(phase: Phase): string {
   const trip = currentTrip();
-  const name = trip?.name || 'Your trip';
-  const leg = currentLeg();
+  const name = trip?.name ?? 'Your trip';
   const legs = sortedLegs();
+  const leg  = currentLeg();
+  const ART  = `${(import.meta as any).env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
 
   let anchor = '';
-  if (phase === 'before') {
-    const d = leg ? daysUntil(leg.dateFrom) : (trip ? daysUntil(trip.startDate) : null);
-    const dest = leg ? `${esc(leg.flag)} ${esc(leg.city)}` : '';
-    anchor = d != null
-      ? `<strong>${d}</strong> day${d === 1 ? '' : 's'} to go${dest ? ` · next stop ${dest}` : ''}`
-      : 'Start planning your trip';
+  if (phase === 'before' && leg) {
+    const d = daysBetween(todayIso(), leg.dateFrom);
+    anchor = `<strong>${d}</strong> day${d === 1 ? '' : 's'} to go · next stop ${esc(leg.flag)} ${esc(leg.city)}`;
   } else if (phase === 'during' && leg) {
-    const idx = legs.findIndex((l) => l.id === leg.id) + 1;
+    const idx  = legs.findIndex(l => l.id === leg.id) + 1;
     const dayN = daysBetween(leg.dateFrom, todayIso()) + 1;
-    const totalDays = daysBetween(leg.dateFrom, leg.dateTo) + 1;
-    anchor = `${esc(leg.flag)} ${esc(leg.city)} · stop ${idx} of ${legs.length} · day ${dayN} of ${totalDays}`;
-  } else {
-    const countries = new Set(legs.map((l) => l.country)).size;
+    const tot  = daysBetween(leg.dateFrom, leg.dateTo) + 1;
+    anchor = `${esc(leg.flag)} ${esc(leg.city)} · stop ${idx}/${legs.length} · day ${dayN} of ${tot}`;
+  } else if (phase === 'after') {
+    const countries = new Set(legs.map(l => l.country)).size;
     const len = trip ? daysBetween(trip.startDate, trip.endDate) + 1 : null;
     anchor = `Trip complete${len ? ` · ${len} days` : ''}${countries ? ` · ${countries} countr${countries === 1 ? 'y' : 'ies'}` : ''}`;
   }
 
   const steps: Array<[Phase, string]> = [['before', 'Before'], ['during', 'On the road'], ['after', 'After']];
-  const dots = steps.map(([p, label]) => {
-    const cls = p === phase ? 'is-on' : (steps.findIndex(s => s[0] === p) < steps.findIndex(s => s[0] === phase) ? 'is-done' : '');
-    return `<span class="today-phase-step ${cls}"><i></i>${label}</span>`;
-  }).join('<span class="today-phase-rail"></span>');
+  const phaseRail = steps.map(([p, label], i) => {
+    const active = p === phase;
+    const done   = steps.findIndex(s => s[0] === phase) > i;
+    return `${i > 0 ? '<span class="td-phase-rail"></span>' : ''}<span class="td-phase-step ${active ? 'is-on' : done ? 'is-done' : ''}"><i></i>${label}</span>`;
+  }).join('');
 
   return `
-    <div class="today-hero">
-      <div class="today-hero-main">
-        <div class="today-hero-greet">${greetingWord()}, traveller 👋</div>
-        <div class="today-hero-trip">${esc(name)}</div>
-        <div class="today-hero-anchor">${anchor}</div>
-        <div class="today-phase">${dots}</div>
+    <div class="td-hero" data-phase="${phase}">
+      <div class="td-hero-left">
+        <div class="td-hero-greet">${greetingWord()}, ${esc(firstName())} 👋</div>
+        <div class="td-hero-name">${esc(name)}</div>
+        ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
+        <div class="td-phase">${phaseRail}</div>
       </div>
-      <div class="today-hero-art" data-art="${phase}"></div>
+      <img class="td-hero-logo" src="${ART}logo.gif" alt="On the Road">
     </div>`;
 }
 
-/* ── Card: where you are ─────────────────────────────────────────────────── */
-function renderLocationCard(phase: Phase): string {
-  const leg = currentLeg();
-  if (!leg) {
-    return card('loc today-span-2', 'route', `
-      <div class="today-c-head"><span class="today-c-emoji">🗺️</span>
-        <div><div class="today-c-title">No itinerary yet</div>
-        <div class="today-c-sub">Add your destinations to get started</div></div></div>`);
-  }
+/* ── Currency widget ──────────────────────────────────────────────────────── */
+function renderCurrencyWidget(): string {
+  const base  = baseCurrency();
+  const local = localCurrency();
+  const rate  = _rates[local] ? (1 / _rates[local]) : null; // 1 base = ? local
+  const displayRate = rate != null ? rate.toFixed(4) : '—';
+  const inputAmt = _rateInput !== '' ? parseFloat(_rateInput) : null;
+  const converted = (inputAmt != null && rate != null) ? (inputAmt * rate).toFixed(2) : '';
+  const localFlag = CURRENCIES.find(c => c.code === local)?.flag ?? '';
+  const baseFlag  = CURRENCIES.find(c => c.code === base)?.flag ?? '';
 
-  const status = legStatus(leg);
-  const label = phase === 'before'
-    ? (status === 'during' ? 'You are here' : `Next stop · in ${daysUntil(leg.dateFrom)}d`)
-    : phase === 'during' ? 'Where you are' : 'Last stop';
+  return `
+    <div class="td-widget td-w-currency">
+      <div class="td-widget-label">💱 Currency</div>
+      <div class="td-currency-rate">1 ${baseFlag} ${esc(base)} = <strong>${displayRate}</strong> ${localFlag} ${esc(local)}</div>
+      <div class="td-currency-row">
+        <div class="td-currency-side">
+          <span class="td-currency-flag">${baseFlag}</span>
+          <input class="td-currency-input" data-rate-input type="number" inputmode="decimal" placeholder="100" value="${esc(_rateInput)}">
+          <span class="td-currency-code">${esc(base)}</span>
+        </div>
+        <span class="td-currency-swap">⇄</span>
+        <div class="td-currency-side td-currency-result">
+          <span class="td-currency-flag">${localFlag}</span>
+          <span class="td-currency-value">${esc(converted || '—')}</span>
+          <span class="td-currency-code">${esc(local)}</span>
+        </div>
+      </div>
+    </div>`;
+}
 
-  const stay = leg.accommodations?.[0] ?? leg.accommodation;
-  const stayLine = stay ? `<div class="today-loc-stay">🏨 ${esc(stay.name)}</div>` : '';
+/* ── Calendar mini widget ─────────────────────────────────────────────────── */
+function renderCalendarWidget(): string {
+  const now   = new Date();
+  const year  = now.getFullYear();
+  const month = now.getMonth();
+  const today = todayIso();
 
-  // Today's plan items for this leg, for the "during" inline timeline.
-  let timeline = '';
-  if (phase === 'during') {
-    const dayId = (leg.planDays ?? []).find((d) => d.date === todayIso())?.id ?? null;
-    const items = (leg.plans ?? [])
-      .filter((p) => dayId ? p.dayId === dayId : false)
-      .sort((a, b) => a.order - b.order)
-      .slice(0, 4);
-    if (items.length) {
-      timeline = `<div class="today-loc-timeline">${items.map((p) => `
-        <button class="today-tl-row ${p.done ? 'is-done' : ''}" data-toggle-plan="${esc(leg.id)}:${esc(p.id)}">
-          <span class="today-tl-check">${p.done ? '✓' : ''}</span>
-          <span class="today-tl-text">${esc(p.title)}</span>
-        </button>`).join('')}</div>`;
+  // Build event map: date → colours (leg=amber, journal=sky, todo=future)
+  const events: Record<string, string[]> = {};
+  const addDot = (date: string, color: string) => {
+    if (!events[date]) events[date] = [];
+    if (!events[date].includes(color)) events[date].push(color);
+  };
+  // Leg date ranges
+  for (const leg of _legs) {
+    let d = new Date(leg.dateFrom + 'T00:00:00');
+    const end = new Date(leg.dateTo + 'T00:00:00');
+    while (d <= end) {
+      addDot(d.toISOString().slice(0, 10), 'var(--amber-400)');
+      d.setDate(d.getDate() + 1);
     }
   }
+  // Journal entries
+  for (const e of _journal) addDot(e.happenedOn, 'var(--sky-400)');
+  // Todos with due date
+  for (const t of _todos) if (t.dueDate) addDot(t.dueDate, t.done ? 'var(--surface-4)' : '#f87171');
 
-  return card(`loc today-span-2`, 'route', `
-    <div class="today-c-head">
-      <span class="today-loc-flag">${esc(leg.flag) || '📍'}</span>
-      <div>
-        <div class="today-loc-status today-loc-status-${status}">${label}</div>
-        <div class="today-c-title">${esc(leg.city)}</div>
-        <div class="today-c-sub">${esc(leg.country)} · ${esc(leg.dateFrom)} – ${esc(leg.dateTo)}</div>
+  // Calendar grid
+  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startOffset = (firstDay + 6) % 7; // Mon-first
+  const monthName = now.toLocaleString('en', { month: 'long' });
+  const dayHeaders = ['M','T','W','T','F','S','S'].map(d => `<span class="td-cal-hdr">${d}</span>`).join('');
+
+  let cells = '';
+  for (let i = 0; i < startOffset; i++) cells += `<span class="td-cal-cell td-cal-empty"></span>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = iso === today;
+    const dots = (events[iso] ?? []).map(c => `<span class="td-cal-dot" style="background:${c}"></span>`).join('');
+    cells += `<span class="td-cal-cell ${isToday ? 'is-today' : ''}">${d}${dots ? `<span class="td-cal-dots">${dots}</span>` : ''}</span>`;
+  }
+
+  return `
+    <div class="td-widget td-w-calendar" data-nav="calendar">
+      <div class="td-widget-label">🗓️ ${monthName} ${year}</div>
+      <div class="td-cal-grid">${dayHeaders}${cells}</div>
+      <div class="td-cal-legend">
+        <span><span class="td-cal-dot" style="background:var(--amber-400)"></span>Itinerary</span>
+        <span><span class="td-cal-dot" style="background:var(--sky-400)"></span>Journal</span>
+        <span><span class="td-cal-dot" style="background:#f87171"></span>To-do</span>
       </div>
-    </div>
-    ${stayLine}
-    ${timeline}`, { legId: leg.id });
+    </div>`;
 }
 
-/* ── Card: spend ─────────────────────────────────────────────────────────── */
-function renderSpendCard(): string {
-  const total = _expenses.reduce((s, e) => s + inBase(e), 0);
-  const today = todayIso();
-  const todaySpend = _expenses.filter((e) => e.date === today).reduce((s, e) => s + inBase(e), 0);
-  const budget = tripBudget();
+/* ── Spend widget ─────────────────────────────────────────────────────────── */
+function renderSpendWidget(): string {
+  const base      = baseCurrency();
+  const sym       = currencySymbol(base);
+  const total     = _expenses.reduce((s, e) => s + inBase(e), 0);
+  const todaySpend = _expenses.filter(e => e.date === todayIso()).reduce((s, e) => s + inBase(e), 0);
+  const budget    = tripBudget();
+  const today     = todayIso();
 
-  let bar = '';
+  // 30-day bar chart: last 30 days bucketed by date.
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+  const dailyMap: Record<string, number> = {};
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(thirtyDaysAgo);
+    d.setDate(d.getDate() + i);
+    dailyMap[d.toISOString().slice(0, 10)] = 0;
+  }
+  for (const e of _expenses) {
+    if (dailyMap[e.date] !== undefined) dailyMap[e.date] += inBase(e);
+  }
+  const daily = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b));
+  const maxDay = Math.max(...daily.map(([, v]) => v), 1);
+
+  const bars = daily.map(([date, amt]) => {
+    const h = Math.max(4, Math.round((amt / maxDay) * 52));
+    const isToday = date === today;
+    return `<span class="td-bar ${isToday ? 'is-today' : ''}" style="height:${h}px" title="${sym}${Math.round(amt)}"></span>`;
+  }).join('');
+
+  let budgetLine = '';
   if (budget) {
-    const pct = Math.min(100, Math.round((total / budget) * 100));
+    const pct  = Math.min(100, Math.round((total / budget) * 100));
     const over = total > budget;
     const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
-    bar = `
-      <div class="today-bar-track"><div class="today-bar-fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="today-bar-foot">
-        <span class="${over ? 'today-money-over' : 'today-money-remain'}">${over ? `${fmt(total - budget)} over` : `${fmt(budget - total)} left`}</span>
-        <span class="today-money-pct">${pct}% of ${fmt(budget)}</span>
+    budgetLine = `
+      <div class="td-spend-bar-track"><div class="td-spend-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="td-spend-bar-foot">
+        <span class="${over ? 'td-over' : 'td-remain'}">${over ? `${fmt(total-budget)} over` : `${fmt(budget-total)} left`}</span>
+        <span class="td-pct">${pct}% of ${fmt(budget)}</span>
       </div>`;
-  } else {
-    bar = `<div class="today-bar-foot"><span class="today-money-hint">Tap “+ Log” to start tracking</span></div>`;
   }
 
-  const sym = currencySymbol(baseCurrency());
-  const form = _quickAddOpen ? `
-    <form class="today-quickadd" data-quickadd>
-      <span class="today-quickadd-sym">${sym}</span>
-      <input class="today-quickadd-amt" type="number" inputmode="decimal" step="0.01" placeholder="0" required>
-      <input class="today-quickadd-desc" type="text" placeholder="What for?">
-      <button class="today-quickadd-save" type="submit">Save</button>
-    </form>` : '';
+  const leg = currentLeg();
 
   return `
-    <div class="today-card today-c-spend">
-      <button class="today-card-tap" data-nav="expenses" aria-label="Open expenses">
-        <div class="today-c-row">
-          <div><div class="today-c-label">Spent so far</div><div class="today-c-big">${fmt(total)}</div></div>
-          <div class="today-c-aside"><div class="today-c-label">Today</div><div class="today-c-mid">${fmt(todaySpend)}</div></div>
-        </div>
-        ${bar}
-      </button>
-      <button class="today-quickadd-toggle ${_quickAddOpen ? 'is-open' : ''}" data-quickadd-toggle>
-        ${_quickAddOpen ? 'Cancel' : '+ Log a spend'}
-      </button>
-      ${form}
+    <div class="td-widget td-w-spend">
+      <div class="td-widget-header">
+        <div class="td-widget-label">💶 Spend</div>
+        <button class="td-link" data-nav="expenses">All expenses ›</button>
+      </div>
+      <div class="td-spend-top">
+        <div><div class="td-spend-label">Total</div><div class="td-spend-big">${fmt(total)}</div></div>
+        <div class="td-spend-today"><div class="td-spend-label">Today</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
+      </div>
+      ${budgetLine}
+      <form class="td-quickadd" data-quickadd>
+        <span class="td-quickadd-sym">${sym}</span>
+        <input class="td-quickadd-amt" type="number" inputmode="decimal" step="0.01" placeholder="Amount" required>
+        <input class="td-quickadd-desc" type="text" placeholder="What for?">
+        <button class="td-quickadd-save btn btn-primary" type="submit">Log</button>
+      </form>
+      <div class="td-barchart" title="Last 30 days">${bars}</div>
+      <div class="td-barchart-label">Last 30 days</div>
+    </div>`;
+  void leg;
+}
+
+/* ── Map thumbnail ────────────────────────────────────────────────────────── */
+function renderMapWidget(): string {
+  return `
+    <div class="td-widget td-w-map" data-nav="map">
+      <div class="td-widget-header">
+        <div class="td-widget-label">🗺️ Route map</div>
+        <span class="td-map-legend">
+          <span class="td-map-dot" style="background:#22c55e"></span>Now
+          <span class="td-map-dot" style="background:#f9b830"></span>Upcoming
+          <span class="td-map-dot" style="background:#a8a29e"></span>Past
+        </span>
+      </div>
+      <div class="td-map-container" id="td-map-canvas"></div>
     </div>`;
 }
 
-/* ── Card: checklist / prep progress ─────────────────────────────────────── */
-function checklistTotals() {
+/* ── Journal widget ───────────────────────────────────────────────────────── */
+function renderJournalWidget(phase: Phase): string {
+  const recent = [..._journal]
+    .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn))
+    .slice(0, 2);
+
+  const entries = recent.map(e => `
+    <div class="td-journal-entry" data-nav="journal">
+      <div class="td-journal-date">${esc(e.happenedOn)}</div>
+      <div class="td-journal-title">${esc(e.title || e.body.slice(0, 60))}</div>
+    </div>`).join('');
+
+  const cta = phase === 'after' ? 'Make your trip recap →' : 'Write a moment →';
+
+  return `
+    <div class="td-widget td-w-journal">
+      <div class="td-widget-header">
+        <div class="td-widget-label">📔 Journal</div>
+        <button class="td-link" data-nav="journal">${cta}</button>
+      </div>
+      ${entries || '<div class="td-journal-empty">No entries yet — capture today\'s first memory.</div>'}
+      <button class="td-journal-compose btn btn-primary" data-compose-journal>+ Write now</button>
+    </div>`;
+}
+
+/* ── To-do widget ─────────────────────────────────────────────────────────── */
+function renderTodoWidget(): string {
+  const today   = todayIso();
+  const pending = _todos
+    .filter(t => !t.done)
+    .sort((a, b) => {
+      // Items with due dates first, sorted by date; no-due-date items last
+      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return a.order - b.order;
+    })
+    .slice(0, 5);
+  const doneToday = _todos.filter(t => t.done && t.dueDate === today).length;
+
+  const rows = pending.map(t => {
+    const overdue = t.dueDate && t.dueDate < today;
+    const dueLabel = t.dueDate === today ? 'Today'
+      : overdue ? `Overdue · ${t.dueDate}`
+      : t.dueDate ? t.dueDate
+      : '';
+    return `
+      <div class="td-todo-row">
+        <button class="td-todo-check" data-toggle-todo="${esc(t.id)}:false" title="Mark done"></button>
+        <div class="td-todo-text">
+          <span class="td-todo-label">${esc(t.text)}</span>
+          ${dueLabel ? `<span class="td-todo-due ${overdue ? 'is-overdue' : ''}">${esc(dueLabel)}</span>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  const empty = !pending.length
+    ? `<div class="td-todo-empty">No open to-dos${doneToday ? ` · ${doneToday} done today 🎉` : ''}</div>` : '';
+
+  return `
+    <div class="td-widget td-w-todo">
+      <div class="td-widget-header">
+        <div class="td-widget-label">☑️ To-do</div>
+        <button class="td-link" data-nav="calendar">All tasks ›</button>
+      </div>
+      ${rows}${empty}
+      <form class="td-todo-add" data-todo-add>
+        <input class="td-todo-add-input" type="text" placeholder="+ Quick add task…">
+        <button class="btn btn-ghost td-todo-add-btn" type="submit">Add</button>
+      </form>
+    </div>`;
+}
+
+/* ── Prep mini bar ────────────────────────────────────────────────────────── */
+function renderPrepMini(): string {
   let done = 0, total = 0;
   for (const cl of _checklists) for (const g of cl.groups) {
-    done += g.items.filter((i) => i.done).length;
+    done += g.items.filter(i => i.done).length;
     total += g.items.length;
   }
-  return { done, total, remaining: total - done, pct: total ? Math.round((done / total) * 100) : 0 };
-}
-
-/** The next unchecked item across all checklists, with its address for toggling. */
-function nextChecklistItem(): { clId: string; groupId: string; item: ChecklistItem } | null {
-  for (const cl of _checklists) for (const g of cl.groups) {
-    const item = g.items.find((i) => !i.done);
-    if (item) return { clId: cl.id, groupId: g.id, item };
-  }
-  return null;
-}
-
-function renderChecklistCard(): string {
-  const { total, remaining, pct } = checklistTotals();
-  const sub = total === 0 ? 'No checklist items yet'
-    : remaining === 0 ? 'All done — you’re ready 🎉'
-    : `${remaining} item${remaining === 1 ? '' : 's'} left`;
-
-  const next = nextChecklistItem();
-  const nextRow = next ? `
-    <button class="today-tl-row" data-toggle-check="${esc(next.clId)}:${esc(next.groupId)}:${esc(next.item.id)}">
-      <span class="today-tl-check"></span>
-      <span class="today-tl-text">${esc(next.item.text)}</span>
-    </button>` : '';
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  const remaining = total - done;
+  const sub = total === 0 ? 'No checklist yet' : remaining === 0 ? 'All done 🎉' : `${remaining} left`;
 
   return `
-    <div class="today-card today-c-check">
-      <button class="today-card-tap" data-nav="prep" aria-label="Open checklist">
-        <div class="today-c-head">
-          <div class="today-ring" style="--pct:${pct}"><span>${pct}%</span></div>
-          <div><div class="today-c-title">Prep checklist</div><div class="today-c-sub">${sub}</div></div>
-        </div>
-      </button>
-      ${nextRow}
+    <div class="td-widget td-w-prep" data-nav="prep">
+      <div class="td-widget-label">✅ Prep</div>
+      <div class="td-prep-row">
+        <div class="td-prep-ring" style="--pct:${pct}"><span>${pct}%</span></div>
+        <div><div class="td-prep-title">Checklist</div><div class="td-prep-sub">${sub}</div></div>
+      </div>
     </div>`;
 }
 
-/* ── Card: decisions pending (compare) ───────────────────────────────────── */
-function renderCompareCard(): string {
-  const pending = _compare.filter((g) => g.candidates.length >= 2);
-  if (!pending.length) {
-    return card('mini', 'budget', `
-      <div class="today-c-head"><span class="today-c-emoji">⚖️</span>
-        <div><div class="today-c-title">Compare</div><div class="today-c-sub">Weigh flights, stays & more</div></div></div>`);
-  }
-  const names = pending.slice(0, 3).map((g) => g.title || g.compareType).join(', ');
-  return card('mini', 'budget', `
-    <div class="today-c-head"><span class="today-c-emoji">⚖️</span>
-      <div><div class="today-c-title">${pending.length} decision${pending.length === 1 ? '' : 's'} pending</div>
-      <div class="today-c-sub">${esc(names)}</div></div></div>`);
-}
-
-/* ── Card: nomad nearby ──────────────────────────────────────────────────── */
-function renderNomadCard(): string {
+/* ── Safety mini ──────────────────────────────────────────────────────────── */
+function renderSafetyMini(): string {
   const leg = currentLeg();
-  const here = leg ? _nomad.filter((s) => slugId(s.city) === slugId(leg.city)) : [];
-  const score = (s: StoredNomadSpot) => {
-    const r = s.ratings; return (r.wifi + r.power + r.restroom + r.coffee + r.service) / 5;
-  };
-  const top = here.sort((a, b) => score(b) - score(a))[0];
-  if (!top) {
-    return card('mini', 'nomad', `
-      <div class="today-c-head"><span class="today-c-emoji">☕</span>
-        <div><div class="today-c-title">Work spots</div><div class="today-c-sub">Find a café to get online</div></div></div>`);
-  }
-  return card('mini', 'nomad', `
-    <div class="today-c-head"><span class="today-c-emoji">☕</span>
-      <div><div class="today-c-title">${esc(top.name)}</div>
-      <div class="today-c-sub">${esc(top.type)} · ★ ${score(top).toFixed(1)} · ${esc(top.city)}</div></div></div>`);
-}
-
-/* ── Card: guide picks ───────────────────────────────────────────────────── */
-function renderGuideCard(): string {
-  const leg = currentLeg();
-  const cityName = leg?.city || 'your destination';
-  return card('mini', 'cities', `
-    <div class="today-c-head"><span class="today-c-emoji">🧭</span>
-      <div><div class="today-c-title">Guide · ${esc(cityName)}</div>
-      <div class="today-c-sub">Things to do, eat & know</div></div></div>`);
-}
-
-/* ── Card: journal nudge ─────────────────────────────────────────────────── */
-function renderJournalCard(phase: Phase): string {
-  const title = phase === 'after' ? 'Make your trip recap' : 'Capture today';
-  const sub = phase === 'after' ? 'Turn your entries into a story' : 'Jot a moment before it fades';
-  return card('mini', 'journal', `
-    <div class="today-c-head"><span class="today-c-emoji">📔</span>
-      <div><div class="today-c-title">${title}</div><div class="today-c-sub">${sub}</div></div></div>`);
-}
-
-/* ── Card: safety / SOS ──────────────────────────────────────────────────── */
-function renderSafetyCard(phase: Phase): string {
-  const leg = currentLeg();
-  const csafety = leg ? _cards.find((c) => c.id === slugId(leg.city)) : null;
-  const general = csafety?.generalEmergency || '112';
-  const cityName = leg?.city || 'your destination';
-
-  // Before departure it's a slim reminder; on the road it's a prominent SOS.
-  if (phase === 'before') {
-    return `
-      <div class="today-card today-c-safety-slim">
-        <button class="today-card-tap" data-nav="safety">
-          <div class="today-c-head"><span class="today-c-emoji">🛡️</span>
-            <div><div class="today-c-title">Safety setup</div><div class="today-c-sub">Fill your profile & emergency info</div></div>
-          </div>
-        </button>
-      </div>`;
-  }
-
   return `
-    <div class="today-card today-c-safety today-span-2">
-      <div class="today-c-label">Emergency · ${esc(cityName)}</div>
-      <a class="today-sos-dial" href="tel:${general.replace(/[^+0-9]/g, '')}">
-        <span class="today-sos-icon">☎</span><span class="today-sos-num">${esc(general)}</span>
-      </a>
-      <button class="today-sos-more" data-nav="safety">Safety details ›</button>
+    <div class="td-widget td-w-safety" data-nav="safety">
+      <div class="td-widget-label">🛡️ Safety</div>
+      <div class="td-safety-city">${leg ? `${esc(leg.flag)} ${esc(leg.city)}` : 'Setup emergency info'}</div>
+      <div class="td-safety-hint">Profile & emergency contacts</div>
     </div>`;
 }
 
-/* ── Small card factory ──────────────────────────────────────────────────── */
-function card(extraClass: string, nav: ViewId, inner: string, intent?: NavIntent): string {
-  const intentAttr = intent ? ` data-intent='${esc(JSON.stringify(intent))}'` : '';
-  return `<button class="today-card today-c-${extraClass}" data-nav="${nav}"${intentAttr}>${inner}</button>`;
-}
-
-/* ── Layout: which cards, in which order, per phase ──────────────────────── */
+/* ── Layout ───────────────────────────────────────────────────────────────── */
 function layout(phase: Phase): string {
-  if (phase === 'before') {
-    return [
-      renderLocationCard(phase),
-      renderChecklistCard(),
-      renderCompareCard(),
-      renderGuideCard(),
-      renderSpendCard(),
-      renderSafetyCard(phase),
-    ].join('');
-  }
-  if (phase === 'during') {
-    return [
-      renderLocationCard(phase),
-      renderSpendCard(),
-      renderGuideCard(),
-      renderNomadCard(),
-      renderJournalCard(phase),
-      renderSafetyCard(phase),
-    ].join('');
-  }
-  // after
-  return [
-    renderJournalCard(phase),
-    renderSpendCard(),
-    renderLocationCard(phase),
-    renderGuideCard(),
-    renderSafetyCard(phase),
-  ].join('');
+  // Flexible bento: widgets declare their own col-span via CSS class.
+  // Row 1: currency (narrow) + calendar (wide)
+  // Row 2: spend (wide, 2col) + map (wide, 2col) — spans 2 cols each on a 4-col grid
+  // Row 3: journal (wide) + prep mini + safety mini
+  return `
+    <div class="td-grid">
+      ${renderCurrencyWidget()}
+      ${renderCalendarWidget()}
+      ${renderTodoWidget()}
+      ${renderSpendWidget()}
+      ${renderMapWidget()}
+      ${renderJournalWidget(phase)}
+      ${renderPrepMini()}
+      ${renderSafetyMini()}
+    </div>`;
 }
 
-/* ── Inline actions ──────────────────────────────────────────────────────── */
-function togglePlan(legId: string, planId: string): void {
-  const leg = _legs.find((l) => l.id === legId);
-  if (!leg) return;
-  const plans = (leg.plans ?? []).map((p: PlanItem) => p.id === planId ? { ...p, done: !p.done } : p);
-  void routeStore.update(legId, { plans });
-}
+/* ══════════════════════════════════════════════════════════════════════════
+   ACTIONS
+   ══════════════════════════════════════════════════════════════════════════ */
 
 function quickAddSpend(amount: number, desc: string): void {
   const base = baseCurrency();
-  const leg = currentLeg();
+  const leg  = currentLeg();
   void expenseStore.add({
     amount, currency: base, rate: 1, baseAmount: amount, baseCurrency: base,
     description: desc || 'Quick add', category: '', tags: [],
@@ -429,91 +455,159 @@ function quickAddSpend(amount: number, desc: string): void {
   });
 }
 
-/* ── Orchestration ───────────────────────────────────────────────────────── */
+function openJournalComposer(): void {
+  const leg = currentLeg();
+  const today = todayIso();
+  const handle = openModal({
+    title: '📔 Write a moment',
+    body: `
+      <div class="td-compose-body">
+        <input class="input" id="td-cmp-title" placeholder="Title (optional)">
+        <textarea class="input td-cmp-text" id="td-cmp-body" placeholder="What happened today? A thought, a scene, a feeling…" rows="5"></textarea>
+      </div>`,
+    footer: `
+      <button class="btn btn-ghost" id="td-cmp-cancel">Cancel</button>
+      <button class="btn btn-primary" id="td-cmp-save">Save</button>`,
+  });
+
+  handle.root.querySelector('#td-cmp-cancel')?.addEventListener('click', () => handle.close());
+  handle.root.querySelector('#td-cmp-save')?.addEventListener('click', async () => {
+    const titleEl = handle.root.querySelector<HTMLInputElement>('#td-cmp-title');
+    const bodyEl  = handle.root.querySelector<HTMLTextAreaElement>('#td-cmp-body');
+    const title   = titleEl?.value.trim() ?? '';
+    const body    = bodyEl?.value.trim() ?? '';
+    if (!body) { bodyEl?.focus(); return; }
+    await journalStore.save({
+      title, body, template: 'moment',
+      destination: leg?.city ?? '',
+      tags: [], happenedOn: today,
+    });
+    handle.close();
+    render();
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER + WIRE
+   ══════════════════════════════════════════════════════════════════════════ */
+
 function render(): void {
   const body = document.querySelector<HTMLElement>('#view-today .today-body');
   if (!body) return;
-
   const phase = tripPhase();
-  body.innerHTML = `${renderHero(phase)}<div class="today-grid">${layout(phase)}</div>`;
+  body.innerHTML = `${renderHero(phase)}${layout(phase)}`;
   wire(body);
+  bootMap();
 }
 
 function wire(body: HTMLElement): void {
-  // Navigation (cards + slim taps), with optional deep-link intent.
-  body.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {
+  // Navigation clicks (widget tap-through).
+  body.querySelectorAll<HTMLElement>('[data-nav]').forEach(el => {
     el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
-      // Don't hijack the tel: link, inline action rows, or the quick-add form.
-      if (t.closest('a, [data-toggle-plan], [data-toggle-check], [data-quickadd], [data-quickadd-toggle]')) return;
-      const intentRaw = el.dataset.intent;
-      let intent: NavIntent | undefined;
-      if (intentRaw) { try { intent = JSON.parse(intentRaw); } catch { /* ignore */ } }
+      if (t.closest('a, button:not([data-nav]), [data-quickadd], [data-rate-input]')) return;
+      const intent = el.dataset.intent ? (JSON.parse(el.dataset.intent) as NavIntent) : undefined;
       navigateTo(el.dataset.nav as ViewId, intent);
     });
   });
 
-  // Inline plan toggle.
-  body.querySelectorAll<HTMLElement>('[data-toggle-plan]').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const [legId, planId] = el.dataset.togglePlan!.split(':');
-      togglePlan(legId, planId);
-    });
-  });
-
-  // Inline checklist toggle.
-  body.querySelectorAll<HTMLElement>('[data-toggle-check]').forEach((el) => {
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const [clId, groupId, itemId] = el.dataset.toggleCheck!.split(':');
-      void checklistStore.toggleItem(clId, groupId, itemId);
-    });
-  });
-
-  // Quick-add expense: toggle + submit.
-  body.querySelector<HTMLElement>('[data-quickadd-toggle]')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    _quickAddOpen = !_quickAddOpen;
-    render();
-    if (_quickAddOpen) body.querySelector<HTMLInputElement>('.today-quickadd-amt')?.focus();
-  });
-  body.querySelector<HTMLFormElement>('[data-quickadd]')?.addEventListener('submit', (e) => {
+  // Quick-add spend form.
+  body.querySelector<HTMLFormElement>('[data-quickadd]')?.addEventListener('submit', e => {
     e.preventDefault();
     const form = e.currentTarget as HTMLFormElement;
-    const amount = parseFloat(form.querySelector<HTMLInputElement>('.today-quickadd-amt')!.value);
-    const desc = form.querySelector<HTMLInputElement>('.today-quickadd-desc')!.value.trim();
-    if (!Number.isFinite(amount) || amount <= 0) return;
-    quickAddSpend(amount, desc);
-    _quickAddOpen = false;
-    render();
+    const amt  = parseFloat((form.querySelector('.td-quickadd-amt') as HTMLInputElement).value);
+    const desc = (form.querySelector('.td-quickadd-desc') as HTMLInputElement).value.trim();
+    if (!Number.isFinite(amt) || amt <= 0) return;
+    quickAddSpend(amt, desc);
+    (form.querySelector('.td-quickadd-amt') as HTMLInputElement).value  = '';
+    (form.querySelector('.td-quickadd-desc') as HTMLInputElement).value = '';
+  });
+
+  // Currency converter input.
+  body.querySelector<HTMLInputElement>('[data-rate-input]')?.addEventListener('input', e => {
+    _rateInput = (e.target as HTMLInputElement).value;
+    // Re-render only the result span to avoid full re-render on keypress.
+    const local = localCurrency();
+    const rate  = _rates[local] ? (1 / _rates[local]) : null;
+    const amt   = parseFloat(_rateInput);
+    const result = (rate != null && Number.isFinite(amt)) ? (amt * rate).toFixed(2) : '—';
+    const span = body.querySelector<HTMLElement>('.td-currency-value');
+    if (span) span.textContent = result;
+  });
+
+  // Plan item inline toggle (during phase, location card).
+  body.querySelectorAll<HTMLElement>('[data-toggle-plan]').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      const [legId, planId] = el.dataset.togglePlan!.split(':');
+      const leg = _legs.find(l => l.id === legId);
+      if (!leg) return;
+      const plans = (leg.plans ?? []).map((p: PlanItem) => p.id === planId ? { ...p, done: !p.done } : p);
+      void routeStore.update(legId, { plans });
+    });
+  });
+
+  // Journal quick compose.
+  body.querySelector('[data-compose-journal]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    openJournalComposer();
+  });
+
+  // Todo inline toggle.
+  body.querySelectorAll<HTMLElement>('[data-toggle-todo]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const [id, doneStr] = btn.dataset.toggleTodo!.split(':');
+      void todoStore.toggle(id, doneStr === 'true');
+    });
+  });
+
+  // Todo quick-add form.
+  body.querySelector<HTMLFormElement>('[data-todo-add]')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const form  = e.currentTarget as HTMLFormElement;
+    const input = form.querySelector<HTMLInputElement>('.td-todo-add-input');
+    const text  = input?.value.trim() ?? '';
+    if (!text) return;
+    await todoStore.add({ text, dueDate: null });
+    if (input) input.value = '';
   });
 }
+
+function bootMap(): void {
+  const canvas = document.getElementById('td-map-canvas');
+  if (!canvas || _mapBooted) return;
+  _mapBooted = true;
+  void initDashboardMap(canvas, _legs);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INIT
+   ══════════════════════════════════════════════════════════════════════════ */
 
 export function initToday(): void {
   const root = document.getElementById('view-today');
   if (!root) return;
 
-  _rates = peekRateTable(baseCurrency());
-  _legs = routeStore.peek();
-  _expenses = expenseStore.peek();
+  _rates      = peekRateTable(baseCurrency());
+  _legs       = routeStore.peek();
+  _expenses   = expenseStore.peek();
   _checklists = checklistStore.peek();
-  _cards = safetyStore.peek();
-  _nomad = nomadStore.peek();
-  _compare = compareStore.peek();
-  _quickAddOpen = false;
+  _journal    = journalStore.peek();
+  _todos      = todoStore.peek();
+  _mapBooted  = false;
+  disposeDashboardMap();
   render();
 
-  _unsubs.forEach((u) => u());
+  _unsubs.forEach(u => u());
   _unsubs = [
-    routeStore.subscribe((rows) => { _legs = rows; render(); }),
-    expenseStore.subscribe((rows) => { _expenses = rows; render(); }),
-    checklistStore.subscribe((rows) => { _checklists = rows; render(); }),
-    safetyStore.subscribe((rows) => { _cards = rows; render(); }),
-    nomadStore.subscribeForTrip(currentTripId(), (rows) => { _nomad = rows; render(); }),
-    compareStore.subscribe((rows) => { _compare = rows; render(); }),
-    onTripChange(() => render()),
+    routeStore.subscribe(rows => { _legs = rows; _mapBooted = false; disposeDashboardMap(); render(); }),
+    expenseStore.subscribe(rows => { _expenses = rows; render(); }),
+    checklistStore.subscribe(rows => { _checklists = rows; render(); }),
+    journalStore.subscribe(rows => { _journal = rows; render(); }),
+    todoStore.subscribe(rows => { _todos = rows; render(); }),
+    onTripChange(() => { _mapBooted = false; disposeDashboardMap(); render(); }),
   ];
 
-  void getRateTable(baseCurrency()).then((table) => { _rates = table; render(); });
+  void getRateTable(baseCurrency()).then(table => { _rates = table; render(); });
 }
