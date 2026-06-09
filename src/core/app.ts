@@ -39,8 +39,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   // Pinned
-  { id: 'today',    label: 'Today',     iconSrc: '🏠',  emoji: true, section: 'pinned' },
-  { id: 'calendar', label: 'Calendar',  iconSrc: '🗓️', emoji: true, section: 'pinned' },
+  { id: 'today',    label: 'Dashboard', iconSrc: '🏠',  emoji: true, section: 'pinned' },
   // Before
   { id: 'prep',     label: 'Checklist', iconSrc: checklistIcon, section: 'before' },
   { id: 'pack',     label: 'Pack',      iconSrc: packIcon,      section: 'before' },

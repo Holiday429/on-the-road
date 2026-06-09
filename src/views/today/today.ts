@@ -138,7 +138,7 @@ function renderHero(phase: Phase): string {
   return `
     <div class="td-hero" data-phase="${phase}">
       <div class="td-hero-left">
-        <div class="td-hero-greet">${greetingWord()}, ${esc(firstName())} 👋</div>
+        <div class="td-hero-greet">${greetingWord()}, ${esc(firstName())}! 👋</div>
         <div class="td-hero-name">${esc(name)}</div>
         ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
         <div class="td-phase">${phaseRail}</div>
@@ -304,16 +304,17 @@ function renderSpendWidget(): string {
 /* ── Map thumbnail ────────────────────────────────────────────────────────── */
 function renderMapWidget(): string {
   return `
-    <div class="td-widget td-w-map" data-nav="map">
+    <div class="td-widget td-w-map">
       <div class="td-widget-header">
         <div class="td-widget-label">🗺️ Route map</div>
-        <span class="td-map-legend">
-          <span class="td-map-dot" style="background:#22c55e"></span>Now
-          <span class="td-map-dot" style="background:#f9b830"></span>Upcoming
-          <span class="td-map-dot" style="background:#a8a29e"></span>Past
-        </span>
+        <button class="td-link" data-nav="map">Full map ›</button>
       </div>
       <div class="td-map-container" id="td-map-canvas"></div>
+      <div class="td-map-legend">
+        <span class="td-map-dot" style="background:#22c55e"></span>Now
+        <span class="td-map-dot" style="background:#f9b830"></span>Upcoming
+        <span class="td-map-dot" style="background:#a8a29e"></span>Past
+      </div>
     </div>`;
 }
 
@@ -578,6 +579,7 @@ function bootMap(): void {
   const canvas = document.getElementById('td-map-canvas');
   if (!canvas || _mapBooted) return;
   _mapBooted = true;
+  // Pass legs (may be empty — map still renders Europe outline + pins when legs exist)
   void initDashboardMap(canvas, _legs);
 }
 

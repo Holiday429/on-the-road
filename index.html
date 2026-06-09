@@ -63,16 +63,12 @@
   <main id="main">
     <header id="app-topbar"></header>
 
-    <!-- /today — Dashboard -->
-    <div id="view-today" class="view">
-      <div class="view-header">
-        <div class="view-title">Today</div>
-        <div class="view-subtitle">Your personal trip dashboard.</div>
-      </div>
+    <!-- /today — Dashboard (no view-header; greeting rendered inline) -->
+    <div id="view-today" class="view view-no-header">
       <div class="today-body"></div>
     </div>
 
-    <!-- /calendar -->
+    <!-- /calendar — full calendar view (accessible via Dashboard widget button) -->
     <div id="view-calendar" class="view">
       <div class="view-header">
         <div class="view-title">Calendar</div>
