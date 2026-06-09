@@ -29,6 +29,7 @@
 
 /* ── Hero banner ─────────────────────────────────────────────────────────── */
 .td-hero {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -42,6 +43,19 @@
   overflow: hidden;
 }
 .td-hero-left { flex: 1; min-width: 0; }
+/* Weather chip — top-left corner inside the banner */
+.td-hero-weather {
+  position: absolute; top: var(--sp-3); left: var(--sp-4);
+  display: flex; align-items: center; gap: 4px;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600;
+  color: var(--ink-soft);
+  background: rgba(255,255,255,0.75); border-radius: var(--r-full);
+  padding: 3px 10px; backdrop-filter: blur(4px);
+  border: 1px solid var(--rule-soft);
+}
+.td-hero-weather-loading { color: var(--ink-faint); }
+/* push hero content below weather chip */
+.td-hero-left { padding-top: calc(var(--sp-4) + var(--sp-2)); }
 .td-hero-name {
   font-family: var(--font-ui);
   font-size: var(--fs-xl);
@@ -186,9 +200,6 @@
   cursor: pointer; transition: background var(--dur-fast);
 }
 .td-currency-swap:hover { background: var(--amber-50); color: var(--accent-deep); }
-.td-cur-conv-hint {
-  font-size: 10px; color: var(--ink-faint); text-align: center;
-}
 /* Rate info rows */
 .td-cur-rates { display: flex; flex-direction: column; gap: 4px; }
 .td-cur-rate-row {
@@ -418,22 +429,23 @@
 .td-plan-title.is-overdue { color: var(--coral-500); }
 .td-plan-check { flex-shrink: 0; font-size: 11px; color: var(--sage-500); font-weight: 700; }
 .td-plan-more { font-size: var(--fs-xs); color: var(--ink-faint); text-align: center; padding-top: var(--sp-1); }
+.td-plan-day-header {
+  font-family: var(--font-ui); font-size: 10px; font-weight: 700;
+  color: var(--ink-faint); letter-spacing: 0.04em; text-transform: uppercase;
+  padding: var(--sp-1) 0 2px; margin-top: 4px;
+}
+.td-plan-day-header:first-child { margin-top: 0; }
 
 /* ── Drag-and-drop ────────────────────────────────────────────────────────── */
 .td-draggable { position: relative; }
-.td-dragging { opacity: 0.35; transform: scale(0.98); }
-/* Drag handle — shown on hover */
+.td-dragging { opacity: 0.35; transform: scale(0.98); pointer-events: none; }
+/* Widget label / header becomes the drag handle when hovered */
 .td-drag-handle {
-  position: absolute; top: 10px; right: 10px; z-index: 5;
-  width: 20px; height: 20px; display: grid; place-items: center;
-  font-size: 14px; color: var(--ink-faint); line-height: 1;
-  border-radius: var(--r-sm); background: transparent;
-  opacity: 0; transition: opacity var(--dur-fast);
-  cursor: grab; user-select: none;
+  cursor: grab;
+  user-select: none;
 }
-.td-draggable:hover .td-drag-handle { opacity: 1; }
 .td-drag-handle:active { cursor: grabbing; }
-/* Notion-style insert line */
+/* Notion-style insert line spanning full row */
 .td-drop-indicator {
   grid-column: 1 / -1;
   height: 3px;
@@ -441,4 +453,5 @@
   border-radius: var(--r-full);
   box-shadow: 0 0 0 3px var(--amber-100);
   pointer-events: none;
+  margin: -8px 0;
 }

@@ -430,6 +430,10 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     handleDataChange,
     afterRender,
     currentView: () => state.view,
+    openComposerForTemplate: (templateId: string) => {
+      openComposer(templateId as TemplateId);
+      deps.requestRender();
+    },
   };
 
   function filteredEntries(entries: StoredJournalEntry[], applyCalendarMonth = true): StoredJournalEntry[] {

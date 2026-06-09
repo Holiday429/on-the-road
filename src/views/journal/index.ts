@@ -130,6 +130,18 @@ function renderJournal() {
   updateSubtitle();
 }
 
+/**
+ * Open the journal capture composer for a specific template, navigating to
+ * the journal view if needed. Called from the dashboard quick-entry buttons.
+ */
+export function openJournalComposerForTemplate(templateId: string): void {
+  // Switch to capture mode in case story mode is active
+  mode = 'capture';
+  capture.openComposerForTemplate(templateId);
+  // Render so the composer appears immediately when the view is shown
+  renderJournal();
+}
+
 export function initJournal() {
   // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
   _unsubEntries?.();

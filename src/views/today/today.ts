@@ -16,9 +16,9 @@ import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES
 import { navigateTo, type ViewId, type NavIntent, openNewTrip } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import { openModal } from '../../core/modal.ts';
 import type { PlanItem } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
+import { openJournalComposerForTemplate } from '../journal/index.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
@@ -32,6 +32,8 @@ let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency(
 let _rateTo    = '';          // selected "to" currency (empty = auto localCurrency())
 let _mapBooted = false;       // init dashboard map only once per view mount
 let _unsubs: Array<() => void> = [];
+let _weather: { icon: string; temp: string } | null = null;
+let _weatherCity = '';
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 type Phase = 'before' | 'during' | 'after';
@@ -85,6 +87,38 @@ function greetingWord(): string {
   if (h < 12) return 'Good morning';
   if (h < 18) return 'Good afternoon';
   return 'Good evening';
+}
+
+/* ── Weather (wttr.in JSON) ──────────────────────────────────────────────── */
+const WEATHER_ICONS: Record<string, string> = {
+  '113': '☀️', '116': '⛅', '119': '☁️', '122': '☁️',
+  '143': '🌫️', '176': '🌦️', '179': '🌨️', '182': '🌧️',
+  '185': '🌧️', '200': '⛈️', '227': '🌨️', '230': '❄️',
+  '248': '🌫️', '260': '🌫️', '263': '🌦️', '266': '🌦️',
+  '281': '🌧️', '284': '🌧️', '293': '🌦️', '296': '🌦️',
+  '299': '🌧️', '302': '🌧️', '305': '🌧️', '308': '🌧️',
+  '311': '🌧️', '314': '🌧️', '317': '🌧️', '320': '🌨️',
+  '323': '🌨️', '326': '🌨️', '329': '❄️', '332': '❄️',
+  '335': '❄️', '338': '❄️', '350': '🌧️', '353': '🌦️',
+  '356': '🌧️', '359': '🌧️', '362': '🌧️', '365': '🌧️',
+  '368': '🌨️', '371': '❄️', '374': '🌧️', '377': '🌧️',
+  '386': '⛈️', '389': '⛈️', '392': '⛈️', '395': '⛈️',
+};
+async function fetchWeather(city: string): Promise<void> {
+  if (!city || city === _weatherCity) return;
+  _weatherCity = city;
+  try {
+    const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return;
+    const data = await res.json();
+    const cur  = data?.current_condition?.[0];
+    if (!cur) return;
+    const code = String(cur.weatherCode ?? '113');
+    const icon = WEATHER_ICONS[code] ?? '🌡️';
+    const temp = `${cur.temp_C ?? cur.temp_F ?? '?'}°`;
+    _weather = { icon, temp };
+    render();
+  } catch { /* silent — weather is decorative */ }
 }
 
 /* ── Currency pair for rate widget ───────────────────────────────────────── */
@@ -165,8 +199,17 @@ function renderHero(phase: Phase): string {
     anchor = `Trip complete${len ? ` · ${len} days` : ''}${countries ? ` · ${countries} countr${countries === 1 ? 'y' : 'ies'}` : ''}`;
   }
 
+  // Kick off weather fetch for current/next city
+  const weatherCity = leg?.city ?? '';
+  if (weatherCity) void fetchWeather(weatherCity);
+
+  const weatherChip = _weather
+    ? `<div class="td-hero-weather">${_weather.icon} ${esc(_weather.temp)}</div>`
+    : (weatherCity ? `<div class="td-hero-weather td-hero-weather-loading">…</div>` : '');
+
   return `
     <div class="td-hero" data-phase="${phase}">
+      ${weatherChip}
       <div class="td-hero-left">
         <div class="td-hero-name">${esc(name)}</div>
         ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
@@ -202,35 +245,14 @@ function renderCurrencyWidget(): string {
   const inputAmt = _rateInput !== '' ? parseFloat(_rateInput) : null;
   const converted = (inputAmt != null && crossRate != null) ? (inputAmt * crossRate).toFixed(2) : '';
 
-  const fromFlag = CURRENCIES.find(c => c.code === fromCur)?.flag ?? '';
-  const toFlag   = CURRENCIES.find(c => c.code === toCur)?.flag ?? '';
-
-  // 3 rate info rows: base + 2 trip currencies (excluding base)
-  const tripCurs = tripCurrencies().filter(c => c !== base).slice(0, 2);
   const baseFlag = CURRENCIES.find(c => c.code === base)?.flag ?? '';
-  const rateRows = [base, ...tripCurs].map(code => {
-    const flag = CURRENCIES.find(c => c.code === code)?.flag ?? '';
-    void tripCurs.find(c => c === code);
-    if (code === base) {
-      // Show base vs first trip currency
-      const peer = tripCurs[0];
-      if (!peer) return '';
-      const pFlag = CURRENCIES.find(c => c.code === peer)?.flag ?? '';
-      return `<div class="td-cur-rate-row"><span>${baseFlag} ${esc(base)}</span><span class="td-cur-rate-eq">=</span><span><strong>${rateDisplay(peer)}</strong> ${pFlag} ${esc(peer)}</span></div>`;
-    }
-    // Each trip currency vs base
-    return `<div class="td-cur-rate-row"><span>${baseFlag} ${esc(base)}</span><span class="td-cur-rate-eq">=</span><span><strong>${rateDisplay(code)}</strong> ${flag} ${esc(code)}</span></div>`;
-  }).filter(Boolean);
 
-  // Build 3 unique rows: base→tripCur1, base→tripCur2, base→localCurrency (if different)
-  const allTrip = tripCurrencies();
-  const rateRowCodes = allTrip.filter(c => c !== base).slice(0, 3);
+  // 3 rate info rows: base → each trip currency (up to 3)
+  const rateRowCodes = tripCurrencies().filter(c => c !== base).slice(0, 3);
   const rateRowsHtml = rateRowCodes.map(code => {
     const flag = CURRENCIES.find(c => c.code === code)?.flag ?? '';
     return `<div class="td-cur-rate-row"><span>${baseFlag} ${esc(base)}</span><span class="td-cur-rate-eq">=</span><span><strong>${rateDisplay(code)}</strong> ${flag} ${esc(code)}</span></div>`;
   }).join('');
-
-  void rateRows;
 
   return `
     <div class="td-widget td-w-currency">
@@ -247,7 +269,6 @@ function renderCurrencyWidget(): string {
             <select class="td-cur-select" data-rate-to>${currencyOptions(toCur)}</select>
           </div>
         </div>
-        <div class="td-cur-conv-hint">${fromFlag} 1 ${esc(fromCur)} = ${esc(crossRate != null ? crossRate.toFixed(4) : '—')} ${toFlag} ${esc(toCur)}</div>
       </div>
       <div class="td-cur-rates">${rateRowsHtml}</div>
     </div>`;
@@ -446,10 +467,27 @@ function renderUpcomingWidget(): string {
 function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
   const today = todayIso();
   const plans = (leg.plans ?? []) as PlanItem[];
-  const sorted = [...plans].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  const pending = sorted.filter(p => !p.done);
-  const done    = sorted.filter(p => p.done);
-  const displayed = [...pending, ...done].slice(0, 8);
+
+  // Build a date-index from planDays so items can be sorted by day date then order
+  const dayDateMap = new Map<string, string>(); // dayId → iso date
+  if (leg.planDays) {
+    for (const pd of leg.planDays) {
+      if (pd.id && pd.date) dayDateMap.set(pd.id, pd.date);
+    }
+  }
+
+  // Sort: assigned days first (by day date), then unassigned; within each group by order
+  const sortedPlans = [...plans].sort((a, b) => {
+    const aDate = a.dayId ? (dayDateMap.get(a.dayId) ?? '9999') : '9999';
+    const bDate = b.dayId ? (dayDateMap.get(b.dayId) ?? '9999') : '9999';
+    if (aDate !== bDate) return aDate.localeCompare(bDate);
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+
+  // Show pending items first (preserving date order), then done items at bottom
+  const pending = sortedPlans.filter(p => !p.done);
+  const done    = sortedPlans.filter(p => p.done);
+  const displayed = [...pending, ...done].slice(0, 10);
 
   const daysLeft = daysBetween(today, leg.dateTo);
   const daysAway = !isCurrent ? daysBetween(today, leg.dateFrom) : null;
@@ -457,10 +495,24 @@ function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
     ? `Day ${daysBetween(leg.dateFrom, today) + 1} · ${daysLeft + 1} day${daysLeft > 0 ? 's' : ''} left`
     : `In ${daysAway} day${daysAway !== 1 ? 's' : ''}`;
 
+  // Group pending items by day for date headers
+  let lastDayLabel = '';
   const items = displayed.length
     ? displayed.map(p => {
-        const icon = planIcon(p.category ?? '');
-        return `
+        const icon   = planIcon(p.category ?? '');
+        let dayHeader = '';
+        if (!p.done && p.dayId) {
+          const date = dayDateMap.get(p.dayId);
+          const label = date
+            ? new Date(date + 'T00:00:00').toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
+            : '';
+          if (label && label !== lastDayLabel) {
+            lastDayLabel = label;
+            const isToday = date === today;
+            dayHeader = `<div class="td-plan-day-header">${isToday ? '📅 Today' : esc(label)}</div>`;
+          }
+        }
+        return `${dayHeader}
           <div class="td-plan-row ${p.done ? 'is-done' : ''}" data-toggle-plan="${esc(leg.id)}:${esc(p.id)}">
             <span class="td-plan-icon">${icon}</span>
             <span class="td-plan-title">${esc(p.title)}</span>
@@ -468,6 +520,8 @@ function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
           </div>`;
       }).join('')
     : `<div class="td-upcoming-empty">No plan items for this stop yet.</div>`;
+
+  const moreCount = Math.max(0, plans.length - 10);
 
   return `
     <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
@@ -477,7 +531,7 @@ function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
       </div>
       <div class="td-plan-subtitle">${esc(subtitle)}</div>
       <div class="td-plan-feed">${items}</div>
-      ${pending.length > 8 ? `<div class="td-plan-more">+${pending.length - 8} more tasks</div>` : ''}
+      ${moreCount > 0 ? `<div class="td-plan-more">+${moreCount} more</div>` : ''}
     </div>`;
 }
 
@@ -609,7 +663,7 @@ function layout(phase: Phase): string {
   const todoWidget = renderTodoWidget();
   const currWidget = renderCurrencyWidget();
   const leftCol = `
-    <div class="td-left-col td-draggable" data-widget-id="leftcol" draggable="true">
+    <div class="td-left-col td-draggable" data-widget-id="leftcol">
       ${renderSpendWidget()}
       <div class="td-mini-row">
         ${renderPrepMini()}
@@ -620,9 +674,9 @@ function layout(phase: Phase): string {
   const upWidget  = renderUpcomingWidget();
   const jrnWidget = renderJournalWidget(phase);
 
-  // Inject data-widget-id and draggable on widget divs
+  // Inject data-widget-id on widget divs (no draggable attr — set dynamically by wireDragDrop)
   function tag(html: string, id: string): string {
-    return html.replace(/^(\s*<div class="td-widget)/, `$1 td-draggable" data-widget-id="${id}" draggable="true`);
+    return html.replace(/^(\s*<div class="td-widget)/, `$1 td-draggable" data-widget-id="${id}"`);
   }
 
   const widgetMap: Record<string, string> = {
@@ -652,66 +706,6 @@ function quickAddSpend(amount: number, desc: string): void {
     amount, currency: base, rate: 1, baseAmount: amount, baseCurrency: base,
     description: desc || 'Quick add', category: '', tags: [],
     city: leg?.city ?? '', country: leg?.country ?? '', date: todayIso(),
-  });
-}
-
-function openJournalComposer(template = 'moment', placeholder = 'What happened today? A thought, a scene, a feeling…'): void {
-  const ICON: Record<string, string> = { moment: '✨', note: '📝', interesting: '💡', place: '📍' };
-  const icon = ICON[template] ?? '📔';
-  const leg = currentLeg();
-  const today = todayIso();
-
-  // Destination options from legs
-  const legCities = sortedLegs().map(l => `<option value="${esc(l.city)}">${esc(l.flag)} ${esc(l.city)}</option>`).join('');
-
-  const handle = openModal({
-    title: `${icon} ${template.charAt(0).toUpperCase() + template.slice(1)}`,
-    body: `
-      <div class="td-compose-body">
-        <textarea class="input td-cmp-text" id="td-cmp-body" placeholder="${esc(placeholder)}" rows="5" autofocus></textarea>
-        <input class="input" id="td-cmp-title" placeholder="Title (optional)">
-        <div class="td-compose-row">
-          <input class="input" id="td-cmp-date" type="date" value="${esc(today)}">
-          <select class="input" id="td-cmp-dest">
-            <option value="">Destination…</option>
-            ${legCities}
-            <option value="__custom__">Other…</option>
-          </select>
-        </div>
-        <input class="input" id="td-cmp-tags" placeholder="Tags (comma-separated)">
-      </div>`,
-    footer: `
-      <button class="btn btn-ghost" id="td-cmp-cancel">Cancel</button>
-      <button class="btn btn-primary" id="td-cmp-save">Save</button>`,
-  });
-
-  // Pre-select current leg city if available
-  const destEl = handle.root.querySelector<HTMLSelectElement>('#td-cmp-dest');
-  if (destEl && leg) {
-    const opt = Array.from(destEl.options).find(o => o.value === leg.city);
-    if (opt) destEl.value = leg.city;
-  }
-
-  handle.root.querySelector('#td-cmp-cancel')?.addEventListener('click', () => handle.close());
-  handle.root.querySelector('#td-cmp-save')?.addEventListener('click', async () => {
-    const bodyEl  = handle.root.querySelector<HTMLTextAreaElement>('#td-cmp-body');
-    const titleEl = handle.root.querySelector<HTMLInputElement>('#td-cmp-title');
-    const dateEl  = handle.root.querySelector<HTMLInputElement>('#td-cmp-date');
-    const tagsEl  = handle.root.querySelector<HTMLInputElement>('#td-cmp-tags');
-    const body    = bodyEl?.value.trim() ?? '';
-    if (!body) { bodyEl?.focus(); return; }
-    const tags = tagsEl?.value.split(',').map(t => t.trim()).filter(Boolean) ?? [];
-    let destination = destEl?.value ?? '';
-    if (destination === '__custom__') destination = '';
-    await journalStore.save({
-      title:       titleEl?.value.trim() ?? '',
-      body, template,
-      destination,
-      tags,
-      happenedOn: dateEl?.value || today,
-    });
-    handle.close();
-    render();
   });
 }
 
@@ -805,13 +799,13 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Journal quick-entry template buttons.
+  // Journal quick-entry template buttons — open the real journal composer.
   body.querySelectorAll<HTMLElement>('[data-journal-template]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const template    = btn.dataset.journalTemplate ?? 'moment';
-      const placeholder = btn.dataset.journalPlaceholder ?? '';
-      openJournalComposer(template, placeholder);
+      const templateId = btn.dataset.journalTemplate ?? 'moment';
+      openJournalComposerForTemplate(templateId);
+      navigateTo('journal');
     });
   });
 
@@ -891,30 +885,32 @@ function wireDragDrop(body: HTMLElement): void {
     _insertBefore = before;
   }
 
-  // Show drag handle on hover (added dynamically to avoid cluttering HTML)
+  // Make widget-label the drag handle — grabbing the label row activates drag
   getWidgets().forEach(w => {
-    if (w.querySelector('.td-drag-handle')) return;
-    const handle = document.createElement('div');
-    handle.className = 'td-drag-handle';
-    handle.setAttribute('draggable', 'false');
-    handle.innerHTML = '⠿';
-    w.prepend(handle);
-    handle.addEventListener('mousedown', () => { w.setAttribute('draggable', 'true'); });
-    handle.addEventListener('mouseup', () => { w.setAttribute('draggable', 'false'); });
+    // Disable draggable by default; only enable when mousedown on label/header
+    w.removeAttribute('draggable');
+    const labelEl = w.querySelector<HTMLElement>('.td-widget-label, .td-widget-header');
+    if (!labelEl) return;
+    labelEl.classList.add('td-drag-handle');
+    labelEl.addEventListener('mousedown', () => { w.setAttribute('draggable', 'true'); });
+    labelEl.addEventListener('mouseup',   () => { w.removeAttribute('draggable'); });
+    // Also reset on dragend (handled globally below)
   });
 
   grid.addEventListener('dragstart', e => {
     const widget = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
-    if (!widget) { e.preventDefault(); return; }
+    if (!widget || !widget.getAttribute('draggable')) { e.preventDefault(); return; }
     dragId = widget.dataset.widgetId ?? null;
     widget.classList.add('td-dragging');
     e.dataTransfer!.effectAllowed = 'move';
-    // Small delay so the drag image doesn't include the indicator
     requestAnimationFrame(() => { indicator.style.display = 'none'; });
   });
 
   grid.addEventListener('dragend', () => {
-    getWidgets().forEach(el => el.classList.remove('td-dragging'));
+    getWidgets().forEach(el => {
+      el.classList.remove('td-dragging');
+      el.removeAttribute('draggable');
+    });
     clearIndicator();
     dragId = null;
   });
@@ -991,13 +987,15 @@ export function initToday(): void {
   const root = document.getElementById('view-today');
   if (!root) return;
 
-  _rates      = peekRateTable(baseCurrency());
-  _legs       = routeStore.peek();
-  _expenses   = expenseStore.peek();
-  _checklists = checklistStore.peek();
-  _journal    = journalStore.peek();
-  _todos      = todoStore.peek();
-  _mapBooted  = false;
+  _rates       = peekRateTable(baseCurrency());
+  _legs        = routeStore.peek();
+  _expenses    = expenseStore.peek();
+  _checklists  = checklistStore.peek();
+  _journal     = journalStore.peek();
+  _todos       = todoStore.peek();
+  _mapBooted   = false;
+  _weather     = null;
+  _weatherCity = '';
   disposeDashboardMap();
   render();
 
@@ -1008,7 +1006,7 @@ export function initToday(): void {
     checklistStore.subscribe(rows => { _checklists = rows; render(); }),
     journalStore.subscribe(rows => { _journal = rows; render(); }),
     todoStore.subscribe(rows => { _todos = rows; render(); }),
-    onTripChange(() => { _mapBooted = false; disposeDashboardMap(); render(); }),
+    onTripChange(() => { _mapBooted = false; _weather = null; _weatherCity = ''; disposeDashboardMap(); render(); }),
   ];
 
   void getRateTable(baseCurrency()).then(table => { _rates = table; render(); });
