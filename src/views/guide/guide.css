@@ -1063,3 +1063,24 @@ a.guide-icon-btn { text-decoration: none; }
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 540px) {
+  .guide-search-row {
+    flex-wrap: wrap;
+  }
+
+  .guide-city-input-wrap {
+    flex: 1 1 100%;
+  }
+
+  #guide-generate-btn {
+    flex: 1;
+  }
+
+  .guide-refine-toggle,
+  .guide-history-toggle {
+    flex: 1;
+    justify-content: center;
+  }
+}

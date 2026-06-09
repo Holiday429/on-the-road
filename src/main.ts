@@ -253,6 +253,12 @@ setTimeout(async () => {
   }
 }, 4000);
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/on-the-road/sw.js').catch(() => {});
+  });
+}
+
 onAuth(async ({ user, ready }) => {
   if (!ready) return;
 

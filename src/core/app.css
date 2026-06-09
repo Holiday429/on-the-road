@@ -978,6 +978,8 @@
   color: var(--ink-faint);
   transition: color var(--dur-fast);
   min-width: 60px;
+  min-height: 44px;
+  justify-content: center;
   flex-shrink: 0;
 }
 .mobile-nav-item.active { color: var(--amber-600); }
@@ -991,6 +993,69 @@
 .mobile-nav-item .nav-label { font-size: 11px; font-weight: 700; font-family: var(--font-ui); }
 
 @media (max-width: 1180px) {
+  #sidebar {
+    width: var(--sidebar-w-collapsed);
+  }
+
+  #main {
+    margin-left: var(--sidebar-w-collapsed);
+  }
+
+  .sidebar-header {
+    justify-content: center;
+    padding: var(--sp-4) var(--sp-2);
+  }
+
+  .sidebar-header-profile {
+    justify-content: center;
+  }
+
+  .sidebar-profile-meta,
+  .trip-pill-label,
+  .trip-pill-name,
+  .trip-pill-days,
+  .nav-section-label,
+  .nav-item .nav-label {
+    display: none;
+  }
+
+  .trip-pill {
+    margin: var(--sp-3) var(--sp-2) 0;
+    padding: var(--sp-2);
+    text-align: center;
+  }
+
+  .trip-pill-date {
+    display: block;
+    margin-top: 0;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .sidebar-nav {
+    padding: var(--sp-3) var(--sp-2);
+    align-items: center;
+  }
+
+  .nav-item {
+    justify-content: center;
+    width: 100%;
+    padding: 10px 0;
+  }
+
+  .nav-item .nav-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .nav-icon-image {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* ── iPad portrait / small tablet (769px–1024px) ────────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
   #sidebar {
     width: var(--sidebar-w-collapsed);
   }
