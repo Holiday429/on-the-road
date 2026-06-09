@@ -79,23 +79,23 @@
    ─────────────────────────────────────────────────────────────────────────── */
 .td-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.6fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: var(--sp-4);
-  align-items: stretch;
+  align-items: start;
 }
 
-/* Row 1: 3 equal-height cols */
-.td-w-currency { grid-column: 1; }
-.td-w-calendar { grid-column: 2; }
-.td-w-todo     { grid-column: 3; }
+/* Row 1: 3 truly equal cols, equal height via align-self stretch */
+.td-w-currency { grid-column: 1; align-self: stretch; }
+.td-w-calendar { grid-column: 2; align-self: stretch; }
+.td-w-todo     { grid-column: 3; align-self: stretch; }
 
-/* Row 2: left-col spans 2 (narrow), map spans 1 (wide) */
+/* Row 2: left-col spans 2, map spans 1 — map gets explicit min-height */
 .td-left-col   { grid-column: 1 / span 2; display: flex; flex-direction: column; gap: var(--sp-4); }
-.td-w-map      { grid-column: 3; }
+.td-w-map      { grid-column: 3; align-self: stretch; }
 
-/* Row 3: upcoming (2 cols) + journal (1 col) */
+/* Row 3: upcoming spans 2, journal spans 1 — journal auto-height only */
 .td-w-upcoming { grid-column: 1 / span 2; }
-.td-w-journal  { grid-column: 3; }
+.td-w-journal  { grid-column: 3; align-self: start; }
 
 /* Mini row inside left-col */
 .td-mini-row {
@@ -153,29 +153,52 @@
 .td-link:hover { text-decoration: underline; }
 
 /* ── Currency ─────────────────────────────────────────────────────────────── */
-.td-currency-rate { font-size: var(--fs-xs); color: var(--ink-soft); }
-.td-currency-rate strong { font-weight: 700; color: var(--ink); font-family: var(--font-ui); }
-.td-currency-row { display: flex; align-items: center; gap: var(--sp-2); }
-.td-currency-side {
-  flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 4px;
-  background: var(--surface-3); border-radius: var(--r-md); padding: 7px 8px;
+/* Converter block */
+.td-cur-converter { display: flex; flex-direction: column; gap: var(--sp-2); }
+.td-cur-conv-row {
+  display: flex; align-items: center; gap: var(--sp-2);
 }
-.td-currency-result { background: var(--amber-50); }
-.td-currency-flag { font-size: 14px; flex-shrink: 0; }
+.td-cur-conv-side {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--surface-3); border-radius: var(--r-md); padding: 8px 10px;
+}
+.td-cur-conv-result { background: var(--amber-50); }
 .td-currency-input {
-  flex: 1; min-width: 0; width: 0;
   border: none; background: transparent;
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600;
-  color: var(--ink); outline: none;
+  font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700;
+  color: var(--ink); outline: none; width: 100%;
 }
 .td-currency-value {
-  flex: 1; min-width: 0;
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
-  color: var(--accent-deep); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700;
+  color: var(--accent-deep); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.td-currency-code { font-size: 10px; font-weight: 700; color: var(--ink-muted); flex-shrink: 0; }
-.td-currency-swap { font-size: 16px; color: var(--ink-faint); flex-shrink: 0; }
+.td-cur-select {
+  border: none; background: transparent; outline: none; cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
+  color: var(--ink-muted); padding: 0; width: 100%;
+}
+.td-currency-swap {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--surface-3); border: 1px solid var(--rule-soft);
+  border-radius: var(--r-full); font-size: 14px; color: var(--ink-muted);
+  cursor: pointer; transition: background var(--dur-fast);
+}
+.td-currency-swap:hover { background: var(--amber-50); color: var(--accent-deep); }
+.td-cur-conv-hint {
+  font-size: 10px; color: var(--ink-faint); text-align: center;
+}
+/* Rate info rows */
+.td-cur-rates { display: flex; flex-direction: column; gap: 4px; }
+.td-cur-rate-row {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  font-size: var(--fs-xs); color: var(--ink-soft);
+  padding: 4px 0; border-top: 1px solid var(--rule-soft);
+}
+.td-cur-rate-row:first-child { border-top: none; }
+.td-cur-rate-row strong { font-weight: 700; color: var(--ink); font-family: var(--font-ui); }
+.td-cur-rate-eq { color: var(--ink-faint); }
 
 /* ── Calendar mini ────────────────────────────────────────────────────────── */
 .td-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
@@ -240,14 +263,33 @@
 
 /* ── Map ──────────────────────────────────────────────────────────────────── */
 .td-w-map { display: flex; flex-direction: column; gap: var(--sp-3); }
+.td-map-wrap {
+  position: relative; flex: 1;
+}
 .td-map-container {
-  flex: 1; min-height: 300px;
+  width: 100%; min-height: 320px;
   border-radius: var(--r-lg); overflow: hidden; background: var(--surface-3);
 }
+.td-map-zoom-controls {
+  position: absolute; right: 8px; bottom: 8px; z-index: 4;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.td-map-zoom-btn {
+  width: 30px; height: 30px;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  font-family: var(--font-ui); font-weight: 700; font-size: 15px; color: var(--ink);
+  box-shadow: var(--shadow-sm); display: grid; place-items: center; line-height: 1;
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+  cursor: pointer;
+}
+.td-map-zoom-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+#tdMapZoomFit { font-size: 13px; }
 .td-map-legend {
   display: flex; align-items: center; gap: var(--sp-3);
   font-size: 10px; color: var(--ink-muted);
 }
+.td-map-legend span { display: flex; align-items: center; gap: 4px; }
 .td-map-dot {
   display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
   border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
@@ -355,14 +397,6 @@
 .td-compose-row { display: flex; gap: var(--sp-2); }
 .td-compose-row .input { flex: 1; min-width: 0; }
 
-/* ── Currency extra rate rows ─────────────────────────────────────────────── */
-.td-currency-extra {
-  font-size: var(--fs-xs); color: var(--ink-soft);
-  padding: 3px 0;
-  border-bottom: 1px solid var(--rule-soft);
-}
-.td-currency-extra strong { font-weight: 700; color: var(--ink); }
-.td-currency-extra:last-of-type { margin-bottom: var(--sp-1); }
 
 /* ── Plan feed (Upcoming widget) ──────────────────────────────────────────── */
 .td-plan-subtitle { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: -var(--sp-1); }
@@ -386,11 +420,25 @@
 .td-plan-more { font-size: var(--fs-xs); color: var(--ink-faint); text-align: center; padding-top: var(--sp-1); }
 
 /* ── Drag-and-drop ────────────────────────────────────────────────────────── */
-.td-draggable { cursor: grab; }
-.td-draggable:active { cursor: grabbing; }
-.td-dragging { opacity: 0.4; }
-.td-drag-over {
-  outline: 2px dashed var(--accent);
-  outline-offset: 3px;
-  border-radius: var(--r-xl);
+.td-draggable { position: relative; }
+.td-dragging { opacity: 0.35; transform: scale(0.98); }
+/* Drag handle — shown on hover */
+.td-drag-handle {
+  position: absolute; top: 10px; right: 10px; z-index: 5;
+  width: 20px; height: 20px; display: grid; place-items: center;
+  font-size: 14px; color: var(--ink-faint); line-height: 1;
+  border-radius: var(--r-sm); background: transparent;
+  opacity: 0; transition: opacity var(--dur-fast);
+  cursor: grab; user-select: none;
+}
+.td-draggable:hover .td-drag-handle { opacity: 1; }
+.td-drag-handle:active { cursor: grabbing; }
+/* Notion-style insert line */
+.td-drop-indicator {
+  grid-column: 1 / -1;
+  height: 3px;
+  background: var(--accent);
+  border-radius: var(--r-full);
+  box-shadow: 0 0 0 3px var(--amber-100);
+  pointer-events: none;
 }

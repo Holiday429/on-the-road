@@ -50,12 +50,12 @@ export async function initDashboardMap(
 
   const chart = root.container.children.push(am5map.MapChart.new(root, {
     projection:    am5map.geoMercator(),
-    panX: 'none', panY: 'none',
+    panX: 'translateX', panY: 'translateY',
     wheelX: 'none', wheelY: 'none',
     homeGeoPoint:  EUROPE_CENTER,
     homeZoomLevel: EUROPE_ZOOM,
-    minZoomLevel:  EUROPE_ZOOM,
-    maxZoomLevel:  EUROPE_ZOOM,
+    minZoomLevel:  1,
+    maxZoomLevel:  16,
   }));
 
   // Base world polygons — very subtle.
@@ -157,4 +157,13 @@ export async function initDashboardMap(
 
 export function disposeDashboardMap(): void {
   if (_root) { try { _root.dispose(); } catch { /* ignore */ } _root = null; }
+}
+
+export function dashboardMapZoom(action: 'in' | 'out' | 'fit'): void {
+  if (!_root) return;
+  const chart = _root.container.children.getIndex(0);
+  if (!chart) return;
+  if (action === 'in')  { if (chart.zoomIn) chart.zoomIn(); else chart.set('zoomLevel', (chart.get('zoomLevel') ?? 1) * 1.5); }
+  if (action === 'out') { if (chart.zoomOut) chart.zoomOut(); else chart.set('zoomLevel', (chart.get('zoomLevel') ?? 1) / 1.5); }
+  if (action === 'fit') { chart.goHome(); }
 }

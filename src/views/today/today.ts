@@ -18,7 +18,7 @@ import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
 import type { PlanItem } from '../../data/schema.ts';
-import { initDashboardMap, disposeDashboardMap } from './dashboard-map.ts';
+import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
@@ -27,7 +27,9 @@ let _checklists: ReturnType<typeof checklistStore.peek> = [];
 let _journal: StoredJournalEntry[] = [];
 let _todos:   StoredTodo[]         = [];
 let _rates: RateTable = {};
-let _rateInput = '';          // currency converter left-side amount
+let _rateInput = '';          // currency converter amount
+let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency())
+let _rateTo    = '';          // selected "to" currency (empty = auto localCurrency())
 let _mapBooted = false;       // init dashboard map only once per view mount
 let _unsubs: Array<() => void> = [];
 
@@ -175,41 +177,79 @@ function renderHero(phase: Phase): string {
 }
 
 /* ── Currency widget ──────────────────────────────────────────────────────── */
-function renderCurrencyWidget(): string {
-  const base  = baseCurrency();
-  const local = localCurrency();
-  const rate  = _rates[local] ? (1 / _rates[local]) : null;
-  const inputAmt = _rateInput !== '' ? parseFloat(_rateInput) : null;
-  const converted = (inputAmt != null && rate != null) ? (inputAmt * rate).toFixed(2) : '';
-  const localFlag = CURRENCIES.find(c => c.code === local)?.flag ?? '';
-  const baseFlag  = CURRENCIES.find(c => c.code === base)?.flag ?? '';
+function currencyOptions(selected: string): string {
+  return CURRENCIES.map(c =>
+    `<option value="${esc(c.code)}" ${c.code === selected ? 'selected' : ''}>${c.flag} ${c.code}</option>`
+  ).join('');
+}
 
-  // Extra rate rows: all trip-relevant currencies vs base
-  const extras = tripCurrencies().filter(c => c !== local && c !== base);
-  const extraRows = extras.map(code => {
-    const r = _rates[code] ? (1 / _rates[code]) : null;
+function renderCurrencyWidget(): string {
+  const base   = baseCurrency();
+  const fromCur = _rateFrom || base;
+  const toCur   = _rateTo   || localCurrency();
+
+  // Converter: from → to
+  const rateToBase   = fromCur === base ? 1 : (_rates[fromCur] ? (1 / _rates[fromCur]) : null);
+  const rateFromBase = toCur === base ? 1 : (_rates[toCur] ? (1 / _rates[toCur]) : null);
+  const crossRate = (rateToBase != null && rateFromBase != null) ? rateFromBase / rateToBase : null;
+  // For rates table: 1 base = ? currency (rates[c] = how many base per 1 unit of c, so 1/rates[c])
+  function rateDisplay(code: string): string {
+    if (code === base) return '1.0000';
+    const r = _rates[code];
+    return r ? (1 / r).toFixed(4) : '—';
+  }
+
+  const inputAmt = _rateInput !== '' ? parseFloat(_rateInput) : null;
+  const converted = (inputAmt != null && crossRate != null) ? (inputAmt * crossRate).toFixed(2) : '';
+
+  const fromFlag = CURRENCIES.find(c => c.code === fromCur)?.flag ?? '';
+  const toFlag   = CURRENCIES.find(c => c.code === toCur)?.flag ?? '';
+
+  // 3 rate info rows: base + 2 trip currencies (excluding base)
+  const tripCurs = tripCurrencies().filter(c => c !== base).slice(0, 2);
+  const baseFlag = CURRENCIES.find(c => c.code === base)?.flag ?? '';
+  const rateRows = [base, ...tripCurs].map(code => {
     const flag = CURRENCIES.find(c => c.code === code)?.flag ?? '';
-    const display = r != null ? r.toFixed(4) : '—';
-    return `<div class="td-currency-extra">1 ${baseFlag} ${esc(base)} = <strong>${display}</strong> ${flag} ${esc(code)}</div>`;
+    void tripCurs.find(c => c === code);
+    if (code === base) {
+      // Show base vs first trip currency
+      const peer = tripCurs[0];
+      if (!peer) return '';
+      const pFlag = CURRENCIES.find(c => c.code === peer)?.flag ?? '';
+      return `<div class="td-cur-rate-row"><span>${baseFlag} ${esc(base)}</span><span class="td-cur-rate-eq">=</span><span><strong>${rateDisplay(peer)}</strong> ${pFlag} ${esc(peer)}</span></div>`;
+    }
+    // Each trip currency vs base
+    return `<div class="td-cur-rate-row"><span>${baseFlag} ${esc(base)}</span><span class="td-cur-rate-eq">=</span><span><strong>${rateDisplay(code)}</strong> ${flag} ${esc(code)}</span></div>`;
+  }).filter(Boolean);
+
+  // Build 3 unique rows: base→tripCur1, base→tripCur2, base→localCurrency (if different)
+  const allTrip = tripCurrencies();
+  const rateRowCodes = allTrip.filter(c => c !== base).slice(0, 3);
+  const rateRowsHtml = rateRowCodes.map(code => {
+    const flag = CURRENCIES.find(c => c.code === code)?.flag ?? '';
+    return `<div class="td-cur-rate-row"><span>${baseFlag} ${esc(base)}</span><span class="td-cur-rate-eq">=</span><span><strong>${rateDisplay(code)}</strong> ${flag} ${esc(code)}</span></div>`;
   }).join('');
+
+  void rateRows;
 
   return `
     <div class="td-widget td-w-currency">
       <div class="td-widget-label">💱 Currency</div>
-      ${extraRows}
-      <div class="td-currency-row">
-        <div class="td-currency-side">
-          <span class="td-currency-flag">${baseFlag}</span>
-          <input class="td-currency-input" data-rate-input type="number" inputmode="decimal" placeholder="100" value="${esc(_rateInput)}">
-          <span class="td-currency-code">${esc(base)}</span>
+      <div class="td-cur-converter">
+        <div class="td-cur-conv-row">
+          <div class="td-cur-conv-side">
+            <input class="td-currency-input" data-rate-input type="number" inputmode="decimal" placeholder="1" value="${esc(_rateInput)}">
+            <select class="td-cur-select" data-rate-from>${currencyOptions(fromCur)}</select>
+          </div>
+          <button class="td-currency-swap" data-rate-swap title="Swap">⇄</button>
+          <div class="td-cur-conv-side td-cur-conv-result">
+            <span class="td-currency-value">${esc(converted || (crossRate != null ? crossRate.toFixed(4) : '—'))}</span>
+            <select class="td-cur-select" data-rate-to>${currencyOptions(toCur)}</select>
+          </div>
         </div>
-        <span class="td-currency-swap">⇄</span>
-        <div class="td-currency-side td-currency-result">
-          <span class="td-currency-flag">${localFlag}</span>
-          <span class="td-currency-value">${esc(converted || '—')}</span>
-          <span class="td-currency-code">${esc(local)}</span>
-        </div>
+        <div class="td-cur-conv-hint">${fromFlag} 1 ${esc(fromCur)} = ${esc(crossRate != null ? crossRate.toFixed(4) : '—')} ${toFlag} ${esc(toCur)}</div>
       </div>
+      <div class="td-cur-rates">${rateRowsHtml}</div>
     </div>`;
 }
 
@@ -344,11 +384,18 @@ function renderMapWidget(): string {
         <div class="td-widget-label">🗺️ Route map</div>
         <button class="td-link" data-nav="map">Full map ›</button>
       </div>
-      <div class="td-map-container" id="td-map-canvas"></div>
+      <div class="td-map-wrap">
+        <div class="td-map-container" id="td-map-canvas"></div>
+        <div class="td-map-zoom-controls">
+          <button class="td-map-zoom-btn" id="tdMapZoomIn"  title="Zoom in">+</button>
+          <button class="td-map-zoom-btn" id="tdMapZoomFit" title="Fit">⊡</button>
+          <button class="td-map-zoom-btn" id="tdMapZoomOut" title="Zoom out">−</button>
+        </div>
+      </div>
       <div class="td-map-legend">
-        <span class="td-map-dot" style="background:#22c55e"></span>Now
-        <span class="td-map-dot" style="background:#f9b830"></span>Upcoming
-        <span class="td-map-dot" style="background:#a8a29e"></span>Past
+        <span><span class="td-map-dot" style="background:#22c55e"></span>Now</span>
+        <span><span class="td-map-dot" style="background:#f9b830"></span>Upcoming</span>
+        <span><span class="td-map-dot" style="background:#a8a29e"></span>Past</span>
       </div>
     </div>`;
 }
@@ -672,6 +719,25 @@ function openJournalComposer(template = 'moment', placeholder = 'What happened t
    RENDER + WIRE
    ══════════════════════════════════════════════════════════════════════════ */
 
+function crossRate(): number | null {
+  const base    = baseCurrency();
+  const fromCur = _rateFrom || base;
+  const toCur   = _rateTo   || localCurrency();
+  const rateToBase   = fromCur === base ? 1 : (_rates[fromCur] ? (1 / _rates[fromCur]) : null);
+  const rateFromBase = toCur === base ? 1 : (_rates[toCur] ? (1 / _rates[toCur]) : null);
+  return (rateToBase != null && rateFromBase != null) ? rateFromBase / rateToBase : null;
+}
+
+function updateConverterResult(body: HTMLElement): void {
+  const rate = crossRate();
+  const amt  = parseFloat(_rateInput);
+  const result = (rate != null && Number.isFinite(amt) && amt > 0)
+    ? (amt * rate).toFixed(2)
+    : (rate != null ? rate.toFixed(4) : '—');
+  const span = body.querySelector<HTMLElement>('.td-currency-value');
+  if (span) span.textContent = result;
+}
+
 function render(): void {
   const body = document.querySelector<HTMLElement>('#view-today .today-body');
   if (!body) return;
@@ -704,16 +770,27 @@ function wire(body: HTMLElement): void {
     (form.querySelector('.td-quickadd-desc') as HTMLInputElement).value = '';
   });
 
-  // Currency converter input.
+  // Currency converter — amount input.
   body.querySelector<HTMLInputElement>('[data-rate-input]')?.addEventListener('input', e => {
     _rateInput = (e.target as HTMLInputElement).value;
-    // Re-render only the result span to avoid full re-render on keypress.
-    const local = localCurrency();
-    const rate  = _rates[local] ? (1 / _rates[local]) : null;
-    const amt   = parseFloat(_rateInput);
-    const result = (rate != null && Number.isFinite(amt)) ? (amt * rate).toFixed(2) : '—';
-    const span = body.querySelector<HTMLElement>('.td-currency-value');
-    if (span) span.textContent = result;
+    updateConverterResult(body);
+  });
+
+  // Currency from/to selects.
+  body.querySelector<HTMLSelectElement>('[data-rate-from]')?.addEventListener('change', e => {
+    _rateFrom = (e.target as HTMLSelectElement).value;
+    updateConverterResult(body);
+  });
+  body.querySelector<HTMLSelectElement>('[data-rate-to]')?.addEventListener('change', e => {
+    _rateTo = (e.target as HTMLSelectElement).value;
+    updateConverterResult(body);
+  });
+  // Swap button.
+  body.querySelector<HTMLButtonElement>('[data-rate-swap]')?.addEventListener('click', () => {
+    const tmp = _rateFrom || baseCurrency();
+    _rateFrom = _rateTo   || localCurrency();
+    _rateTo   = tmp;
+    render();
   });
 
   // Plan item inline toggle (during phase, location card).
@@ -763,58 +840,135 @@ function wire(body: HTMLElement): void {
     openNewTrip();
   });
 
+  // Dashboard map zoom controls.
+  body.querySelector('#tdMapZoomIn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    dashboardMapZoom('in');
+  });
+  body.querySelector('#tdMapZoomOut')?.addEventListener('click', e => {
+    e.stopPropagation();
+    dashboardMapZoom('out');
+  });
+  body.querySelector('#tdMapZoomFit')?.addEventListener('click', e => {
+    e.stopPropagation();
+    dashboardMapZoom('fit');
+  });
+
   // Drag-and-drop widget reordering.
   wireDragDrop(body);
 }
 
 function wireDragDrop(body: HTMLElement): void {
-  const grid = body.querySelector<HTMLElement>('#td-grid');
-  if (!grid) return;
+  const gridEl = body.querySelector<HTMLElement>('#td-grid');
+  if (!gridEl) return;
+  const grid = gridEl; // non-null alias for closures
+
+  // Insert-line indicator element
+  const indicator = document.createElement('div');
+  indicator.className = 'td-drop-indicator';
+  indicator.style.display = 'none';
 
   let dragId: string | null = null;
+  let _insertBefore: HTMLElement | null = null; // null = append
 
-  grid.addEventListener('dragstart', e => {
-    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
-    if (!target) return;
-    dragId = target.dataset.widgetId ?? null;
-    target.classList.add('td-dragging');
-    e.dataTransfer!.effectAllowed = 'move';
+  function getWidgets(): HTMLElement[] {
+    return Array.from(grid.querySelectorAll<HTMLElement>('[data-widget-id]'));
+  }
+
+  function clearIndicator() {
+    indicator.style.display = 'none';
+    indicator.remove();
+    _insertBefore = null;
+  }
+
+  function showIndicator(before: HTMLElement | null) {
+    if (before) {
+      grid.insertBefore(indicator, before);
+    } else {
+      grid.appendChild(indicator);
+    }
+    indicator.style.display = 'block';
+    _insertBefore = before;
+  }
+
+  // Show drag handle on hover (added dynamically to avoid cluttering HTML)
+  getWidgets().forEach(w => {
+    if (w.querySelector('.td-drag-handle')) return;
+    const handle = document.createElement('div');
+    handle.className = 'td-drag-handle';
+    handle.setAttribute('draggable', 'false');
+    handle.innerHTML = '⠿';
+    w.prepend(handle);
+    handle.addEventListener('mousedown', () => { w.setAttribute('draggable', 'true'); });
+    handle.addEventListener('mouseup', () => { w.setAttribute('draggable', 'false'); });
   });
 
-  grid.addEventListener('dragend', e => {
-    (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]')?.classList.remove('td-dragging');
-    grid.querySelectorAll('.td-drag-over').forEach(el => el.classList.remove('td-drag-over'));
+  grid.addEventListener('dragstart', e => {
+    const widget = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
+    if (!widget) { e.preventDefault(); return; }
+    dragId = widget.dataset.widgetId ?? null;
+    widget.classList.add('td-dragging');
+    e.dataTransfer!.effectAllowed = 'move';
+    // Small delay so the drag image doesn't include the indicator
+    requestAnimationFrame(() => { indicator.style.display = 'none'; });
+  });
+
+  grid.addEventListener('dragend', () => {
+    getWidgets().forEach(el => el.classList.remove('td-dragging'));
+    clearIndicator();
     dragId = null;
   });
 
   grid.addEventListener('dragover', e => {
     e.preventDefault();
-    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
-    if (!target || target.dataset.widgetId === dragId) return;
-    grid.querySelectorAll('.td-drag-over').forEach(el => el.classList.remove('td-drag-over'));
-    target.classList.add('td-drag-over');
+    if (!dragId) return;
+    e.dataTransfer!.dropEffect = 'move';
+
+    const widgets = getWidgets().filter(el => el.dataset.widgetId !== dragId);
+    if (!widgets.length) { showIndicator(null); return; }
+
+    // Find closest widget by vertical midpoint
+    let closest: HTMLElement | null = null;
+    let closestDist = Infinity;
+    let insertBefore: HTMLElement | null = null;
+
+    for (const w of widgets) {
+      const rect = w.getBoundingClientRect();
+      const mid  = rect.top + rect.height / 2;
+      const dist = Math.abs(e.clientY - mid);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = w;
+        insertBefore = e.clientY < mid ? w : (w.nextElementSibling as HTMLElement | null);
+      }
+    }
+
+    if (closest) showIndicator(insertBefore);
+  });
+
+  grid.addEventListener('dragleave', e => {
+    if (!grid.contains(e.relatedTarget as Node)) clearIndicator();
   });
 
   grid.addEventListener('drop', e => {
     e.preventDefault();
-    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
-    if (!target || !dragId || target.dataset.widgetId === dragId) return;
-    target.classList.remove('td-drag-over');
+    if (!dragId) return;
 
-    // Reorder in DOM
-    const items = Array.from(grid.children) as HTMLElement[];
-    const fromIdx = items.findIndex(el => el.dataset.widgetId === dragId);
-    const toIdx   = items.findIndex(el => el.dataset.widgetId === target.dataset.widgetId);
-    if (fromIdx < 0 || toIdx < 0) return;
+    const items = getWidgets();
+    const dragged = items.find(el => el.dataset.widgetId === dragId);
+    if (!dragged) { clearIndicator(); return; }
 
-    if (fromIdx < toIdx) {
-      grid.insertBefore(items[fromIdx], items[toIdx].nextSibling);
-    } else {
-      grid.insertBefore(items[fromIdx], items[toIdx]);
+    const before = _insertBefore;
+    clearIndicator();
+
+    if (before && before !== dragged) {
+      grid.insertBefore(dragged, before);
+    } else if (!before) {
+      grid.appendChild(dragged);
     }
 
-    // Persist new order
-    const newOrder = (Array.from(grid.children) as HTMLElement[]).map(el => el.dataset.widgetId ?? '');
+    // Persist
+    const newOrder = getWidgets().map(el => el.dataset.widgetId ?? '');
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(newOrder)); } catch { /* ignore */ }
 
     dragId = null;
