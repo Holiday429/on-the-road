@@ -10,6 +10,8 @@ import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';
 import { geocode } from '../map/geocode.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
+import { slugId } from '../../core/utils.ts';
+import { prefetchSafetyForCity } from '../safety/safety.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -41,10 +43,6 @@ const TABS: Tab[] = [
   { key: 'know',        label: 'Culture',     icon: '💡',  isDo: false },
   { key: 'moneyTips',   label: 'Budget',      icon: '💸',  isDo: false },
 ];
-
-function slugId(city: string) {
-  return city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
 
 // ── API call + SSE streaming ──────────────────────────────────────────────────
 
@@ -115,6 +113,9 @@ async function generateGuide(city: string, country: string, query: string): Prom
       if (!lines.length) throw new Error('Empty response');
       for (const line of lines) await applyLine(line);
     }
+
+    // Background-prefetch a safety card for the same city if one doesn't exist yet.
+    void prefetchSafetyForCity(city, country);
   } catch (err) {
     // API failed — show a sample preview WITHOUT persisting it to Firestore,
     // so a transient outage never poisons the cache with mock data.
@@ -1068,6 +1069,36 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
       imageUrl: '', photographer: '', photographerUrl: '',
     }],
   };
+}
+
+// ── Deep-link from Map ────────────────────────────────────────────────────────
+
+/**
+ * Called by the Map view when the user clicks a city pin.
+ * If the city has a saved intel record, open it; otherwise pre-fill the search
+ * input so the user can trigger generation with one click.
+ */
+export function openGuideCity(city: string): void {
+  const id = slugId(city);
+  const root = document.getElementById('view-cities');
+  if (!root) return;
+
+  const existing = _cities.find((c) => c.id === id);
+  if (existing) {
+    _activeCityId = id;
+    const detail = root.querySelector<HTMLElement>('.guide-detail');
+    if (detail) renderCityDetail(root);
+    return;
+  }
+
+  // Pre-fill the search box and scroll to it so generation is one tap away.
+  const input = root.querySelector<HTMLInputElement>('#guide-city-input');
+  if (input) {
+    input.value = city;
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import {
 import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
 import { routeStore, type StoredLeg } from '../data/stores/route-store.ts';
 import { createDestinationInput, type DestinationInputInstance } from './destination-input.ts';
+import { escHtml as escapeHtml } from './utils.ts';
 import checklistIcon from '../../icon/Checklist.png';
 import guideIcon from '../../icon/Guide.png';
 import itineraryIcon from '../../icon/Itinerary.png';
@@ -161,14 +162,6 @@ const mountedViews = new Set<ViewId>();
 let sessionState: { user: User | null } = { user: null };
 let sessionPrimaryAction: (() => void | Promise<void>) | null = null;
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 function initialsFor(user: User): string {
   const source = user.displayName?.trim() || user.email?.trim() || 'Traveler';

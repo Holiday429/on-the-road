@@ -15,7 +15,7 @@
 import './expenses.css';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
-import { baseCurrency, setBaseCurrency } from '../../data/trip-context.ts';
+import { baseCurrency, setBaseCurrency, tripBudget, setTripBudget, onTripChange } from '../../data/trip-context.ts';
 import {
   expenseCategoryStore, type StoredExpenseCategory,
 } from '../../data/stores/expense-category-store.ts';
@@ -71,6 +71,7 @@ let analysisDim: AnalysisDim = 'category';
 let unsub: (() => void) | null = null;
 let unsubLegs: (() => void) | null = null;
 let unsubCategories: (() => void) | null = null;
+let unsubTripChange: (() => void) | null = null;
 
 type AnalysisDim = 'category' | 'country' | 'city' | 'time';
 const ANALYSIS_DIMS: { id: AnalysisDim; label: string }[] = [
@@ -193,6 +194,42 @@ function renderSummary(el: HTMLElement) {
   const days = new Set(expenses.map((e) => e.date)).size || 1;
   const dailyAvg = sum / days;
   const unclassified = expenses.filter((e) => e.category === UNCLASSIFIED).length;
+  const budget = tripBudget();
+  const sym = currencySymbol(baseCurrency());
+
+  const budgetBlock = budget
+    ? (() => {
+        const remaining = budget - sum;
+        const pct = Math.min(100, Math.round((sum / budget) * 100));
+        const over = remaining < 0;
+        const barColor = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+        return `
+          <div class="exp-budget-card">
+            <div class="exp-budget-top">
+              <div class="exp-budget-label">Budget</div>
+              <button class="exp-budget-edit" id="exp-budget-edit" title="Edit budget">✎</button>
+            </div>
+            <div class="exp-budget-amounts">
+              <span class="exp-budget-spent">${fmt(sum)}</span>
+              <span class="exp-budget-sep">/</span>
+              <span class="exp-budget-total">${sym}${Math.round(budget).toLocaleString()}</span>
+            </div>
+            <div class="exp-budget-bar-track">
+              <div class="exp-budget-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+            </div>
+            <div class="exp-budget-footer">
+              <span class="${over ? 'exp-budget-over' : 'exp-budget-remain'}">
+                ${over ? `▲ ${fmt(-remaining)} over` : `${fmt(remaining)} remaining`}
+              </span>
+              <span class="exp-budget-pct">${pct}%</span>
+            </div>
+          </div>`;
+      })()
+    : `
+      <div class="exp-budget-card exp-budget-empty">
+        <div class="exp-budget-label">Budget</div>
+        <button class="exp-budget-set" id="exp-budget-edit">Set a budget</button>
+      </div>`;
 
   el.innerHTML = `
     <div class="exp-stat-card accent">
@@ -211,7 +248,64 @@ function renderSummary(el: HTMLElement) {
       <div class="exp-stat-num">${unclassified || getCities().length}</div>
       <div class="exp-stat-label">${unclassified ? 'To sort' : 'Cities'}</div>
     </div>
+    ${budgetBlock}
   `;
+
+  el.querySelector('#exp-budget-edit')?.addEventListener('click', () => openBudgetModal(el));
+}
+
+function openBudgetModal(summaryEl: HTMLElement) {
+  const existing = document.getElementById('exp-budget-modal-backdrop');
+  if (existing) { existing.remove(); return; }
+
+  const budget = tripBudget();
+  const sym = currencySymbol(baseCurrency());
+
+  const backdrop = document.createElement('div');
+  backdrop.id = 'exp-budget-modal-backdrop';
+  backdrop.className = 'exp-modal-backdrop';
+  backdrop.innerHTML = `
+    <div class="exp-modal" role="dialog" aria-modal="true">
+      <div class="exp-modal-header">
+        <div class="exp-modal-title">Trip budget</div>
+        <button class="exp-modal-close" id="exp-budget-close">✕</button>
+      </div>
+      <div class="exp-modal-body">
+        <label class="field-label">Total budget (${sym}, ${baseCurrency()})</label>
+        <input class="input" type="number" id="exp-budget-input" min="0" step="1"
+          placeholder="e.g. 5000" value="${budget ?? ''}">
+        <p class="exp-modal-hint">Set your total trip budget. This appears as a bar in the summary so you can track spend vs plan at a glance.</p>
+      </div>
+      <div class="exp-modal-footer">
+        ${budget ? `<button class="btn btn-danger" id="exp-budget-remove">Remove</button>` : ''}
+        <button class="btn btn-primary" id="exp-budget-save">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(backdrop);
+
+  const input = backdrop.querySelector('#exp-budget-input') as HTMLInputElement;
+  input.focus();
+
+  const close = () => backdrop.remove();
+  backdrop.querySelector('#exp-budget-close')?.addEventListener('click', close);
+  backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+
+  const save = async () => {
+    const val = parseFloat(input.value);
+    await setTripBudget(val > 0 ? val : null);
+    close();
+    renderSummary(summaryEl);
+  };
+  backdrop.querySelector('#exp-budget-save')?.addEventListener('click', save);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+
+  backdrop.querySelector('#exp-budget-remove')?.addEventListener('click', async () => {
+    await setTripBudget(null);
+    close();
+    renderSummary(summaryEl);
+  });
 }
 
 /* ── Render: form ────────────────────────────────────────────────────────── */
@@ -581,6 +675,11 @@ export function initExpenses() {
   unsub?.();
   unsubLegs?.();
   unsubCategories?.();
+  unsubTripChange?.();
+  unsubTripChange = onTripChange(() => {
+    const summaryEl = root.querySelector('.exp-summary') as HTMLElement | null;
+    if (summaryEl) renderSummary(summaryEl);
+  });
   unsub = expenseStore.subscribe((rows) => {
     expenses = rows;
     render();

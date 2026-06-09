@@ -9,12 +9,7 @@ import {
   checklistStateStore,
   type StoredEssentialGroup,
 } from '../../data/stores/safety-content-store.ts';
-
-function esc(v: string): string {
-  return v
-    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-}
+import { escHtml as esc } from '../../core/utils.ts';
 
 function renderGroup(group: StoredEssentialGroup, checks: Record<string, boolean>): string {
   const total = group.items.length;

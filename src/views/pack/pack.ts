@@ -17,6 +17,7 @@ import { currentTrip } from '../../data/trip-context.ts';
 import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
 import { itemWeightG, formatKg } from '../../data/packing-formula.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
+import { escHtml } from '../../core/utils.ts';
 
 /* ── Item categories ─────────────────────────────────────────────────────── */
 // Colors: NOTE_PALETTE tones extended with a few extra muted hues.
@@ -116,11 +117,6 @@ function priRank(p: PackItem['priority']): number {
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
-
-function escHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
 
 function getRoot(): HTMLElement | null {
   return document.getElementById('view-pack');

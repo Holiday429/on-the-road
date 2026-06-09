@@ -338,6 +338,136 @@
   color: var(--ink-soft);
 }
 
+/* ── Budget card ─────────────────────────────────────────────────────────── */
+.exp-budget-card {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4) var(--sp-5);
+  box-shadow: var(--shadow-sm);
+  grid-column: 1 / -1;
+}
+.exp-budget-empty {
+  display: flex; align-items: center; gap: var(--sp-3);
+}
+.exp-budget-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+.exp-budget-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-muted);
+  letter-spacing: 0.01em;
+}
+.exp-budget-edit {
+  font-size: 13px;
+  color: var(--ink-faint);
+  padding: 2px 6px;
+  border-radius: var(--r-sm);
+  transition: all var(--dur-fast);
+}
+.exp-budget-edit:hover { background: var(--surface-3); color: var(--ink); }
+.exp-budget-amounts {
+  display: flex; align-items: baseline; gap: 4px;
+  margin-bottom: var(--sp-3);
+}
+.exp-budget-spent {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--ink);
+}
+.exp-budget-sep { color: var(--ink-faint); font-size: var(--fs-md); }
+.exp-budget-total {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.exp-budget-bar-track {
+  height: 8px;
+  background: var(--surface-3);
+  border-radius: var(--r-full);
+  overflow: hidden;
+  margin-bottom: var(--sp-2);
+}
+.exp-budget-bar-fill {
+  height: 100%;
+  border-radius: var(--r-full);
+  transition: width var(--dur-slow) var(--ease-out), background var(--dur-mid);
+}
+.exp-budget-footer {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.exp-budget-remain { font-size: var(--fs-sm); font-weight: 600; color: #15803d; }
+.exp-budget-over   { font-size: var(--fs-sm); font-weight: 600; color: var(--coral-500); }
+.exp-budget-pct {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+.exp-budget-set {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--amber-700);
+  background: var(--amber-100);
+  padding: 6px 14px;
+  border-radius: var(--r-full);
+  transition: background var(--dur-fast);
+}
+.exp-budget-set:hover { background: var(--amber-200); }
+
+/* ── Budget modal ────────────────────────────────────────────────────────── */
+.exp-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+.exp-modal {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  padding: var(--sp-6);
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  box-shadow: var(--shadow-lg);
+  animation: slideUp var(--dur-mid) var(--ease-out);
+}
+@keyframes slideUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:none } }
+.exp-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-5);
+}
+.exp-modal-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+.exp-modal-close {
+  width: 28px; height: 28px;
+  border-radius: var(--r-sm);
+  color: var(--ink-faint);
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--dur-fast);
+}
+.exp-modal-close:hover { background: var(--surface-3); color: var(--ink); }
+.exp-modal-body { margin-bottom: var(--sp-5); }
+.exp-modal-body .input { margin-top: var(--sp-2); }
+.exp-modal-hint {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  margin-top: var(--sp-3);
+  line-height: 1.5;
+}
+.exp-modal-footer {
+  display: flex; gap: var(--sp-3); justify-content: flex-end;
+}
+
 /* ── City toggle ─────────────────────────────────────────────────────────── */
 .exp-city-pills {
   display: flex; flex-wrap: wrap; gap: var(--sp-2);

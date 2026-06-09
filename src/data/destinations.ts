@@ -272,6 +272,12 @@ export const ALL_DESTINATIONS: Destination[] = (() => {
   });
 })();
 
+/** Look up a flag emoji for a country name (case-insensitive). Falls back to '🗺️'. */
+export function flagForCountry(name: string): string {
+  const lower = name.trim().toLowerCase();
+  return COUNTRIES.find(c => c.label.toLowerCase() === lower)?.flag ?? '🗺️';
+}
+
 /** Search destinations by query string. Returns up to `limit` results. */
 export function searchDestinations(query: string, limit = 8): Destination[] {
   const q = query.trim().toLowerCase();

@@ -13,6 +13,7 @@ import {
 import { currentTrip } from '../../data/trip-context.ts';
 import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/schema.ts';
 import { noteColor } from '../../data/palette.ts';
+import { escHtml } from '../../core/utils.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -33,12 +34,6 @@ let _unsubStandaloneChecklists: (() => void) | null = null;
 let _unsubTemplates: (() => void) | null = null;
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
-
-function escHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
 
 function progress(groups: ChecklistGroup[]): { done: number; total: number; pct: number } {
   let done = 0, total = 0;

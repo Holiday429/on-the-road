@@ -7,12 +7,7 @@ import { safetyProfileStore, type StoredSafetyProfile } from '../../data/stores/
 import { uploadSafetyDoc } from '../../firebase/storage.ts';
 import { NATIONALITIES, DIAL_CODES, nationalityFlag, nationalityLabel } from '../../data/nationalities.ts';
 import type { SafetyProfile } from '../../data/schema.ts';
-
-function esc(v: string): string {
-  return v
-    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-}
+import { escHtml as esc } from '../../core/utils.ts';
 
 function telHref(dialCode: string, local: string): string {
   const raw = `${dialCode}${local}`;

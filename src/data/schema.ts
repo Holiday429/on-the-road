@@ -69,6 +69,7 @@ export const TripSchema = doc({
   // first leg's arrivalTransport.from when homeCity is blank.
   homeCity: z.string().optional(),
   returnCity: z.string().optional(),
+  totalBudget: z.number().optional(), // overall trip budget in baseCurrency
 });
 export type Trip = z.infer<typeof TripSchema>;
 

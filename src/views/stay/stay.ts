@@ -14,6 +14,7 @@ import {
   type StoredStay,
 } from '../../data/stores/stay-store.ts';
 import type { StayCandidate, StayDimension } from '../../data/schema.ts';
+import { escHtml as esc } from '../../core/utils.ts';
 
 const KIND_ICONS: Record<StayCandidate['kind'], string> = {
   hotel: '🏨', airbnb: '🏠', hostel: '🛏️', other: '📍',
@@ -37,10 +38,6 @@ function fmtDate(iso: string): string {
 function nightsForLeg(leg: StoredLeg): number {
   const n = Math.round((new Date(leg.dateTo).getTime() - new Date(leg.dateFrom).getTime()) / 86400000);
   return n > 0 ? n : 1;
-}
-
-function esc(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 }
 
 /* ── Mutations ───────────────────────────────────────────────────────────── */

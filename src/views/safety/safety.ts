@@ -17,7 +17,7 @@ import { renderLanding, wireLanding, type LocationState } from './landing.ts';
 import { openCityModal } from './city-modal.ts';
 import { openProfileSheet } from './profile-sheet.ts';
 import { openEssentialsSheet } from './essentials-sheet.ts';
-import type { CitySafety } from '../../data/schema.ts';
+import { fetchCitySafety } from './generate.ts';
 import { escHtml as esc, slugId } from '../../core/utils.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -162,42 +162,37 @@ function renderSos(): string {
     </div>`;
 }
 
-// ── City generation via /api/safety ──────────────────────────────────────────
+// ── City generation ───────────────────────────────────────────────────────────
 async function generateForCity(city: string, country: string): Promise<void> {
   if (_generating || !city.trim()) return;
   _generating = true;
   _genStatus = `Building safety card for ${city}…`;
   renderAll();
 
-  try {
-    const res = await fetch(`${apiBase()}/api/safety`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mode: 'generate',
-        city: city.trim(),
-        country,
-        nationality: _nationality ? nationalityLabel(_nationality) : '',
-      }),
-    });
+  const data = await fetchCitySafety(
+    city.trim(),
+    country,
+    _nationality ? nationalityLabel(_nationality) : '',
+  );
 
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    const data = await res.json() as Omit<CitySafety, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion' | 'source'>;
-
-    const id = slugId(city);
-    await safetyStore.save({ id, ...data, source: 'ai' });
-
-    _genStatus = '';
-    _generating = false;
-
-    // Open the modal immediately
-    const stored = _cards.find((c) => c.id === id);
-    if (stored) openCityModal(stored, (card) => void generateForCity(card.city, card.country), () => {});
-  } catch (e) {
-    _genStatus = `Could not generate card. Check your connection.`;
+  if (!data) {
+    _genStatus = 'Could not generate card — check API key or connection.';
     _generating = false;
     renderAll();
+    return;
   }
+
+  const id = slugId(city);
+  await safetyStore.save({ id, ...data, source: 'ai' });
+
+  _genStatus = '';
+  _generating = false;
+
+  // Open the modal immediately after Firestore write (store subscriber will update _cards)
+  setTimeout(() => {
+    const stored = _cards.find((c) => c.id === id);
+    if (stored) openCityModal(stored, (card) => void generateForCity(card.city, card.country), () => {});
+  }, 300);
 }
 
 // ── Full render ───────────────────────────────────────────────────────────────
@@ -263,23 +258,9 @@ export async function prefetchSafetyForCity(city: string, country: string): Prom
   const already = _cards.find((c) => c.id === id);
   if (already) return;
 
-  const base = window.location.hostname.includes('github.io')
-    ? 'https://easy-on-the-road.vercel.app'
-    : '';
-
   try {
-    const res = await fetch(`${base}/api/safety`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mode: 'generate',
-        city: city.trim(),
-        country,
-        nationality: _nationality ? nationalityLabel(_nationality) : '',
-      }),
-    });
-    if (!res.ok) return;
-    const data = await res.json() as Omit<CitySafety, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion' | 'source'>;
+    const data = await fetchCitySafety(city.trim(), country, _nationality ? nationalityLabel(_nationality) : '');
+    if (!data) return;
     await safetyStore.save({ id, ...data, source: 'ai' });
   } catch {
     // Silent — this is a background prefetch, failures are acceptable

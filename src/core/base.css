@@ -155,12 +155,6 @@ img, svg { display: block; }
 }
 .btn-primary:hover { background: var(--amber-500); }
 
-.btn-danger {
-  background: #fee2e2;
-  color: #b91c1c;
-}
-.btn-danger:hover { background: #fecaca; }
-
 .btn-ghost {
   background: transparent;
   color: var(--ink-soft);

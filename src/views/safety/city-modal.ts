@@ -3,12 +3,7 @@
    ========================================================================== */
 
 import type { StoredCitySafety } from '../../data/stores/safety-store.ts';
-
-function esc(v: string): string {
-  return v
-    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
-}
+import { escHtml as esc } from '../../core/utils.ts';
 
 function telHref(number: string): string {
   return `tel:${number.replace(/[^+0-9]/g, '')}`;

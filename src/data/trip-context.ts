@@ -75,6 +75,21 @@ export function baseCurrency(): string {
   return _baseCurrency;
 }
 
+/** The trip's total budget in baseCurrency, or null if not set. */
+export function tripBudget(): number | null {
+  return _currentTrip?.totalBudget ?? null;
+}
+
+/** Persist a new total budget on the current trip (null = remove). */
+export async function setTripBudget(amount: number | null): Promise<void> {
+  if (!_currentTripId) return;
+  const patch: Partial<Trip> = amount != null && amount > 0
+    ? { totalBudget: amount }
+    : { totalBudget: undefined };
+  await updateTrip(_currentTripId, patch);
+  if (_currentTrip) _currentTrip = { ..._currentTrip, ...patch };
+}
+
 /** Persist a new base currency on the current trip. Existing expenses keep
  *  their snapshotted rate/baseAmount, so historical books don't re-value. */
 export async function setBaseCurrency(code: string): Promise<void> {

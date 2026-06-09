@@ -16,6 +16,8 @@ import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../dat
 import { navigateTo } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
+import { escHtml as esc } from '../../core/utils.ts';
+import { flagForCountry } from '../../data/destinations.ts';
 import { coordsFor } from '../map/geo.ts';
 import { geocode, geocodeLocal } from '../map/geocode.ts';
 import type {
@@ -30,15 +32,6 @@ const TRANSPORT_ICONS: Record<string, string> = {
   flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️',
 };
 
-const FLAG_MAP: Record<string, string> = {
-  'Denmark': '🇩🇰', 'Germany': '🇩🇪', 'Netherlands': '🇳🇱',
-  'Belgium': '🇧🇪', 'France': '🇫🇷', 'Spain': '🇪🇸',
-  'Portugal': '🇵🇹', 'Switzerland': '🇨🇭', 'Italy': '🇮🇹',
-  'Austria': '🇦🇹', 'Czech Republic': '🇨🇿', 'Poland': '🇵🇱',
-  'Hungary': '🇭🇺', 'Croatia': '🇭🇷', 'Greece': '🇬🇷',
-  'United Kingdom': '🇬🇧', 'Ireland': '🇮🇪', 'Norway': '🇳🇴',
-  'Sweden': '🇸🇪', 'Japan': '🇯🇵', 'Thailand': '🇹🇭',
-};
 
 // Built-in clip/plan categories — user can add their own on top.
 export const BUILTIN_CATEGORIES: ClipCategory[] = [
@@ -104,12 +97,6 @@ function clean<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj));
 }
 
-function esc(s: string | undefined): string {
-  return (s ?? '').replace(/[&<>"]/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!
-  ));
-}
-
 function daysBetween(from: string, to: string): number {
   return Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000);
 }
@@ -158,7 +145,7 @@ async function addLeg(city: string, country: string, dateFrom: string, dateTo: s
                       transportType: string, transportFrom: string, transportVia: string[] = []) {
   const row: Partial<SchemaLeg> & { id: string } = {
     id: uid(), city, country,
-    flag: FLAG_MAP[country] ?? '🗺️',
+    flag: flagForCountry(country),
     dateFrom, dateTo,
     order: legs.length,
   };
@@ -282,7 +269,7 @@ function renderTimeline(): string {
   for (const leg of legs) {
     const last = groups[groups.length - 1];
     if (last && last.country === leg.country) last.legs.push(leg);
-    else groups.push({ country: leg.country, flag: leg.flag || FLAG_MAP[leg.country] || '🗺️', legs: [leg] });
+    else groups.push({ country: leg.country, flag: leg.flag || flagForCountry(leg.country), legs: [leg] });
   }
 
   const sections = groups.map((g) => `

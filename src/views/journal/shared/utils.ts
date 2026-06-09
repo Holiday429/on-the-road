@@ -1,6 +1,7 @@
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { DEFAULT_TEMPLATE, template } from '../templates.ts';
+export { escHtml } from '../../../core/utils.ts';
 
 export const MOODS: { value: string; emoji: string }[] = [
   { value: 'spark', emoji: '⚡' },
@@ -8,15 +9,6 @@ export const MOODS: { value: string; emoji: string }[] = [
   { value: 'wired', emoji: '🔥' },
   { value: 'soft', emoji: '🫧' },
 ];
-
-export function escHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
 
 export function parseTags(text: string): string[] {
   return text

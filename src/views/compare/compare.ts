@@ -19,6 +19,7 @@ import {
 } from '../../data/stores/compare-store.ts';
 import type { CompareCandidate, CompareDimension, CompareType } from '../../data/schema.ts';
 import { COMPARE_TYPES } from '../../data/schema.ts';
+import { escHtml as esc } from '../../core/utils.ts';
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
@@ -78,10 +79,6 @@ let filterType: CompareType | 'all' = 'all';
 let newGroupForm = false;
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
-
-function esc(s: string): string {
-  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
-}
 
 function currentGroup(): StoredGroup | undefined {
   return groups.find((g) => g.id === selectedGroupId);
