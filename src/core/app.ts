@@ -939,6 +939,11 @@ function openNewTripModal() {
   });
 }
 
+/** Public entry-point: open the New Trip form from any view. */
+export function openNewTrip(): void {
+  openNewTripModal();
+}
+
 /**
  * Called once for brand-new users who have no trips.
  * Delegates to the full-page onboarding screen (not a modal).

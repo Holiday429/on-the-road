@@ -96,62 +96,78 @@ export async function initDashboardMap(
     if (iso) tripCountryISOs.add(iso);
   }
 
-  // City pins — one per leg.
+  // City pins — one per leg with number label.
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
-  pinSeries.bullets.push(() =>
-    am5.Bullet.new(root, {
-      sprite: am5.Circle.new(root, {
-        radius:       6,
-        strokeWidth:  2,
-        stroke:       am5.color('#ffffff'),
-        interactive:  false,
-        tooltipText:  '{city}',
-      }),
-    })
-  );
 
   const pinData = legs
-    .map((leg) => {
+    .map((leg, idx) => {
       const coords = coordsFor(leg.city);
       if (!coords) return null;
       return {
         longitude: coords.lng,
         latitude:  coords.lat,
         city:      leg.city,
+        num:       String(idx + 1),
         fill:      am5.color(legStatusColor(leg)),
       };
     })
     .filter(Boolean);
 
-  // Wire up fill from data.
-  pinSeries.bullets.push(function (root: any, _series: any, dataItem: any) {
-    const color = dataItem.dataContext?.fill ?? am5.color('#f9b830');
-    return am5.Bullet.new(root, {
-      sprite: am5.Circle.new(root, {
-        radius:      6,
-        fill:        color,
-        stroke:      am5.color('#ffffff'),
-        strokeWidth: 2,
-        interactive: false,
-      }),
-    });
-  });
-  // Clear the default bullet so only the data-driven one shows.
-  pinSeries.bullets.clear();
   pinSeries.bullets.push(function (root2: any, _s: any, dataItem: any) {
-    const color = (dataItem.dataContext as any)?.fill ?? am5.color('#f9b830');
-    return am5.Bullet.new(root2, {
-      sprite: am5.Circle.new(root2, {
-        radius:      7,
-        fill:        color,
-        stroke:      am5.color('#ffffff'),
-        strokeWidth: 2,
-        interactive: false,
-      }),
-    });
+    const ctx   = (dataItem.dataContext as any) ?? {};
+    const color = ctx.fill ?? am5.color('#f9b830');
+    const num   = ctx.num ?? '';
+
+    const container = am5.Container.new(root2, { interactive: false });
+
+    container.children.push(am5.Circle.new(root2, {
+      radius:      9,
+      fill:        color,
+      stroke:      am5.color('#ffffff'),
+      strokeWidth: 2,
+      tooltipText: `${num}. {city}`,
+    }));
+
+    container.children.push(am5.Label.new(root2, {
+      text:            num,
+      fontSize:        8,
+      fontWeight:      '700',
+      fill:            am5.color('#ffffff'),
+      centerX:         am5.percent(50),
+      centerY:         am5.percent(50),
+      x:               am5.percent(50),
+      y:               am5.percent(50),
+      interactive:     false,
+      oversizedBehavior: 'none',
+    }));
+
+    return am5.Bullet.new(root2, { sprite: container });
   });
 
   pinSeries.data.setAll(pinData);
+
+  // Auto-fit to trip pins after map loads; fall back to Europe home view.
+  chart.events.once('boundschanged', () => {
+    if (pinData.length >= 2) {
+      try { chart.zoomToGeoPoint({ latitude: 0, longitude: 0 }, 0); } catch { /* ignore */ }
+      // Use goHome() on next frame so the chart is fully sized
+      requestAnimationFrame(() => {
+        const lats = pinData.map((d: any) => d.latitude);
+        const lngs = pinData.map((d: any) => d.longitude);
+        const minLat = Math.min(...lats);
+        const maxLat = Math.max(...lats);
+        const minLng = Math.min(...lngs);
+        const maxLng = Math.max(...lngs);
+        try {
+          chart.zoomToGeoBounds({
+            left: minLng - 3, right: maxLng + 3,
+            top: maxLat + 2, bottom: minLat - 2,
+          });
+        } catch { chart.goHome(); }
+      });
+    }
+  });
+
   chart.appear(400);
 }
 

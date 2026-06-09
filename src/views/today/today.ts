@@ -8,22 +8,24 @@
 import './today.css';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
-import { checklistStore } from '../../data/stores/checklist-store.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
-import { currentTrip, baseCurrency, tripBudget, onTripChange } from '../../data/trip-context.ts';
+import { currentTrip, baseCurrency, tripBudget, onTripChange, currentTripId } from '../../data/trip-context.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES } from '../../data/rates.ts';
 import { navigateTo, type ViewId, type NavIntent, openNewTrip } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import type { PlanItem } from '../../data/schema.ts';
+import type { PlanItem, PlanDay, ClipCategory } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
 import { openJournalComposerForTemplate } from '../journal/index.ts';
+import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
+import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
+import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
+import { BUILTIN_CATEGORIES } from '../route/route.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
 let _expenses: StoredExpense[] = [];
-let _checklists: ReturnType<typeof checklistStore.peek> = [];
 let _journal: StoredJournalEntry[] = [];
 let _todos:   StoredTodo[]         = [];
 let _rates: RateTable = {};
@@ -34,6 +36,9 @@ let _mapBooted = false;       // init dashboard map only once per view mount
 let _unsubs: Array<() => void> = [];
 let _weather: { icon: string; temp: string } | null = null;
 let _weatherCity = '';
+let _nomadSpots: StoredNomadSpot[] = [];
+let _cityIntel: StoredCityIntel[] = [];
+let _citySafety: StoredCitySafety[] = [];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 type Phase = 'before' | 'during' | 'after';
@@ -409,7 +414,7 @@ function renderMapWidget(): string {
         <div class="td-map-container" id="td-map-canvas"></div>
         <div class="td-map-zoom-controls">
           <button class="td-map-zoom-btn" id="tdMapZoomIn"  title="Zoom in">+</button>
-          <button class="td-map-zoom-btn" id="tdMapZoomFit" title="Fit">⊡</button>
+          <button class="td-map-zoom-btn" id="tdMapZoomFit" title="Fit to route">⊡</button>
           <button class="td-map-zoom-btn" id="tdMapZoomOut" title="Zoom out">−</button>
         </div>
       </div>
@@ -421,23 +426,26 @@ function renderMapWidget(): string {
     </div>`;
 }
 
-/* ── Upcoming itinerary widget — plan-items feed for current destination ──── */
-const PLAN_CATEGORY_ICON: Record<string, string> = {
-  restaurant: '🍽️', food: '🍽️',
-  attraction: '🎡', sightseeing: '🎡',
-  museum: '🏛️',
-  activity: '🎯',
-  shopping: '🛍️',
-  transport: '🚉',
-  accommodation: '🏠',
-  cafe: '☕', coffee: '☕',
-  bar: '🍻', nightlife: '🎶',
-  nature: '🌿', park: '🌳',
-  event: '🎟️',
-};
-function planIcon(category: string): string {
-  const lc = (category ?? '').toLowerCase();
-  return PLAN_CATEGORY_ICON[lc] ?? '📌';
+/* ── Upcoming itinerary widget — feed view mirroring itinerary Feed tab ───── */
+
+function categoryByIdLocal(leg: StoredLeg, id: string): ClipCategory | undefined {
+  const custom = (leg as any).clipCategories ?? [];
+  const all: ClipCategory[] = [
+    ...BUILTIN_CATEGORIES.filter((b: ClipCategory) => !custom.find((c: ClipCategory) => c.id === b.id)),
+    ...custom,
+  ];
+  return all.find((c: ClipCategory) => c.id === id);
+}
+
+function ensurePlanDaysLocal(leg: StoredLeg): PlanDay[] {
+  const total = daysBetween(leg.dateFrom, leg.dateTo) + 1;
+  const existing = [...(leg.planDays ?? [])].sort((a, b) => a.order - b.order);
+  return Array.from({ length: total }, (_, i) => {
+    const d = new Date(leg.dateFrom + 'T00:00:00');
+    d.setDate(d.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    return existing.find(e => e.date === iso) ?? { id: `day-${iso}`, date: iso, order: i, label: '', notes: '' };
+  });
 }
 
 function renderUpcomingWidget(): string {
@@ -457,7 +465,6 @@ function renderUpcomingWidget(): string {
           <div class="td-upcoming-empty">No itinerary yet — add stops in the Route view.</div>
         </div>`;
     }
-    // Show next leg's plan items
     return renderPlanFeed(next, false);
   }
 
@@ -467,27 +474,7 @@ function renderUpcomingWidget(): string {
 function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
   const today = todayIso();
   const plans = (leg.plans ?? []) as PlanItem[];
-
-  // Build a date-index from planDays so items can be sorted by day date then order
-  const dayDateMap = new Map<string, string>(); // dayId → iso date
-  if (leg.planDays) {
-    for (const pd of leg.planDays) {
-      if (pd.id && pd.date) dayDateMap.set(pd.id, pd.date);
-    }
-  }
-
-  // Sort: assigned days first (by day date), then unassigned; within each group by order
-  const sortedPlans = [...plans].sort((a, b) => {
-    const aDate = a.dayId ? (dayDateMap.get(a.dayId) ?? '9999') : '9999';
-    const bDate = b.dayId ? (dayDateMap.get(b.dayId) ?? '9999') : '9999';
-    if (aDate !== bDate) return aDate.localeCompare(bDate);
-    return (a.order ?? 0) - (b.order ?? 0);
-  });
-
-  // Show pending items first (preserving date order), then done items at bottom
-  const pending = sortedPlans.filter(p => !p.done);
-  const done    = sortedPlans.filter(p => p.done);
-  const displayed = [...pending, ...done].slice(0, 10);
+  const days  = ensurePlanDaysLocal(leg);
 
   const daysLeft = daysBetween(today, leg.dateTo);
   const daysAway = !isCurrent ? daysBetween(today, leg.dateFrom) : null;
@@ -495,33 +482,68 @@ function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
     ? `Day ${daysBetween(leg.dateFrom, today) + 1} · ${daysLeft + 1} day${daysLeft > 0 ? 's' : ''} left`
     : `In ${daysAway} day${daysAway !== 1 ? 's' : ''}`;
 
-  // Group pending items by day for date headers
-  let lastDayLabel = '';
-  const items = displayed.length
-    ? displayed.map(p => {
-        const icon   = planIcon(p.category ?? '');
-        let dayHeader = '';
-        if (!p.done && p.dayId) {
-          const date = dayDateMap.get(p.dayId);
-          const label = date
-            ? new Date(date + 'T00:00:00').toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
-            : '';
-          if (label && label !== lastDayLabel) {
-            lastDayLabel = label;
-            const isToday = date === today;
-            dayHeader = `<div class="td-plan-day-header">${isToday ? '📅 Today' : esc(label)}</div>`;
-          }
-        }
-        return `${dayHeader}
-          <div class="td-plan-row ${p.done ? 'is-done' : ''}" data-toggle-plan="${esc(leg.id)}:${esc(p.id)}">
-            <span class="td-plan-icon">${icon}</span>
-            <span class="td-plan-title">${esc(p.title)}</span>
-            <span class="td-plan-check">${p.done ? '✓' : ''}</span>
-          </div>`;
-      }).join('')
-    : `<div class="td-upcoming-empty">No plan items for this stop yet.</div>`;
+  if (!plans.length) {
+    return `
+      <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
+        <div class="td-widget-header">
+          <div class="td-widget-label">📍 ${esc(leg.flag)} ${esc(leg.city)}</div>
+          <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
+        </div>
+        <div class="td-plan-subtitle">${esc(subtitle)}</div>
+        <div class="td-upcoming-empty">No plan items for this stop yet.</div>
+      </div>`;
+  }
 
-  const moreCount = Math.max(0, plans.length - 10);
+  // Group by day (only days that have items)
+  const assigned = days
+    .map(day => ({ day, items: plans.filter(p => p.dayId === day.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) }))
+    .filter(g => g.items.length > 0);
+  const unassigned = plans.filter(p => !p.dayId || !days.find(d => d.id === p.dayId)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+  function dayStatus(date: string): 'active' | 'past' | 'upcoming' {
+    if (date === today) return 'active';
+    if (date < today) return 'past';
+    return 'upcoming';
+  }
+
+  const feedItem = (p: PlanItem, status: 'active' | 'past' | 'upcoming') => {
+    const cat = p.category ? categoryByIdLocal(leg, p.category) : undefined;
+    const color = cat?.color ?? '#ebebeb';
+    return `
+      <div class="td-feed-item ${p.done ? 'is-done' : ''} td-feed-item--${status}" data-toggle-plan="${esc(leg.id)}:${esc(p.id)}">
+        <div class="td-feed-item-dot" style="background:${p.done ? 'var(--ink-faint)' : status === 'active' ? '#22c55e' : status === 'past' ? '#a8a29e' : '#f9b830'}"></div>
+        <div class="td-feed-item-body">
+          ${cat ? `<span class="td-cat-badge" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
+          <span class="td-feed-item-title ${p.done ? 'is-done' : ''}">${esc(p.title)}</span>
+        </div>
+      </div>`;
+  };
+
+  const dayGroups = assigned.map(({ day, items }) => {
+    const status = dayStatus(day.date);
+    const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+    const dayIdx = days.findIndex(d => d.id === day.id);
+    const dotColor = status === 'active' ? '#22c55e' : status === 'past' ? '#a8a29e' : '#f9b830';
+    return `
+      <div class="td-feed-day-group td-feed-day--${status}">
+        <div class="td-feed-day-head">
+          <span class="td-feed-day-dot" style="background:${dotColor}"></span>
+          <span class="td-feed-day-num">DAY ${dayIdx + 1}${status === 'active' ? ' · Today' : ''}</span>
+          <span class="td-feed-day-date">${esc(dateLabel)}</span>
+          ${day.label ? `<span class="td-feed-day-label">${esc(day.label)}</span>` : ''}
+        </div>
+        <div class="td-feed-items">${items.map(p => feedItem(p, status)).join('')}</div>
+      </div>`;
+  }).join('');
+
+  const unassignedGroup = unassigned.length ? `
+    <div class="td-feed-day-group td-feed-day--unassigned">
+      <div class="td-feed-day-head">
+        <span class="td-feed-day-dot" style="background:var(--ink-faint)"></span>
+        <span class="td-feed-day-num">Unassigned</span>
+      </div>
+      <div class="td-feed-items">${unassigned.map(p => feedItem(p, 'upcoming')).join('')}</div>
+    </div>` : '';
 
   return `
     <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
@@ -530,8 +552,7 @@ function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
         <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
       </div>
       <div class="td-plan-subtitle">${esc(subtitle)}</div>
-      <div class="td-plan-feed">${items}</div>
-      ${moreCount > 0 ? `<div class="td-plan-more">+${moreCount} more</div>` : ''}
+      <div class="td-feed-list">${dayGroups}${unassignedGroup}</div>
     </div>`;
 }
 
@@ -608,47 +629,176 @@ function renderTodoWidget(): string {
     </div>`;
 }
 
-/* ── Prep mini bar ────────────────────────────────────────────────────────── */
-function renderPrepMini(): string {
-  let done = 0, total = 0;
-  for (const cl of _checklists) for (const g of cl.groups) {
-    done += g.items.filter(i => i.done).length;
-    total += g.items.length;
+/* ── Safety mini — shows city emergency numbers ───────────────────────────── */
+function renderSafetyMini(): string {
+  const leg = currentLeg();
+  if (!leg) {
+    return `
+      <div class="td-widget td-w-safety" data-nav="safety">
+        <div class="td-widget-label">🛡️ Safety</div>
+        <div class="td-safety-city">Setup emergency info</div>
+        <div class="td-safety-hint">Profile & emergency contacts</div>
+      </div>`;
   }
-  const pct = total ? Math.round((done / total) * 100) : 0;
-  const remaining = total - done;
-  const sub = total === 0 ? 'No checklist yet' : remaining === 0 ? 'All done 🎉' : `${remaining} left`;
+
+  // Find safety data for current city
+  const safetyCard = _citySafety.find(s =>
+    s.city.toLowerCase() === leg.city.toLowerCase()
+  );
+
+  if (!safetyCard) {
+    return `
+      <div class="td-widget td-w-safety" data-nav="safety">
+        <div class="td-widget-label">🛡️ ${esc(leg.flag)} ${esc(leg.city)}</div>
+        <div class="td-safety-number-row">
+          <span class="td-safety-number-label">General</span>
+          <span class="td-safety-number-val">112</span>
+        </div>
+        <div class="td-safety-hint">Tap Safety for full info</div>
+      </div>`;
+  }
+
+  const rows: string[] = [];
+  // General emergency first
+  if (safetyCard.generalEmergency) {
+    rows.push(`<div class="td-safety-number-row">
+      <span class="td-safety-number-label">General</span>
+      <span class="td-safety-number-val">${esc(safetyCard.generalEmergency)}</span>
+    </div>`);
+  }
+  // Specific emergency numbers (police, ambulance, fire, etc.)
+  for (const n of (safetyCard.emergencyNumbers ?? []).slice(0, 3)) {
+    if (n.number) {
+      rows.push(`<div class="td-safety-number-row">
+        <span class="td-safety-number-label">${esc(n.label)}</span>
+        <span class="td-safety-number-val">${esc(n.number)}</span>
+      </div>`);
+    }
+  }
 
   return `
-    <div class="td-widget td-w-prep" data-nav="prep">
-      <div class="td-widget-label">✅ Prep</div>
-      <div class="td-prep-row">
-        <div class="td-prep-ring" style="--pct:${pct}"><span>${pct}%</span></div>
-        <div><div class="td-prep-title">Checklist</div><div class="td-prep-sub">${sub}</div></div>
-      </div>
+    <div class="td-widget td-w-safety" data-nav="safety">
+      <div class="td-widget-label">🛡️ ${esc(leg.flag)} ${esc(leg.city)}</div>
+      ${rows.join('')}
     </div>`;
 }
 
-/* ── Safety mini ──────────────────────────────────────────────────────────── */
-function renderSafetyMini(): string {
+/* ── Nomad widget — top 3 work-friendly spots for current city ────────────── */
+function renderNomadWidget(): string | null {
   const leg = currentLeg();
+  if (!leg) return null;
+
+  const spots = _nomadSpots.filter(s =>
+    s.city.toLowerCase() === leg.city.toLowerCase()
+  ).slice(0, 3);
+
+  if (!spots.length) return null;
+
+  const TYPE_ICON: Record<string, string> = {
+    'Café': '☕', 'Co-working': '💼', 'Library': '📚', 'Hotel lobby': '🏨',
+  };
+
+  const RATING_LABEL: Record<string, string> = {
+    wifi: '📶', power: '🔌', noise: '🔊', coffee: '☕', value: '💰',
+  };
+
+  const cards = spots.map(s => {
+    const icon = TYPE_ICON[s.type] ?? '📍';
+    const ratings = s.ratings ?? {};
+    const ratingPills = Object.entries(ratings)
+      .filter(([, v]) => v != null && v > 0)
+      .slice(0, 3)
+      .map(([k, v]) => `<span class="td-nomad-rating">${RATING_LABEL[k] ?? k} ${v}/5</span>`)
+      .join('');
+    return `
+      <div class="td-nomad-card">
+        <div class="td-nomad-card-header">
+          <span class="td-nomad-type-icon">${icon}</span>
+          <span class="td-nomad-name">${esc(s.name)}</span>
+          <span class="td-nomad-type">${esc(s.type)}</span>
+        </div>
+        ${ratingPills ? `<div class="td-nomad-ratings">${ratingPills}</div>` : ''}
+        ${s.comment ? `<div class="td-nomad-comment">${esc(s.comment)}</div>` : ''}
+      </div>`;
+  }).join('');
+
   return `
-    <div class="td-widget td-w-safety" data-nav="safety">
-      <div class="td-widget-label">🛡️ Safety</div>
-      <div class="td-safety-city">${leg ? `${esc(leg.flag)} ${esc(leg.city)}` : 'Setup emergency info'}</div>
-      <div class="td-safety-hint">Profile & emergency contacts</div>
+    <div class="td-widget td-w-nomad" data-widget-id="nomad">
+      <div class="td-widget-header">
+        <div class="td-widget-label">💻 Work spots · ${esc(leg.city)}</div>
+        <button class="td-link" data-nav="nomad">All spots ›</button>
+      </div>
+      <div class="td-nomad-cards">${cards}</div>
+    </div>`;
+}
+
+/* ── Where-to-Go widget — top 3 guide picks for current city ─────────────── */
+function renderWhereToGoWidget(): string | null {
+  const leg = currentLeg();
+  if (!leg) return null;
+
+  const intel = _cityIntel.find(c =>
+    c.city.toLowerCase() === leg.city.toLowerCase()
+  );
+  if (!intel) return null;
+
+  // Mix attractions + restaurants + cafes, take first 3 non-empty
+  const allCards = [
+    ...((intel.attractions ?? []).map(c => ({ ...c, _tab: 'attractions' }))),
+    ...((intel.restaurants ?? []).map(c => ({ ...c, _tab: 'restaurants' }))),
+    ...((intel.cafes ?? []).map(c => ({ ...c, _tab: 'cafes' }))),
+    ...((intel.experiences ?? []).map(c => ({ ...c, _tab: 'experiences' }))),
+  ].filter(c => c.title);
+
+  if (!allCards.length) return null;
+
+  const picks = allCards.slice(0, 3);
+
+  const TAB_ICON: Record<string, string> = {
+    attractions: '🏛️', restaurants: '🍽️', cafes: '☕', experiences: '✨',
+  };
+
+  const cards = picks.map(c => {
+    const icon = TAB_ICON[c._tab] ?? '📌';
+    return `
+      <div class="td-whereto-card">
+        <div class="td-whereto-card-header">
+          <span class="td-whereto-type-icon">${icon}</span>
+          <span class="td-whereto-name">${esc(c.title)}</span>
+          ${c.cost ? `<span class="td-whereto-cost">${esc(c.cost)}</span>` : ''}
+        </div>
+        ${c.highlight ? `<div class="td-whereto-highlight">${esc(c.highlight)}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return `
+    <div class="td-widget td-w-whereto" data-widget-id="whereto">
+      <div class="td-widget-header">
+        <div class="td-widget-label">🗺️ Where to go · ${esc(leg.city)}</div>
+        <button class="td-link" data-nav="cities">Guide ›</button>
+      </div>
+      <div class="td-whereto-cards">${cards}</div>
     </div>`;
 }
 
 /* ── Widget order persistence ─────────────────────────────────────────────── */
 const LAYOUT_KEY = 'otr:dashboard-layout';
-const DEFAULT_ORDER = ['currency', 'calendar', 'todo', 'leftcol', 'map', 'upcoming', 'journal'];
+const DEFAULT_ORDER = ['currency', 'calendar', 'todo', 'leftcol', 'map', 'upcoming', 'journal', 'nomad', 'whereto'];
 function savedOrder(): string[] {
   try {
     const raw = localStorage.getItem(LAYOUT_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as string[];
-      if (Array.isArray(parsed) && parsed.length === DEFAULT_ORDER.length) return parsed;
+      // Accept any saved order — just return it as-is, new widgets append at end
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Ensure new widget IDs are always present
+        const ids = new Set(parsed);
+        const out = [...parsed];
+        for (const id of DEFAULT_ORDER) {
+          if (!ids.has(id)) out.push(id);
+        }
+        return out;
+      }
     }
   } catch { /* ignore */ }
   return DEFAULT_ORDER;
@@ -656,23 +806,19 @@ function savedOrder(): string[] {
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 function layout(phase: Phase): string {
-  // Row 1: currency | calendar | todo  (3 equal cols)
-  // Row 2: [spend / prep / safety stacked left] + [map tall right]
-  // Row 3: upcoming (left) | journal quick-entry (right)
-  const calWidget = renderCalendarWidget();
-  const todoWidget = renderTodoWidget();
-  const currWidget = renderCurrencyWidget();
+  const calWidget   = renderCalendarWidget();
+  const todoWidget  = renderTodoWidget();
+  const currWidget  = renderCurrencyWidget();
   const leftCol = `
     <div class="td-left-col td-draggable" data-widget-id="leftcol">
       ${renderSpendWidget()}
-      <div class="td-mini-row">
-        ${renderPrepMini()}
-        ${renderSafetyMini()}
-      </div>
+      ${renderSafetyMini()}
     </div>`;
-  const mapWidget = renderMapWidget();
-  const upWidget  = renderUpcomingWidget();
-  const jrnWidget = renderJournalWidget(phase);
+  const mapWidget  = renderMapWidget();
+  const upWidget   = renderUpcomingWidget();
+  const jrnWidget  = renderJournalWidget(phase);
+  const nomadHtml  = renderNomadWidget();
+  const whereHtml  = renderWhereToGoWidget();
 
   // Inject data-widget-id on widget divs (no draggable attr — set dynamically by wireDragDrop)
   function tag(html: string, id: string): string {
@@ -687,6 +833,8 @@ function layout(phase: Phase): string {
     map:      tag(mapWidget,  'map'),
     upcoming: tag(upWidget,   'upcoming'),
     journal:  tag(jrnWidget,  'journal'),
+    nomad:    nomadHtml  ? tag(nomadHtml,  'nomad')  : '',
+    whereto:  whereHtml  ? tag(whereHtml,  'whereto') : '',
   };
 
   const order = savedOrder();
@@ -990,9 +1138,11 @@ export function initToday(): void {
   _rates       = peekRateTable(baseCurrency());
   _legs        = routeStore.peek();
   _expenses    = expenseStore.peek();
-  _checklists  = checklistStore.peek();
   _journal     = journalStore.peek();
   _todos       = todoStore.peek();
+  _nomadSpots  = nomadStore.peek();
+  _cityIntel   = cityStore.peek();
+  _citySafety  = safetyStore.peek();
   _mapBooted   = false;
   _weather     = null;
   _weatherCity = '';
@@ -1003,10 +1153,18 @@ export function initToday(): void {
   _unsubs = [
     routeStore.subscribe(rows => { _legs = rows; _mapBooted = false; disposeDashboardMap(); render(); }),
     expenseStore.subscribe(rows => { _expenses = rows; render(); }),
-    checklistStore.subscribe(rows => { _checklists = rows; render(); }),
     journalStore.subscribe(rows => { _journal = rows; render(); }),
     todoStore.subscribe(rows => { _todos = rows; render(); }),
-    onTripChange(() => { _mapBooted = false; _weather = null; _weatherCity = ''; disposeDashboardMap(); render(); }),
+    nomadStore.subscribeForTrip(currentTripId(), rows => { _nomadSpots = rows; render(); }),
+    cityStore.subscribe(rows => { _cityIntel = rows; render(); }),
+    safetyStore.subscribe(rows => { _citySafety = rows; render(); }),
+    onTripChange(() => {
+      _nomadSpots = nomadStore.peek();
+      _cityIntel  = cityStore.peek();
+      _citySafety = safetyStore.peek();
+      _mapBooted = false; _weather = null; _weatherCity = '';
+      disposeDashboardMap(); render();
+    }),
   ];
 
   void getRateTable(baseCurrency()).then(table => { _rates = table; render(); });
