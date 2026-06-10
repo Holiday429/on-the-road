@@ -97,6 +97,12 @@ async function generateGuide(city: string, country: string, query: string): Prom
       if (!line.startsWith('data: ')) return;
       let parsed: { section: string; payload: unknown };
       try { parsed = JSON.parse(line.slice(6)); } catch { return; }
+      // Server reported a fatal generation error (e.g. DeepSeek out of balance).
+      // If nothing has rendered yet, bail to the catch so the user sees why.
+      if (parsed.section === 'error' && !_overviewShown) {
+        const msg = (parsed.payload as { message?: string })?.message ?? 'generation failed';
+        throw new Error(msg);
+      }
       applySection(intel, parsed.section, parsed.payload);
       _activeCityId = id;
 
