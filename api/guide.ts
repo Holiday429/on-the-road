@@ -110,7 +110,12 @@ async function addPhotos<T extends { title: string }>(items: T[], city: string):
 
 // ── Tavily search ─────────────────────────────────────────────────────────────
 
+// Web search is the single biggest input-token cost: every snippet gets
+// injected verbatim into a DeepSeek prompt. DeepSeek's own knowledge is more
+// than enough for a travel guide, so this is OFF unless GUIDE_USE_TAVILY=1.
+// When enabled, the context is trimmed hard to keep prompt tokens bounded.
 async function tavilySearch(query: string): Promise<string> {
+  if (process.env.GUIDE_USE_TAVILY !== '1') return '';
   const key = process.env.TAVILY_API_KEY;
   if (!key) return '';
 
@@ -122,14 +127,16 @@ async function tavilySearch(query: string): Promise<string> {
         api_key: key,
         query,
         search_depth: 'basic',
-        max_results: 5,
+        max_results: 3,
         include_answer: true,
       }),
     });
     if (!res.ok) return '';
     const data = await res.json() as { answer?: string; results?: { content: string }[] };
-    const snippets = (data.results ?? []).map(r => r.content).join('\n\n');
-    return data.answer ? `${data.answer}\n\n${snippets}` : snippets;
+    // Prefer the single distilled answer; cap total context to ~800 chars so a
+    // wall of web text can't bloat the prompt.
+    const snippets = (data.results ?? []).map(r => r.content).join('\n').slice(0, 800);
+    return (data.answer ? `${data.answer}\n${snippets}` : snippets).slice(0, 800);
   } catch {
     return '';
   }
@@ -137,7 +144,7 @@ async function tavilySearch(query: string): Promise<string> {
 
 // ── DeepSeek call ─────────────────────────────────────────────────────────────
 
-async function deepseek(prompt: string): Promise<unknown> {
+async function deepseek(prompt: string, maxTokens = 900): Promise<unknown> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
 
@@ -152,6 +159,8 @@ async function deepseek(prompt: string): Promise<unknown> {
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0.7,
+      // Cap output so a single section can't run away and burn tokens.
+      max_tokens: maxTokens,
     }),
   });
 
@@ -172,142 +181,70 @@ function emit(res: VercelResponse, section: string, payload: unknown) {
 // ── Prompts ───────────────────────────────────────────────────────────────────
 
 function metaPrompt(city: string, country: string, searchContext: string, query: string) {
-  return `You are a knowledgeable travel writer. Generate a JSON object for ${city}, ${country}.
-${query ? `User's specific interest: "${query}"\n` : ''}
-${searchContext ? `Recent web context:\n${searchContext}\n` : ''}
-
-Return ONLY valid JSON:
+  return `Travel writer. JSON overview for ${city}, ${country}.${query ? ` Focus: "${query}".` : ''}${searchContext ? `\nContext:\n${searchContext}` : ''}
+Return ONLY JSON. Each body 2 sentences, intro 3.
 {
   "flag": "country flag emoji",
-  "intro": "3-4 engaging sentences about the city's character and vibe — not Wikipedia-dry",
-  "funFacts": ["surprising fact 1", "surprising fact 2", "surprising fact 3", "surprising fact 4"],
+  "intro": "city character and vibe",
+  "funFacts": ["fact","fact","fact"],
   "overviewSections": [
-    {"icon": "🏛️", "title": "History", "body": "2-3 sentences on the city's origins and key historical turning points"},
-    {"icon": "🗺️", "title": "Geography & Layout", "body": "2-3 sentences on location, terrain, rivers, and how the city is laid out"},
-    {"icon": "🎭", "title": "Culture & Vibe", "body": "2-3 sentences on the local character, art scene, and daily rhythm"},
-    {"icon": "🍽️", "title": "Food & Drink", "body": "2-3 sentences on signature dishes, drinks, and food culture"},
-    {"icon": "📅", "title": "When to Visit", "body": "2-3 sentences on seasons, weather, festivals, and best timing"},
-    {"icon": "💶", "title": "Practical Snapshot", "body": "2-3 sentences on currency, language, rough daily budget, and getting in"}
+    {"icon":"🏛️","title":"History","body":"origins and key turning points"},
+    {"icon":"🗺️","title":"Geography & Layout","body":"location, terrain, how it's laid out"},
+    {"icon":"🎭","title":"Culture & Vibe","body":"local character and daily rhythm"},
+    {"icon":"🍽️","title":"Food & Drink","body":"signature dishes and food culture"},
+    {"icon":"📅","title":"When to Visit","body":"seasons, weather, best timing"},
+    {"icon":"💶","title":"Practical Snapshot","body":"currency, language, rough daily budget"}
   ]
 }`;
 }
 
 function knowPrompt(city: string, country: string, searchContext: string) {
-  return `You are a knowledgeable travel writer. Generate cultural background JSON for ${city}, ${country}.
-${searchContext ? `Recent web context:\n${searchContext}\n` : ''}
-
-Return ONLY valid JSON:
+  return `Travel writer. Cultural background JSON for ${city}, ${country}.${searchContext ? `\nContext:\n${searchContext}` : ''}
+Return ONLY JSON. Keep each entry to one line.
 {
-  "greetings": [{"phrase": "...", "pronunciation": "...", "meaning": "..."}],
-  "customs": ["custom 1", "custom 2", "custom 3"],
-  "taboos": ["taboo 1", "taboo 2"],
-  "neighborhoods": [{"name": "...", "vibe": "1-sentence description"}],
-  "safetyTips": ["tip 1", "tip 2", "tip 3"],
-  "transport": ["tip 1", "tip 2"]
+  "greetings": [{"phrase":"","pronunciation":"","meaning":""},{"phrase":"","pronunciation":"","meaning":""}],
+  "customs": ["","",""],
+  "taboos": ["",""],
+  "neighborhoods": [{"name":"","vibe":""},{"name":"","vibe":""},{"name":"","vibe":""}],
+  "safetyTips": ["","",""],
+  "transport": ["",""]
 }`;
 }
 
 function attractionsPrompt(city: string, searchContext: string, query: string) {
-  return `You are a travel curator. List 6 must-visit attractions in ${city}.
-${query ? `User interest: "${query}"\n` : ''}
-${searchContext ? `Recent web context:\n${searchContext}\n` : ''}
-
-Return ONLY valid JSON array (no wrapper object):
-[{
-  "title": "Attraction name",
-  "highlight": "One punchy sentence why it's worth visiting",
-  "detail": "2-3 sentence description with what to see/do",
-  "background": "1 sentence cultural or historical context",
-  "address": "address or neighbourhood if known, else empty string",
-  "duration": "e.g. 1-2h",
-  "cost": "e.g. Free or €12",
-  "category": "museum"
-}]
-
-Use these category values only: museum, landmark, nature, viewpoint, shopping, other`;
+  return `Travel curator. 5 must-visit attractions in ${city}.${query ? ` Focus: "${query}".` : ''}${searchContext ? `\nContext:\n${searchContext}` : ''}
+Return ONLY a JSON array. highlight 1 sentence, detail 2, background 1 short line.
+[{"title":"","highlight":"","detail":"","background":"","address":"neighbourhood or ''","duration":"e.g. 1-2h","cost":"e.g. Free or €12","category":"museum|landmark|nature|viewpoint|shopping|other"}]`;
 }
 
 function cityWalksPrompt(city: string, searchContext: string, query: string) {
-  return `You are a travel curator. Suggest 3 city walk routes in ${city}.
-${query ? `User interest: "${query}"\n` : ''}
-${searchContext ? `Recent web context:\n${searchContext}\n` : ''}
-
-Return ONLY valid JSON array:
-[{
-  "title": "Walk route name",
-  "highlight": "One sentence hook",
-  "detail": "1-2 sentence overall description of the route's mood and what you'll see",
-  "waypoints": [
-    {"name": "Specific, geocodable place name (e.g. 'Piazza della Signoria')", "note": "one short line on why to stop / what to see"}
-  ],
-  "background": "Theme or historical thread tying the walk together",
-  "duration": "e.g. 2-3h",
-  "distance": "e.g. 4 km"
-}]
-
-Give each walk 4-6 waypoints, in walking order. Waypoint names MUST be real,
-specific, mappable places (landmarks, squares, streets, bridges) in ${city} —
-not vague directions — so they can be found on a map.`;
+  return `Travel curator. 2 city walk routes in ${city}.${query ? ` Focus: "${query}".` : ''}${searchContext ? `\nContext:\n${searchContext}` : ''}
+Return ONLY a JSON array. Each walk has 4-5 waypoints in walking order. Waypoint names MUST be real, mappable places (landmarks, squares, bridges) in ${city}, not vague directions. Keep notes to one short line.
+[{"title":"","highlight":"","detail":"1-2 sentences","waypoints":[{"name":"e.g. Piazza della Signoria","note":""}],"background":"theme tying it together","duration":"e.g. 2-3h","distance":"e.g. 4 km"}]`;
 }
 
 function restaurantsPrompt(city: string, searchContext: string, query: string) {
-  return `You are a food-savvy travel writer. Recommend 6 restaurants in ${city} across price ranges.
-${query ? `User interest: "${query}"\n` : ''}
-${searchContext ? `Recent web context:\n${searchContext}\n` : ''}
-
-Return ONLY valid JSON array:
-[{
-  "title": "Restaurant name",
-  "highlight": "One-liner: cuisine + standout dish",
-  "detail": "2 sentences on atmosphere and what to order",
-  "background": "Any interesting story or local significance",
-  "address": "neighbourhood or address",
-  "cost": "e.g. €€ or €15-25/person",
-  "category": "food"
-}]`;
+  return `Food writer. 5 restaurants in ${city} across price ranges.${query ? ` Focus: "${query}".` : ''}${searchContext ? `\nContext:\n${searchContext}` : ''}
+Return ONLY a JSON array. highlight 1 line, detail 2 sentences, background 1 short line.
+[{"title":"","highlight":"cuisine + standout dish","detail":"","background":"","address":"neighbourhood","cost":"e.g. €€ or €15-25pp","category":"food"}]`;
 }
 
 function cafesPrompt(city: string, searchContext: string, query: string) {
-  return `You are a specialty-coffee and café expert. Recommend 5 cafés in ${city}.
-${query ? `User interest: "${query}"\n` : ''}
-${searchContext ? `Recent web context:\n${searchContext}\n` : ''}
-
-Return ONLY valid JSON array:
-[{
-  "title": "Café name",
-  "highlight": "Vibe + signature drink in one sentence",
-  "detail": "2 sentences: what makes it special, when to visit",
-  "background": "Story or neighbourhood context",
-  "address": "neighbourhood or address",
-  "cost": "e.g. €3-6",
-  "category": "cafe"
-}]`;
+  return `Café expert. 4 cafés in ${city}.${query ? ` Focus: "${query}".` : ''}${searchContext ? `\nContext:\n${searchContext}` : ''}
+Return ONLY a JSON array. highlight 1 line, detail 2 sentences, background 1 short line.
+[{"title":"","highlight":"vibe + signature drink","detail":"","background":"","address":"neighbourhood","cost":"e.g. €3-6","category":"cafe"}]`;
 }
 
 function experiencesPrompt(city: string, searchContext: string, query: string) {
-  return `You are a travel experience curator. Suggest 5 unique experiences in ${city}.
-${query ? `User interest: "${query}"\n` : ''}
-${searchContext ? `Recent web context:\n${searchContext}\n` : ''}
-
-Return ONLY valid JSON array:
-[{
-  "title": "Experience name",
-  "highlight": "What makes it memorable in one sentence",
-  "detail": "2-3 sentences: how to do it, best time, tips",
-  "background": "Cultural significance or why locals love it",
-  "address": "location or area",
-  "duration": "e.g. half-day",
-  "cost": "e.g. €20 or Free",
-  "category": "experience"
-}]`;
+  return `Experience curator. 4 unique experiences in ${city}.${query ? ` Focus: "${query}".` : ''}${searchContext ? `\nContext:\n${searchContext}` : ''}
+Return ONLY a JSON array. highlight 1 line, detail 2 sentences, background 1 short line.
+[{"title":"","highlight":"","detail":"how to do it, best time","background":"why locals love it","address":"area","duration":"e.g. half-day","cost":"e.g. €20 or Free","category":"experience"}]`;
 }
 
 function moneyTipsPrompt(city: string, searchContext: string) {
-  return `You are a budget travel expert. Give 6 money-saving tips for ${city}.
-${searchContext ? `Recent web context:\n${searchContext}\n` : ''}
-
-Return ONLY valid JSON array:
-[{"id": "tip-1", "text": "Actionable saving tip in 1-2 sentences"}]`;
+  return `Budget travel expert. 5 money-saving tips for ${city}.${searchContext ? `\nContext:\n${searchContext}` : ''}
+Return ONLY a JSON array. Each tip 1 sentence.
+[{"id":"tip-1","text":""}]`;
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -351,7 +288,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const metaPipe = (async () => {
       const ctx = await tavilySearch(`${city} ${country} travel highlights overview ${query}`);
-      const raw = await deepseek(metaPrompt(city, country, ctx, query)) as {
+      const raw = await deepseek(metaPrompt(city, country, ctx, query), 800) as {
         flag: string; intro: string; funFacts: string[];
         overviewSections?: { icon: string; title: string; body: string }[];
       };
@@ -367,45 +304,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const knowPipe = (async () => {
       const ctx = await tavilySearch(`${city} ${country} customs culture etiquette travelers`);
-      emit(res, 'know', await deepseek(knowPrompt(city, country, ctx)));
+      emit(res, 'know', await deepseek(knowPrompt(city, country, ctx), 600));
     })();
 
     const attractionsPipe = (async () => {
       const ctx = await tavilySearch(`${city} best attractions must-see 2025 ${query}`);
-      const raw = await deepseek(attractionsPrompt(city, ctx, query));
+      const raw = await deepseek(attractionsPrompt(city, ctx, query), 1000);
       const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city), city);
       emit(res, 'attractions', items);
     })();
 
     const cityWalksPipe = (async () => {
       const ctx = await tavilySearch(`${city} best walking routes city walk 2025 ${query}`);
-      const raw = await deepseek(cityWalksPrompt(city, ctx, query));
+      const raw = await deepseek(cityWalksPrompt(city, ctx, query), 900);
       const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as CityWalk[], city), city);
       emit(res, 'cityWalks', items);
     })();
 
     const restaurantsPipe = (async () => {
       const ctx = await tavilySearch(`${city} best restaurants local food 2025 ${query}`);
-      const raw = await deepseek(restaurantsPrompt(city, ctx, query));
+      const raw = await deepseek(restaurantsPrompt(city, ctx, query), 900);
       emit(res, 'restaurants', addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city));
     })();
 
     const cafesPipe = (async () => {
       const ctx = await tavilySearch(`${city} best cafes specialty coffee 2025 ${query}`);
-      const raw = await deepseek(cafesPrompt(city, ctx, query));
+      const raw = await deepseek(cafesPrompt(city, ctx, query), 700);
       emit(res, 'cafes', addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city));
     })();
 
     const experiencesPipe = (async () => {
       const ctx = await tavilySearch(`${city} unique experiences things to do 2025 ${query}`);
-      const raw = await deepseek(experiencesPrompt(city, ctx, query));
+      const raw = await deepseek(experiencesPrompt(city, ctx, query), 700);
       const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city), city);
       emit(res, 'experiences', items);
     })();
 
     const moneyPipe = (async () => {
       const ctx = await tavilySearch(`${city} budget travel money saving tips 2025`);
-      const raw = await deepseek(moneyTipsPrompt(city, ctx));
+      const raw = await deepseek(moneyTipsPrompt(city, ctx), 500);
       const tips = (Array.isArray(raw) ? raw : []) as GuideTip[];
       emit(res, 'moneyTips', tips.map((t, i) => ({ ...t, id: t.id || `tip-${i}` })));
     })();

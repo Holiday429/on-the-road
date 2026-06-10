@@ -155,8 +155,11 @@ async function generateGuide(city: string, country: string, query: string): Prom
     if (!_overviewShown) renderCityDetail(root);
     // Hand off to the Firestore snapshot now that the stream is complete.
     _liveIntel = null;
-    // Background-prefetch a safety card for the same city if one doesn't exist yet.
-    void prefetchSafetyForCity(city, country);
+    // Background-prefetch a safety card — OFF by default to avoid an extra
+    // silent LLM call. Opt in with VITE_PREFETCH_CROSS=1.
+    if (import.meta.env.VITE_PREFETCH_CROSS === '1') {
+      void prefetchSafetyForCity(city, country);
+    }
   } catch (err) {
     _generating = false;
     _liveIntel = null;

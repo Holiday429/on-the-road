@@ -190,9 +190,13 @@ async function generateForCity(city: string, country: string): Promise<void> {
   const id = slugId(city);
   await safetyStore.save({ id, ...data, source: 'ai' });
 
-  // Background-prefetch a city guide for the same place if one doesn't exist yet.
-  void import('../guide/guide.ts').then(({ prefetchGuideForCity }) =>
-    prefetchGuideForCity(city, country));
+  // Background-prefetch a city guide for the same place — OFF by default since
+  // it silently fires a full (multi-call) guide generation. Opt in with
+  // VITE_PREFETCH_CROSS=1 when token budget allows.
+  if (import.meta.env.VITE_PREFETCH_CROSS === '1') {
+    void import('../guide/guide.ts').then(({ prefetchGuideForCity }) =>
+      prefetchGuideForCity(city, country));
+  }
 
   _genStatus = '';
   _generating = false;

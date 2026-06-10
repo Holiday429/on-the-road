@@ -30,23 +30,25 @@ function searchUrl(title: string, city: string) {
   return `https://www.google.com/search?q=${encodeURIComponent(`${title} ${city}`)}`;
 }
 
+// Web search OFF unless GUIDE_USE_TAVILY=1 — it bloats prompt tokens.
 async function tavilySearch(query: string): Promise<string> {
+  if (process.env.GUIDE_USE_TAVILY !== '1') return '';
   const key = process.env.TAVILY_API_KEY;
   if (!key) return '';
   try {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ api_key: key, query, search_depth: 'basic', max_results: 5, include_answer: true }),
+      body: JSON.stringify({ api_key: key, query, search_depth: 'basic', max_results: 3, include_answer: true }),
     });
     if (!res.ok) return '';
     const data = await res.json() as { answer?: string; results?: { content: string }[] };
-    const snippets = (data.results ?? []).map(r => r.content).join('\n\n');
-    return data.answer ? `${data.answer}\n\n${snippets}` : snippets;
+    const snippets = (data.results ?? []).map(r => r.content).join('\n').slice(0, 800);
+    return (data.answer ? `${data.answer}\n${snippets}` : snippets).slice(0, 800);
   } catch { return ''; }
 }
 
-async function deepseek(prompt: string): Promise<unknown> {
+async function deepseek(prompt: string, maxTokens = 700): Promise<unknown> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
   const res = await fetch('https://api.deepseek.com/chat/completions', {
@@ -57,6 +59,7 @@ async function deepseek(prompt: string): Promise<unknown> {
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
       temperature: 0.9,   // a touch higher for variety on "more"
+      max_tokens: maxTokens,
     }),
   });
   if (!res.ok) throw new Error(`DeepSeek ${res.status}: ${await res.text()}`);
@@ -110,18 +113,18 @@ const SHAPE_CARD = `{
 
 const SECTIONS: Record<SectionKey, SectionDef> = {
   attractions: {
-    count: 6,
+    count: 4,
     searchQuery: (c, q) => `${c} lesser-known attractions hidden gems 2025 ${q}`,
-    prompt: (c, ctx, q, ex) => `You are a travel curator. List 6 MORE must-visit or lesser-known attractions in ${c}, DIFFERENT from those already listed.
+    prompt: (c, ctx, q, ex) => `You are a travel curator. List 4 MORE must-visit or lesser-known attractions in ${c}, DIFFERENT from those already listed.
 Already listed (do NOT repeat): ${ex || 'none'}.
 ${q ? `User interest: "${q}"\n` : ''}${ctx ? `Recent web context:\n${ctx}\n` : ''}
 Return ONLY a valid JSON array of ${SHAPE_CARD}
 category ∈ museum, landmark, nature, viewpoint, shopping, other`,
   },
   cityWalks: {
-    count: 3,
+    count: 2,
     searchQuery: (c, q) => `${c} alternative walking routes neighbourhoods 2025 ${q}`,
-    prompt: (c, ctx, q, ex) => `Suggest 3 MORE city walk routes in ${c}, DIFFERENT from those already listed.
+    prompt: (c, ctx, q, ex) => `Suggest 2 MORE city walk routes in ${c}, DIFFERENT from those already listed.
 Already listed (do NOT repeat): ${ex || 'none'}.
 ${q ? `User interest: "${q}"\n` : ''}${ctx ? `Recent web context:\n${ctx}\n` : ''}
 Return ONLY a valid JSON array of {
@@ -134,36 +137,36 @@ Return ONLY a valid JSON array of {
 Give each walk 4-6 waypoints in walking order; names must be specific, geocodable places.`,
   },
   restaurants: {
-    count: 6,
+    count: 4,
     searchQuery: (c, q) => `${c} more restaurants local favourites 2025 ${q}`,
-    prompt: (c, ctx, q, ex) => `Recommend 6 MORE restaurants in ${c} across price ranges, DIFFERENT from those already listed.
+    prompt: (c, ctx, q, ex) => `Recommend 4 MORE restaurants in ${c} across price ranges, DIFFERENT from those already listed.
 Already listed (do NOT repeat): ${ex || 'none'}.
 ${q ? `User interest: "${q}"\n` : ''}${ctx ? `Recent web context:\n${ctx}\n` : ''}
 Return ONLY a valid JSON array of ${SHAPE_CARD}
 category must be "food"`,
   },
   cafes: {
-    count: 5,
+    count: 4,
     searchQuery: (c, q) => `${c} more cafes coffee spots 2025 ${q}`,
-    prompt: (c, ctx, q, ex) => `Recommend 5 MORE cafés in ${c}, DIFFERENT from those already listed.
+    prompt: (c, ctx, q, ex) => `Recommend 4 MORE cafés in ${c}, DIFFERENT from those already listed.
 Already listed (do NOT repeat): ${ex || 'none'}.
 ${q ? `User interest: "${q}"\n` : ''}${ctx ? `Recent web context:\n${ctx}\n` : ''}
 Return ONLY a valid JSON array of ${SHAPE_CARD}
 category must be "cafe"`,
   },
   experiences: {
-    count: 5,
+    count: 4,
     searchQuery: (c, q) => `${c} more unique experiences activities 2025 ${q}`,
-    prompt: (c, ctx, q, ex) => `Suggest 5 MORE unique experiences in ${c}, DIFFERENT from those already listed.
+    prompt: (c, ctx, q, ex) => `Suggest 4 MORE unique experiences in ${c}, DIFFERENT from those already listed.
 Already listed (do NOT repeat): ${ex || 'none'}.
 ${q ? `User interest: "${q}"\n` : ''}${ctx ? `Recent web context:\n${ctx}\n` : ''}
 Return ONLY a valid JSON array of ${SHAPE_CARD}
 category must be "experience"`,
   },
   moneyTips: {
-    count: 6,
+    count: 4,
     searchQuery: (c, q) => `${c} more budget travel money saving tips 2025 ${q}`,
-    prompt: (c, ctx, _q, ex) => `Give 6 MORE money-saving tips for ${c}, DIFFERENT from those already listed.
+    prompt: (c, ctx, _q, ex) => `Give 4 MORE money-saving tips for ${c}, DIFFERENT from those already listed.
 Already listed (do NOT repeat): ${ex || 'none'}.
 ${ctx ? `Recent web context:\n${ctx}\n` : ''}
 Return ONLY a valid JSON array of {"text": "actionable saving tip in 1-2 sentences"}`,
@@ -193,11 +196,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const def = SECTIONS[section];
-  const exclude = (existingTitles as string[]).slice(0, 40).join('; ');
+  // Only the titles are needed to dedupe; cap the list so repeated "more"
+  // clicks don't keep inflating the prompt.
+  const exclude = (existingTitles as string[]).slice(0, 20).join('; ');
 
   try {
     const ctx = await tavilySearch(def.searchQuery(city, query));
-    const raw = await deepseek(def.prompt(city, ctx, query, exclude));
+    // cityWalks carries waypoints, so it needs more room than the others.
+    const cap = section === 'cityWalks' ? 900 : 800;
+    const raw = await deepseek(def.prompt(city, ctx, query, exclude), cap);
     let items = (Array.isArray(raw) ? raw : []) as Record<string, unknown>[];
 
     // Drop anything whose title collides with an existing one (case-insensitive).
