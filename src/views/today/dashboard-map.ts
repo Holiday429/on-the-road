@@ -121,7 +121,7 @@ export async function initDashboardMap(
     const container = am5.Container.new(root2, { interactive: false });
 
     container.children.push(am5.Circle.new(root2, {
-      radius:      9,
+      radius:      11,
       fill:        color,
       stroke:      am5.color('#ffffff'),
       strokeWidth: 2,
@@ -129,16 +129,16 @@ export async function initDashboardMap(
     }));
 
     container.children.push(am5.Label.new(root2, {
-      text:            num,
-      fontSize:        8,
-      fontWeight:      '700',
-      fill:            am5.color('#ffffff'),
-      centerX:         am5.percent(50),
-      centerY:         am5.percent(50),
-      x:               am5.percent(50),
-      y:               am5.percent(50),
-      interactive:     false,
-      oversizedBehavior: 'none',
+      text:              num,
+      fontSize:          9,
+      fontWeight:        '700',
+      fill:              am5.color('#ffffff'),
+      centerX:           am5.percent(50),
+      centerY:           am5.percent(50),
+      x:                 0,
+      y:                 0,
+      interactive:       false,
+      oversizedBehavior: 'hide',
     }));
 
     return am5.Bullet.new(root2, { sprite: container });
@@ -146,12 +146,10 @@ export async function initDashboardMap(
 
   pinSeries.data.setAll(pinData);
 
-  // Auto-fit to trip pins after map loads; fall back to Europe home view.
+  // Auto-fit: zoom to bounding box of all pins once the chart has dimensions.
   chart.events.once('boundschanged', () => {
-    if (pinData.length >= 2) {
-      try { chart.zoomToGeoPoint({ latitude: 0, longitude: 0 }, 0); } catch { /* ignore */ }
-      // Use goHome() on next frame so the chart is fully sized
-      requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (pinData.length >= 2) {
         const lats = pinData.map((d: any) => d.latitude);
         const lngs = pinData.map((d: any) => d.longitude);
         const minLat = Math.min(...lats);
@@ -160,15 +158,17 @@ export async function initDashboardMap(
         const maxLng = Math.max(...lngs);
         try {
           chart.zoomToGeoBounds({
-            left: minLng - 3, right: maxLng + 3,
-            top: maxLat + 2, bottom: minLat - 2,
+            left: minLng - 5, right: maxLng + 5,
+            top: maxLat + 4, bottom: minLat - 4,
           });
         } catch { chart.goHome(); }
-      });
-    }
+      } else {
+        chart.goHome();
+      }
+    });
   });
 
-  chart.appear(400);
+  chart.appear(600);
 }
 
 export function disposeDashboardMap(): void {

@@ -17,12 +17,12 @@ import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import type { PlanItem, PlanDay, ClipCategory } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
-import { openJournalComposerForTemplate } from '../journal/index.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
 import { BUILTIN_CATEGORIES } from '../route/route.ts';
 import { openModal } from '../../core/modal.ts';
+import { openJournalComposerOverlay } from '../journal/index.ts';
 import { scheduleAllNotifications } from '../../core/notifications.ts';
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { weightAtLeg, baggageRemainG, itemWeightG } from '../../data/packing-formula.ts';
@@ -36,7 +36,7 @@ let _rates: RateTable = {};
 let _rateInput = '';          // currency converter amount
 let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency())
 let _rateTo    = '';          // selected "to" currency (empty = auto localCurrency())
-let _mapBooted = false;       // init dashboard map only once per view mount
+let _mapCanvas: HTMLElement | null = null; // tracks which canvas element the map was booted on
 let _unsubs: Array<() => void> = [];
 let _weather: { icon: string; tempHigh: string; tempLow: string } | null = null;
 let _weatherCity = '';
@@ -1016,7 +1016,7 @@ function wire(body: HTMLElement): void {
   body.querySelectorAll<HTMLElement>('[data-nav]').forEach(el => {
     el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
-      if (t.closest('a, button:not([data-nav]), [data-quickadd], [data-rate-input]')) return;
+      if (t.closest('a, button:not([data-nav]), [data-quickadd], [data-rate-input], [data-journal-template], [data-todo-add-modal]')) return;
       const intent = el.dataset.intent ? (JSON.parse(el.dataset.intent) as NavIntent) : undefined;
       navigateTo(el.dataset.nav as ViewId, intent);
     });
@@ -1086,9 +1086,7 @@ function wire(body: HTMLElement): void {
   body.querySelectorAll<HTMLElement>('[data-journal-template]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const templateId = btn.dataset.journalTemplate ?? 'moment';
-      openJournalComposerForTemplate(templateId);
-      navigateTo('journal');
+      openJournalComposerOverlay(btn.dataset.journalTemplate ?? 'moment');
     });
   });
 
@@ -1262,10 +1260,10 @@ function wireDragDrop(body: HTMLElement): void {
 }
 
 function bootMap(): void {
-  const canvas = document.getElementById('td-map-canvas');
-  if (!canvas || _mapBooted) return;
-  _mapBooted = true;
-  // Pass legs (may be empty — map still renders Europe outline + pins when legs exist)
+  const canvas = document.getElementById('td-map-canvas') as HTMLElement | null;
+  // Re-init whenever render() produces a new canvas element (innerHTML replacement).
+  if (!canvas || canvas === _mapCanvas) return;
+  _mapCanvas = canvas;
   void initDashboardMap(canvas, _legs);
 }
 
@@ -1285,7 +1283,7 @@ export function initDashboard(): void {
   _nomadSpots  = nomadStore.peek();
   _cityIntel   = cityStore.peek();
   _citySafety  = safetyStore.peek();
-  _mapBooted   = false;
+  _mapCanvas   = null;
   _weather     = null;
   _weatherCity = '';
   disposeDashboardMap();
@@ -1293,7 +1291,7 @@ export function initDashboard(): void {
 
   _unsubs.forEach(u => u());
   _unsubs = [
-    routeStore.subscribe(rows => { _legs = rows; _mapBooted = false; disposeDashboardMap(); render(); }),
+    routeStore.subscribe(rows => { _legs = rows; _mapCanvas = null; disposeDashboardMap(); render(); }),
     expenseStore.subscribe(rows => { _expenses = rows; render(); }),
     journalStore.subscribe(rows => { _journal = rows; render(); }),
     todoStore.subscribe(rows => { _todos = rows; render(); }),
@@ -1305,7 +1303,7 @@ export function initDashboard(): void {
       _nomadSpots = nomadStore.peek();
       _cityIntel  = cityStore.peek();
       _citySafety = safetyStore.peek();
-      _mapBooted = false; _weather = null; _weatherCity = '';
+      _mapCanvas = null; _weather = null; _weatherCity = '';
       disposeDashboardMap(); render();
     }),
   ];

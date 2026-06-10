@@ -142,6 +142,63 @@ export function openJournalComposerForTemplate(templateId: string): void {
   renderJournal();
 }
 
+/**
+ * Open the full journal composer as a floating overlay on top of any view
+ * (e.g. dashboard), without navigating away. Uses a dedicated capture
+ * controller instance so it doesn't interfere with the main journal view.
+ */
+export function openJournalComposerOverlay(templateId: string): void {
+  // Remove any existing overlay first (idempotent).
+  document.getElementById('jco-overlay-root')?.remove();
+
+  const overlayEntries = journalStore.peek();
+  const overlayLegs    = routeStore.peek();
+
+  let overlayEl: HTMLElement | null = null;
+
+  const overlayCapture = createCaptureController({
+    getEntries: () => overlayEntries,
+    getLegs:    () => overlayLegs,
+    requestRender: renderOverlay,
+  });
+
+  function renderOverlay() {
+    if (!overlayEl) return;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = overlayCapture.render();
+    const freshOverlay = tmp.querySelector<HTMLElement>('.journal-composer-overlay');
+    if (!freshOverlay) {
+      // composerOpen became false (save / cancel / close) — tear down
+      overlayEl.remove();
+      overlayEl = null;
+      return;
+    }
+    // Swap the overlay node in-place to update prompt / state changes
+    overlayEl.querySelector('.journal-composer-overlay')?.replaceWith(freshOverlay);
+    overlayCapture.bind(overlayEl);
+  }
+
+  // Build the overlay wrapper
+  overlayEl = document.createElement('div');
+  overlayEl.id = 'jco-overlay-root';
+
+  overlayCapture.openComposerForTemplate(templateId);
+  const html = overlayCapture.render();
+
+  // Extract the overlay+drawer HTML from the full capture render
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const overlayNode = tmp.querySelector<HTMLElement>('.journal-composer-overlay');
+  if (!overlayNode) return; // composerOpen was false — nothing to show
+
+  overlayEl.appendChild(overlayNode);
+  document.body.appendChild(overlayEl);
+  overlayCapture.bind(overlayEl);
+
+  // Focus the textarea
+  overlayEl.querySelector<HTMLElement>('#journal-body')?.focus();
+}
+
 export function initJournal() {
   // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
   _unsubEntries?.();
