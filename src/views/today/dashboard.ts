@@ -351,6 +351,15 @@ function renderCalendarWidget(): string {
   for (const e of _journal) addDot(e.happenedOn, 'var(--sky-400)');
   // Todos with due date
   for (const t of _todos) if (t.dueDate) addDot(t.dueDate, t.done ? 'var(--surface-4)' : '#f87171');
+  // Plan items assigned to a day (dayId encodes date as "day-YYYY-MM-DD")
+  const planDayRe = /^day-(\d{4}-\d{2}-\d{2})$/;
+  for (const leg of _legs) {
+    for (const p of (leg.plans ?? []) as PlanItem[]) {
+      if (!p.dayId) continue;
+      const m = planDayRe.exec(p.dayId);
+      if (m) addDot(m[1], '#a78bfa'); // violet dot for plan items
+    }
+  }
 
   // Calendar grid
   const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
@@ -376,6 +385,7 @@ function renderCalendarWidget(): string {
         <span><span class="td-cal-dot" style="background:var(--amber-400)"></span>Itinerary</span>
         <span><span class="td-cal-dot" style="background:var(--sky-400)"></span>Journal</span>
         <span><span class="td-cal-dot" style="background:#f87171"></span>To-do</span>
+        <span><span class="td-cal-dot" style="background:#a78bfa"></span>Plan</span>
       </div>
     </div>`;
 }

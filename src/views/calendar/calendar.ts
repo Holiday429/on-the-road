@@ -31,18 +31,28 @@ let _month = new Date().getMonth();   // 0-based
 let _selectedDay: string | null = null;
 let _unsubs: Array<() => void> = [];
 
-// Flattened plan items with resolved ISO date, derived from _legs
+// Flattened plan items with resolved ISO date, derived from _legs.
+// dayId is stored as "day-YYYY-MM-DD" by ensurePlanDays() in route.ts,
+// so we extract the date directly from the id rather than looking up planDays.
 interface FlatPlanItem { date: string; title: string; category: string; cost?: string; done: boolean; legId: string; legFlag: string; legCity: string; }
+const DAY_ID_RE = /^day-(\d{4}-\d{2}-\d{2})$/;
 function flatPlanItems(): FlatPlanItem[] {
   const items: FlatPlanItem[] = [];
   for (const leg of _legs) {
-    const days = leg.planDays ?? [];
     const plans = leg.plans ?? [];
     for (const p of plans) {
       if (!p.dayId) continue;
-      const day = days.find(d => d.id === p.dayId);
-      if (!day?.date) continue;
-      items.push({ date: day.date, title: p.title, category: p.category, cost: p.cost, done: p.done, legId: leg.id, legFlag: leg.flag ?? '', legCity: leg.city });
+      // Fast path: id encodes the date directly
+      const m = DAY_ID_RE.exec(p.dayId);
+      if (m) {
+        items.push({ date: m[1], title: p.title, category: p.category ?? '', cost: p.cost, done: p.done, legId: leg.id, legFlag: (leg as any).flag ?? '', legCity: leg.city });
+        continue;
+      }
+      // Fallback: look up in stored planDays
+      const day = (leg.planDays ?? []).find(d => d.id === p.dayId);
+      if (day?.date) {
+        items.push({ date: day.date, title: p.title, category: p.category ?? '', cost: p.cost, done: p.done, legId: leg.id, legFlag: (leg as any).flag ?? '', legCity: leg.city });
+      }
     }
   }
   return items;
