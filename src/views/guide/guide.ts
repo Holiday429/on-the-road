@@ -35,6 +35,9 @@ let _previewIntel: (CityIntel & { id: string }) | null = null;
 let _historyOpen = false;
 // Block store-subscriber re-renders while the GIF splash is showing
 let _generating = false;
+// Live intel being assembled during streaming — renderCityDetail prefers this
+// over the Firestore snapshot, which lags behind by an async save round-trip.
+let _liveIntel: (Partial<CityIntel> & { id: string }) | null = null;
 
 type TabKey = 'intro' | 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'know' | 'moneyTips';
 
@@ -80,6 +83,7 @@ async function generateGuide(city: string, country: string, query: string): Prom
       bannerColor: '#fde68a',
       generatedQuery: query,
     };
+    _liveIntel = intel;
 
     // Keep the GIF splash up until the overview (meta) lands; only then swap to
     // the detail view. Other sections lazy-load behind their own tabs, so a
@@ -143,10 +147,13 @@ async function generateGuide(city: string, country: string, query: string): Prom
     // Stream finished — if meta never arrived (so the splash is still up),
     // fall through to the detail view anyway so the user isn't stuck.
     if (!_overviewShown) renderCityDetail(root);
+    // Hand off to the Firestore snapshot now that the stream is complete.
+    _liveIntel = null;
     // Background-prefetch a safety card for the same city if one doesn't exist yet.
     void prefetchSafetyForCity(city, country);
   } catch (err) {
     _generating = false;
+    _liveIntel = null;
     // API failed — show a sample preview WITHOUT persisting it to Firestore,
     // so a transient outage never poisons the cache with mock data.
     console.warn('Guide API unavailable, showing sample (not saved):', err);
@@ -343,8 +350,10 @@ function renderCityList(root: HTMLElement) { renderHistoryBar(root); }
 function renderCityDetail(_root: HTMLElement) {
   const detail = document.querySelector<HTMLElement>('#view-cities .guide-detail')! as HTMLElement & { _gifInterval?: ReturnType<typeof setInterval> };
   if (detail._gifInterval) { clearInterval(detail._gifInterval); detail._gifInterval = undefined; }
-  // Stored cities win; fall back to a transient preview if the API failed.
-  const intel = _cities.find(c => c.id === _activeCityId)
+  // Live streaming intel wins (it's ahead of the Firestore snapshot), then the
+  // stored doc, then a transient preview if the API failed.
+  const intel = (_liveIntel?.id === _activeCityId ? _liveIntel as StoredCityIntel : undefined)
+    ?? _cities.find(c => c.id === _activeCityId)
     ?? (_previewIntel?.id === _activeCityId ? _previewIntel as StoredCityIntel : undefined);
 
   if (!intel) {

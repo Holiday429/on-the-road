@@ -344,72 +344,84 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.flushHeaders();
 
   try {
-    // Run all Tavily searches in parallel (fast, low-latency)
-    const [metaCtx, knowCtx, attractCtx, walkCtx, foodCtx, cafeCtx, expCtx, moneyCtx] =
-      await Promise.all([
-        tavilySearch(`${city} ${country} travel highlights overview ${query}`),
-        tavilySearch(`${city} ${country} customs culture etiquette travelers`),
-        tavilySearch(`${city} best attractions must-see 2025 ${query}`),
-        tavilySearch(`${city} best walking routes city walk 2025 ${query}`),
-        tavilySearch(`${city} best restaurants local food 2025 ${query}`),
-        tavilySearch(`${city} best cafes specialty coffee 2025 ${query}`),
-        tavilySearch(`${city} unique experiences things to do 2025 ${query}`),
-        tavilySearch(`${city} budget travel money saving tips 2025`),
-      ]);
+    // Each section is a fully independent pipeline: its own Tavily search →
+    // DeepSeek call → emit. This means the overview (meta) flushes the instant
+    // ITS two calls finish — it's never gated by the other sections' searches.
+    // The client renders meta first and lazy-loads the rest as they stream in.
 
-    // Emit each section as soon as its DeepSeek call resolves — don't wait for all 8.
-    // meta + know fire first; the rest fire in parallel and emit as they land.
-    const metaPromise = deepseek(metaPrompt(city, country, metaCtx, query)).then((raw) => {
-      const meta = raw as {
+    const metaPipe = (async () => {
+      const ctx = await tavilySearch(`${city} ${country} travel highlights overview ${query}`);
+      const raw = await deepseek(metaPrompt(city, country, ctx, query)) as {
         flag: string; intro: string; funFacts: string[];
         overviewSections?: { icon: string; title: string; body: string }[];
       };
       emit(res, 'meta', {
         city, country,
-        flag: meta.flag ?? '🗺️',
+        flag: raw.flag ?? '🗺️',
         bannerColor: randomBanner(),
-        intro: meta.intro ?? '',
-        funFacts: meta.funFacts ?? [],
-        overviewSections: meta.overviewSections ?? [],
+        intro: raw.intro ?? '',
+        funFacts: raw.funFacts ?? [],
+        overviewSections: raw.overviewSections ?? [],
       });
-    });
+    })();
 
-    const knowPromise = deepseek(knowPrompt(city, country, knowCtx)).then((raw) => {
-      emit(res, 'know', raw);
-    });
+    const knowPipe = (async () => {
+      const ctx = await tavilySearch(`${city} ${country} customs culture etiquette travelers`);
+      emit(res, 'know', await deepseek(knowPrompt(city, country, ctx)));
+    })();
 
-    const attractionsPromise = deepseek(attractionsPrompt(city, attractCtx, query)).then(async (raw) => {
+    const attractionsPipe = (async () => {
+      const ctx = await tavilySearch(`${city} best attractions must-see 2025 ${query}`);
+      const raw = await deepseek(attractionsPrompt(city, ctx, query));
       const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city), city);
       emit(res, 'attractions', items);
-    });
+    })();
 
-    const cityWalksPromise = deepseek(cityWalksPrompt(city, walkCtx, query)).then(async (raw) => {
+    const cityWalksPipe = (async () => {
+      const ctx = await tavilySearch(`${city} best walking routes city walk 2025 ${query}`);
+      const raw = await deepseek(cityWalksPrompt(city, ctx, query));
       const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as CityWalk[], city), city);
       emit(res, 'cityWalks', items);
-    });
+    })();
 
-    const restaurantsPromise = deepseek(restaurantsPrompt(city, foodCtx, query)).then((raw) => {
+    const restaurantsPipe = (async () => {
+      const ctx = await tavilySearch(`${city} best restaurants local food 2025 ${query}`);
+      const raw = await deepseek(restaurantsPrompt(city, ctx, query));
       emit(res, 'restaurants', addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city));
-    });
+    })();
 
-    const cafesPromise = deepseek(cafesPrompt(city, cafeCtx, query)).then((raw) => {
+    const cafesPipe = (async () => {
+      const ctx = await tavilySearch(`${city} best cafes specialty coffee 2025 ${query}`);
+      const raw = await deepseek(cafesPrompt(city, ctx, query));
       emit(res, 'cafes', addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city));
-    });
+    })();
 
-    const experiencesPromise = deepseek(experiencesPrompt(city, expCtx, query)).then(async (raw) => {
+    const experiencesPipe = (async () => {
+      const ctx = await tavilySearch(`${city} unique experiences things to do 2025 ${query}`);
+      const raw = await deepseek(experiencesPrompt(city, ctx, query));
       const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city), city);
       emit(res, 'experiences', items);
-    });
+    })();
 
-    const moneyPromise = deepseek(moneyTipsPrompt(city, moneyCtx)).then((raw) => {
+    const moneyPipe = (async () => {
+      const ctx = await tavilySearch(`${city} budget travel money saving tips 2025`);
+      const raw = await deepseek(moneyTipsPrompt(city, ctx));
       const tips = (Array.isArray(raw) ? raw : []) as GuideTip[];
       emit(res, 'moneyTips', tips.map((t, i) => ({ ...t, id: t.id || `tip-${i}` })));
-    });
+    })();
 
-    await Promise.all([
-      metaPromise, knowPromise, attractionsPromise, cityWalksPromise,
-      restaurantsPromise, cafesPromise, experiencesPromise, moneyPromise,
+    // Wait for every pipeline; a single section failing must not abort the rest,
+    // so use allSettled and surface any failures as a non-fatal error event.
+    const results = await Promise.allSettled([
+      metaPipe, knowPipe, attractionsPipe, cityWalksPipe,
+      restaurantsPipe, cafesPipe, experiencesPipe, moneyPipe,
     ]);
+    const failed = results.filter(r => r.status === 'rejected');
+    if (failed.length === results.length) {
+      // Everything failed — likely a bad API key or upstream outage.
+      const first = failed[0] as PromiseRejectedResult;
+      emit(res, 'error', { message: (first.reason as Error)?.message ?? 'generation failed' });
+    }
 
     emit(res, 'done', {});
   } catch (err) {
