@@ -14,6 +14,7 @@
   .cal-root { grid-template-columns: 1fr; }
 }
 
+
 /* ── Month navigation ─────────────────────────────────────────────────────── */
 .cal-nav {
   display: flex;
@@ -127,27 +128,31 @@
 .cal-dot-todo      { background: #f87171; }
 .cal-dot-todo-done { background: var(--surface-4); }
 
-/* ── Day panel ────────────────────────────────────────────────────────────── */
+/* ── Day panel (inside modal) ─────────────────────────────────────────────── */
 .cal-day-panel {
-  background: var(--surface);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-xl);
-  padding: var(--sp-5);
-  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  position: sticky;
-  top: var(--sp-5);
+}
+.cal-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--rule-soft);
 }
 .cal-panel-date {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
   font-weight: 700;
   color: var(--ink);
-  padding-bottom: var(--sp-2);
-  border-bottom: 1px solid var(--rule-soft);
 }
+.cal-panel-close {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm);
+  font-size: 14px; color: var(--ink-faint);
+  transition: all var(--dur-fast); cursor: pointer;
+}
+.cal-panel-close:hover { background: var(--surface-3); color: var(--ink); }
 .cal-panel-hint {
   background: var(--surface);
   border: 1px solid var(--rule-soft);
@@ -304,3 +309,68 @@
 }
 .cal-todo-del:hover { background: var(--surface-4); color: var(--coral-500); }
 .cal-add-todo { align-self: flex-start; margin-top: var(--sp-1); }
+
+/* ── Inline todos panel (below calendar grid) ─────────────────────────────── */
+.cal-todos-panel {
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-xl);
+  padding: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; gap: var(--sp-2);
+}
+.cal-todos-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.cal-todos-title {
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
+  color: var(--ink-muted);
+}
+.cal-todos-header-actions {
+  display: flex; align-items: center; gap: var(--sp-1);
+}
+.cal-todos-add-cal {
+  font-size: 15px; line-height: 1;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-sm);
+  opacity: 0.55;
+  transition: opacity var(--dur-fast);
+  cursor: pointer;
+}
+.cal-todos-add-cal:hover { opacity: 1; }
+.cal-todos-add {
+  font-size: var(--fs-xs); padding: 4px 12px;
+}
+.cal-todos-empty {
+  font-size: var(--fs-sm); color: var(--ink-faint); font-style: italic;
+  padding: var(--sp-1) 0;
+}
+.cal-todos-section-label {
+  font-size: 10px; font-weight: 700; color: var(--ink-faint);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: var(--sp-2) 0 var(--sp-1);
+}
+.cal-todo-row {
+  display: flex; align-items: flex-start; gap: var(--sp-2);
+  padding: 6px 8px; border-radius: var(--r-md);
+  transition: background var(--dur-fast);
+}
+.cal-todo-row:hover { background: var(--surface-3); }
+.cal-todo-row.is-done { opacity: 0.5; }
+.cal-todo-body {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;
+}
+.cal-todo-label {
+  font-size: var(--fs-sm); font-weight: 500; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cal-todo-label.is-overdue { color: var(--coral-500); }
+.is-done .cal-todo-label { text-decoration: line-through; color: var(--ink-faint); }
+.cal-todo-due {
+  font-size: 10px; color: var(--ink-faint);
+  background: var(--surface-3); border-radius: var(--r-sm); padding: 1px 6px;
+}
+.cal-todo-due.is-overdue { background: #fee2e2; color: var(--coral-600); font-weight: 700; }

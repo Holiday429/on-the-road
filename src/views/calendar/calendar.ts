@@ -202,7 +202,10 @@ function renderDayPanel(iso: string): string {
 
   return `
     <div class="cal-day-panel">
-      <div class="cal-panel-date">${esc(label)}</div>
+      <div class="cal-panel-header">
+        <div class="cal-panel-date">${esc(label)}</div>
+        <button class="cal-panel-close" data-otr-close aria-label="Close">✕</button>
+      </div>
       ${legRows}
       ${jRows}
       ${undatedHeader}
@@ -287,6 +290,122 @@ function openTodoModal(opts: {
   handle.root.querySelector<HTMLInputElement>('#cal-todo-text')?.focus();
 }
 
+/* ── Day panel modal ─────────────────────────────────────────────────────── */
+function openDayPanelModal(iso: string): void {
+  const handle = openModal({
+    body: renderDayPanel(iso),
+    className: 'cal-day-modal',
+    showClose: false,
+  });
+
+  const root = handle.root;
+
+  // Nav from panel (leg → route, journal → journal)
+  root.querySelectorAll<HTMLElement>('[data-nav]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('button')) return;
+      const intent = el.dataset.intent ? JSON.parse(el.dataset.intent) as NavIntent : undefined;
+      handle.close();
+      navigateTo(el.dataset.nav as Parameters<typeof navigateTo>[0], intent);
+    });
+  });
+
+  // Todo toggle
+  root.querySelectorAll<HTMLElement>('[data-toggle-todo]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const [id, doneStr] = btn.dataset.toggleTodo!.split(':');
+      void todoStore.toggle(id, doneStr === 'true');
+    });
+  });
+
+  // Todo edit
+  root.querySelectorAll<HTMLElement>('[data-edit-todo]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.editTodo!;
+      const todo = _todos.find(t => t.id === id);
+      if (todo) { handle.close(); openTodoModal({ mode: 'edit', todo }); }
+    });
+  });
+
+  // Todo delete
+  root.querySelectorAll<HTMLElement>('[data-del-todo]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      void todoStore.remove(btn.dataset.delTodo!);
+      handle.close();
+    });
+  });
+
+  // Add todo button
+  root.querySelectorAll<HTMLElement>('[data-add-todo]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      handle.close();
+      openTodoModal({ mode: 'add', dueDate: btn.dataset.addTodo! });
+    });
+  });
+}
+
+/* ── Inline todos panel (shown below the calendar grid) ─────────────────── */
+function renderTodosPanel(): string {
+  const today = todayIso();
+  const pending = _todos
+    .filter(t => !t.done)
+    .sort((a, b) => {
+      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
+      if (a.dueDate) return -1;
+      if (b.dueDate) return 1;
+      return 0;
+    });
+  const done = _todos.filter(t => t.done).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)).slice(0, 3);
+
+  const row = (t: StoredTodo) => {
+    const overdue = t.dueDate && t.dueDate < today && !t.done;
+    const dueLabel = !t.dueDate ? ''
+      : t.dueDate === today ? 'Today'
+      : overdue ? `Overdue · ${t.dueDate}`
+      : t.dueDate;
+    const remindLabel = t.remindAt
+      ? new Date(t.remindAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
+      : '';
+    return `
+      <div class="cal-todo-row ${t.done ? 'is-done' : ''}">
+        <button class="cal-todo-check ${t.done ? 'is-checked' : ''}" data-toggle-todo="${esc(t.id)}:${t.done}" title="${t.done ? 'Mark undone' : 'Mark done'}">${t.done ? '✓' : ''}</button>
+        <div class="cal-todo-body">
+          <span class="cal-todo-label ${overdue ? 'is-overdue' : ''}">${esc(t.text)}</span>
+          <span class="cal-todo-meta">
+            ${dueLabel ? `<span class="cal-todo-due ${overdue ? 'is-overdue' : ''}">${esc(dueLabel)}</span>` : ''}
+            ${remindLabel ? `<span class="cal-remind-tag">🔔 ${remindLabel}</span>` : ''}
+          </span>
+        </div>
+        <button class="cal-todo-edit" data-edit-todo="${esc(t.id)}" title="Edit">✏️</button>
+        <button class="cal-todo-del" data-del-todo="${esc(t.id)}" title="Delete">✕</button>
+      </div>`;
+  };
+
+  const pendingHtml = pending.length
+    ? pending.map(row).join('')
+    : `<div class="cal-todos-empty">No open to-dos.</div>`;
+
+  const doneHtml = done.length
+    ? `<div class="cal-todos-section-label">Recently done</div>${done.map(row).join('')}`
+    : '';
+
+  return `
+    <div class="cal-todos-panel">
+      <div class="cal-todos-header">
+        <span class="cal-todos-title">☑️ To-do</span>
+        <div class="cal-todos-header-actions">
+          <button class="cal-todos-add-cal" data-add-todo-modal="${today}" title="Add with due date">📅</button>
+          <button class="cal-todos-add btn btn-ghost" data-add-todo="${today}">+ Add</button>
+        </div>
+      </div>
+      ${pendingHtml}
+      ${doneHtml}
+    </div>`;
+}
+
 /* ── Render ──────────────────────────────────────────────────────────────── */
 function render(): void {
   const body = document.querySelector<HTMLElement>('#view-calendar .cal-body');
@@ -305,7 +424,7 @@ function render(): void {
         </div>
         ${renderMonthGrid()}
       </div>
-      ${_selectedDay ? renderDayPanel(_selectedDay) : '<div class="cal-panel-hint">Select a day to see details</div>'}
+      ${renderTodosPanel()}
     </div>`;
 
   wire(body);
@@ -328,24 +447,15 @@ function wire(body: HTMLElement): void {
     render();
   });
 
-  // Day cell click → select day
+  // Day cell click → open day panel as modal
   body.querySelectorAll<HTMLElement>('.cal-cell:not(.cal-empty)').forEach(cell => {
     cell.addEventListener('click', () => {
       _selectedDay = cell.dataset.day ?? null;
-      render();
+      if (_selectedDay) openDayPanelModal(_selectedDay);
     });
   });
 
-  // Nav from day panel (leg → route, journal → journal)
-  body.querySelectorAll<HTMLElement>('[data-nav]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('button')) return;
-      const intent = el.dataset.intent ? JSON.parse(el.dataset.intent) as NavIntent : undefined;
-      navigateTo(el.dataset.nav as Parameters<typeof navigateTo>[0], intent);
-    });
-  });
-
-  // Todo toggle
+  // Inline todos panel — toggle
   body.querySelectorAll<HTMLElement>('[data-toggle-todo]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -354,7 +464,7 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Todo edit
+  // Inline todos panel — edit
   body.querySelectorAll<HTMLElement>('[data-edit-todo]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -364,7 +474,7 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Todo delete
+  // Inline todos panel — delete
   body.querySelectorAll<HTMLElement>('[data-del-todo]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
@@ -372,10 +482,16 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Add todo button
+  // Inline todos panel — add button (quick)
   body.querySelectorAll<HTMLElement>('[data-add-todo]').forEach(btn => {
     btn.addEventListener('click', () => openTodoModal({ mode: 'add', dueDate: btn.dataset.addTodo! }));
   });
+
+  // Inline todos panel — calendar icon (add with date picker pre-filled)
+  body.querySelectorAll<HTMLElement>('[data-add-todo-modal]').forEach(btn => {
+    btn.addEventListener('click', () => openTodoModal({ mode: 'add', dueDate: btn.dataset.addTodoModal! }));
+  });
+
 }
 
 /* ── Init ────────────────────────────────────────────────────────────────── */

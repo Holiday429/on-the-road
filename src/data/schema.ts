@@ -176,6 +176,9 @@ export const PackItemSchema = z.object({
   packed: z.boolean().default(false),       // checked off during pack-check
   source: z.enum(['core', 'manual']).default('manual'),
   order: z.number().default(0),
+  acquiredLegId: z.string().nullable().default(null), // leg where item was acquired; null = brought from home
+  droppedLegId:  z.string().nullable().default(null), // leg where item was discarded; null = still carrying
+  consumable:    z.boolean().default(false),           // qty can be decremented in-trip (toiletries, etc.)
 });
 export type PackItem = z.infer<typeof PackItemSchema>;
 
@@ -208,6 +211,7 @@ const TransportSchema = z.object({
   bookingRef: z.string().optional(),
   confirmed: z.boolean().default(false),
   notes: z.string().optional(),
+  baggageAllowanceG: z.number().optional(), // user-entered allowance in grams (e.g. 10000 = 10 kg)
 });
 
 const AccommodationSchema = z.object({

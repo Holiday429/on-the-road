@@ -14,7 +14,7 @@ import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
-import { initToday }    from './views/today/today.ts';
+import { initDashboard } from './views/today/dashboard.ts';
 import { initCalendar } from './views/calendar/calendar.ts';
 import { initPrep }     from './views/prep/prep.ts';
 import { initRoute }    from './views/route/route.ts';
@@ -28,7 +28,7 @@ import { initPack }     from './views/pack/pack.ts';
 import { initSafety }   from './views/safety/safety.ts';
 
 // Register lazy view inits (fire once on first navigation)
-registerView('today',    initToday);
+registerView('today',    initDashboard);
 registerView('calendar', initCalendar);
 registerView('prep',     initPrep);
 registerView('route',    initRoute);

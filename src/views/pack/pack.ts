@@ -14,10 +14,10 @@
 import './pack.css';
 import { packStore, STANDALONE_TRIP_ID, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { currentTrip, currentTripId } from '../../data/trip-context.ts';
-import { routeStore } from '../../data/stores/route-store.ts';
+import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { openModal } from '../../core/modal.ts';
 import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
-import { itemWeightG, formatKg } from '../../data/packing-formula.ts';
+import { itemWeightG, formatKg, weightAtLeg, baggageRemainG, itemsPresentAtLeg } from '../../data/packing-formula.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
 import { escHtml } from '../../core/utils.ts';
 
@@ -83,18 +83,22 @@ function displayWeight(g: number, unit: WeightUnit): string {
 /* ── State ───────────────────────────────────────────────────────────────── */
 
 type Screen = 'list' | 'detail';
+type DetailView = 'items' | 'bylег';
 
 let screen: Screen = 'list';
 let activeId: string | null = null;
 let packCheckMode = false;
+let detailView: DetailView = 'items';
 let weightUnit: WeightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
 
 let _lists: StoredPackList[] = [];
 let _kit: StoredCoreKitItem[] = [];
+let _legs: StoredLeg[] = [];
 
 let _unsubLists: (() => void) | null = null;
 let _unsubStandaloneLists: (() => void) | null = null;
 let _unsubKit: (() => void) | null = null;
+let _unsubLegs: (() => void) | null = null;
 
 let _tripLists: StoredPackList[] = [];
 let _standaloneLists: StoredPackList[] = [];
@@ -166,6 +170,7 @@ function startSubscriptions() {
   _unsubLists?.();
   _unsubStandaloneLists?.();
   _unsubKit?.();
+  _unsubLegs?.();
   _unsubLists = packStore.subscribe(rows => {
     _tripLists = rows;
     _lists = [..._tripLists, ..._standaloneLists];
@@ -177,6 +182,10 @@ function startSubscriptions() {
     render();
   }, STANDALONE_TRIP_ID);
   _unsubKit = coreKitStore.subscribe(rows => { _kit = rows; render(); });
+  _unsubLegs = routeStore.subscribe(rows => {
+    _legs = [...rows].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+    render();
+  });
 }
 
 /* ── Render dispatch ─────────────────────────────────────────────────────── */
@@ -188,6 +197,60 @@ function render() {
   if (!body) return;
   if (screen === 'detail' && activeList()) renderDetail(body, activeList()!);
   else { screen = 'list'; renderList(body); }
+}
+
+/* ── Weight summary bar (top of list screen) ─────────────────────────────── */
+
+function renderWeightBar(): string {
+  // Use the first trip-scoped pack list (most relevant)
+  const list = _tripLists[0];
+  if (!list || _legs.length === 0) return '';
+
+  const today = new Date().toISOString().slice(0, 10);
+  const currentLeg = _legs.find(l => l.dateFrom <= today && l.dateTo >= today)
+    ?? _legs.find(l => l.dateFrom >= today)
+    ?? _legs[_legs.length - 1];
+  if (!currentLeg) return '';
+
+  const totalG = weightAtLeg(list.items, _legs, currentLeg.id);
+  const remainG = baggageRemainG(list.items, _legs, currentLeg.id);
+  const nextLegWithTransport = _legs.find(
+    l => l.dateFrom > today && l.arrivalTransport?.baggageAllowanceG
+  );
+  const allowanceG = nextLegWithTransport?.arrivalTransport?.baggageAllowanceG;
+
+  const isOver = remainG !== null && remainG < 0;
+  const pct = allowanceG ? Math.min(100, (totalG / allowanceG) * 100) : 0;
+  const barClass = isOver ? 'is-over' : pct > 85 ? 'is-warn' : '';
+
+  const weightDisplay = displayWeight(totalG, weightUnit);
+  const remainDisplay = remainG !== null
+    ? (isOver
+        ? `<span class="pk-wb-over">over by ${displayWeight(Math.abs(remainG), weightUnit)}</span>`
+        : `<span class="pk-wb-remain">${displayWeight(remainG, weightUnit)} remaining</span>`)
+    : '';
+
+  const nextInfo = nextLegWithTransport
+    ? `<span class="pk-wb-next">${nextLegWithTransport.flag || ''} ${escHtml(nextLegWithTransport.city)} · ${displayWeight(allowanceG!, weightUnit)} allowance</span>`
+    : `<span class="pk-wb-hint">Add baggage allowance in transport details</span>`;
+
+  const barHtml = allowanceG
+    ? `<div class="pk-wb-bar"><span class="${barClass}" style="width:${pct}%"></span></div>`
+    : '';
+
+  return `
+    <div class="pk-weight-bar">
+      <div class="pk-wb-left">
+        <span class="pk-wb-label">Current bag weight</span>
+        <span class="pk-wb-weight ${isOver ? 'is-over' : ''}">${weightDisplay}</span>
+        ${remainDisplay}
+      </div>
+      <div class="pk-wb-right">
+        ${barHtml}
+        ${nextInfo}
+      </div>
+    </div>
+  `;
 }
 
 /* ── Trip itinerary bar ──────────────────────────────────────────────────── */
@@ -223,6 +286,7 @@ function renderTripBar(): string {
 function renderList(c: HTMLElement) {
   const kitTotal = _kit.reduce((s, k) => s + k.weightG, 0);
   c.innerHTML = `
+    ${renderWeightBar()}
     ${renderTripBar()}
     <div class="pack-action-bar">
       <button class="btn btn-primary" id="pk-new">+ New Pack List</button>
@@ -316,26 +380,83 @@ function renderKitAddRow(): string {
 
 /* ── Detail screen ───────────────────────────────────────────────────────── */
 
+function renderByLeg(l: StoredPackList): string {
+  if (_legs.length === 0) {
+    return `<div class="pk-bylег-empty">Add stops in Itinerary to track bag changes per city.</div>`;
+  }
+
+  const rows = _legs.map((leg, idx) => {
+    const acquired = l.items.filter(it => it.acquiredLegId === leg.id);
+    const dropped  = l.items.filter(it => it.droppedLegId === leg.id);
+    const present  = itemsPresentAtLeg(l.items, _legs, leg.id);
+    const totalG   = present.reduce((s, it) => s + itemWeightG(it), 0);
+    const allowanceG = leg.arrivalTransport?.baggageAllowanceG;
+    const remainG  = allowanceG ? allowanceG - totalG : null;
+    const isOver   = remainG !== null && remainG < 0;
+
+    const acquiredHtml = acquired.length
+      ? acquired.map(it => `<span class="pk-bl-chip pk-bl-chip--add" data-item-id="${it.id}">+ ${escHtml(it.name)}</span>`).join('')
+      : '';
+    const droppedHtml = dropped.length
+      ? dropped.map(it => `<span class="pk-bl-chip pk-bl-chip--drop" data-item-id="${it.id}">− ${escHtml(it.name)}</span>`).join('')
+      : '';
+
+    const isFirst = idx === 0;
+    const allowanceLine = allowanceG
+      ? `<span class="pk-bl-allowance ${isOver ? 'is-over' : ''}">${isOver ? 'over by' : 'rem.'} ${displayWeight(Math.abs(remainG!), weightUnit)} / ${displayWeight(allowanceG, weightUnit)}</span>`
+      : '';
+
+    return `
+      <div class="pk-bl-row" data-leg-id="${leg.id}">
+        <div class="pk-bl-dot ${isFirst ? 'is-home' : ''}"></div>
+        <div class="pk-bl-content">
+          <div class="pk-bl-header">
+            <span class="pk-bl-city">${leg.flag || '🗺️'} ${escHtml(leg.city)}</span>
+            <span class="pk-bl-weight">${displayWeight(totalG, weightUnit)}</span>
+            ${allowanceLine}
+          </div>
+          ${acquiredHtml || droppedHtml ? `<div class="pk-bl-chips">${acquiredHtml}${droppedHtml}</div>` : ''}
+          <div class="pk-bl-actions">
+            <button class="btn btn-ghost pk-sm pk-bl-add" data-leg-id="${leg.id}" data-leg-city="${escHtml(leg.city)}">+ Acquired here</button>
+            <button class="btn btn-ghost pk-sm pk-bl-drop" data-leg-id="${leg.id}" data-leg-city="${escHtml(leg.city)}">− Left behind</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `<div class="pk-bylег-timeline">${rows}</div>`;
+}
+
 function renderDetail(c: HTMLElement, l: PackList) {
   const unassigned = l.items.filter(i => i.containerId === null);
+  const isByLeg = detailView === 'bylег';
   c.innerHTML = `
     <div class="pack-detail">
       <div class="pack-detail-bar">
         <button class="btn btn-ghost pk-sm" id="pk-back">← All lists</button>
         <div class="pack-detail-title">${escHtml(l.name)}</div>
         <div class="pack-detail-actions">
-          <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">+ Add bag</button>
-          <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> Pack-check</label>
+          <div class="pk-view-toggle">
+            <button class="pk-view-btn ${!isByLeg ? 'is-active' : ''}" data-view="items">Items</button>
+            <button class="pk-view-btn ${isByLeg ? 'is-active' : ''}" data-view="bylег">By leg</button>
+          </div>
+          ${!isByLeg ? `<button class="btn btn-ghost pk-sm" id="pk-open-add-bag">+ Add bag</button>` : ''}
+          ${!isByLeg ? `<label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> Pack-check</label>` : ''}
         </div>
       </div>
 
-      ${packCheckMode ? renderPackCheck(l) : ''}
+      ${!isByLeg && packCheckMode ? renderPackCheck(l) : ''}
 
-      <div class="pack-containers-grid">
-        ${l.containers.map(ct => renderContainerCard(l, ct)).join('')}
-        ${renderUnassigned(l, unassigned)}
-      </div>
+      ${isByLeg
+        ? renderByLeg(l as StoredPackList)
+        : `<div class="pack-containers-grid">
+            ${l.containers.map(ct => renderContainerCard(l, ct)).join('')}
+            ${renderUnassigned(l, unassigned)}
+          </div>`
+      }
 
+      ${!isByLeg ? `
       <div class="pack-add-panel">
         <span class="pack-add-label">New item</span>
         <input class="input pack-add-name" id="pk-add-name" placeholder="Name…">
@@ -347,7 +468,7 @@ function renderDetail(c: HTMLElement, l: PackList) {
           ${PRIORITIES.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
         </select>
         <button class="btn btn-primary pk-sm" id="pk-add-item">Add ↵</button>
-      </div>
+      </div>` : ''}
     </div>
 
     <!-- Add bag modal -->
@@ -514,6 +635,105 @@ function renderPackCheck(l: PackList): string {
 
 /* ── Modals ──────────────────────────────────────────────────────────────── */
 
+/* ── By leg modals ───────────────────────────────────────────────────────── */
+
+function openAcquiredModal(list: StoredPackList, legId: string, legCity: string) {
+  const untagged = list.items.filter(it => !it.acquiredLegId && !it.droppedLegId);
+  const selectHtml = untagged.length
+    ? `<label class="field-label" style="margin-top:var(--sp-4)">Or mark existing item as acquired here</label>
+       <select class="input" id="pk-ac-existing">
+         <option value="">— select existing item —</option>
+         ${untagged.map(it => `<option value="${it.id}">${escHtml(it.name)}</option>`).join('')}
+       </select>`
+    : '';
+
+  const m = openModal({
+    title: `Acquired in ${legCity}`,
+    variant: 'sheet',
+    body: `
+      <label class="field-label">New item name</label>
+      <input class="input" id="pk-ac-name" placeholder="e.g. Souvenir scarf">
+      <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-3)">
+        <div style="flex:1">
+          <label class="field-label">Category</label>
+          <select class="input" id="pk-ac-cat">${categoryOptions('gifts')}</select>
+        </div>
+        <div style="width:90px">
+          <label class="field-label">Weight (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
+          <input class="input" id="pk-ac-weight" type="number" min="0" step="any" placeholder="0">
+        </div>
+        <div style="width:96px">
+          <label class="field-label">Qty</label>
+          <input class="input" id="pk-ac-qty" type="number" min="1" step="1" value="1">
+        </div>
+      </div>
+      ${selectHtml}
+    `,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm">Add</button>
+    `,
+  });
+
+  requestAnimationFrame(() => m.root.querySelector<HTMLInputElement>('#pk-ac-name')?.focus());
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const existingId = m.root.querySelector<HTMLSelectElement>('#pk-ac-existing')?.value;
+    if (existingId) {
+      await packStore.updateItem(list.id, existingId, { acquiredLegId: legId });
+      m.close(); return;
+    }
+    const name = (m.root.querySelector<HTMLInputElement>('#pk-ac-name')?.value || '').trim();
+    if (!name) return;
+    const cat  = m.root.querySelector<HTMLSelectElement>('#pk-ac-cat')?.value || 'gifts';
+    const wRaw = num(m.root.querySelector<HTMLInputElement>('#pk-ac-weight')?.value || '0');
+    const qty  = Math.max(1, num(m.root.querySelector<HTMLInputElement>('#pk-ac-qty')?.value || '1'));
+    await packStore.addItem(list.id, {
+      name, category: cat, qty,
+      unitWeightG: toGrams(wRaw, weightUnit),
+      containerId: null,
+      priority: 'nice' as const,
+      locked: false, packed: false, source: 'manual',
+      acquiredLegId: legId, droppedLegId: null, consumable: false,
+    });
+    m.close();
+  });
+}
+
+function openDropModal(list: StoredPackList, legId: string, legCity: string) {
+  const present = itemsPresentAtLeg(list.items, _legs, legId).filter(it => !it.droppedLegId);
+  if (!present.length) {
+    alert('No items to drop at this stop.'); return;
+  }
+  const m = openModal({
+    title: `Left behind in ${legCity}`,
+    variant: 'sheet',
+    body: `
+      <label class="field-label">Select items left behind here</label>
+      <div class="pk-drop-checklist">
+        ${present.map(it => `
+          <label class="pk-drop-check-row">
+            <input type="checkbox" value="${it.id}">
+            <span>${escHtml(it.name)}</span>
+            <span class="pk-drop-weight">${displayWeight(itemWeightG(it), weightUnit)}</span>
+          </label>
+        `).join('')}
+      </div>
+    `,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm">Confirm</button>
+    `,
+  });
+
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const checked = [...m.root.querySelectorAll<HTMLInputElement>('.pk-drop-checklist input:checked')];
+    await Promise.all(checked.map(cb => packStore.updateItem(list.id, cb.value, { droppedLegId: legId })));
+    m.close();
+  });
+}
+
 function openNewListModal() {
   const trip = currentTrip();
   const tripOption = trip
@@ -588,6 +808,9 @@ function coreKitItems(): PackItem[] {
     packed: false,
     source: 'core' as const,
     order: idx,
+    acquiredLegId: null,
+    droppedLegId: null,
+    consumable: false,
   }));
 }
 
@@ -675,6 +898,32 @@ function bindDetail(c: HTMLElement, l: PackList) {
 
   c.querySelector('#pk-back')?.addEventListener('click', () => { screen = 'list'; activeId = null; render(); });
   c.querySelector('#pk-check-mode')?.addEventListener('change', e => { packCheckMode = (e.target as HTMLInputElement).checked; render(); });
+
+  // View toggle: Items / By leg
+  c.querySelectorAll<HTMLElement>('.pk-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      detailView = btn.dataset.view as DetailView;
+      render();
+    });
+  });
+
+  // By leg: "Acquired here" — pick from existing items or create new
+  c.querySelectorAll<HTMLElement>('.pk-bl-add').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const legId   = btn.dataset.legId!;
+      const legCity = btn.dataset.legCity!;
+      openAcquiredModal(l as StoredPackList, legId, legCity);
+    });
+  });
+
+  // By leg: "Left behind" — pick from items currently present at this leg
+  c.querySelectorAll<HTMLElement>('.pk-bl-drop').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const legId   = btn.dataset.legId!;
+      const legCity = btn.dataset.legCity!;
+      openDropModal(l as StoredPackList, legId, legCity);
+    });
+  });
 
   /* Add bag modal */
   const addBagModal = c.parentElement?.querySelector<HTMLElement>('#pk-add-bag-modal') ?? document.getElementById('pk-add-bag-modal');
@@ -829,6 +1078,7 @@ function bindDetail(c: HTMLElement, l: PackList) {
       containerId: null,
       priority: (priEl?.value || 'essential') as PackPriority,
       locked: false, packed: false, source: 'manual',
+      acquiredLegId: null, droppedLegId: null, consumable: false,
     });
     if (nameEl) nameEl.value = '';
     if (wEl) wEl.value = '';
@@ -923,6 +1173,7 @@ export function initPack() {
   screen = 'list';
   activeId = null;
   packCheckMode = false;
+  detailView = 'items';
   weightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
   startSubscriptions();
 }

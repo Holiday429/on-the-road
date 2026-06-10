@@ -325,6 +325,7 @@ function renderTransportSection(leg: Leg): string {
         </div>
         ${(t.depPlace || t.arrPlace) ? `<div class="rd-transport-meta">${t.depPlace ? `<span>📍 ${esc(t.depPlace)}</span>` : ''}${t.arrPlace ? `<span>🏁 ${esc(t.arrPlace)}</span>` : ''}</div>` : ''}
         ${t.bookingRef ? `<div class="rd-transport-meta"><span>🎫 ${esc(t.bookingRef)}</span></div>` : ''}
+        ${t.baggageAllowanceG ? `<div class="rd-transport-meta"><span>🎒 ${t.baggageAllowanceG / 1000}kg allowance</span></div>` : ''}
         ${t.notes ? `<div class="rd-transport-note">${esc(t.notes)}</div>` : ''}
       </div>
       <span class="badge ${t.confirmed ? 'badge-green' : 'badge-gray'}" data-act="toggle-transport-confirmed" role="button" tabindex="0">
@@ -1747,6 +1748,11 @@ function openTransportEditor(timeline: HTMLElement, leg: Leg) {
           <label class="field-label">Price</label>
           <input class="input" id="te-price" value="${esc(t?.price)}" placeholder="e.g. €89">
         </div>
+        <div>
+          <label class="field-label">Baggage allowance (kg)</label>
+          <input class="input" id="te-baggage" type="number" min="0" step="0.1"
+            value="${t?.baggageAllowanceG ? t.baggageAllowanceG / 1000 : ''}" placeholder="e.g. 10">
+        </div>
         <div class="field-full">
           <label class="field-label">Notes</label>
           <input class="input" id="te-notes" value="${esc(t?.notes)}" placeholder="optional">
@@ -1780,6 +1786,7 @@ function openTransportEditor(timeline: HTMLElement, leg: Leg) {
       price: fieldVal(dlg, 'te-price') || undefined,
       notes: fieldVal(dlg, 'te-notes') || undefined,
       confirmed: t?.confirmed ?? false,
+      baggageAllowanceG: (() => { const v = parseFloat(fieldVal(dlg, 'te-baggage')); return v > 0 ? v * 1000 : undefined; })(),
     };
     patchLeg(leg.id, { arrivalTransport: clean(next) });
     close();

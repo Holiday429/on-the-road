@@ -1,11 +1,11 @@
 /* ==========================================================================
-   On the Road · Today — personal dashboard
+   On the Road · Dashboard — personal dashboard
    --------------------------------------------------------------------------
    The app's home screen: a flexible bento grid of widgets.
    Every widget subscribes to an existing store; this view owns no data itself.
    ========================================================================== */
 
-import './today.css';
+import './dashboard.css';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
@@ -22,6 +22,10 @@ import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
 import { BUILTIN_CATEGORIES } from '../route/route.ts';
+import { openModal } from '../../core/modal.ts';
+import { scheduleAllNotifications } from '../../core/notifications.ts';
+import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
+import { weightAtLeg, baggageRemainG, itemWeightG } from '../../data/packing-formula.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
@@ -34,11 +38,12 @@ let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency(
 let _rateTo    = '';          // selected "to" currency (empty = auto localCurrency())
 let _mapBooted = false;       // init dashboard map only once per view mount
 let _unsubs: Array<() => void> = [];
-let _weather: { icon: string; temp: string } | null = null;
+let _weather: { icon: string; tempHigh: string; tempLow: string } | null = null;
 let _weatherCity = '';
 let _nomadSpots: StoredNomadSpot[] = [];
 let _cityIntel: StoredCityIntel[] = [];
 let _citySafety: StoredCitySafety[] = [];
+let _packLists: StoredPackList[] = [];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 type Phase = 'before' | 'during' | 'after';
@@ -120,8 +125,10 @@ async function fetchWeather(city: string): Promise<void> {
     if (!cur) return;
     const code = String(cur.weatherCode ?? '113');
     const icon = WEATHER_ICONS[code] ?? '🌡️';
-    const temp = `${cur.temp_C ?? cur.temp_F ?? '?'}°`;
-    _weather = { icon, temp };
+    const todayForecast = data?.weather?.[0];
+    const tempHigh = todayForecast?.maxtempC != null ? `${todayForecast.maxtempC}°` : `${cur.temp_C ?? '?'}°`;
+    const tempLow  = todayForecast?.mintempC != null ? `${todayForecast.mintempC}°` : '';
+    _weather = { icon, tempHigh, tempLow };
     render();
   } catch { /* silent — weather is decorative */ }
 }
@@ -180,12 +187,24 @@ function renderHero(phase: Phase): string {
   if (phase === 'before' && leg) {
     const d = daysBetween(todayIso(), leg.dateFrom);
     anchor = `<strong>${d}</strong> day${d === 1 ? '' : 's'} to go · next stop ${esc(leg.flag)} ${esc(leg.city)}`;
+    // Show upcoming transport + accommodation chips
+    const chips: string[] = [];
+    const t = leg.arrivalTransport;
+    if (t) {
+      const icon = TICON[t.type] ?? '🚀';
+      const time = t.time ? ` ${t.time}` : '';
+      chips.push(`<span class="td-hero-chip td-hero-chip-transport">${icon} ${esc(t.from)} → ${esc(t.to)}${esc(time)}</span>`);
+    }
+    const accs = leg.accommodations?.length ? leg.accommodations : leg.accommodation ? [leg.accommodation] : [];
+    if (accs[0]) {
+      chips.push(`<span class="td-hero-chip td-hero-chip-acc">🏠 ${esc(accs[0].name)}</span>`);
+    }
+    if (chips.length) details = `<div class="td-hero-chips">${chips.join('')}</div>`;
   } else if (phase === 'during' && leg) {
     const idx  = legs.findIndex(l => l.id === leg.id) + 1;
     const dayN = daysBetween(leg.dateFrom, todayIso()) + 1;
     const tot  = daysBetween(leg.dateFrom, leg.dateTo) + 1;
     anchor = `${esc(leg.flag)} ${esc(leg.city)} · stop ${idx}/${legs.length} · day ${dayN} of ${tot}`;
-    // Transport + accommodation info chips
     const chips: string[] = [];
     const t = leg.arrivalTransport;
     if (t) {
@@ -208,17 +227,31 @@ function renderHero(phase: Phase): string {
   const weatherCity = leg?.city ?? '';
   if (weatherCity) void fetchWeather(weatherCity);
 
-  const weatherChip = _weather
-    ? `<div class="td-hero-weather">${_weather.icon} ${esc(_weather.temp)}</div>`
-    : (weatherCity ? `<div class="td-hero-weather td-hero-weather-loading">…</div>` : '');
+  // Weather square (no background, just icon + temps)
+  const weatherBlock = _weather
+    ? `<div class="td-hero-weather-sq">
+        <div class="td-hero-weather-icon">${_weather.icon}</div>
+        <div class="td-hero-weather-temps">
+          <span class="td-hero-weather-high">${esc(_weather.tempHigh)}</span>
+          ${_weather.tempLow ? `<span class="td-hero-weather-low">/ ${esc(_weather.tempLow)}</span>` : ''}
+        </div>
+      </div>`
+    : (weatherCity
+        ? `<div class="td-hero-weather-sq td-hero-weather-sq--loading">
+            <div class="td-hero-weather-icon">🌡️</div>
+            <div class="td-hero-weather-temps"><span class="td-hero-weather-high">…</span></div>
+          </div>`
+        : '');
 
   return `
     <div class="td-hero" data-phase="${phase}">
-      ${weatherChip}
-      <div class="td-hero-left">
-        <div class="td-hero-name">${esc(name)}</div>
-        ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
-        ${details}
+      <div class="td-hero-inner">
+        ${weatherBlock}
+        <div class="td-hero-left">
+          <div class="td-hero-name">${esc(name)}</div>
+          ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
+          ${details}
+        </div>
       </div>
       <img class="td-hero-logo" src="${ART}logo.gif" alt="On the Road">
     </div>`;
@@ -459,7 +492,7 @@ function renderUpcomingWidget(): string {
       return `
         <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
           <div class="td-widget-header">
-            <div class="td-widget-label">📍 Plans</div>
+            <div class="td-widget-label">📍 Upcoming</div>
             <button class="td-link" data-nav="route">Itinerary ›</button>
           </div>
           <div class="td-upcoming-empty">No itinerary yet — add stops in the Route view.</div>
@@ -476,29 +509,22 @@ function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
   const plans = (leg.plans ?? []) as PlanItem[];
   const days  = ensurePlanDaysLocal(leg);
 
-  const daysLeft = daysBetween(today, leg.dateTo);
-  const daysAway = !isCurrent ? daysBetween(today, leg.dateFrom) : null;
-  const subtitle = isCurrent
-    ? `Day ${daysBetween(leg.dateFrom, today) + 1} · ${daysLeft + 1} day${daysLeft > 0 ? 's' : ''} left`
-    : `In ${daysAway} day${daysAway !== 1 ? 's' : ''}`;
-
   if (!plans.length) {
     return `
       <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
         <div class="td-widget-header">
-          <div class="td-widget-label">📍 ${esc(leg.flag)} ${esc(leg.city)}</div>
+          <div class="td-widget-label">📍 Upcoming</div>
           <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
         </div>
-        <div class="td-plan-subtitle">${esc(subtitle)}</div>
+        <div class="td-plan-city">${esc(leg.flag)} ${esc(leg.city)}</div>
         <div class="td-upcoming-empty">No plan items for this stop yet.</div>
       </div>`;
   }
 
-  // Group by day (only days that have items)
+  // Only show days that have assigned items — skip unassigned
   const assigned = days
     .map(day => ({ day, items: plans.filter(p => p.dayId === day.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) }))
     .filter(g => g.items.length > 0);
-  const unassigned = plans.filter(p => !p.dayId || !days.find(d => d.id === p.dayId)).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
   function dayStatus(date: string): 'active' | 'past' | 'upcoming' {
     if (date === today) return 'active';
@@ -536,23 +562,16 @@ function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
       </div>`;
   }).join('');
 
-  const unassignedGroup = unassigned.length ? `
-    <div class="td-feed-day-group td-feed-day--unassigned">
-      <div class="td-feed-day-head">
-        <span class="td-feed-day-dot" style="background:var(--ink-faint)"></span>
-        <span class="td-feed-day-num">Unassigned</span>
-      </div>
-      <div class="td-feed-items">${unassigned.map(p => feedItem(p, 'upcoming')).join('')}</div>
-    </div>` : '';
+  void isCurrent;
 
   return `
     <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
       <div class="td-widget-header">
-        <div class="td-widget-label">📍 ${esc(leg.flag)} ${esc(leg.city)}</div>
+        <div class="td-widget-label">📍 Upcoming</div>
         <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
       </div>
-      <div class="td-plan-subtitle">${esc(subtitle)}</div>
-      <div class="td-feed-list">${dayGroups}${unassignedGroup}</div>
+      <div class="td-plan-city">${esc(leg.flag)} ${esc(leg.city)}</div>
+      <div class="td-feed-list">${dayGroups}</div>
     </div>`;
 }
 
@@ -579,6 +598,48 @@ function renderJournalWidget(_phase: Phase): string {
       </div>
       <div class="td-jq-grid">${buttons}</div>
     </div>`;
+}
+
+/* ── Todo modal (add with due date) ─────────────────────────────────────── */
+function openDashboardTodoModal(defaultDate: string = todayIso()): void {
+  const handle = openModal({
+    title: '+ New to-do',
+    body: `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <input class="input" id="db-todo-text" placeholder="What do you need to do?" autofocus>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">Due date</label>
+          <input class="input" id="db-todo-due" type="date" value="${esc(defaultDate)}">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">Remind me</label>
+          <input class="input" id="db-todo-remind" type="datetime-local">
+        </div>
+      </div>`,
+    footer: `<button class="btn btn-ghost" id="db-todo-cancel">Cancel</button>
+             <button class="btn btn-primary" id="db-todo-save">Add</button>`,
+  });
+
+  handle.root.querySelector('#db-todo-cancel')?.addEventListener('click', () => handle.close());
+  handle.root.querySelector('#db-todo-save')?.addEventListener('click', async () => {
+    const text = (handle.root.querySelector<HTMLInputElement>('#db-todo-text'))?.value.trim() ?? '';
+    const due  = (handle.root.querySelector<HTMLInputElement>('#db-todo-due'))?.value || null;
+    const remindStr = (handle.root.querySelector<HTMLInputElement>('#db-todo-remind'))?.value || '';
+    let remindAt: number | null = null;
+    if (remindStr) {
+      const ms = new Date(remindStr).getTime();
+      if (!isNaN(ms)) remindAt = ms;
+    }
+    if (!text) { handle.root.querySelector<HTMLInputElement>('#db-todo-text')?.focus(); return; }
+    if (remindAt && 'Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    await todoStore.add({ text, dueDate: due, remindAt });
+    handle.close();
+    scheduleAllNotifications();
+  });
+
+  handle.root.querySelector<HTMLInputElement>('#db-todo-text')?.focus();
 }
 
 /* ── To-do widget ─────────────────────────────────────────────────────────── */
@@ -623,6 +684,7 @@ function renderTodoWidget(): string {
       </div>
       ${rows}${empty}
       <form class="td-todo-add" data-todo-add>
+        <button class="td-todo-add-cal" type="button" data-todo-add-modal title="Add with due date">📅</button>
         <input class="td-todo-add-input" type="text" placeholder="+ Quick add task…">
         <button class="btn btn-ghost td-todo-add-btn" type="submit">Add</button>
       </form>
@@ -680,6 +742,64 @@ function renderSafetyMini(): string {
     <div class="td-widget td-w-safety" data-nav="safety">
       <div class="td-widget-label">🛡️ ${esc(leg.flag)} ${esc(leg.city)}</div>
       ${rows.join('')}
+    </div>`;
+}
+
+/* ── Pack widget ─────────────────────────────────────────────────────────── */
+function renderPackWidget(): string | null {
+  const list = _packLists[0];
+  if (!list) return null;
+
+  const sortedLegs = [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  const today = todayIso();
+  const curLeg = sortedLegs.find(l => l.dateFrom <= today && l.dateTo >= today)
+    ?? sortedLegs.find(l => l.dateFrom >= today)
+    ?? sortedLegs[sortedLegs.length - 1];
+
+  const totalG = curLeg ? weightAtLeg(list.items, sortedLegs, curLeg.id) : list.items.reduce((s, it) => s + itemWeightG(it), 0);
+  const remainG = curLeg ? baggageRemainG(list.items, sortedLegs, curLeg.id) : null;
+  const nextLegWithAllowance = sortedLegs.find(l => l.dateFrom > today && l.arrivalTransport?.baggageAllowanceG);
+  const allowanceG = nextLegWithAllowance?.arrivalTransport?.baggageAllowanceG;
+  const isOver = remainG !== null && remainG < 0;
+  const pct = allowanceG ? Math.min(100, (totalG / allowanceG) * 100) : 0;
+  const barClass = isOver ? 'is-over' : pct > 85 ? 'is-warn' : '';
+
+  const kgDisplay = (totalG / 1000).toFixed(totalG % 1000 === 0 ? 0 : 1) + 'kg';
+  const consumables = list.items.filter(it => it.consumable && !it.droppedLegId);
+
+  const remainLine = remainG !== null
+    ? (isOver
+        ? `<div class="td-pk-remain is-over">over by ${(Math.abs(remainG) / 1000).toFixed(1)}kg</div>`
+        : `<div class="td-pk-remain">${(remainG / 1000).toFixed(1)}kg remaining</div>`)
+    : '';
+
+  const barHtml = allowanceG
+    ? `<div class="td-pk-bar"><span class="${barClass}" style="width:${pct}%"></span></div>
+       <div class="td-pk-allowance">${nextLegWithAllowance!.flag || ''} ${esc(nextLegWithAllowance!.city)} · ${allowanceG / 1000}kg limit</div>`
+    : '';
+
+  const consumablesHtml = consumables.length
+    ? `<div class="td-pk-consumables">
+        ${consumables.slice(0, 3).map(it => `
+          <div class="td-pk-cons-row" data-item-id="${it.id}" data-list-id="${list.id}">
+            <span>${esc(it.name)}</span>
+            <span class="td-pk-cons-qty">×${it.qty}</span>
+            <button class="td-pk-dec" data-item-id="${it.id}" data-list-id="${list.id}" title="Use one">−</button>
+          </div>`).join('')}
+      </div>`
+    : '';
+
+  return `
+    <div class="td-widget td-w-pack" data-nav="pack">
+      <div class="td-widget-header">
+        <div class="td-widget-label">🎒 Bag</div>
+      </div>
+      <div class="td-pk-body">
+        <div class="td-pk-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</div>
+        ${remainLine}
+        ${barHtml}
+        ${consumablesHtml}
+      </div>
     </div>`;
 }
 
@@ -783,7 +903,7 @@ function renderWhereToGoWidget(): string | null {
 
 /* ── Widget order persistence ─────────────────────────────────────────────── */
 const LAYOUT_KEY = 'otr:dashboard-layout';
-const DEFAULT_ORDER = ['currency', 'calendar', 'todo', 'leftcol', 'map', 'upcoming', 'journal', 'nomad', 'whereto'];
+const DEFAULT_ORDER = ['currency', 'calendar', 'todo', 'leftcol', 'map', 'upcoming', 'journal', 'pack', 'nomad', 'whereto'];
 function savedOrder(): string[] {
   try {
     const raw = localStorage.getItem(LAYOUT_KEY);
@@ -819,6 +939,7 @@ function layout(phase: Phase): string {
   const jrnWidget  = renderJournalWidget(phase);
   const nomadHtml  = renderNomadWidget();
   const whereHtml  = renderWhereToGoWidget();
+  const packHtml   = renderPackWidget();
 
   // Inject data-widget-id on widget divs (no draggable attr — set dynamically by wireDragDrop)
   function tag(html: string, id: string): string {
@@ -833,6 +954,7 @@ function layout(phase: Phase): string {
     map:      tag(mapWidget,  'map'),
     upcoming: tag(upWidget,   'upcoming'),
     journal:  tag(jrnWidget,  'journal'),
+    pack:     packHtml   ? tag(packHtml,   'pack')   : '',
     nomad:    nomadHtml  ? tag(nomadHtml,  'nomad')  : '',
     whereto:  whereHtml  ? tag(whereHtml,  'whereto') : '',
   };
@@ -897,6 +1019,19 @@ function wire(body: HTMLElement): void {
       if (t.closest('a, button:not([data-nav]), [data-quickadd], [data-rate-input]')) return;
       const intent = el.dataset.intent ? (JSON.parse(el.dataset.intent) as NavIntent) : undefined;
       navigateTo(el.dataset.nav as ViewId, intent);
+    });
+  });
+
+  // Pack widget: consumable −qty buttons.
+  body.querySelectorAll<HTMLElement>('.td-pk-dec').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const itemId = btn.dataset.itemId!;
+      const listId = btn.dataset.listId!;
+      const list = _packLists.find(l => l.id === listId);
+      const item = list?.items.find(it => it.id === itemId);
+      if (!item || item.qty <= 1) return;
+      void packStore.updateItem(listId, itemId, { qty: item.qty - 1 });
     });
   });
 
@@ -975,6 +1110,13 @@ function wire(body: HTMLElement): void {
     if (!text) return;
     await todoStore.add({ text, dueDate: null });
     if (input) input.value = '';
+  });
+
+  // Todo calendar-icon button → full modal with due date.
+  body.querySelector<HTMLButtonElement>('[data-todo-add-modal]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    e.preventDefault();
+    openDashboardTodoModal(todayIso());
   });
 
   // New trip button.
@@ -1131,7 +1273,7 @@ function bootMap(): void {
    INIT
    ══════════════════════════════════════════════════════════════════════════ */
 
-export function initToday(): void {
+export function initDashboard(): void {
   const root = document.getElementById('view-today');
   if (!root) return;
 
@@ -1155,6 +1297,7 @@ export function initToday(): void {
     expenseStore.subscribe(rows => { _expenses = rows; render(); }),
     journalStore.subscribe(rows => { _journal = rows; render(); }),
     todoStore.subscribe(rows => { _todos = rows; render(); }),
+    packStore.subscribe(rows => { _packLists = rows; render(); }),
     nomadStore.subscribeForTrip(currentTripId(), rows => { _nomadSpots = rows; render(); }),
     cityStore.subscribe(rows => { _cityIntel = rows; render(); }),
     safetyStore.subscribe(rows => { _citySafety = rows; render(); }),
