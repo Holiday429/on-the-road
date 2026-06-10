@@ -6,10 +6,15 @@
    raw amount + currency, plus a snapshot of the conversion to the trip's base
    currency at record time (rate/baseAmount) so historical totals never drift.
 
-   Smart defaults pull from the itinerary: the leg covering today seeds the
-   city, country and local currency, so logging a spend is usually just a number
-   and a few words. Category may be left blank — those land in an "unclassified"
+   Smart defaults (in expense-defaults.ts, shared with the dashboard quick-add)
+   remember the last currency / country / city you used, so logging a spend is
+   usually just a number and a few words — you only touch the place when you
+   actually move. Category may be left blank — those land in an "unclassified"
    pile you can tidy up afterwards.
+
+   Layout: the landing surface is for *logging* (form) and *seeing* (summary +
+   breakdown). The full transaction ledger lives behind a "All records" button
+   as an in-view panel, so the landing stays light.
    ========================================================================== */
 
 import './expenses.css';
@@ -17,7 +22,8 @@ import { expenseStore, type StoredExpense } from '../../data/stores/expense-stor
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import {
   baseCurrency, setBaseCurrency, tripBudget, setTripBudget,
-  categoryBudgets, setCategoryBudget, onTripChange, currentTripId,
+  categoryBudgets, setCategoryBudget, countryBudgets, setCountryBudget,
+  onTripChange, currentTripId,
 } from '../../data/trip-context.ts';
 import {
   expenseCategoryStore, type StoredExpenseCategory,
@@ -26,6 +32,10 @@ import {
   CURRENCIES, currencySymbol, getRateTable, peekRateTable, type RateTable,
 } from '../../data/rates.ts';
 import { openModal } from '../../core/modal.ts';
+import {
+  lastUsed, legCountries, legCitiesFor, defaultPlace, defaultCurrency,
+  convert, addExpenseWithDefaults, COUNTRY_CURRENCY,
+} from './expense-defaults.ts';
 
 interface Category { id: string; label: string; icon: string; color: string; builtin: boolean; }
 
@@ -51,17 +61,6 @@ function categoryById(id: string): Category | undefined {
   return categories().find((c) => c.id === id);
 }
 
-// Used only to default the currency from the leg's country. Not exhaustive —
-// anything unmapped just falls back to the trip base currency.
-const COUNTRY_CURRENCY: Record<string, string> = {
-  Denmark: 'DKK', Sweden: 'SEK', Norway: 'NOK', Switzerland: 'CHF',
-  'United Kingdom': 'GBP', 'Czech Republic': 'CZK', Czechia: 'CZK',
-  Japan: 'JPY', 'United States': 'USD', China: 'CNY',
-  Germany: 'EUR', France: 'EUR', Spain: 'EUR', Portugal: 'EUR',
-  Italy: 'EUR', Netherlands: 'EUR', Belgium: 'EUR', Austria: 'EUR',
-  Ireland: 'EUR', Greece: 'EUR',
-};
-
 const UNCLASSIFIED = '';
 
 let expenses: StoredExpense[] = [];
@@ -69,9 +68,14 @@ let legs: StoredLeg[] = [];
 let customCategories: StoredExpenseCategory[] = [];
 let rates: RateTable = {};
 let selectedCategory = 'food';
+// The place selected in the form right now (drives the country-budget reminder
+// and what a new expense is tagged with). Seeded from remembered/leg defaults.
+let formCountry = '';
+let formCity = '';
 let filterCategory = 'all';
 let filterCity = 'all';
 let analysisDim: AnalysisDim = 'category';
+let showRecords = false;          // is the full-ledger panel open?
 let unsub: (() => void) | null = null;
 let unsubLegs: (() => void) | null = null;
 let unsubCategories: (() => void) | null = null;
@@ -85,15 +89,7 @@ const ANALYSIS_DIMS: { id: AnalysisDim; label: string }[] = [
   { id: 'time',     label: 'Time' },
 ];
 
-function parseTags(text: string): string[] {
-  return text.split(',').map((t) => t.trim().toLowerCase().replace(/^#/, '')).filter(Boolean);
-}
-
-/* ── Leg-aware defaults ──────────────────────────────────────────────────── */
-
-function legForDate(iso: string): StoredLeg | undefined {
-  return legs.find((l) => iso >= l.dateFrom && iso <= l.dateTo);
-}
+/* ── Leg-aware helpers ───────────────────────────────────────────────────── */
 
 /** Inclusive day-count between two ISO dates (>=1). */
 function dayCount(fromIso: string, toIso: string): number {
@@ -113,42 +109,7 @@ function daysForPlace(key: 'country' | 'city', value: string): number {
   return Math.max(1, dates.size);
 }
 
-function defaultCurrency(iso: string): string {
-  const leg = legForDate(iso);
-  if (leg) return COUNTRY_CURRENCY[leg.country] ?? baseCurrency();
-  return baseCurrency();
-}
-
-/* ── Conversion ──────────────────────────────────────────────────────────── */
-
-/** Convert a raw amount in `currency` to the current base currency using the
- *  live rate table. Used at record time to snapshot rate + baseAmount. */
-function convert(amount: number, currency: string): { rate: number; baseAmount: number } {
-  const rate = rates[currency] ?? 1;
-  return { rate, baseAmount: amount * rate };
-}
-
 /* ── CRUD ────────────────────────────────────────────────────────────────── */
-
-async function addExpense(
-  amount: number, currency: string, description: string, date: string,
-  category: string, tags: string[],
-) {
-  if (!amount || !description.trim()) return false;
-  const leg = legForDate(date);
-  const { rate, baseAmount } = convert(amount, currency);
-  await expenseStore.add({
-    amount, currency, rate, baseAmount,
-    baseCurrency: baseCurrency(),
-    description: description.trim(),
-    category,
-    tags,
-    city: leg?.city ?? '',
-    country: leg?.country ?? '',
-    date,
-  });
-  return true;
-}
 
 function deleteExpense(id: string) {
   void expenseStore.remove(id);
@@ -183,6 +144,11 @@ function total(list: StoredExpense[]): number {
   return list.reduce((s, e) => s + inBase(e), 0);
 }
 
+/** Total spent in a given country, in the current base currency. */
+function countrySpend(country: string): number {
+  return expenses.filter((e) => e.country === country).reduce((s, e) => s + inBase(e), 0);
+}
+
 function fmt(n: number): string {
   return `${currencySymbol(baseCurrency())}${Math.round(n).toLocaleString()}`;
 }
@@ -208,10 +174,10 @@ function renderSummary(el: HTMLElement) {
         const over = remaining < 0;
         const barColor = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
         return `
-          <div class="exp-budget-card">
+          <button class="exp-budget-card" id="exp-budget-edit" title="Edit budgets">
             <div class="exp-budget-top">
               <div class="exp-budget-label">Budget</div>
-              <button class="exp-budget-edit" id="exp-budget-edit" title="Edit budget">✎</button>
+              <span class="exp-budget-edit">✎</span>
             </div>
             <div class="exp-budget-amounts">
               <span class="exp-budget-spent">${fmt(sum)}</span>
@@ -227,66 +193,39 @@ function renderSummary(el: HTMLElement) {
               </span>
               <span class="exp-budget-pct">${pct}%</span>
             </div>
-          </div>`;
+          </button>`;
       })()
     : `
-      <div class="exp-budget-card exp-budget-empty">
+      <button class="exp-budget-card exp-budget-empty" id="exp-budget-edit">
         <div class="exp-budget-label">Budget</div>
-        <button class="exp-budget-set" id="exp-budget-edit">Set a budget</button>
-      </div>`;
+        <span class="exp-budget-set">Set a budget</span>
+      </button>`;
+
+  // Total card carries the "to sort" nudge as a corner chip rather than its own
+  // stat slot, so we keep just three cards.
+  const toSortChip = unclassified
+    ? `<span class="exp-stat-chip" id="exp-tosort-chip">🗂️ ${unclassified} to sort</span>`
+    : '';
 
   el.innerHTML = `
-    <div class="exp-stat-card accent">
+    <button class="exp-stat-card accent exp-stat-total" id="exp-open-records" title="See all records">
+      ${toSortChip}
       <div class="exp-stat-num">${fmt(sum)}</div>
-      <div class="exp-stat-label">Total spent</div>
-    </div>
+      <div class="exp-stat-label">Total spent <span class="exp-stat-cta">View all ›</span></div>
+    </button>
     <div class="exp-stat-card">
       <div class="exp-stat-num">${fmt(dailyAvg)}</div>
       <div class="exp-stat-label">Daily avg</div>
     </div>
-    <div class="exp-stat-card">
-      <div class="exp-stat-num">${expenses.length}</div>
-      <div class="exp-stat-label">Transactions</div>
-    </div>
-    <div class="exp-stat-card">
-      <div class="exp-stat-num">${unclassified || getCities().length}</div>
-      <div class="exp-stat-label">${unclassified ? 'To sort' : 'Cities'}</div>
-    </div>
     ${budgetBlock}
   `;
 
-  el.querySelector('#exp-budget-edit')?.addEventListener('click', () => openBudgetModal(el));
-}
-
-function openBudgetModal(summaryEl: HTMLElement) {
-  const budget = tripBudget();
-  const sym = currencySymbol(baseCurrency());
-
-  const m = openModal({
-    title: 'Trip budget',
-    body: `
-      <label class="field-label">Total budget (${sym}, ${baseCurrency()})</label>
-      <input class="input" type="number" id="exp-budget-input" min="0" step="1"
-        placeholder="e.g. 5000" value="${budget ?? ''}">
-      <p class="exp-modal-hint">Set your total trip budget. This appears as a bar in the summary so you can track spend vs plan at a glance.</p>`,
-    footer: `
-      ${budget ? `<button class="btn btn-danger" data-act="remove">Remove</button>` : ''}
-      <button class="btn btn-primary" data-act="save">Save</button>`,
-  });
-
-  const input = m.root.querySelector('#exp-budget-input') as HTMLInputElement;
-  const save = async () => {
-    const val = parseFloat(input.value);
-    await setTripBudget(val > 0 ? val : null);
-    m.close();
-    renderSummary(summaryEl);
-  };
-  m.root.querySelector('[data-act="save"]')?.addEventListener('click', save);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-  m.root.querySelector('[data-act="remove"]')?.addEventListener('click', async () => {
-    await setTripBudget(null);
-    m.close();
-    renderSummary(summaryEl);
+  el.querySelector('#exp-budget-edit')?.addEventListener('click', () => openBudgetModal());
+  el.querySelector('#exp-open-records')?.addEventListener('click', () => openRecords());
+  el.querySelector('#exp-tosort-chip')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    filterCategory = UNCLASSIFIED;
+    openRecords();
   });
 }
 
@@ -298,10 +237,60 @@ function currencyOptions(selected: string): string {
   ).join('');
 }
 
+const CUSTOM_PLACE = '__custom__';
+
+function countryOptions(selected: string): string {
+  const opts = legCountries(legs);
+  const known = opts.map((c) =>
+    `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
+  // If the remembered/edited country isn't on the itinerary, keep it selectable.
+  const extra = selected && !opts.includes(selected)
+    ? `<option value="${selected}" selected>${selected}</option>` : '';
+  return `<option value="">— Country —</option>${known}${extra}<option value="${CUSTOM_PLACE}">＋ Other…</option>`;
+}
+
+function cityOptions(country: string, selected: string): string {
+  const opts = legCitiesFor(legs, country);
+  const known = opts.map((c) =>
+    `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
+  const extra = selected && !opts.includes(selected)
+    ? `<option value="${selected}" selected>${selected}</option>` : '';
+  return `<option value="">— City —</option>${known}${extra}<option value="${CUSTOM_PLACE}">＋ Other…</option>`;
+}
+
+/** Inline reminder of country-budget standing, shown above the form when the
+ *  selected country has a cap set. */
+function countryReminderHtml(): string {
+  if (!formCountry) return '';
+  const cap = countryBudgets()[formCountry];
+  if (!cap) return '';
+  const spent = countrySpend(formCountry);
+  const remaining = cap - spent;
+  const pct = Math.min(100, Math.round((spent / cap) * 100));
+  const over = remaining < 0;
+  const cls = pct >= 100 ? 'over' : pct >= 80 ? 'warn' : 'ok';
+  return `
+    <div class="exp-country-reminder ${cls}">
+      <span class="exp-country-reminder-place">📍 ${formCountry}</span>
+      <span class="exp-country-reminder-figs">
+        ${fmt(spent)} / ${fmt(cap)} ·
+        <strong>${over ? `${fmt(-remaining)} over` : `${fmt(remaining)} left`}</strong>
+      </span>
+    </div>`;
+}
+
 function renderForm(el: HTMLElement) {
   const todayIso = new Date().toISOString().split('T')[0];
-  const defCur = defaultCurrency(todayIso);
+  const defCur = defaultCurrency(legs, todayIso);
   const base = baseCurrency();
+
+  // Seed the form's place from remembered/leg defaults (only when unset, so a
+  // re-render after store updates doesn't clobber an in-progress selection).
+  if (!formCountry && !formCity) {
+    const place = defaultPlace(legs, todayIso);
+    formCountry = place.country;
+    formCity = place.city;
+  }
 
   el.innerHTML = `
     <div class="exp-form">
@@ -322,6 +311,7 @@ function renderForm(el: HTMLElement) {
         `).join('')}
         <button class="exp-cat-chip exp-cat-manage" id="exp-cat-manage" type="button" title="Manage categories">＋ New</button>
       </div>
+      <div class="exp-country-reminder-slot">${countryReminderHtml()}</div>
       <div class="exp-form-grid">
         <div>
           <label class="field-label">Amount</label>
@@ -338,22 +328,51 @@ function renderForm(el: HTMLElement) {
           <input class="input" id="exp-desc" placeholder="e.g. Dinner at Boqueria market">
         </div>
         <div>
-          <label class="field-label">Date</label>
-          <input class="input" type="date" id="exp-date" value="${todayIso}">
+          <label class="field-label">Country</label>
+          <select class="input select" id="exp-country">${countryOptions(formCountry)}</select>
         </div>
         <div>
-          <label class="field-label">Tags</label>
-          <input class="input" id="exp-tags" placeholder="ramen, with friends">
+          <label class="field-label">City</label>
+          <select class="input select" id="exp-city">${cityOptions(formCountry, formCity)}</select>
+        </div>
+        <div class="field-full">
+          <label class="field-label">Date</label>
+          <input class="input" type="date" id="exp-date" value="${todayIso}">
         </div>
       </div>
       <button class="btn btn-primary" id="exp-add-btn" style="width:100%;justify-content:center">Add expense</button>
     </div>
   `;
 
-  const dateInput = el.querySelector('#exp-date') as HTMLInputElement;
   const curInput = el.querySelector('#exp-currency') as HTMLSelectElement;
-  dateInput.addEventListener('change', () => {
-    curInput.value = defaultCurrency(dateInput.value);
+  const countrySel = el.querySelector('#exp-country') as HTMLSelectElement;
+  const citySel = el.querySelector('#exp-city') as HTMLSelectElement;
+
+  // Country change → refresh city options, update the reminder, and (if the
+  // user hasn't manually picked a currency this session) seed the currency.
+  countrySel.addEventListener('change', () => {
+    if (countrySel.value === CUSTOM_PLACE) {
+      const name = prompt('Country name?')?.trim();
+      formCountry = name || '';
+    } else {
+      formCountry = countrySel.value;
+    }
+    formCity = '';
+    if (!lastUsed().currency) {
+      // No remembered currency yet — follow the chosen country.
+      curInput.value = COUNTRY_CURRENCY[formCountry] ?? base;
+    }
+    renderForm(el);
+  });
+
+  citySel.addEventListener('change', () => {
+    if (citySel.value === CUSTOM_PLACE) {
+      const name = prompt('City name?')?.trim();
+      formCity = name || '';
+      renderForm(el);
+    } else {
+      formCity = citySel.value;
+    }
   });
 
   bindBasePicker(el);
@@ -372,13 +391,15 @@ function renderForm(el: HTMLElement) {
     const amount = parseFloat((el.querySelector('#exp-amount') as HTMLInputElement).value);
     const currency = curInput.value;
     const desc = (el.querySelector('#exp-desc') as HTMLInputElement).value;
-    const date = dateInput.value;
-    const tags = parseTags((el.querySelector('#exp-tags') as HTMLInputElement).value);
+    const date = (el.querySelector('#exp-date') as HTMLInputElement).value;
 
-    if (await addExpense(amount, currency, desc, date, selectedCategory, tags)) {
+    const ok = await addExpenseWithDefaults({
+      amount, currency, description: desc, date,
+      category: selectedCategory, country: formCountry, city: formCity, rates,
+    });
+    if (ok) {
       (el.querySelector('#exp-amount') as HTMLInputElement).value = '';
       (el.querySelector('#exp-desc') as HTMLInputElement).value = '';
-      (el.querySelector('#exp-tags') as HTMLInputElement).value = '';
     }
   });
 }
@@ -450,106 +471,251 @@ function bindBasePicker(el: HTMLElement) {
   });
 }
 
-/* ── Render: list ────────────────────────────────────────────────────────── */
+/* ── Records overlay (full ledger, opened from "Total spent") ─────────────── */
 
-function renderList(el: HTMLElement) {
+function onRecordsKey(ev: KeyboardEvent) {
+  if (ev.key === 'Escape') closeRecords();
+}
+
+function openRecords() {
+  showRecords = true;
+  document.body.classList.add('exp-records-lock');
+  document.addEventListener('keydown', onRecordsKey);
+  renderRecordsPanel();
+}
+
+function closeRecords() {
+  showRecords = false;
+  document.body.classList.remove('exp-records-lock');
+  document.removeEventListener('keydown', onRecordsKey);
+  renderRecordsPanel();
+}
+
+/** Group the filtered list by ISO date, newest day first. */
+function groupByDate(list: StoredExpense[]): [string, StoredExpense[]][] {
+  const map = new Map<string, StoredExpense[]>();
+  for (const e of list) (map.get(e.date) ?? map.set(e.date, []).get(e.date)!).push(e);
+  return [...map.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+}
+
+/** Tint a category colour into a soft fill (the route plan-tag look). */
+function dayLabel(iso: string): string {
+  return new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
+}
+
+function renderRecordsPanel() {
+  const panel = document.querySelector('.exp-records-panel') as HTMLElement | null;
+  if (!panel) return;
+  panel.classList.toggle('open', showRecords);
+  if (!showRecords) { panel.innerHTML = ''; return; }
+
   const cities = getCities();
   const list = filteredExpenses();
+  const grouped = groupByDate(list);
   const unsortedCount = expenses.filter((e) => e.category === UNCLASSIFIED).length;
+  const shownTotal = total(list);
 
-  el.innerHTML = `
-    <div class="exp-list-header">
-      <div class="exp-list-title">Transactions</div>
-    </div>
-    ${unsortedCount > 0 && filterCategory !== UNCLASSIFIED ? `
-      <button class="exp-sort-banner" id="exp-sort-banner">
-        🗂️ <strong>${unsortedCount}</strong> ${unsortedCount === 1 ? 'expense needs' : 'expenses need'} a category — sort them now
-      </button>` : ''}
-    ${cities.length > 1 ? `
-    <div class="exp-city-pills">
-      <div class="exp-city-pill ${filterCity === 'all' ? 'active' : ''}" data-city="all">All cities</div>
-      ${cities.map((c) => `<div class="exp-city-pill ${filterCity === c ? 'active' : ''}" data-city="${c}">${c}</div>`).join('')}
-    </div>` : ''}
-    <div class="exp-filter-row">
-      <button class="exp-filter-btn ${filterCategory === 'all' ? 'active' : ''}" data-filter="all">All</button>
-      ${categories().map((c) => `
-        <button class="exp-filter-btn ${filterCategory === c.id ? 'active' : ''}" data-filter="${c.id}">${c.icon} ${c.label}</button>
-      `).join('')}
-      <button class="exp-filter-btn ${filterCategory === UNCLASSIFIED ? 'active' : ''}" data-filter="">🗂️ To sort</button>
-    </div>
-    ${list.length === 0 ? `
-      <div class="empty-state">
-        <div class="empty-icon">💸</div>
-        <p>No expenses yet. Add your first one!</p>
+  panel.innerHTML = `
+    <div class="exp-records-overlay">
+      <div class="exp-records-bar">
+        <button class="exp-records-back" id="exp-records-back">‹ Back</button>
+        <div class="exp-records-bar-title">All records</div>
+        <span class="exp-records-count">${list.length} · ${fmt(shownTotal)}</span>
       </div>
-    ` : `
-    <div class="exp-items">
-      ${list.map((e) => {
-        const cat = categoryById(e.category);
-        const baseStr = e.currency !== baseCurrency() ? ` · ${fmt(inBase(e))}` : '';
-        const meta = [cat?.label ?? 'Unsorted', e.city, e.date].filter(Boolean);
-        const tags = e.tags?.length
-          ? `<div class="exp-item-tags">${e.tags.map((t) => `<span class="exp-tag">#${t}</span>`).join('')}</div>`
-          : '';
-        // Unsorted items get an inline category picker so a whole pile can be
-        // tidied without opening each one.
-        const picker = e.category === UNCLASSIFIED ? `
-          <div class="exp-item-picker">
-            ${categories().map((c) => `<button class="exp-item-cat" data-id="${e.id}" data-cat="${c.id}" title="${c.label}">${c.icon}</button>`).join('')}
-          </div>` : '';
-        return `
-          <div class="exp-item ${e.category === UNCLASSIFIED ? 'unsorted' : ''}">
-            <div class="exp-item-icon" style="background:${cat?.color ?? '#f3f4f6'}">${cat?.icon ?? '🗂️'}</div>
-            <div class="exp-item-body">
-              <div class="exp-item-desc">${e.description}</div>
-              <div class="exp-item-meta">
-                ${meta.map((m, i) => `${i ? '<span>·</span>' : ''}<span>${m}</span>`).join('')}
-              </div>
-              ${tags}
-              ${picker}
-            </div>
-            <div class="exp-item-amount">${fmtRaw(e.amount, e.currency)}${baseStr}</div>
-            <button class="exp-item-delete" data-id="${e.id}">✕</button>
+      <div class="exp-records-scroll">
+        ${unsortedCount > 0 && filterCategory !== UNCLASSIFIED ? `
+          <button class="exp-sort-banner" id="exp-sort-banner">
+            🗂️ <strong>${unsortedCount}</strong> ${unsortedCount === 1 ? 'expense needs' : 'expenses need'} a category — sort them now
+          </button>` : ''}
+        ${cities.length > 1 ? `
+        <div class="exp-city-pills">
+          <div class="exp-city-pill ${filterCity === 'all' ? 'active' : ''}" data-city="all">All cities</div>
+          ${cities.map((c) => `<div class="exp-city-pill ${filterCity === c ? 'active' : ''}" data-city="${c}">${c}</div>`).join('')}
+        </div>` : ''}
+        <div class="exp-filter-row">
+          <button class="exp-filter-btn ${filterCategory === 'all' ? 'active' : ''}" data-filter="all">All</button>
+          ${categories().map((c) => `
+            <button class="exp-filter-btn ${filterCategory === c.id ? 'active' : ''}" data-filter="${c.id}">${c.icon} ${c.label}</button>
+          `).join('')}
+          <button class="exp-filter-btn ${filterCategory === UNCLASSIFIED ? 'active' : ''}" data-filter="">🗂️ To sort</button>
+        </div>
+        ${list.length === 0 ? `
+          <div class="empty-state">
+            <div class="empty-icon">💸</div>
+            <p>No expenses here yet.</p>
           </div>
-        `;
-      }).join('')}
-    </div>`}
+        ` : grouped.map(([date, items]) => `
+          <div class="exp-day-group">
+            <div class="exp-day-head">
+              <span class="exp-day-date">${dayLabel(date)}</span>
+              <span class="exp-day-sum">${fmt(total(items))}</span>
+            </div>
+            <div class="exp-tags">
+              ${items.map((e) => renderRecordTag(e)).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
   `;
 
-  el.querySelectorAll('.exp-filter-btn').forEach((btn) => {
+  panel.querySelector('#exp-records-back')?.addEventListener('click', () => closeRecords());
+
+  panel.querySelectorAll('.exp-filter-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       filterCategory = (btn as HTMLElement).dataset.filter!;
-      renderList(el);
+      renderRecordsPanel();
     });
   });
 
-  el.querySelectorAll('.exp-city-pill').forEach((pill) => {
+  panel.querySelectorAll('.exp-city-pill').forEach((pill) => {
     pill.addEventListener('click', () => {
       filterCity = (pill as HTMLElement).dataset.city!;
-      renderList(el);
+      renderRecordsPanel();
     });
   });
 
-  el.querySelector('#exp-sort-banner')?.addEventListener('click', () => {
+  panel.querySelector('#exp-sort-banner')?.addEventListener('click', () => {
     filterCategory = UNCLASSIFIED;
-    renderList(el);
+    renderRecordsPanel();
   });
 
-  el.querySelectorAll('.exp-item-cat').forEach((btn) => {
+  // Whole tag opens the editor; the ✕ deletes without opening.
+  panel.querySelectorAll<HTMLElement>('.exp-tag-item').forEach((tag) => {
+    tag.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('.exp-tag-del')) return;
+      openExpenseEditor(tag.dataset.id!);
+    });
+  });
+  panel.querySelectorAll('.exp-tag-del').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      deleteExpense((btn as HTMLElement).dataset.id!);
+    });
+  });
+}
+
+/** A compact, category-tinted record chip — mirrors the route plan-tag logic:
+ *  colour-filled by category, click to open, ✕ to delete. */
+function renderRecordTag(e: StoredExpense): string {
+  const cat = categoryById(e.category);
+  const color = cat?.color ?? '#f3f4f6';
+  const baseStr = e.currency !== baseCurrency() ? ` · ${fmt(inBase(e))}` : '';
+  const place = [e.city, e.country].filter(Boolean).join(', ');
+  const tip = [cat?.label ?? 'Unsorted', place].filter(Boolean).join(' · ');
+  return `
+    <div class="exp-tag-item ${e.category === UNCLASSIFIED ? 'unsorted' : ''}"
+         data-id="${e.id}" style="background:${color}"${tip ? ` data-tooltip="${tip}"` : ''}>
+      <span class="exp-tag-icon">${cat?.icon ?? '🗂️'}</span>
+      <span class="exp-tag-name">${e.description}</span>
+      <span class="exp-tag-amount">${fmtRaw(e.amount, e.currency)}${baseStr}</span>
+      <button class="exp-tag-del" data-id="${e.id}" title="Delete">✕</button>
+    </div>`;
+}
+
+/* ── Per-item editor (overlay, mirrors the route plan-item editors) ──────── */
+
+function openExpenseEditor(id: string) {
+  const e = expenses.find((x) => x.id === id);
+  if (!e) return;
+
+  const m = openModal({
+    title: 'Edit expense',
+    className: 'exp-editor-modal',
+    body: `
+      <div class="exp-cat-chips exp-editor-cats" id="exp-edit-cats">
+        ${categories().map((c) => `
+          <button class="exp-cat-chip ${c.id === e.category ? 'selected' : ''}" data-cat="${c.id}">${c.icon} ${c.label}</button>
+        `).join('')}
+      </div>
+      <div class="exp-editor-grid">
+        <div>
+          <label class="field-label">Amount</label>
+          <input class="input" type="number" id="ee-amount" min="0" step="0.01" value="${e.amount}">
+        </div>
+        <div>
+          <label class="field-label">Currency</label>
+          <select class="input select" id="ee-currency">${currencyOptions(e.currency)}</select>
+        </div>
+        <div class="field-full">
+          <label class="field-label">What for?</label>
+          <input class="input" id="ee-desc" value="${(e.description ?? '').replace(/"/g, '&quot;')}">
+        </div>
+        <div>
+          <label class="field-label">Country</label>
+          <select class="input select" id="ee-country">${countryOptions(e.country)}</select>
+        </div>
+        <div>
+          <label class="field-label">City</label>
+          <select class="input select" id="ee-city">${cityOptions(e.country, e.city)}</select>
+        </div>
+        <div class="field-full">
+          <label class="field-label">Date</label>
+          <input class="input" type="date" id="ee-date" value="${e.date}">
+        </div>
+      </div>`,
+    footer: `
+      <button class="btn btn-danger" data-act="delete">Delete</button>
+      <button class="btn btn-primary" data-act="save">Save</button>`,
+  });
+
+  let editCat = e.category;
+  m.root.querySelectorAll<HTMLElement>('#exp-edit-cats .exp-cat-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const { id, cat } = (btn as HTMLElement).dataset;
-      void expenseStore.update(id!, { category: cat! });
+      editCat = btn.dataset.cat!;
+      m.root.querySelectorAll('#exp-edit-cats .exp-cat-chip').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
     });
   });
 
-  el.querySelectorAll('.exp-item-delete').forEach((btn) => {
-    btn.addEventListener('click', () => deleteExpense((btn as HTMLElement).dataset.id!));
+  const countrySel = m.root.querySelector('#ee-country') as HTMLSelectElement;
+  const citySel = m.root.querySelector('#ee-city') as HTMLSelectElement;
+  let editCountry = e.country;
+  let editCity = e.city;
+  countrySel.addEventListener('change', () => {
+    if (countrySel.value === CUSTOM_PLACE) {
+      editCountry = prompt('Country name?')?.trim() || '';
+    } else {
+      editCountry = countrySel.value;
+    }
+    editCity = '';
+    citySel.innerHTML = cityOptions(editCountry, '');
+  });
+  citySel.addEventListener('change', () => {
+    if (citySel.value === CUSTOM_PLACE) {
+      editCity = prompt('City name?')?.trim() || '';
+      citySel.innerHTML = cityOptions(editCountry, editCity);
+    } else {
+      editCity = citySel.value;
+    }
+  });
+
+  m.root.querySelector('[data-act="save"]')?.addEventListener('click', async () => {
+    const amount = parseFloat((m.root.querySelector('#ee-amount') as HTMLInputElement).value);
+    const currency = (m.root.querySelector('#ee-currency') as HTMLSelectElement).value;
+    const desc = (m.root.querySelector('#ee-desc') as HTMLInputElement).value.trim();
+    const date = (m.root.querySelector('#ee-date') as HTMLInputElement).value;
+    if (!amount || !desc) return;
+    // Re-snapshot the conversion when amount or currency changed.
+    const { rate, baseAmount } = convert(rates, amount, currency);
+    await expenseStore.update(id, {
+      amount, currency, rate, baseAmount, baseCurrency: baseCurrency(),
+      description: desc, category: editCat, country: editCountry, city: editCity, date,
+    });
+    m.close();
+  });
+
+  m.root.querySelector('[data-act="delete"]')?.addEventListener('click', () => {
+    deleteExpense(id);
+    m.close();
   });
 }
 
 /* ── Render: analysis ────────────────────────────────────────────────────── */
 
-interface Row { label: string; sum: number; color: string; sub?: string; catId?: string; budget?: number; isDay?: boolean; }
+interface Row { label: string; sum: number; color: string; sub?: string; catId?: string; country?: string; budget?: number; isDay?: boolean; }
 
 /** Group expenses for the active dimension into sorted, displayable rows. */
 function analysisRows(): Row[] {
@@ -581,27 +747,37 @@ function analysisRows(): Row[] {
   }
 
   // country | city — total plus a per-day average using days at that place.
+  // Country rows also carry their budget cap so the bar can track against it.
   const key = analysisDim;
+  const caps = key === 'country' ? countryBudgets() : {};
   const groups = new Map<string, number>();
   for (const e of expenses) {
     const v = e[key];
     if (!v) continue;
     groups.set(v, (groups.get(v) ?? 0) + inBase(e));
   }
+  // Include countries that have a cap but no spend yet, so empty caps still show.
+  for (const c of Object.keys(caps)) if (!groups.has(c)) groups.set(c, 0);
   return [...groups.entries()]
     .map(([value, sum]) => {
       const days = daysForPlace(key, value);
-      return { label: value, sum, color: 'var(--accent)', sub: `${fmt(sum / days)}/day · ${days}d` };
+      return {
+        label: value, sum, color: 'var(--accent)',
+        sub: `${fmt(sum / days)}/day · ${days}d`,
+        country: key === 'country' ? value : undefined,
+        budget: caps[value],
+      };
     })
+    .filter((r) => r.sum > 0 || (r.budget ?? 0) > 0)
     .sort((a, b) => b.sum - a.sum);
 }
 
 function dailyBudgetAmount(): number | null {
   const budget = tripBudget();
   if (!budget) return null;
-  const legs = routeStore.peek().filter((l) => l.tripId === currentTripId());
-  if (!legs.length) return null;
-  const dates = legs.flatMap((l) => [l.dateFrom, l.dateTo]);
+  const tripLegs = routeStore.peek().filter((l) => l.tripId === currentTripId());
+  if (!tripLegs.length) return null;
+  const dates = tripLegs.flatMap((l) => [l.dateFrom, l.dateTo]);
   const minDate = dates.reduce((a, b) => (a < b ? a : b));
   const maxDate = dates.reduce((a, b) => (a > b ? a : b));
   const days = Math.max(1, Math.round((new Date(maxDate).getTime() - new Date(minDate).getTime()) / 86_400_000));
@@ -645,8 +821,10 @@ function renderBreakdown(el: HTMLElement) {
         const budgetTag = hasBudget
           ? `<span class="exp-cat-name-sub">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' · over' : ''}</span>`
           : (r.sub ? `<span class="exp-cat-name-sub">${r.sub}</span>` : '');
-        const setBtn = r.catId
-          ? `<button class="exp-cat-budget-btn" data-cat-budget="${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
+        // Both category and country rows get a quick set/edit-budget button.
+        const budgetKey = r.catId ? `cat:${r.catId}` : (r.country ? `country:${r.country}` : '');
+        const setBtn = budgetKey
+          ? `<button class="exp-cat-budget-btn" data-budget-key="${budgetKey}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
           : '';
         const dailyLine = (r.isDay && dailyBudgetPct)
           ? `<div class="exp-daily-budget-line" style="left:${dailyBudgetPct}%"></div>`
@@ -679,58 +857,153 @@ function renderBreakdown(el: HTMLElement) {
   el.querySelectorAll<HTMLElement>('.exp-cat-budget-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      openCategoryBudgetModal(btn.dataset.catBudget!, el);
+      const [kind, value] = btn.dataset.budgetKey!.split(/:(.+)/);
+      openBudgetModal(kind === 'country' ? 'country' : 'category', value);
     });
   });
 }
 
-/** Modal to set/clear a single category's budget cap. */
-function openCategoryBudgetModal(catId: string, breakdownEl: HTMLElement) {
-  const cat = categoryById(catId);
-  const current = categoryBudgets()[catId];
+/* ── Budget overview modal (total / country / category) ──────────────────── */
+
+type BudgetTab = 'total' | 'country' | 'category';
+
+function openBudgetModal(initialTab: BudgetTab = 'total', focusKey?: string) {
+  let tab: BudgetTab = initialTab;
   const sym = currencySymbol(baseCurrency());
 
   const m = openModal({
-    title: `${cat ? `${cat.icon} ${cat.label}` : 'Category'} budget`,
-    body: `
-      <label class="field-label">Cap for this category (${sym}, ${baseCurrency()})</label>
-      <input class="input" type="number" id="exp-catbudget-input" min="0" step="1"
-        placeholder="e.g. 800" value="${current ?? ''}">
-      <p class="exp-modal-hint">The category bar will track spend against this cap and turn amber, then red, as you approach it.</p>`,
-    footer: `
-      ${current ? `<button class="btn btn-danger" data-act="remove">Remove</button>` : ''}
-      <button class="btn btn-primary" data-act="save">Save</button>`,
+    title: 'Budgets',
+    variant: 'sheet',
+    className: 'exp-budget-modal',
+    body: `<div class="exp-budget-tabs">
+        <button class="exp-budget-tab" data-tab="total">Total</button>
+        <button class="exp-budget-tab" data-tab="country">By country</button>
+        <button class="exp-budget-tab" data-tab="category">By category</button>
+      </div>
+      <div class="exp-budget-pane" id="exp-budget-pane"></div>`,
+    footer: `<button class="btn btn-primary" data-act="done">Done</button>`,
   });
 
-  const input = m.root.querySelector('#exp-catbudget-input') as HTMLInputElement;
-  const save = async () => {
-    const val = parseFloat(input.value);
-    await setCategoryBudget(catId, val > 0 ? val : null);
-    m.close();
-    renderBreakdown(breakdownEl);
+  const pane = m.root.querySelector('#exp-budget-pane') as HTMLElement;
+
+  const renderPane = () => {
+    m.root.querySelectorAll<HTMLElement>('.exp-budget-tab').forEach((b) =>
+      b.classList.toggle('active', b.dataset.tab === tab));
+
+    if (tab === 'total') {
+      const budget = tripBudget();
+      pane.innerHTML = `
+        <label class="field-label">Total trip budget (${sym}, ${baseCurrency()})</label>
+        <input class="input" type="number" id="bm-total" min="0" step="1" placeholder="e.g. 5000" value="${budget ?? ''}">
+        <p class="exp-modal-hint">Your overall ceiling. Shows as the budget bar on the summary and dashboard.</p>`;
+      const input = pane.querySelector('#bm-total') as HTMLInputElement;
+      const save = async () => {
+        const val = parseFloat(input.value);
+        await setTripBudget(val > 0 ? val : null);
+        renderSummaryRoot();
+      };
+      input.addEventListener('change', save);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+      return;
+    }
+
+    if (tab === 'country') {
+      const caps = countryBudgets();
+      const countriesList = [...new Set([...legCountries(legs), ...Object.keys(caps)])];
+      const totalCap = Object.values(caps).reduce((s, v) => s + v, 0);
+      const trip = tripBudget();
+      const flex = trip ? trip - totalCap : null;
+      pane.innerHTML = `
+        ${countriesList.length === 0 ? '<p class="exp-modal-hint">No countries on the itinerary yet.</p>' : ''}
+        <div class="exp-budget-rows">
+          ${countriesList.map((c) => {
+            const spent = countrySpend(c);
+            return `
+              <div class="exp-budget-row">
+                <div class="exp-budget-row-name">${c}<span class="exp-budget-row-spent">${fmt(spent)} spent</span></div>
+                <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${c}" placeholder="cap" value="${caps[c] ?? ''}">
+              </div>`;
+          }).join('')}
+        </div>
+        ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total budget` : `${fmt(flex)} unallocated`}</p>` : ''}`;
+      pane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
+        input.addEventListener('change', async () => {
+          const val = parseFloat(input.value);
+          await setCountryBudget(input.dataset.country!, val > 0 ? val : null);
+          renderPane();
+          renderSummaryRoot();
+          renderForm(document.querySelector('.exp-form-wrap') as HTMLElement);
+        });
+      });
+      if (focusKey) (pane.querySelector(`[data-country="${focusKey}"]`) as HTMLInputElement)?.focus();
+      return;
+    }
+
+    // category
+    const caps = categoryBudgets();
+    const totalCap = Object.values(caps).reduce((s, v) => s + v, 0);
+    const trip = tripBudget();
+    const flex = trip ? trip - totalCap : null;
+    pane.innerHTML = `
+      <div class="exp-budget-rows">
+        ${categories().map((cat) => {
+          const spent = expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0);
+          return `
+            <div class="exp-budget-row">
+              <div class="exp-budget-row-name">${cat.icon} ${cat.label}<span class="exp-budget-row-spent">${fmt(spent)} spent</span></div>
+              <input class="input exp-budget-row-input" type="number" min="0" step="1" data-cat="${cat.id}" placeholder="cap" value="${caps[cat.id] ?? ''}">
+            </div>`;
+        }).join('')}
+      </div>
+      ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total budget` : `${fmt(flex)} unallocated`}</p>` : ''}`;
+    pane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
+      input.addEventListener('change', async () => {
+        const val = parseFloat(input.value);
+        await setCategoryBudget(input.dataset.cat!, val > 0 ? val : null);
+        renderPane();
+        renderSummaryRoot();
+      });
+    });
+    if (focusKey) (pane.querySelector(`[data-cat="${focusKey}"]`) as HTMLInputElement)?.focus();
   };
-  m.root.querySelector('[data-act="save"]')?.addEventListener('click', save);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-  m.root.querySelector('[data-act="remove"]')?.addEventListener('click', async () => {
-    await setCategoryBudget(catId, null);
-    m.close();
-    renderBreakdown(breakdownEl);
+
+  m.root.querySelectorAll<HTMLElement>('.exp-budget-tab').forEach((btn) => {
+    btn.addEventListener('click', () => { tab = btn.dataset.tab as BudgetTab; renderPane(); });
   });
+  m.root.querySelector('[data-act="done"]')?.addEventListener('click', () => {
+    m.close();
+    render();
+  });
+
+  renderPane();
 }
 
 /* ── Orchestration ───────────────────────────────────────────────────────── */
+
+function renderSummaryRoot() {
+  const root = document.getElementById('view-expenses');
+  if (root) renderSummary(root.querySelector('.exp-summary')!);
+}
 
 function render() {
   const root = document.getElementById('view-expenses');
   if (!root) return;
   renderSummary(root.querySelector('.exp-summary')!);
-  renderList(root.querySelector('.exp-list-wrap')!);
+  renderRecordsPanel();
   renderBreakdown(root.querySelector('.exp-breakdown-wrap')!);
 }
 
 export function initExpenses() {
   const root = document.getElementById('view-expenses');
   if (!root) return;
+
+  // Leaving the view while the fixed records overlay is open would leave it
+  // covering the next view — close it on any navigation away from expenses.
+  window.addEventListener('hashchange', () => {
+    if (showRecords && window.location.hash.replace('#', '') !== 'expenses') {
+      closeRecords();
+    }
+  });
 
   rates = peekRateTable(baseCurrency());
   legs = routeStore.peek();
@@ -746,8 +1019,8 @@ export function initExpenses() {
   unsubLegs?.();
   unsubCategories?.();
   unsubTripChange?.();
-  // A trip switch changes base currency, total budget AND category caps — repaint everything.
-  unsubTripChange = onTripChange(() => render());
+  // A trip switch changes base currency, total budget AND budget caps — repaint everything.
+  unsubTripChange = onTripChange(() => { renderForm(formEl); render(); });
   unsub = expenseStore.subscribe((rows) => {
     expenses = rows;
     render();

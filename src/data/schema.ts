@@ -73,6 +73,9 @@ export const TripSchema = doc({
   // Per-category budget caps in baseCurrency, keyed by category id (e.g.
   // 'food', 'accommodation', or a custom category id). Absent keys = no cap.
   categoryBudgets: z.record(z.string(), z.number()).optional(),
+  // Per-country budget caps in baseCurrency, keyed by country name (as stored
+  // on legs/expenses, e.g. 'Germany'). Absent keys = no cap.
+  countryBudgets: z.record(z.string(), z.number()).optional(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 

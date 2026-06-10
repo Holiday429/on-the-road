@@ -108,6 +108,24 @@ export async function setCategoryBudget(categoryId: string, amount: number | nul
   if (_currentTrip) _currentTrip = { ..._currentTrip, ...patch };
 }
 
+/** Per-country budget caps for the current trip (country → amount), or {} if none. */
+export function countryBudgets(): Record<string, number> {
+  return _currentTrip?.countryBudgets ?? {};
+}
+
+/** Set/clear one country's budget cap (amount <= 0 or null removes it). */
+export async function setCountryBudget(country: string, amount: number | null): Promise<void> {
+  if (!_currentTripId) return;
+  const next = { ...(_currentTrip?.countryBudgets ?? {}) };
+  if (amount != null && amount > 0) next[country] = amount;
+  else delete next[country];
+  const patch: Partial<Trip> = {
+    countryBudgets: Object.keys(next).length ? next : undefined,
+  };
+  await updateTrip(_currentTripId, patch);
+  if (_currentTrip) _currentTrip = { ..._currentTrip, ...patch };
+}
+
 /** Persist a new base currency on the current trip. Existing expenses keep
  *  their snapshotted rate/baseAmount, so historical books don't re-value. */
 export async function setBaseCurrency(code: string): Promise<void> {

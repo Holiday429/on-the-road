@@ -10,7 +10,8 @@ import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
-import { currentTrip, baseCurrency, tripBudget, onTripChange, currentTripId } from '../../data/trip-context.ts';
+import { currentTrip, baseCurrency, tripBudget, countryBudgets, onTripChange, currentTripId } from '../../data/trip-context.ts';
+import { addExpenseWithDefaults, defaultPlace, defaultCurrency } from '../expenses/expense-defaults.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES } from '../../data/rates.ts';
 import { navigateTo, type ViewId, type NavIntent, openNewTrip } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
@@ -398,8 +399,23 @@ function renderSpendWidget(): string {
     return `<span class="td-bar ${isToday ? 'is-today' : ''}" style="height:${h}px" title="${sym}${Math.round(amt)}"></span>`;
   }).join('');
 
+  // Prefer the current country's budget when one is set — it's the more
+  // actionable number while you're there; otherwise fall back to the total.
+  const curCountry = currentLeg()?.country ?? '';
+  const countryCap = curCountry ? countryBudgets()[curCountry] : undefined;
   let budgetLine = '';
-  if (budget) {
+  if (countryCap) {
+    const spent = _expenses.filter(e => e.country === curCountry).reduce((s, e) => s + inBase(e), 0);
+    const pct  = Math.min(100, Math.round((spent / countryCap) * 100));
+    const over = spent > countryCap;
+    const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+    budgetLine = `
+      <div class="td-spend-bar-track"><div class="td-spend-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div class="td-spend-bar-foot">
+        <span class="${over ? 'td-over' : 'td-remain'}">${over ? `${fmt(spent-countryCap)} over` : `${fmt(countryCap-spent)} left`}</span>
+        <span class="td-pct">${curCountry} · ${pct}% of ${fmt(countryCap)}</span>
+      </div>`;
+  } else if (budget) {
     const pct  = Math.min(100, Math.round((total / budget) * 100));
     const over = total > budget;
     const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
@@ -965,12 +981,14 @@ function layout(phase: Phase): string {
    ══════════════════════════════════════════════════════════════════════════ */
 
 function quickAddSpend(amount: number, desc: string): void {
-  const base = baseCurrency();
-  const leg  = currentLeg();
-  void expenseStore.add({
-    amount, currency: base, rate: 1, baseAmount: amount, baseCurrency: base,
-    description: desc || 'Quick add', category: '', tags: [],
-    city: leg?.city ?? '', country: leg?.country ?? '', date: todayIso(),
+  // Shared add path: remembers currency/country/city like the Expenses page, so
+  // a quick add still lands in the right country/city buckets for analysis.
+  const today = todayIso();
+  const place = defaultPlace(_legs, today);
+  const currency = defaultCurrency(_legs, today);
+  void addExpenseWithDefaults({
+    amount, currency, description: desc || 'Quick add', date: today,
+    category: '', country: place.country, city: place.city, rates: _rates,
   });
 }
 
