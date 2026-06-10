@@ -586,30 +586,29 @@
 }
 
 /* ── Pack widget ─────────────────────────────────────────────────────────── */
-.td-pk-body { display: flex; flex-direction: column; gap: var(--sp-2); padding-top: var(--sp-1); }
-.td-pk-weight { font-size: 2rem; font-weight: 800; color: var(--ink); line-height: 1.1; }
-.td-pk-weight.is-over { color: var(--coral-500); }
-.td-pk-remain { font-size: var(--fs-sm); font-weight: 600; color: #16a34a; }
-.td-pk-remain.is-over { color: var(--coral-500); }
-.td-pk-bar { height: 8px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; margin-top: 2px; }
+.td-pk-header-weight {
+  font-size: var(--fs-sm); font-weight: 800; color: var(--ink);
+  margin-left: var(--sp-2);
+}
+.td-pk-header-weight.is-over { color: var(--coral-500); }
+.td-pk-bar { height: 7px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
 .td-pk-bar span { display: block; height: 100%; background: #34d399; border-radius: var(--r-full); transition: width var(--dur-mid) var(--ease-out); }
 .td-pk-bar span.is-warn { background: var(--amber-400); }
 .td-pk-bar span.is-over { background: var(--coral-500); }
 .td-pk-allowance { font-size: var(--fs-xs); color: var(--ink-muted); }
-.td-pk-consumables { display: flex; flex-direction: column; gap: 4px; margin-top: var(--sp-2); border-top: 1px solid var(--rule-soft); padding-top: var(--sp-2); }
-.td-pk-cons-row {
-  display: flex; align-items: center; gap: var(--sp-2);
-  font-size: var(--fs-sm); color: var(--ink-soft);
+.td-pk-recent { display: flex; flex-wrap: wrap; gap: 5px; }
+.td-pk-actions {
+  display: flex; gap: var(--sp-2); flex-wrap: wrap; padding-top: var(--sp-1);
+  margin-top: var(--sp-1);
 }
-.td-pk-cons-row span:first-of-type { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.td-pk-cons-qty { font-size: var(--fs-xs); color: var(--ink-muted); min-width: 24px; text-align: right; }
-.td-pk-dec {
-  border: 1.5px solid var(--rule-soft); background: var(--surface-3); color: var(--ink-soft);
-  border-radius: var(--r-sm); width: 24px; height: 24px; cursor: pointer; font-size: 16px;
-  display: flex; align-items: center; justify-content: center; line-height: 1; flex-shrink: 0;
-  transition: border-color var(--dur-fast), background var(--dur-fast);
+.td-pk-action-btn {
+  flex: 1; border: 1.5px solid var(--rule-soft); background: var(--surface-3);
+  color: var(--ink-soft); border-radius: var(--r-md); padding: 7px 10px;
+  font-size: var(--fs-sm); font-weight: 600; cursor: pointer; text-align: center;
+  transition: border-color var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
 }
-.td-pk-dec:hover { border-color: var(--amber-400); background: var(--amber-50); }
+.td-pk-action-btn:hover { border-color: var(--amber-400); background: var(--amber-50); color: var(--ink); }
+.td-pk-action-btn--nav { color: var(--accent-deep); }
 
 /* ── Drag-and-drop ────────────────────────────────────────────────────────── */
 .td-draggable { position: relative; }

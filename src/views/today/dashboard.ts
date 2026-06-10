@@ -25,7 +25,8 @@ import { openModal } from '../../core/modal.ts';
 import { openJournalComposerOverlay } from '../journal/index.ts';
 import { scheduleAllNotifications } from '../../core/notifications.ts';
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
-import { weightAtLeg, baggageRemainG, itemWeightG } from '../../data/packing-formula.ts';
+import { baggageRemainG, itemWeightG, itemsPresentAtLeg } from '../../data/packing-formula.ts';
+import { PACK_CATEGORIES, listTotalWeight } from '../pack/pack.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
@@ -750,56 +751,50 @@ function renderPackWidget(): string | null {
   const list = _packLists[0];
   if (!list) return null;
 
-  const sortedLegs = [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  const sLegs = [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
   const today = todayIso();
-  const curLeg = sortedLegs.find(l => l.dateFrom <= today && l.dateTo >= today)
-    ?? sortedLegs.find(l => l.dateFrom >= today)
-    ?? sortedLegs[sortedLegs.length - 1];
+  const curLeg = sLegs.find(l => l.dateFrom <= today && l.dateTo >= today)
+    ?? sLegs.find(l => l.dateFrom >= today)
+    ?? sLegs[sLegs.length - 1];
 
-  const totalG = curLeg ? weightAtLeg(list.items, sortedLegs, curLeg.id) : list.items.reduce((s, it) => s + itemWeightG(it), 0);
-  const remainG = curLeg ? baggageRemainG(list.items, sortedLegs, curLeg.id) : null;
-  const nextLegWithAllowance = sortedLegs.find(l => l.dateFrom > today && l.arrivalTransport?.baggageAllowanceG);
+  const totalG = listTotalWeight(list);
+  const remainG = curLeg ? baggageRemainG(list.items, sLegs, curLeg.id) : null;
+  const nextLegWithAllowance = sLegs.find(l => l.dateFrom > today && l.arrivalTransport?.baggageAllowanceG);
   const allowanceG = nextLegWithAllowance?.arrivalTransport?.baggageAllowanceG;
   const isOver = remainG !== null && remainG < 0;
   const pct = allowanceG ? Math.min(100, (totalG / allowanceG) * 100) : 0;
   const barClass = isOver ? 'is-over' : pct > 85 ? 'is-warn' : '';
 
   const kgDisplay = (totalG / 1000).toFixed(totalG % 1000 === 0 ? 0 : 1) + 'kg';
-  const consumables = list.items.filter(it => it.consumable && !it.droppedLegId);
+  const hasLegs = sLegs.length > 0;
 
-  const remainLine = remainG !== null
-    ? (isOver
-        ? `<div class="td-pk-remain is-over">over by ${(Math.abs(remainG) / 1000).toFixed(1)}kg</div>`
-        : `<div class="td-pk-remain">${(remainG / 1000).toFixed(1)}kg remaining</div>`)
-    : '';
-
-  const barHtml = allowanceG
+  const allowanceBar = allowanceG
     ? `<div class="td-pk-bar"><span class="${barClass}" style="width:${pct}%"></span></div>
-       <div class="td-pk-allowance">${nextLegWithAllowance!.flag || ''} ${esc(nextLegWithAllowance!.city)} · ${allowanceG / 1000}kg limit</div>`
+       <div class="td-pk-allowance">${nextLegWithAllowance!.flag || ''} ${esc(nextLegWithAllowance!.city)} · ${allowanceG / 1000}kg limit${isOver ? ` · <strong style="color:var(--coral-500)">over by ${(Math.abs(remainG!) / 1000).toFixed(1)}kg</strong>` : ` · ${(remainG! / 1000).toFixed(1)}kg left`}</div>`
     : '';
 
-  const consumablesHtml = consumables.length
-    ? `<div class="td-pk-consumables">
-        ${consumables.slice(0, 3).map(it => `
-          <div class="td-pk-cons-row" data-item-id="${it.id}" data-list-id="${list.id}">
-            <span>${esc(it.name)}</span>
-            <span class="td-pk-cons-qty">×${it.qty}</span>
-            <button class="td-pk-dec" data-item-id="${it.id}" data-list-id="${list.id}" title="Use one">−</button>
-          </div>`).join('')}
+  // Recent bag changes (last 3 acquired or dropped items)
+  const recentAcq = list.items.filter(it => it.acquiredLegId).slice(-2);
+  const recentDrop = list.items.filter(it => it.droppedLegId).slice(-1);
+  const recentHtml = (recentAcq.length || recentDrop.length)
+    ? `<div class="td-pk-recent">
+        ${recentAcq.map(it => `<span class="pk-bl-chip pk-bl-chip--add">+ ${esc(it.name)}</span>`).join('')}
+        ${recentDrop.map(it => `<span class="pk-bl-chip pk-bl-chip--drop">− ${esc(it.name)}</span>`).join('')}
       </div>`
     : '';
 
   return `
-    <div class="td-widget td-w-pack" data-nav="pack">
+    <div class="td-widget td-w-pack">
       <div class="td-widget-header">
-        <div class="td-widget-label">🎒 Bag</div>
+        <div class="td-widget-label">🎒 Bag <span class="td-pk-header-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</span></div>
+        <button class="td-link" data-nav="pack">Open Bag ›</button>
       </div>
-      <div class="td-pk-body">
-        <div class="td-pk-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</div>
-        ${remainLine}
-        ${barHtml}
-        ${consumablesHtml}
-      </div>
+      ${allowanceBar}
+      ${recentHtml}
+      ${hasLegs ? `<div class="td-pk-actions">
+        <button class="td-pk-action-btn" data-pk-action="acquired">+ Acquired</button>
+        <button class="td-pk-action-btn" data-pk-action="left">− Left behind</button>
+      </div>` : ''}
     </div>`;
 }
 
@@ -1011,6 +1006,140 @@ function render(): void {
   bootMap();
 }
 
+/* ── Pack bag-change modal (dashboard shortcut) ───────────────────────────── */
+function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acquired' | 'left') {
+  const sLegs = [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  if (!sLegs.length) return;
+
+  const today = todayIso();
+  const defaultLeg = sLegs.find(l => l.dateFrom <= today && l.dateTo >= today)
+    ?? sLegs.find(l => l.dateFrom >= today)
+    ?? sLegs[sLegs.length - 1];
+
+  const legOptions = sLegs.map(lg =>
+    `<option value="${lg.id}" ${lg.id === defaultLeg?.id ? 'selected' : ''}>${lg.flag || '🗺️'} ${esc(lg.city)}</option>`
+  ).join('');
+
+  const catOptions = PACK_CATEGORIES.map(c =>
+    `<option value="${c.value}" ${c.value === 'gifts' ? 'selected' : ''}>${c.label}</option>`
+  ).join('');
+
+  const m = openModal({
+    title: 'Record bag change',
+    variant: 'sheet',
+    body: `
+      <label class="field-label">City / stop</label>
+      <select class="input" id="td-bc-leg">${legOptions}</select>
+
+      <div style="display:flex;gap:0;margin-top:var(--sp-4);border:1.5px solid var(--rule-soft);border-radius:var(--r-md);overflow:hidden">
+        <button class="td-bc-tab ${defaultAction === 'acquired' ? 'is-active' : ''}" data-tab="acquired"
+          style="flex:1;border:none;padding:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
+                 background:${defaultAction === 'acquired' ? 'var(--ink)' : 'var(--surface)'};
+                 color:${defaultAction === 'acquired' ? '#fff' : 'var(--ink-soft)'}">+ Acquired</button>
+        <button class="td-bc-tab ${defaultAction === 'left' ? 'is-active' : ''}" data-tab="left"
+          style="flex:1;border:none;border-left:1.5px solid var(--rule-soft);padding:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
+                 background:${defaultAction === 'left' ? 'var(--ink)' : 'var(--surface)'};
+                 color:${defaultAction === 'left' ? '#fff' : 'var(--ink-soft)'}">− Left behind</button>
+      </div>
+
+      <div id="td-bc-acquired-panel" ${defaultAction === 'left' ? 'hidden' : ''} style="margin-top:var(--sp-4)">
+        <label class="field-label">New item name</label>
+        <input class="input" id="td-ac-name" placeholder="e.g. Souvenir scarf">
+        <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-3)">
+          <div style="flex:1"><label class="field-label">Category</label>
+            <select class="input" id="td-ac-cat">${catOptions}</select></div>
+          <div style="width:90px"><label class="field-label">Weight (kg)</label>
+            <input class="input" id="td-ac-weight" type="number" min="0" step="any" placeholder="0"></div>
+          <div style="width:72px"><label class="field-label">Qty</label>
+            <input class="input" id="td-ac-qty" type="number" min="1" step="1" value="1"></div>
+        </div>
+        ${list.items.filter(it => !it.acquiredLegId && !it.droppedLegId).length ? `
+          <div style="margin-top:var(--sp-4)">
+            <label class="field-label">Or tag existing item</label>
+            <select class="input" id="td-ac-existing">
+              <option value="">— select item —</option>
+              ${list.items.filter(it => !it.acquiredLegId && !it.droppedLegId).map(it =>
+                `<option value="${it.id}">${esc(it.name)}</option>`).join('')}
+            </select>
+          </div>` : ''}
+      </div>
+
+      <div id="td-bc-left-panel" ${defaultAction === 'acquired' ? 'hidden' : ''} style="margin-top:var(--sp-4)">
+        <label class="field-label">Items left behind</label>
+        <div class="pk-drop-checklist" id="td-bc-drop-list">
+          <div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-2)">Loading…</div>
+        </div>
+      </div>
+    `,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm">Save</button>
+    `,
+  });
+
+  let activeTab = defaultAction;
+
+  function updateDropList() {
+    const legId = m.root.querySelector<HTMLSelectElement>('#td-bc-leg')?.value;
+    if (!legId) return;
+    const present = itemsPresentAtLeg(list.items, sLegs, legId).filter(it => !it.droppedLegId);
+    const el = m.root.querySelector<HTMLElement>('#td-bc-drop-list')!;
+    el.innerHTML = present.length
+      ? present.map(it => `
+          <label class="pk-drop-check-row">
+            <input type="checkbox" value="${it.id}">
+            <span>${esc(it.name)}</span>
+            <span class="pk-drop-weight">${(itemWeightG(it) / 1000).toFixed(1)}kg</span>
+          </label>`).join('')
+      : `<div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-2)">No items at this stop.</div>`;
+  }
+
+  function switchTab(tab: 'acquired' | 'left') {
+    activeTab = tab;
+    m.root.querySelectorAll<HTMLElement>('.td-bc-tab').forEach(btn => {
+      const active = btn.dataset.tab === tab;
+      btn.classList.toggle('is-active', active);
+      btn.style.background = active ? 'var(--ink)' : 'var(--surface)';
+      btn.style.color      = active ? '#fff' : 'var(--ink-soft)';
+    });
+    const acq  = m.root.querySelector<HTMLElement>('#td-bc-acquired-panel')!;
+    const left = m.root.querySelector<HTMLElement>('#td-bc-left-panel')!;
+    if (tab === 'acquired') { acq.removeAttribute('hidden'); left.setAttribute('hidden', ''); }
+    else { left.removeAttribute('hidden'); acq.setAttribute('hidden', ''); updateDropList(); }
+  }
+
+  m.root.querySelectorAll<HTMLElement>('.td-bc-tab').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab as 'acquired' | 'left')));
+  m.root.querySelector<HTMLSelectElement>('#td-bc-leg')?.addEventListener('change', () => { if (activeTab === 'left') updateDropList(); });
+
+  if (defaultAction === 'left') updateDropList();
+  else requestAnimationFrame(() => m.root.querySelector<HTMLInputElement>('#td-ac-name')?.focus());
+
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const legId = m.root.querySelector<HTMLSelectElement>('#td-bc-leg')?.value || '';
+    if (!legId) return;
+    if (activeTab === 'acquired') {
+      const existingId = m.root.querySelector<HTMLSelectElement>('#td-ac-existing')?.value;
+      if (existingId) { await packStore.updateItem(list.id, existingId, { acquiredLegId: legId }); m.close(); return; }
+      const name = (m.root.querySelector<HTMLInputElement>('#td-ac-name')?.value || '').trim();
+      if (!name) { m.root.querySelector<HTMLInputElement>('#td-ac-name')?.focus(); return; }
+      const cat = m.root.querySelector<HTMLSelectElement>('#td-ac-cat')?.value || 'gifts';
+      const wG  = Math.max(0, parseFloat(m.root.querySelector<HTMLInputElement>('#td-ac-weight')?.value || '0') || 0) * 1000;
+      const qty = Math.max(1, parseInt(m.root.querySelector<HTMLInputElement>('#td-ac-qty')?.value || '1', 10) || 1);
+      await packStore.addItem(list.id, {
+        name, category: cat, qty, unitWeightG: wG,
+        containerId: null, priority: 'nice' as const,
+        locked: false, packed: false, source: 'manual',
+        acquiredLegId: legId, droppedLegId: null, consumable: false,
+      });
+    } else {
+      const checked = [...m.root.querySelectorAll<HTMLInputElement>('#td-bc-drop-list input:checked')];
+      await Promise.all(checked.map(cb => packStore.updateItem(list.id, cb.value, { droppedLegId: legId })));
+    }
+    m.close();
+  });
+}
+
 function wire(body: HTMLElement): void {
   // Navigation clicks (widget tap-through).
   body.querySelectorAll<HTMLElement>('[data-nav]').forEach(el => {
@@ -1022,16 +1151,14 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Pack widget: consumable −qty buttons.
-  body.querySelectorAll<HTMLElement>('.td-pk-dec').forEach(btn => {
+  // Pack widget: Acquired / Left behind quick actions → open bag change modal inline.
+  body.querySelectorAll<HTMLElement>('[data-pk-action]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const itemId = btn.dataset.itemId!;
-      const listId = btn.dataset.listId!;
-      const list = _packLists.find(l => l.id === listId);
-      const item = list?.items.find(it => it.id === itemId);
-      if (!item || item.qty <= 1) return;
-      void packStore.updateItem(listId, itemId, { qty: item.qty - 1 });
+      const list = _packLists[0];
+      if (!list) return;
+      const action = btn.dataset.pkAction as 'acquired' | 'left';
+      openPackBagChangeModal(list, action);
     });
   });
 

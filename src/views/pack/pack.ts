@@ -17,7 +17,7 @@ import { currentTrip, currentTripId } from '../../data/trip-context.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { openModal } from '../../core/modal.ts';
 import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
-import { itemWeightG, formatKg, weightAtLeg, baggageRemainG, itemsPresentAtLeg } from '../../data/packing-formula.ts';
+import { itemWeightG, formatKg, itemsPresentAtLeg } from '../../data/packing-formula.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
 import { escHtml } from '../../core/utils.ts';
 
@@ -83,12 +83,10 @@ function displayWeight(g: number, unit: WeightUnit): string {
 /* ── State ───────────────────────────────────────────────────────────────── */
 
 type Screen = 'list' | 'detail';
-type DetailView = 'items' | 'bylег';
 
 let screen: Screen = 'list';
 let activeId: string | null = null;
 let packCheckMode = false;
-let detailView: DetailView = 'items';
 let weightUnit: WeightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
 
 let _lists: StoredPackList[] = [];
@@ -150,7 +148,7 @@ function containerWeight(list: PackList, c: PackContainer): number {
 }
 
 /** Whole-list weight = every item + every bag's self-weight (Unassigned counts items only). */
-function listTotalWeight(list: PackList): number {
+export function listTotalWeight(list: PackList): number {
   const items = list.items.reduce((s, it) => s + itemWeightG(it), 0);
   const bags = list.containers.reduce((s, c) => s + c.selfWeightG, 0);
   return items + bags;
@@ -199,60 +197,6 @@ function render() {
   else { screen = 'list'; renderList(body); }
 }
 
-/* ── Weight summary bar (top of list screen) ─────────────────────────────── */
-
-function renderWeightBar(): string {
-  // Use the first trip-scoped pack list (most relevant)
-  const list = _tripLists[0];
-  if (!list || _legs.length === 0) return '';
-
-  const today = new Date().toISOString().slice(0, 10);
-  const currentLeg = _legs.find(l => l.dateFrom <= today && l.dateTo >= today)
-    ?? _legs.find(l => l.dateFrom >= today)
-    ?? _legs[_legs.length - 1];
-  if (!currentLeg) return '';
-
-  const totalG = weightAtLeg(list.items, _legs, currentLeg.id);
-  const remainG = baggageRemainG(list.items, _legs, currentLeg.id);
-  const nextLegWithTransport = _legs.find(
-    l => l.dateFrom > today && l.arrivalTransport?.baggageAllowanceG
-  );
-  const allowanceG = nextLegWithTransport?.arrivalTransport?.baggageAllowanceG;
-
-  const isOver = remainG !== null && remainG < 0;
-  const pct = allowanceG ? Math.min(100, (totalG / allowanceG) * 100) : 0;
-  const barClass = isOver ? 'is-over' : pct > 85 ? 'is-warn' : '';
-
-  const weightDisplay = displayWeight(totalG, weightUnit);
-  const remainDisplay = remainG !== null
-    ? (isOver
-        ? `<span class="pk-wb-over">over by ${displayWeight(Math.abs(remainG), weightUnit)}</span>`
-        : `<span class="pk-wb-remain">${displayWeight(remainG, weightUnit)} remaining</span>`)
-    : '';
-
-  const nextInfo = nextLegWithTransport
-    ? `<span class="pk-wb-next">${nextLegWithTransport.flag || ''} ${escHtml(nextLegWithTransport.city)} · ${displayWeight(allowanceG!, weightUnit)} allowance</span>`
-    : `<span class="pk-wb-hint">Add baggage allowance in transport details</span>`;
-
-  const barHtml = allowanceG
-    ? `<div class="pk-wb-bar"><span class="${barClass}" style="width:${pct}%"></span></div>`
-    : '';
-
-  return `
-    <div class="pk-weight-bar">
-      <div class="pk-wb-left">
-        <span class="pk-wb-label">Current bag weight</span>
-        <span class="pk-wb-weight ${isOver ? 'is-over' : ''}">${weightDisplay}</span>
-        ${remainDisplay}
-      </div>
-      <div class="pk-wb-right">
-        ${barHtml}
-        ${nextInfo}
-      </div>
-    </div>
-  `;
-}
-
 /* ── Trip itinerary bar ──────────────────────────────────────────────────── */
 
 function renderTripBar(): string {
@@ -286,7 +230,6 @@ function renderTripBar(): string {
 function renderList(c: HTMLElement) {
   const kitTotal = _kit.reduce((s, k) => s + k.weightG, 0);
   c.innerHTML = `
-    ${renderWeightBar()}
     ${renderTripBar()}
     <div class="pack-action-bar">
       <button class="btn btn-primary" id="pk-new">+ New Pack List</button>
@@ -378,85 +321,52 @@ function renderKitAddRow(): string {
   `;
 }
 
-/* ── Detail screen ───────────────────────────────────────────────────────── */
+/* ── Bag change summary strip (above containers) ─────────────────────────── */
 
-function renderByLeg(l: StoredPackList): string {
-  if (_legs.length === 0) {
-    return `<div class="pk-bylег-empty">Add stops in Itinerary to track bag changes per city.</div>`;
-  }
+function renderBagChangeSummary(l: StoredPackList): string {
+  // Show items that have been acquired or dropped during the trip
+  const acquired = l.items.filter(it => it.acquiredLegId);
+  const dropped  = l.items.filter(it => it.droppedLegId);
+  if (!acquired.length && !dropped.length) return '';
 
-  const rows = _legs.map((leg, idx) => {
-    const acquired = l.items.filter(it => it.acquiredLegId === leg.id);
-    const dropped  = l.items.filter(it => it.droppedLegId === leg.id);
-    const present  = itemsPresentAtLeg(l.items, _legs, leg.id);
-    const totalG   = present.reduce((s, it) => s + itemWeightG(it), 0);
-    const allowanceG = leg.arrivalTransport?.baggageAllowanceG;
-    const remainG  = allowanceG ? allowanceG - totalG : null;
-    const isOver   = remainG !== null && remainG < 0;
-
-    const acquiredHtml = acquired.length
-      ? acquired.map(it => `<span class="pk-bl-chip pk-bl-chip--add" data-item-id="${it.id}">+ ${escHtml(it.name)}</span>`).join('')
-      : '';
-    const droppedHtml = dropped.length
-      ? dropped.map(it => `<span class="pk-bl-chip pk-bl-chip--drop" data-item-id="${it.id}">− ${escHtml(it.name)}</span>`).join('')
-      : '';
-
-    const isFirst = idx === 0;
-    const allowanceLine = allowanceG
-      ? `<span class="pk-bl-allowance ${isOver ? 'is-over' : ''}">${isOver ? 'over by' : 'rem.'} ${displayWeight(Math.abs(remainG!), weightUnit)} / ${displayWeight(allowanceG, weightUnit)}</span>`
-      : '';
-
-    return `
-      <div class="pk-bl-row" data-leg-id="${leg.id}">
-        <div class="pk-bl-dot ${isFirst ? 'is-home' : ''}"></div>
-        <div class="pk-bl-content">
-          <div class="pk-bl-header">
-            <span class="pk-bl-city">${leg.flag || '🗺️'} ${escHtml(leg.city)}</span>
-            <span class="pk-bl-weight">${displayWeight(totalG, weightUnit)}</span>
-            ${allowanceLine}
-          </div>
-          ${acquiredHtml || droppedHtml ? `<div class="pk-bl-chips">${acquiredHtml}${droppedHtml}</div>` : ''}
-          <div class="pk-bl-actions">
-            <button class="btn btn-ghost pk-sm pk-bl-add" data-leg-id="${leg.id}" data-leg-city="${escHtml(leg.city)}">+ Acquired here</button>
-            <button class="btn btn-ghost pk-sm pk-bl-drop" data-leg-id="${leg.id}" data-leg-city="${escHtml(leg.city)}">− Left behind</button>
-          </div>
-        </div>
-      </div>
-    `;
+  const acqChips = acquired.map(it => {
+    const leg = _legs.find(lg => lg.id === it.acquiredLegId);
+    return `<span class="pk-bl-chip pk-bl-chip--add" title="Acquired in ${leg ? escHtml(leg.city) : ''}">+ ${escHtml(it.name)}</span>`;
+  }).join('');
+  const dropChips = dropped.map(it => {
+    const leg = _legs.find(lg => lg.id === it.droppedLegId);
+    return `<span class="pk-bl-chip pk-bl-chip--drop" title="Left in ${leg ? escHtml(leg.city) : ''}">− ${escHtml(it.name)}</span>`;
   }).join('');
 
-  return `<div class="pk-bylег-timeline">${rows}</div>`;
+  return `<div class="pk-change-strip">${acqChips}${dropChips}</div>`;
 }
+
+/* ── Detail screen ───────────────────────────────────────────────────────── */
 
 function renderDetail(c: HTMLElement, l: PackList) {
   const unassigned = l.items.filter(i => i.containerId === null);
-  const isByLeg = detailView === 'bylег';
+  const hasLegs = _legs.length > 0;
   c.innerHTML = `
     <div class="pack-detail">
       <div class="pack-detail-bar">
         <button class="btn btn-ghost pk-sm" id="pk-back">← All lists</button>
         <div class="pack-detail-title">${escHtml(l.name)}</div>
         <div class="pack-detail-actions">
-          <div class="pk-view-toggle">
-            <button class="pk-view-btn ${!isByLeg ? 'is-active' : ''}" data-view="items">Items</button>
-            <button class="pk-view-btn ${isByLeg ? 'is-active' : ''}" data-view="bylег">By leg</button>
-          </div>
-          ${!isByLeg ? `<button class="btn btn-ghost pk-sm" id="pk-open-add-bag">+ Add bag</button>` : ''}
-          ${!isByLeg ? `<label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> Pack-check</label>` : ''}
+          ${hasLegs ? `<button class="btn btn-ghost pk-sm" id="pk-record-change">↕ Record change</button>` : ''}
+          <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">+ Add bag</button>
+          <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> Pack-check</label>
         </div>
       </div>
 
-      ${!isByLeg && packCheckMode ? renderPackCheck(l) : ''}
+      ${packCheckMode ? renderPackCheck(l) : ''}
 
-      ${isByLeg
-        ? renderByLeg(l as StoredPackList)
-        : `<div class="pack-containers-grid">
-            ${l.containers.map(ct => renderContainerCard(l, ct)).join('')}
-            ${renderUnassigned(l, unassigned)}
-          </div>`
-      }
+      ${renderBagChangeSummary(l as StoredPackList)}
 
-      ${!isByLeg ? `
+      <div class="pack-containers-grid">
+        ${l.containers.map(ct => renderContainerCard(l, ct)).join('')}
+        ${renderUnassigned(l, unassigned)}
+      </div>
+
       <div class="pack-add-panel">
         <span class="pack-add-label">New item</span>
         <input class="input pack-add-name" id="pk-add-name" placeholder="Name…">
@@ -468,40 +378,6 @@ function renderDetail(c: HTMLElement, l: PackList) {
           ${PRIORITIES.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
         </select>
         <button class="btn btn-primary pk-sm" id="pk-add-item">Add ↵</button>
-      </div>` : ''}
-    </div>
-
-    <!-- Add bag modal -->
-    <div class="modal-overlay" id="pk-add-bag-modal" hidden>
-      <div class="modal-box">
-        <div class="modal-header">
-          <div class="modal-title">Add bag</div>
-          <button class="modal-close" id="pk-close-add-bag">✕</button>
-        </div>
-        <div class="modal-body">
-          <label class="field-label">Name</label>
-          <input class="input" id="pk-c-label" placeholder="e.g. Carry-on backpack">
-          <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-4)">
-            <div style="flex:1">
-              <label class="field-label">Type</label>
-              <select class="input" id="pk-c-kind">
-                ${KINDS.map(k => `<option value="${k.value}">${k.label}</option>`).join('')}
-              </select>
-            </div>
-            <div style="width:100px">
-              <label class="field-label">Empty (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
-              <input class="input" id="pk-c-self" type="number" min="0" step="any" placeholder="0">
-            </div>
-            <div style="width:100px">
-              <label class="field-label">Limit (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
-              <input class="input" id="pk-c-limit" type="number" min="0" step="any" placeholder="0">
-            </div>
-          </div>
-          <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
-            <button class="btn btn-ghost" id="pk-cancel-add-bag">Cancel</button>
-            <button class="btn btn-primary" id="pk-confirm-add-bag">Add bag</button>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -637,99 +513,161 @@ function renderPackCheck(l: PackList): string {
 
 /* ── By leg modals ───────────────────────────────────────────────────────── */
 
-function openAcquiredModal(list: StoredPackList, legId: string, legCity: string) {
-  const untagged = list.items.filter(it => !it.acquiredLegId && !it.droppedLegId);
-  const selectHtml = untagged.length
-    ? `<label class="field-label" style="margin-top:var(--sp-4)">Or mark existing item as acquired here</label>
-       <select class="input" id="pk-ac-existing">
-         <option value="">— select existing item —</option>
-         ${untagged.map(it => `<option value="${it.id}">${escHtml(it.name)}</option>`).join('')}
-       </select>`
-    : '';
+/**
+ * Unified bag-change modal — user picks a leg from a dropdown, then chooses
+ * Acquired (new or existing item) or Left behind (checklist of present items).
+ */
+function openBagChangeModal(list: StoredPackList, defaultAction?: 'acquired' | 'left') {
+  if (_legs.length === 0) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const defaultLeg = _legs.find(l => l.dateFrom <= today && l.dateTo >= today)
+    ?? _legs.find(l => l.dateFrom >= today)
+    ?? _legs[_legs.length - 1];
+
+  const legOptions = _legs.map(lg =>
+    `<option value="${lg.id}" ${lg.id === defaultLeg?.id ? 'selected' : ''}>${lg.flag || '🗺️'} ${escHtml(lg.city)}</option>`
+  ).join('');
 
   const m = openModal({
-    title: `Acquired in ${legCity}`,
+    title: 'Record bag change',
     variant: 'sheet',
     body: `
-      <label class="field-label">New item name</label>
-      <input class="input" id="pk-ac-name" placeholder="e.g. Souvenir scarf">
-      <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-3)">
-        <div style="flex:1">
-          <label class="field-label">Category</label>
-          <select class="input" id="pk-ac-cat">${categoryOptions('gifts')}</select>
+      <label class="field-label">City / stop</label>
+      <select class="input" id="pk-bc-leg">${legOptions}</select>
+
+      <div class="pk-bc-tabs" style="display:flex;gap:0;margin-top:var(--sp-4);border:1.5px solid var(--rule-soft);border-radius:var(--r-md);overflow:hidden">
+        <button class="pk-bc-tab ${defaultAction !== 'left' ? 'is-active' : ''}" data-tab="acquired"
+          style="flex:1;border:none;padding:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;background:${defaultAction !== 'left' ? 'var(--ink)' : 'var(--surface)'};color:${defaultAction !== 'left' ? '#fff' : 'var(--ink-soft)'}">
+          + Acquired
+        </button>
+        <button class="pk-bc-tab ${defaultAction === 'left' ? 'is-active' : ''}" data-tab="left"
+          style="flex:1;border:none;border-left:1.5px solid var(--rule-soft);padding:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;background:${defaultAction === 'left' ? 'var(--ink)' : 'var(--surface)'};color:${defaultAction === 'left' ? '#fff' : 'var(--ink-soft)'}">
+          − Left behind
+        </button>
+      </div>
+
+      <div id="pk-bc-acquired-panel" ${defaultAction === 'left' ? 'hidden' : ''}>
+        <div style="margin-top:var(--sp-4)">
+          <label class="field-label">New item name</label>
+          <input class="input" id="pk-ac-name" placeholder="e.g. Souvenir scarf">
+          <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-3)">
+            <div style="flex:1">
+              <label class="field-label">Category</label>
+              <select class="input" id="pk-ac-cat">${categoryOptions('gifts')}</select>
+            </div>
+            <div style="width:90px">
+              <label class="field-label">Weight (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
+              <input class="input" id="pk-ac-weight" type="number" min="0" step="any" placeholder="0">
+            </div>
+            <div style="width:72px">
+              <label class="field-label">Qty</label>
+              <input class="input" id="pk-ac-qty" type="number" min="1" step="1" value="1">
+            </div>
+          </div>
         </div>
-        <div style="width:90px">
-          <label class="field-label">Weight (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
-          <input class="input" id="pk-ac-weight" type="number" min="0" step="any" placeholder="0">
-        </div>
-        <div style="width:96px">
-          <label class="field-label">Qty</label>
-          <input class="input" id="pk-ac-qty" type="number" min="1" step="1" value="1">
+        ${list.items.filter(it => !it.acquiredLegId && !it.droppedLegId).length ? `
+          <div style="margin-top:var(--sp-4)">
+            <label class="field-label">Or tag an existing item as acquired here</label>
+            <select class="input" id="pk-ac-existing">
+              <option value="">— select item —</option>
+              ${list.items.filter(it => !it.acquiredLegId && !it.droppedLegId).map(it =>
+                `<option value="${it.id}">${escHtml(it.name)}</option>`
+              ).join('')}
+            </select>
+          </div>` : ''}
+      </div>
+
+      <div id="pk-bc-left-panel" ${defaultAction !== 'left' ? 'hidden' : ''}>
+        <div style="margin-top:var(--sp-4)">
+          <label class="field-label">Items left behind</label>
+          <div class="pk-drop-checklist" id="pk-bc-drop-list">
+            <div class="pk-drop-empty" style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-3)">
+              Select a city above to see items present there.
+            </div>
+          </div>
         </div>
       </div>
-      ${selectHtml}
     `,
     footer: `
       <button class="btn btn-ghost" data-act="cancel">Cancel</button>
-      <button class="btn btn-primary" data-act="confirm">Add</button>
+      <button class="btn btn-primary" data-act="confirm">Save</button>
     `,
   });
 
-  requestAnimationFrame(() => m.root.querySelector<HTMLInputElement>('#pk-ac-name')?.focus());
-  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
-  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
-    const existingId = m.root.querySelector<HTMLSelectElement>('#pk-ac-existing')?.value;
-    if (existingId) {
-      await packStore.updateItem(list.id, existingId, { acquiredLegId: legId });
-      m.close(); return;
-    }
-    const name = (m.root.querySelector<HTMLInputElement>('#pk-ac-name')?.value || '').trim();
-    if (!name) return;
-    const cat  = m.root.querySelector<HTMLSelectElement>('#pk-ac-cat')?.value || 'gifts';
-    const wRaw = num(m.root.querySelector<HTMLInputElement>('#pk-ac-weight')?.value || '0');
-    const qty  = Math.max(1, num(m.root.querySelector<HTMLInputElement>('#pk-ac-qty')?.value || '1'));
-    await packStore.addItem(list.id, {
-      name, category: cat, qty,
-      unitWeightG: toGrams(wRaw, weightUnit),
-      containerId: null,
-      priority: 'nice' as const,
-      locked: false, packed: false, source: 'manual',
-      acquiredLegId: legId, droppedLegId: null, consumable: false,
-    });
-    m.close();
-  });
-}
+  // Active tab tracking
+  let activeTab: 'acquired' | 'left' = defaultAction ?? 'acquired';
 
-function openDropModal(list: StoredPackList, legId: string, legCity: string) {
-  const present = itemsPresentAtLeg(list.items, _legs, legId).filter(it => !it.droppedLegId);
-  if (!present.length) {
-    alert('No items to drop at this stop.'); return;
-  }
-  const m = openModal({
-    title: `Left behind in ${legCity}`,
-    variant: 'sheet',
-    body: `
-      <label class="field-label">Select items left behind here</label>
-      <div class="pk-drop-checklist">
-        ${present.map(it => `
+  function updateDropList() {
+    const legId = m.root.querySelector<HTMLSelectElement>('#pk-bc-leg')?.value;
+    if (!legId) return;
+    const present = itemsPresentAtLeg(list.items, _legs, legId).filter(it => !it.droppedLegId);
+    const listEl = m.root.querySelector<HTMLElement>('#pk-bc-drop-list')!;
+    listEl.innerHTML = present.length
+      ? present.map(it => `
           <label class="pk-drop-check-row">
             <input type="checkbox" value="${it.id}">
             <span>${escHtml(it.name)}</span>
             <span class="pk-drop-weight">${displayWeight(itemWeightG(it), weightUnit)}</span>
-          </label>
-        `).join('')}
-      </div>
-    `,
-    footer: `
-      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
-      <button class="btn btn-primary" data-act="confirm">Confirm</button>
-    `,
+          </label>`).join('')
+      : `<div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-3)">No items present at this stop.</div>`;
+  }
+
+  function switchTab(tab: 'acquired' | 'left') {
+    activeTab = tab;
+    m.root.querySelectorAll<HTMLElement>('.pk-bc-tab').forEach(btn => {
+      const isActive = btn.dataset.tab === tab;
+      btn.classList.toggle('is-active', isActive);
+      btn.style.background = isActive ? 'var(--ink)' : 'var(--surface)';
+      btn.style.color = isActive ? '#fff' : 'var(--ink-soft)';
+    });
+    const acq  = m.root.querySelector<HTMLElement>('#pk-bc-acquired-panel')!;
+    const left = m.root.querySelector<HTMLElement>('#pk-bc-left-panel')!;
+    if (tab === 'acquired') { acq.removeAttribute('hidden'); left.setAttribute('hidden', ''); }
+    else                    { left.removeAttribute('hidden'); acq.setAttribute('hidden', ''); updateDropList(); }
+  }
+
+  m.root.querySelectorAll<HTMLElement>('.pk-bc-tab').forEach(btn => {
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab as 'acquired' | 'left'));
+  });
+  m.root.querySelector<HTMLSelectElement>('#pk-bc-leg')?.addEventListener('change', () => {
+    if (activeTab === 'left') updateDropList();
+  });
+
+  if (defaultAction === 'left') updateDropList();
+
+  requestAnimationFrame(() => {
+    if (activeTab === 'acquired') m.root.querySelector<HTMLInputElement>('#pk-ac-name')?.focus();
   });
 
   m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
   m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
-    const checked = [...m.root.querySelectorAll<HTMLInputElement>('.pk-drop-checklist input:checked')];
-    await Promise.all(checked.map(cb => packStore.updateItem(list.id, cb.value, { droppedLegId: legId })));
+    const legId = m.root.querySelector<HTMLSelectElement>('#pk-bc-leg')?.value || '';
+    if (!legId) return;
+
+    if (activeTab === 'acquired') {
+      const existingId = m.root.querySelector<HTMLSelectElement>('#pk-ac-existing')?.value;
+      if (existingId) {
+        await packStore.updateItem(list.id, existingId, { acquiredLegId: legId });
+        m.close(); return;
+      }
+      const name = (m.root.querySelector<HTMLInputElement>('#pk-ac-name')?.value || '').trim();
+      if (!name) { m.root.querySelector<HTMLInputElement>('#pk-ac-name')?.focus(); return; }
+      const cat  = m.root.querySelector<HTMLSelectElement>('#pk-ac-cat')?.value || 'gifts';
+      const wRaw = num(m.root.querySelector<HTMLInputElement>('#pk-ac-weight')?.value || '0');
+      const qty  = Math.max(1, num(m.root.querySelector<HTMLInputElement>('#pk-ac-qty')?.value || '1'));
+      await packStore.addItem(list.id, {
+        name, category: cat, qty,
+        unitWeightG: toGrams(wRaw, weightUnit),
+        containerId: null, priority: 'nice' as const,
+        locked: false, packed: false, source: 'manual',
+        acquiredLegId: legId, droppedLegId: null, consumable: false,
+      });
+    } else {
+      const checked = [...m.root.querySelectorAll<HTMLInputElement>('#pk-bc-drop-list input:checked')];
+      if (!checked.length) { m.close(); return; }
+      await Promise.all(checked.map(cb => packStore.updateItem(list.id, cb.value, { droppedLegId: legId })));
+    }
     m.close();
   });
 }
@@ -899,53 +837,56 @@ function bindDetail(c: HTMLElement, l: PackList) {
   c.querySelector('#pk-back')?.addEventListener('click', () => { screen = 'list'; activeId = null; render(); });
   c.querySelector('#pk-check-mode')?.addEventListener('change', e => { packCheckMode = (e.target as HTMLInputElement).checked; render(); });
 
-  // View toggle: Items / By leg
-  c.querySelectorAll<HTMLElement>('.pk-view-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      detailView = btn.dataset.view as DetailView;
-      render();
-    });
+  // "Record change" button → unified leg-picker modal
+  c.querySelector('#pk-record-change')?.addEventListener('click', () => {
+    openBagChangeModal(l as StoredPackList);
   });
 
-  // By leg: "Acquired here" — pick from existing items or create new
-  c.querySelectorAll<HTMLElement>('.pk-bl-add').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const legId   = btn.dataset.legId!;
-      const legCity = btn.dataset.legCity!;
-      openAcquiredModal(l as StoredPackList, legId, legCity);
+  /* Add bag — now uses openModal instead of inline HTML */
+  c.querySelector('#pk-open-add-bag')?.addEventListener('click', () => {
+    const m = openModal({
+      title: 'Add bag',
+      body: `
+        <label class="field-label">Name</label>
+        <input class="input" id="pk-c-label" placeholder="e.g. Carry-on backpack">
+        <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-4)">
+          <div style="flex:1">
+            <label class="field-label">Type</label>
+            <select class="input" id="pk-c-kind">
+              ${KINDS.map(k => `<option value="${k.value}">${k.label}</option>`).join('')}
+            </select>
+          </div>
+          <div style="width:96px">
+            <label class="field-label">Empty (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
+            <input class="input" id="pk-c-self" type="number" min="0" step="any" placeholder="0">
+          </div>
+          <div style="width:96px">
+            <label class="field-label">Limit (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
+            <input class="input" id="pk-c-limit" type="number" min="0" step="any" placeholder="0">
+          </div>
+        </div>
+      `,
+      footer: `
+        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+        <button class="btn btn-primary" data-act="confirm">Add bag</button>
+      `,
     });
-  });
-
-  // By leg: "Left behind" — pick from items currently present at this leg
-  c.querySelectorAll<HTMLElement>('.pk-bl-drop').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const legId   = btn.dataset.legId!;
-      const legCity = btn.dataset.legCity!;
-      openDropModal(l as StoredPackList, legId, legCity);
+    m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+    const confirmAddBag = async () => {
+      const label = (m.root.querySelector<HTMLInputElement>('#pk-c-label')?.value || '').trim();
+      if (!label) { m.root.querySelector<HTMLInputElement>('#pk-c-label')?.focus(); return; }
+      const kind = (m.root.querySelector<HTMLSelectElement>('#pk-c-kind')?.value || 'backpack') as PackContainer['kind'];
+      await packStore.addContainer(id, {
+        label, kind,
+        selfWeightG: toGrams(num(m.root.querySelector<HTMLInputElement>('#pk-c-self')?.value || '0'), weightUnit),
+        limitG:      toGrams(num(m.root.querySelector<HTMLInputElement>('#pk-c-limit')?.value || '0'), weightUnit),
+      });
+      m.close();
+    };
+    m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', confirmAddBag);
+    m.root.querySelector<HTMLInputElement>('#pk-c-label')?.addEventListener('keydown', e => {
+      if ((e as KeyboardEvent).key === 'Enter') void confirmAddBag();
     });
-  });
-
-  /* Add bag modal */
-  const addBagModal = c.parentElement?.querySelector<HTMLElement>('#pk-add-bag-modal') ?? document.getElementById('pk-add-bag-modal');
-  const openAddBag = () => addBagModal?.removeAttribute('hidden');
-  const closeAddBag = () => addBagModal?.setAttribute('hidden', '');
-  c.querySelector('#pk-open-add-bag')?.addEventListener('click', openAddBag);
-  c.querySelector('#pk-close-add-bag')?.addEventListener('click', closeAddBag);
-  c.querySelector('#pk-cancel-add-bag')?.addEventListener('click', closeAddBag);
-  c.querySelector('#pk-confirm-add-bag')?.addEventListener('click', async () => {
-    const label = (c.querySelector<HTMLInputElement>('#pk-c-label')?.value || '').trim();
-    if (!label) { c.querySelector<HTMLInputElement>('#pk-c-label')?.focus(); return; }
-    const kind = (c.querySelector<HTMLSelectElement>('#pk-c-kind')?.value || 'backpack') as PackContainer['kind'];
-    await packStore.addContainer(id, {
-      label, kind,
-      selfWeightG: toGrams(num(c.querySelector<HTMLInputElement>('#pk-c-self')?.value || '0'), weightUnit),
-      limitG:      toGrams(num(c.querySelector<HTMLInputElement>('#pk-c-limit')?.value || '0'), weightUnit),
-    });
-    closeAddBag();
-  });
-  /* Open modal on Enter in the label field */
-  c.querySelector<HTMLInputElement>('#pk-c-label')?.addEventListener('keydown', e => {
-    if ((e as KeyboardEvent).key === 'Enter') void c.querySelector<HTMLButtonElement>('#pk-confirm-add-bag')?.click();
   });
 
   c.querySelectorAll<HTMLElement>('.pk-del-c').forEach(b => {
@@ -1173,7 +1114,6 @@ export function initPack() {
   screen = 'list';
   activeId = null;
   packCheckMode = false;
-  detailView = 'items';
   weightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
   startSubscriptions();
 }
