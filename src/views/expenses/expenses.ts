@@ -75,17 +75,21 @@ let formCity = '';
 let filterCategory = 'all';
 let filterCity = 'all';
 let analysisDim: AnalysisDim = 'category';
+let calViewYear  = new Date().getFullYear();
+let calViewMonth = new Date().getMonth(); // 0-indexed
 let showRecords = false;          // is the full-ledger panel open?
+let showBudget = false;           // is the budget overlay page open?
+let budgetTab: BudgetTab = 'total';
 let unsub: (() => void) | null = null;
 let unsubLegs: (() => void) | null = null;
 let unsubCategories: (() => void) | null = null;
 let unsubTripChange: (() => void) | null = null;
 
-type AnalysisDim = 'category' | 'country' | 'city' | 'time';
+type AnalysisDim = 'category' | 'place' | 'time';
+type BudgetTab = 'total' | 'country' | 'category';
 const ANALYSIS_DIMS: { id: AnalysisDim; label: string }[] = [
   { id: 'category', label: 'Category' },
-  { id: 'country',  label: 'Country' },
-  { id: 'city',     label: 'City' },
+  { id: 'place',    label: 'Place' },
   { id: 'time',     label: 'Time' },
 ];
 
@@ -157,73 +161,52 @@ function fmtRaw(amount: number, currency: string): string {
   return `${currencySymbol(currency)}${amount.toFixed(2)}`;
 }
 
-/* ── Render: summary ─────────────────────────────────────────────────────── */
+/* ── Render: summary (2 equal hero buttons) ──────────────────────────────── */
 
 function renderSummary(el: HTMLElement) {
   const sum = total(expenses);
-  const days = new Set(expenses.map((e) => e.date)).size || 1;
-  const dailyAvg = sum / days;
-  const unclassified = expenses.filter((e) => e.category === UNCLASSIFIED).length;
   const budget = tripBudget();
   const sym = currencySymbol(baseCurrency());
-
-  const budgetBlock = budget
-    ? (() => {
-        const remaining = budget - sum;
-        const pct = Math.min(100, Math.round((sum / budget) * 100));
-        const over = remaining < 0;
-        const barColor = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
-        return `
-          <button class="exp-budget-card" id="exp-budget-edit" title="Edit budgets">
-            <div class="exp-budget-top">
-              <div class="exp-budget-label">Budget</div>
-              <span class="exp-budget-edit">✎</span>
-            </div>
-            <div class="exp-budget-amounts">
-              <span class="exp-budget-spent">${fmt(sum)}</span>
-              <span class="exp-budget-sep">/</span>
-              <span class="exp-budget-total">${sym}${Math.round(budget).toLocaleString()}</span>
-            </div>
-            <div class="exp-budget-bar-track">
-              <div class="exp-budget-bar-fill" style="width:${pct}%;background:${barColor}"></div>
-            </div>
-            <div class="exp-budget-footer">
-              <span class="${over ? 'exp-budget-over' : 'exp-budget-remain'}">
-                ${over ? `▲ ${fmt(-remaining)} over` : `${fmt(remaining)} remaining`}
-              </span>
-              <span class="exp-budget-pct">${pct}%</span>
-            </div>
-          </button>`;
-      })()
-    : `
-      <button class="exp-budget-card exp-budget-empty" id="exp-budget-edit">
-        <div class="exp-budget-label">Budget</div>
-        <span class="exp-budget-set">Set a budget</span>
-      </button>`;
-
-  // Total card carries the "to sort" nudge as a corner chip rather than its own
-  // stat slot, so we keep just three cards.
+  const unclassified = expenses.filter((e) => e.category === UNCLASSIFIED).length;
   const toSortChip = unclassified
     ? `<span class="exp-stat-chip" id="exp-tosort-chip">🗂️ ${unclassified} to sort</span>`
     : '';
 
+  // Right button: if budget set, show spent/total + bar; else invite to set one.
+  const budgetRight = budget
+    ? (() => {
+        const pct = Math.min(100, Math.round((sum / budget) * 100));
+        const over = sum > budget;
+        const barColor = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+        return `
+          <div class="exp-hero-eyebrow">Budget</div>
+          <div class="exp-hero-num">${sym}${Math.round(budget).toLocaleString()}</div>
+          <div class="exp-hero-bar-track">
+            <div class="exp-hero-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+          </div>
+          <div class="exp-hero-label ${over ? 'exp-hero-label-over' : ''}">
+            ${over ? `▲ ${fmt(sum - budget)} over` : `${fmt(budget - sum)} remaining ›`}
+          </div>`;
+      })()
+    : `<div class="exp-hero-eyebrow">Budget</div>
+       <div class="exp-hero-num exp-hero-empty">—</div>
+       <div class="exp-hero-label">Tap to set ›</div>`;
+
   el.innerHTML = `
-    <button class="exp-stat-card accent exp-stat-total" id="exp-open-records" title="See all records">
-      ${toSortChip}
-      <div class="exp-stat-num">${fmt(sum)}</div>
-      <div class="exp-stat-label">Total spent <span class="exp-stat-cta">View all ›</span></div>
+    <button class="exp-hero-btn exp-hero-spend" id="exp-open-records">
+      <div class="exp-hero-eyebrow">Total spent ${toSortChip ? '· ' + unclassified + ' to sort' : ''}</div>
+      <div class="exp-hero-num">${fmt(sum)}</div>
+      <div class="exp-hero-label">View all records ›</div>
     </button>
-    <div class="exp-stat-card">
-      <div class="exp-stat-num">${fmt(dailyAvg)}</div>
-      <div class="exp-stat-label">Daily avg</div>
-    </div>
-    ${budgetBlock}
+    <button class="exp-hero-btn exp-hero-budget" id="exp-open-budget">
+      ${budgetRight}
+    </button>
   `;
 
-  el.querySelector('#exp-budget-edit')?.addEventListener('click', () => openBudgetModal());
   el.querySelector('#exp-open-records')?.addEventListener('click', () => openRecords());
-  el.querySelector('#exp-tosort-chip')?.addEventListener('click', (e) => {
-    e.stopPropagation();
+  el.querySelector('#exp-open-budget')?.addEventListener('click', () => openBudgetPage());
+  el.querySelector('#exp-tosort-chip')?.addEventListener('click', (ev) => {
+    ev.stopPropagation();
     filterCategory = UNCLASSIFIED;
     openRecords();
   });
@@ -323,9 +306,13 @@ function renderForm(el: HTMLElement) {
             ${currencyOptions(defCur)}
           </select>
         </div>
-        <div class="field-full">
+        <div>
           <label class="field-label">What for?</label>
           <input class="input" id="exp-desc" placeholder="e.g. Dinner at Boqueria market">
+        </div>
+        <div>
+          <label class="field-label">Date</label>
+          <input class="input" type="date" id="exp-date" value="${todayIso}">
         </div>
         <div>
           <label class="field-label">Country</label>
@@ -334,10 +321,6 @@ function renderForm(el: HTMLElement) {
         <div>
           <label class="field-label">City</label>
           <select class="input select" id="exp-city">${cityOptions(formCountry, formCity)}</select>
-        </div>
-        <div class="field-full">
-          <label class="field-label">Date</label>
-          <input class="input" type="date" id="exp-date" value="${todayIso}">
         </div>
       </div>
       <button class="btn btn-primary" id="exp-add-btn" style="width:100%;justify-content:center">Add expense</button>
@@ -516,13 +499,18 @@ function renderRecordsPanel() {
   const grouped = groupByDate(list);
   const unsortedCount = expenses.filter((e) => e.category === UNCLASSIFIED).length;
   const shownTotal = total(list);
+  const days = new Set(expenses.map((e) => e.date)).size || 1;
+  const dailyAvg = total(expenses) / days;
 
   panel.innerHTML = `
     <div class="exp-records-overlay">
       <div class="exp-records-bar">
         <button class="exp-records-back" id="exp-records-back">‹ Back</button>
         <div class="exp-records-bar-title">All records</div>
-        <span class="exp-records-count">${list.length} · ${fmt(shownTotal)}</span>
+        <div class="exp-records-bar-stats">
+          <span class="exp-records-count">${list.length} items · ${fmt(shownTotal)}</span>
+          <span class="exp-records-avg">avg ${fmt(dailyAvg)}/day</span>
+        </div>
       </div>
       <div class="exp-records-scroll">
         ${unsortedCount > 0 && filterCategory !== UNCLASSIFIED ? `
@@ -746,26 +734,23 @@ function analysisRows(): Row[] {
       .map(([date, sum]) => ({ label: date, sum, color: 'var(--accent)', isDay: true }));
   }
 
-  // country | city — total plus a per-day average using days at that place.
-  // Country rows also carry their budget cap so the bar can track against it.
-  const key = analysisDim;
-  const caps = key === 'country' ? countryBudgets() : {};
-  const groups = new Map<string, number>();
+  // 'place' dim: group by country, then gather city breakdown within each.
+  // Country rows carry budget caps.
+  const caps = countryBudgets();
+  const countryGroups = new Map<string, number>();
   for (const e of expenses) {
-    const v = e[key];
-    if (!v) continue;
-    groups.set(v, (groups.get(v) ?? 0) + inBase(e));
+    if (!e.country) continue;
+    countryGroups.set(e.country, (countryGroups.get(e.country) ?? 0) + inBase(e));
   }
-  // Include countries that have a cap but no spend yet, so empty caps still show.
-  for (const c of Object.keys(caps)) if (!groups.has(c)) groups.set(c, 0);
-  return [...groups.entries()]
-    .map(([value, sum]) => {
-      const days = daysForPlace(key, value);
+  for (const c of Object.keys(caps)) if (!countryGroups.has(c)) countryGroups.set(c, 0);
+  return [...countryGroups.entries()]
+    .map(([country, sum]) => {
+      const days = daysForPlace('country', country);
       return {
-        label: value, sum, color: 'var(--accent)',
+        label: country, sum, color: 'var(--accent)',
         sub: `${fmt(sum / days)}/day · ${days}d`,
-        country: key === 'country' ? value : undefined,
-        budget: caps[value],
+        country,
+        budget: caps[country],
       };
     })
     .filter((r) => r.sum > 0 || (r.budget ?? 0) > 0)
@@ -784,68 +769,223 @@ function dailyBudgetAmount(): number | null {
   return budget / days;
 }
 
+/* ── SVG donut chart for category breakdown ──────────────────────────────── */
+function renderDonut(rows: Row[]): string {
+  const totalSum = rows.reduce((s, r) => s + r.sum, 0);
+  if (totalSum === 0) return '';
+  const R = 54; const cx = 68; const cy = 68; const stroke = 18;
+  let offset = 0;
+  const circ = 2 * Math.PI * R;
+  const slices = rows.map((r) => {
+    const frac = r.sum / totalSum;
+    const dash = frac * circ;
+    const gap = circ - dash;
+    const slice = `<circle cx="${cx}" cy="${cy}" r="${R}"
+      fill="none" stroke="${r.color}" stroke-width="${stroke}"
+      stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
+      stroke-dashoffset="${(-offset * circ / 1).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cy})" />`;
+    offset += frac;
+    return slice;
+  }).join('');
+  return `
+    <svg class="exp-donut" viewBox="0 0 136 136" width="136" height="136">
+      <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="${stroke}"/>
+      ${slices}
+      <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle"
+        class="exp-donut-label">${fmt(totalSum)}</text>
+    </svg>`;
+}
+
+/* ── Expense calendar (month view with daily spend) ──────────────────────── */
+function renderExpenseCalendar(): string {
+  const year = calViewYear;
+  const month = calViewMonth;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const dailyBudget = dailyBudgetAmount();
+
+  // Build daily spend map for all expenses
+  const byDay = new Map<string, number>();
+  for (const e of expenses) byDay.set(e.date, (byDay.get(e.date) ?? 0) + inBase(e));
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const startOffset = (firstDay + 6) % 7; // Mon-first
+  const monthLabel = new Date(year, month, 1).toLocaleString('en', { month: 'long', year: 'numeric' });
+
+  const dayHeaders = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+    .map((d) => `<span class="exp-cal-hdr">${d}</span>`).join('');
+
+  let cells = '';
+  for (let i = 0; i < startOffset; i++) cells += `<span class="exp-cal-cell exp-cal-empty"></span>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const spend = byDay.get(iso) ?? 0;
+    const isToday = iso === todayIso;
+    const hasSpend = spend > 0;
+    const over = dailyBudget && spend > dailyBudget;
+    const dotColor = over ? 'var(--coral-500)' : 'var(--amber-400)';
+    cells += `
+      <span class="exp-cal-cell${isToday ? ' exp-cal-today' : ''}${hasSpend ? ' exp-cal-has-spend' : ''}"
+        data-iso="${iso}" title="${hasSpend ? fmt(spend) : ''}">
+        <span class="exp-cal-day">${d}</span>
+        ${hasSpend ? `<span class="exp-cal-amt" style="color:${dotColor}">${fmt(spend)}</span>` : ''}
+      </span>`;
+  }
+
+  return `
+    <div class="exp-cal-wrap">
+      <div class="exp-cal-bar">
+        <button class="exp-cal-nav" data-cal-prev>‹</button>
+        <span class="exp-cal-month">${monthLabel}</span>
+        <button class="exp-cal-nav" data-cal-next>›</button>
+      </div>
+      <div class="exp-cal-grid">${dayHeaders}${cells}</div>
+    </div>`;
+}
+
 function renderBreakdown(el: HTMLElement) {
   const rows = analysisRows();
-  const maxAmount = Math.max(...rows.map((r) => r.sum), 1);
-  const dailyBudget = analysisDim === 'time' ? dailyBudgetAmount() : null;
-  const dailyBudgetPct = dailyBudget ? Math.min(100, (dailyBudget / maxAmount) * 100) : null;
+  const tabs = ANALYSIS_DIMS.map((d) => `
+    <button class="exp-analysis-tab ${d.id === analysisDim ? 'active' : ''}" data-dim="${d.id}">${d.label}</button>
+  `).join('');
+  const empty = '<p class="exp-breakdown-empty">Add expenses to see breakdown</p>';
+
+  let content = '';
+
+  if (analysisDim === 'category') {
+    if (rows.length === 0) {
+      content = empty;
+    } else {
+      const donut = renderDonut(rows);
+      const totalSum2 = rows.reduce((s, x) => s + x.sum, 0);
+      const legend = rows.map((r) => {
+        const hasBudget = (r.budget ?? 0) > 0;
+        const pct = Math.round((r.sum / Math.max(totalSum2, 1)) * 100);
+        const budgetStr = hasBudget
+          ? `<span class="exp-legend-budget">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' over' : ''}</span>`
+          : '';
+        const setBtn = r.catId
+          ? `<button class="exp-cat-budget-btn" data-budget-key="cat:${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
+          : '';
+        return `
+          <div class="exp-legend-row">
+            <span class="exp-legend-dot" style="background:${r.color}"></span>
+            <span class="exp-legend-name">${r.label} ${setBtn}</span>
+            <span class="exp-legend-pct">${pct}%</span>
+            <span class="exp-legend-amt">${fmt(r.sum)}</span>
+            ${budgetStr}
+          </div>`;
+      }).join('');
+      content = `
+        <div class="exp-donut-wrap">
+          ${donut}
+          <div class="exp-legend">${legend}</div>
+        </div>`;
+    }
+  }
+
+  else if (analysisDim === 'time') {
+    if (rows.length === 0) {
+      content = empty + renderExpenseCalendar();
+    } else {
+      const dailyBudget = dailyBudgetAmount();
+      const maxAmt = Math.max(...rows.map((r) => r.sum), dailyBudget ?? 0, 1);
+      // Most-recent 30 days, oldest left to right
+      const recent = [...rows].reverse().slice(-30);
+      const W = 400; const H = 110; const labelH = 18;
+      const chartH = H - labelH;
+      // Cap bar width so a single bar isn't the full chart width
+      const maxBarW = 40;
+      const rawBarW = W / Math.max(recent.length, 1);
+      const barW = Math.min(rawBarW, maxBarW);
+      const totalBarSpan = barW * recent.length;
+      const xOffset = (W - totalBarSpan) / 2; // centre the bars
+      const bars = recent.map((r, i) => {
+        const barPx = Math.max(3, (r.sum / maxAmt) * chartH);
+        const over = dailyBudget ? r.sum > dailyBudget : false;
+        const color = over ? 'var(--coral-500)' : 'var(--amber-400)';
+        const label = r.label.slice(5); // strip YYYY-
+        const x = xOffset + i * barW;
+        return `
+          <g>
+            <rect x="${(x + 1).toFixed(1)}" y="${(chartH - barPx).toFixed(1)}"
+              width="${(barW - 2).toFixed(1)}" height="${barPx.toFixed(1)}"
+              fill="${color}" rx="2"/>
+            ${recent.length <= 14 ? `<text x="${(x + barW / 2).toFixed(1)}" y="${H - 2}"
+              text-anchor="middle" class="exp-bar-label">${label}</text>` : ''}
+          </g>`;
+      }).join('');
+      const budgetY = dailyBudget ? (chartH - (dailyBudget / maxAmt) * chartH).toFixed(1) : null;
+      const budgetLine = budgetY
+        ? `<line x1="0" y1="${budgetY}" x2="${W}" y2="${budgetY}"
+               stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3"/>`
+        : '';
+      content = `
+        <div class="exp-barchart-wrap">
+          <svg class="exp-barchart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax meet">
+            ${budgetLine}${bars}
+          </svg>
+          ${dailyBudget ? `<div class="exp-bar-legend"><span class="exp-daily-budget-swatch"></span>Budget target ${fmt(dailyBudget)}/day</div>` : ''}
+        </div>
+        ${renderExpenseCalendar()}`;
+    }
+  }
+
+  else { // place
+    if (rows.length === 0) {
+      content = empty;
+    } else {
+      const maxAmt = Math.max(...rows.map((r) => r.sum), 1);
+      content = rows.map((r) => {
+        const flag = legs.find((l) => l.country === r.country)?.flag ?? '';
+        const hasBudget = (r.budget ?? 0) > 0;
+        const pct = hasBudget ? Math.min(100, (r.sum / r.budget!) * 100) : (r.sum / maxAmt) * 100;
+        const usage = hasBudget ? r.sum / r.budget! : 0;
+        const barColor = hasBudget
+          ? (usage >= 1 ? 'var(--coral-500)' : usage >= 0.8 ? '#f59e0b' : 'var(--sage-500)')
+          : 'var(--amber-300)';
+        const budgetStr = hasBudget
+          ? `${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' · over' : ''}`
+          : (r.sub ?? '');
+
+        // City breakdown nested under country
+        const cityGroups = new Map<string, number>();
+        for (const e of expenses) {
+          if (e.country !== r.country || !e.city) continue;
+          cityGroups.set(e.city, (cityGroups.get(e.city) ?? 0) + inBase(e));
+        }
+        const cityRows = [...cityGroups.entries()].sort((a, b) => b[1] - a[1]);
+        const cityHtml = cityRows.map(([city, citySum]) => `
+          <div class="exp-place-city">
+            <span class="exp-place-city-name">${city}</span>
+            <span class="exp-place-city-amt">${fmt(citySum)}</span>
+          </div>`).join('');
+
+        return `
+          <div class="exp-place-row">
+            <div class="exp-place-header">
+              <span class="exp-place-flag">${flag}</span>
+              <span class="exp-place-name">${r.country}</span>
+              <button class="exp-cat-budget-btn" data-budget-key="country:${r.country}"
+                title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>
+              <span class="exp-place-total">${fmt(r.sum)}</span>
+            </div>
+            <div class="exp-cat-bar-track" style="margin:4px 0 6px">
+              <div class="exp-cat-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+            </div>
+            ${budgetStr ? `<div class="exp-place-sub">${budgetStr}</div>` : ''}
+            ${cityHtml ? `<div class="exp-place-cities">${cityHtml}</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+  }
 
   el.innerHTML = `
     <div class="exp-breakdown">
-      <div class="exp-analysis-tabs">
-        ${ANALYSIS_DIMS.map((d) => `
-          <button class="exp-analysis-tab ${d.id === analysisDim ? 'active' : ''}" data-dim="${d.id}">${d.label}</button>
-        `).join('')}
-      </div>
-      ${dailyBudget && dailyBudgetPct ? `
-        <div class="exp-daily-budget-legend">
-          <span class="exp-daily-budget-swatch"></span>
-          Budget target: ${fmt(dailyBudget)}/day
-        </div>
-      ` : ''}
-      ${rows.map((r) => {
-        const hasBudget = (r.budget ?? 0) > 0;
-        // When a budget exists, the bar tracks spend against the cap (capped at
-        // 100%) and recolours by usage; otherwise it's a relative spend bar.
-        const pct = hasBudget
-          ? Math.min(100, (r.sum / r.budget!) * 100)
-          : (r.sum / maxAmount) * 100;
-        const usage = hasBudget ? (r.sum / r.budget!) : 0;
-        // For time rows: color by relation to daily budget if available.
-        const isOver = r.isDay && dailyBudget ? r.sum > dailyBudget : hasBudget && r.sum > r.budget!;
-        const barColor = hasBudget
-          ? (usage >= 1 ? 'var(--coral-500)' : usage >= 0.8 ? '#f59e0b' : 'var(--sage-500)')
-          : (r.isDay && dailyBudget
-            ? (r.sum > dailyBudget * 1.2 ? 'var(--coral-500)' : r.sum > dailyBudget ? '#f59e0b' : r.color)
-            : r.color);
-        const budgetTag = hasBudget
-          ? `<span class="exp-cat-name-sub">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' · over' : ''}</span>`
-          : (r.sub ? `<span class="exp-cat-name-sub">${r.sub}</span>` : '');
-        // Both category and country rows get a quick set/edit-budget button.
-        const budgetKey = r.catId ? `cat:${r.catId}` : (r.country ? `country:${r.country}` : '');
-        const setBtn = budgetKey
-          ? `<button class="exp-cat-budget-btn" data-budget-key="${budgetKey}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
-          : '';
-        const dailyLine = (r.isDay && dailyBudgetPct)
-          ? `<div class="exp-daily-budget-line" style="left:${dailyBudgetPct}%"></div>`
-          : '';
-        return `
-          <div class="exp-cat-row${isOver ? ' exp-cat-row-over' : ''}">
-            <div class="exp-cat-name">
-              <span class="exp-cat-name-label">${r.label} ${setBtn}</span>
-              ${budgetTag}
-            </div>
-            <div class="exp-cat-bar-track">
-              <div class="exp-cat-bar-fill" style="width:${pct}%;background:${barColor}"></div>
-              ${dailyLine}
-            </div>
-            <div class="exp-cat-amount">${fmt(r.sum)}</div>
-          </div>
-        `;
-      }).join('')}
-      ${rows.length === 0 ? '<p style="color:var(--ink-faint);font-size:13px;text-align:center;padding:16px 0">Add expenses to see breakdown</p>' : ''}
-    </div>
-  `;
+      <div class="exp-analysis-tabs">${tabs}</div>
+      ${content}
+    </div>`;
 
   el.querySelectorAll('.exp-analysis-tab').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -857,49 +997,185 @@ function renderBreakdown(el: HTMLElement) {
   el.querySelectorAll<HTMLElement>('.exp-cat-budget-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const [kind, value] = btn.dataset.budgetKey!.split(/:(.+)/);
-      openBudgetModal(kind === 'country' ? 'country' : 'category', value);
+      const [kind] = btn.dataset.budgetKey!.split(/:(.+)/);
+      openBudgetPage(kind === 'country' ? 'country' : 'category');
     });
+  });
+
+  // Expense calendar nav
+  el.querySelector('[data-cal-prev]')?.addEventListener('click', () => {
+    calViewMonth--;
+    if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+    renderBreakdown(el);
+  });
+  el.querySelector('[data-cal-next]')?.addEventListener('click', () => {
+    calViewMonth++;
+    if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
+    renderBreakdown(el);
   });
 }
 
 /* ── Budget overview modal (total / country / category) ──────────────────── */
 
-type BudgetTab = 'total' | 'country' | 'category';
+/* ── Budget overlay page ─────────────────────────────────────────────────── */
 
-function openBudgetModal(initialTab: BudgetTab = 'total', focusKey?: string) {
-  let tab: BudgetTab = initialTab;
+function onBudgetKey(ev: KeyboardEvent) { if (ev.key === 'Escape') closeBudgetPage(); }
+
+function openBudgetPage(tab: BudgetTab = 'total') {
+  budgetTab = tab;
+  showBudget = true;
+  document.body.classList.add('exp-records-lock');
+  document.addEventListener('keydown', onBudgetKey);
+  renderBudgetPage();
+}
+
+function closeBudgetPage() {
+  showBudget = false;
+  document.body.classList.remove('exp-records-lock');
+  document.removeEventListener('keydown', onBudgetKey);
+  renderBudgetPage();
+  renderSummaryRoot();
+}
+
+function renderBudgetPage() {
+  const panel = document.querySelector('.exp-budget-panel') as HTMLElement | null;
+  if (!panel) return;
+  panel.classList.toggle('open', showBudget);
+  if (!showBudget) { panel.innerHTML = ''; return; }
+
   const sym = currencySymbol(baseCurrency());
+  const tripTotal = tripBudget();
+  const sum = total(expenses);
 
-  const m = openModal({
-    title: 'Budgets',
-    variant: 'sheet',
-    className: 'exp-budget-modal',
-    body: `<div class="exp-budget-tabs">
-        <button class="exp-budget-tab" data-tab="total">Total</button>
-        <button class="exp-budget-tab" data-tab="country">By country</button>
-        <button class="exp-budget-tab" data-tab="category">By category</button>
+  panel.innerHTML = `
+    <div class="exp-records-overlay exp-budget-overlay">
+      <div class="exp-records-bar">
+        <button class="exp-records-back" id="exp-budget-back">‹ Back</button>
+        <div class="exp-records-bar-title">Budget</div>
       </div>
-      <div class="exp-budget-pane" id="exp-budget-pane"></div>`,
-    footer: `<button class="btn btn-primary" data-act="done">Done</button>`,
-  });
+      <div class="exp-records-scroll">
+        <!-- Compare section -->
+        <div class="exp-budget-compare">
+          <div class="exp-budget-compare-total">
+            ${tripTotal ? `
+              <div class="exp-budget-compare-row">
+                <span class="exp-bcp-label">Total budget</span>
+                <span class="exp-bcp-val">${sym}${Math.round(tripTotal).toLocaleString()}</span>
+              </div>
+              <div class="exp-budget-compare-row">
+                <span class="exp-bcp-label">Spent so far</span>
+                <span class="exp-bcp-val">${fmt(sum)}</span>
+              </div>
+              <div class="exp-budget-bar-track exp-budget-compare-bar">
+                ${(() => {
+                  const pct = Math.min(100, Math.round((sum / tripTotal) * 100));
+                  const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+                  return `<div class="exp-budget-bar-fill" style="width:${pct}%;background:${color}"></div>`;
+                })()}
+              </div>
+              <div class="exp-budget-compare-foot">
+                ${sum > tripTotal
+                  ? `<span class="exp-budget-over">▲ ${fmt(sum - tripTotal)} over budget</span>`
+                  : `<span class="exp-budget-remain">${fmt(tripTotal - sum)} remaining (${Math.round((sum / tripTotal) * 100)}%)</span>`}
+              </div>` : `
+              <p class="exp-modal-hint">No total budget set yet. Set one below.</p>`}
+          </div>
 
-  const pane = m.root.querySelector('#exp-budget-pane') as HTMLElement;
+          <!-- Per-country compare rows -->
+          ${(() => {
+            const caps = countryBudgets();
+            const countriesList = [...new Set([...legCountries(legs), ...Object.keys(caps)])];
+            if (!countriesList.length) return '';
+            const hasCaps = countriesList.some((c) => caps[c]);
+            if (!hasCaps) return '';
+            return `
+              <div class="exp-budget-section-title">By Country</div>
+              ${countriesList.filter((c) => caps[c]).map((c) => {
+                const spent = countrySpend(c);
+                const cap = caps[c];
+                const pct = Math.min(100, Math.round((spent / cap) * 100));
+                const over = spent > cap;
+                const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+                const flag = legs.find((l) => l.country === c)?.flag ?? '';
+                return `
+                  <div class="exp-budget-cmp-row">
+                    <div class="exp-budget-cmp-name">${flag} ${c}</div>
+                    <div class="exp-budget-cmp-bar-wrap">
+                      <div class="exp-budget-bar-track" style="flex:1">
+                        <div class="exp-budget-bar-fill" style="width:${pct}%;background:${color}"></div>
+                      </div>
+                    </div>
+                    <div class="exp-budget-cmp-nums">
+                      <span>${fmt(spent)}</span>
+                      <span class="exp-budget-cmp-sep">/</span>
+                      <span>${sym}${Math.round(cap).toLocaleString()}</span>
+                      ${over ? `<span class="exp-budget-over">over</span>` : ''}
+                    </div>
+                  </div>`;
+              }).join('')}`;
+          })()}
 
-  const renderPane = () => {
-    m.root.querySelectorAll<HTMLElement>('.exp-budget-tab').forEach((b) =>
-      b.classList.toggle('active', b.dataset.tab === tab));
+          <!-- Per-category compare rows -->
+          ${(() => {
+            const caps = categoryBudgets();
+            const hasCaps = categories().some((c) => caps[c.id]);
+            if (!hasCaps) return '';
+            return `
+              <div class="exp-budget-section-title">By Category</div>
+              ${categories().filter((cat) => caps[cat.id]).map((cat) => {
+                const spent = expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0);
+                const cap = caps[cat.id];
+                const pct = Math.min(100, Math.round((spent / cap) * 100));
+                const over = spent > cap;
+                const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+                return `
+                  <div class="exp-budget-cmp-row">
+                    <div class="exp-budget-cmp-name">${cat.icon} ${cat.label}</div>
+                    <div class="exp-budget-cmp-bar-wrap">
+                      <div class="exp-budget-bar-track" style="flex:1">
+                        <div class="exp-budget-bar-fill" style="width:${pct}%;background:${color}"></div>
+                      </div>
+                    </div>
+                    <div class="exp-budget-cmp-nums">
+                      <span>${fmt(spent)}</span>
+                      <span class="exp-budget-cmp-sep">/</span>
+                      <span>${sym}${Math.round(cap).toLocaleString()}</span>
+                      ${over ? `<span class="exp-budget-over">over</span>` : ''}
+                    </div>
+                  </div>`;
+              }).join('')}`;
+          })()}
+        </div>
 
-    if (tab === 'total') {
+        <!-- Settings section -->
+        <div class="exp-budget-section-title exp-budget-settings-title">Set Budgets</div>
+        <div class="exp-budget-tabs">
+          <button class="exp-budget-tab ${budgetTab === 'total' ? 'active' : ''}" data-tab="total">Total</button>
+          <button class="exp-budget-tab ${budgetTab === 'country' ? 'active' : ''}" data-tab="country">By country</button>
+          <button class="exp-budget-tab ${budgetTab === 'category' ? 'active' : ''}" data-tab="category">By category</button>
+        </div>
+        <div class="exp-budget-settings-pane" id="exp-budget-settings-pane"></div>
+      </div>
+    </div>
+  `;
+
+  const settingsPane = panel.querySelector('#exp-budget-settings-pane') as HTMLElement;
+
+  const renderSettings = () => {
+    panel.querySelectorAll<HTMLElement>('.exp-budget-tab').forEach((b) =>
+      b.classList.toggle('active', b.dataset.tab === budgetTab));
+
+    if (budgetTab === 'total') {
       const budget = tripBudget();
-      pane.innerHTML = `
+      settingsPane.innerHTML = `
         <label class="field-label">Total trip budget (${sym}, ${baseCurrency()})</label>
         <input class="input" type="number" id="bm-total" min="0" step="1" placeholder="e.g. 5000" value="${budget ?? ''}">
-        <p class="exp-modal-hint">Your overall ceiling. Shows as the budget bar on the summary and dashboard.</p>`;
-      const input = pane.querySelector('#bm-total') as HTMLInputElement;
+        <p class="exp-modal-hint">Sets your overall ceiling — shown on summary and dashboard.</p>`;
+      const input = settingsPane.querySelector('#bm-total') as HTMLInputElement;
       const save = async () => {
         const val = parseFloat(input.value);
         await setTripBudget(val > 0 ? val : null);
+        renderBudgetPage();
         renderSummaryRoot();
       };
       input.addEventListener('change', save);
@@ -907,75 +1183,69 @@ function openBudgetModal(initialTab: BudgetTab = 'total', focusKey?: string) {
       return;
     }
 
-    if (tab === 'country') {
+    if (budgetTab === 'country') {
       const caps = countryBudgets();
       const countriesList = [...new Set([...legCountries(legs), ...Object.keys(caps)])];
       const totalCap = Object.values(caps).reduce((s, v) => s + v, 0);
-      const trip = tripBudget();
-      const flex = trip ? trip - totalCap : null;
-      pane.innerHTML = `
+      const flex = tripTotal ? tripTotal - totalCap : null;
+      settingsPane.innerHTML = `
         ${countriesList.length === 0 ? '<p class="exp-modal-hint">No countries on the itinerary yet.</p>' : ''}
         <div class="exp-budget-rows">
           ${countriesList.map((c) => {
+            const flag = legs.find((l) => l.country === c)?.flag ?? '';
             const spent = countrySpend(c);
             return `
               <div class="exp-budget-row">
-                <div class="exp-budget-row-name">${c}<span class="exp-budget-row-spent">${fmt(spent)} spent</span></div>
-                <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${c}" placeholder="cap" value="${caps[c] ?? ''}">
+                <div class="exp-budget-row-name">${flag} ${c}<span class="exp-budget-row-spent">${fmt(spent)} spent</span></div>
+                <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${c}" placeholder="no cap" value="${caps[c] ?? ''}">
               </div>`;
           }).join('')}
         </div>
-        ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total budget` : `${fmt(flex)} unallocated`}</p>` : ''}`;
-      pane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
+        ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total` : `${fmt(flex)} unallocated`}</p>` : ''}`;
+      settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
         input.addEventListener('change', async () => {
           const val = parseFloat(input.value);
           await setCountryBudget(input.dataset.country!, val > 0 ? val : null);
-          renderPane();
+          renderBudgetPage();
           renderSummaryRoot();
           renderForm(document.querySelector('.exp-form-wrap') as HTMLElement);
         });
       });
-      if (focusKey) (pane.querySelector(`[data-country="${focusKey}"]`) as HTMLInputElement)?.focus();
       return;
     }
 
-    // category
+    // category tab
     const caps = categoryBudgets();
     const totalCap = Object.values(caps).reduce((s, v) => s + v, 0);
-    const trip = tripBudget();
-    const flex = trip ? trip - totalCap : null;
-    pane.innerHTML = `
+    const flex = tripTotal ? tripTotal - totalCap : null;
+    settingsPane.innerHTML = `
       <div class="exp-budget-rows">
         ${categories().map((cat) => {
           const spent = expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0);
           return `
             <div class="exp-budget-row">
               <div class="exp-budget-row-name">${cat.icon} ${cat.label}<span class="exp-budget-row-spent">${fmt(spent)} spent</span></div>
-              <input class="input exp-budget-row-input" type="number" min="0" step="1" data-cat="${cat.id}" placeholder="cap" value="${caps[cat.id] ?? ''}">
+              <input class="input exp-budget-row-input" type="number" min="0" step="1" data-cat="${cat.id}" placeholder="no cap" value="${caps[cat.id] ?? ''}">
             </div>`;
         }).join('')}
       </div>
-      ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total budget` : `${fmt(flex)} unallocated`}</p>` : ''}`;
-    pane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
+      ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total` : `${fmt(flex)} unallocated`}</p>` : ''}`;
+    settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
       input.addEventListener('change', async () => {
         const val = parseFloat(input.value);
         await setCategoryBudget(input.dataset.cat!, val > 0 ? val : null);
-        renderPane();
+        renderBudgetPage();
         renderSummaryRoot();
       });
     });
-    if (focusKey) (pane.querySelector(`[data-cat="${focusKey}"]`) as HTMLInputElement)?.focus();
   };
 
-  m.root.querySelectorAll<HTMLElement>('.exp-budget-tab').forEach((btn) => {
-    btn.addEventListener('click', () => { tab = btn.dataset.tab as BudgetTab; renderPane(); });
-  });
-  m.root.querySelector('[data-act="done"]')?.addEventListener('click', () => {
-    m.close();
-    render();
+  panel.querySelector('#exp-budget-back')?.addEventListener('click', () => closeBudgetPage());
+  panel.querySelectorAll<HTMLElement>('.exp-budget-tab').forEach((btn) => {
+    btn.addEventListener('click', () => { budgetTab = btn.dataset.tab as BudgetTab; renderSettings(); });
   });
 
-  renderPane();
+  renderSettings();
 }
 
 /* ── Orchestration ───────────────────────────────────────────────────────── */
@@ -983,6 +1253,7 @@ function openBudgetModal(initialTab: BudgetTab = 'total', focusKey?: string) {
 function renderSummaryRoot() {
   const root = document.getElementById('view-expenses');
   if (root) renderSummary(root.querySelector('.exp-summary')!);
+  if (showBudget) renderBudgetPage();
 }
 
 function render() {
@@ -997,11 +1268,12 @@ export function initExpenses() {
   const root = document.getElementById('view-expenses');
   if (!root) return;
 
-  // Leaving the view while the fixed records overlay is open would leave it
-  // covering the next view — close it on any navigation away from expenses.
+  // Close fixed overlays when navigating away from expenses.
   window.addEventListener('hashchange', () => {
-    if (showRecords && window.location.hash.replace('#', '') !== 'expenses') {
-      closeRecords();
+    const view = window.location.hash.replace('#', '');
+    if (view !== 'expenses') {
+      if (showRecords) closeRecords();
+      if (showBudget) closeBudgetPage();
     }
   });
 

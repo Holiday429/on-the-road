@@ -96,10 +96,12 @@ export async function initDashboardMap(
     if (iso) tripCountryISOs.add(iso);
   }
 
-  // City pins — one per leg with number label.
+  // City pins — one per leg with number label, sorted chronologically.
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
 
-  const pinData = legs
+  const sortedLegs = [...legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+
+  const pinData = sortedLegs
     .map((leg, idx) => {
       const coords = coordsFor(leg.city);
       if (!coords) return null;

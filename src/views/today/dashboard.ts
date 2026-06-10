@@ -11,7 +11,7 @@ import { expenseStore, type StoredExpense } from '../../data/stores/expense-stor
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
 import { currentTrip, baseCurrency, tripBudget, countryBudgets, onTripChange, currentTripId } from '../../data/trip-context.ts';
-import { addExpenseWithDefaults, defaultPlace, defaultCurrency } from '../expenses/expense-defaults.ts';
+import { addExpenseWithDefaults, defaultPlace, defaultCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES } from '../../data/rates.ts';
 import { navigateTo, type ViewId, type NavIntent, openNewTrip } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
@@ -287,8 +287,19 @@ function renderCurrencyWidget(): string {
 
   const baseFlag = CURRENCIES.find(c => c.code === base)?.flag ?? '';
 
-  // 3 rate info rows: base → each trip currency (up to 3)
-  const rateRowCodes = tripCurrencies().filter(c => c !== base).slice(0, 3);
+  // 3 rate info rows: always show 3 different non-base currencies
+  // Priority: localCurrency, then trip leg currencies, then common fallbacks
+  const fallbacks = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'DKK', 'SEK'];
+  const candidates = [
+    ...tripCurrencies(),
+    ...fallbacks,
+  ];
+  const seen3 = new Set<string>();
+  for (const c of candidates) {
+    if (c !== base && !seen3.has(c)) seen3.add(c);
+    if (seen3.size === 3) break;
+  }
+  const rateRowCodes = Array.from(seen3);
   const rateRowsHtml = rateRowCodes.map(code => {
     const flag = CURRENCIES.find(c => c.code === code)?.flag ?? '';
     return `<div class="td-cur-rate-row"><span>${baseFlag} ${esc(base)}</span><span class="td-cur-rate-eq">=</span><span><strong>${rateDisplay(code)}</strong> ${flag} ${esc(code)}</span></div>`;
@@ -300,7 +311,7 @@ function renderCurrencyWidget(): string {
       <div class="td-cur-converter">
         <div class="td-cur-conv-row">
           <div class="td-cur-conv-side">
-            <input class="td-currency-input" data-rate-input type="number" inputmode="decimal" placeholder="1" value="${esc(_rateInput)}">
+            <input class="td-currency-input" data-rate-input type="text" inputmode="decimal" placeholder="1" value="${esc(_rateInput)}">
             <select class="td-cur-select" data-rate-from>${currencyOptions(fromCur)}</select>
           </div>
           <button class="td-currency-swap" data-rate-swap title="Swap">⇄</button>
@@ -440,16 +451,28 @@ function renderSpendWidget(): string {
         <div class="td-spend-today"><div class="td-spend-label">Today</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
       </div>
       ${budgetLine}
-      <form class="td-quickadd" data-quickadd>
-        <span class="td-quickadd-sym">${sym}</span>
-        <input class="td-quickadd-amt" type="number" inputmode="decimal" step="0.01" placeholder="Amount" required>
-        <input class="td-quickadd-desc" type="text" placeholder="What for?">
-        <button class="td-quickadd-save btn btn-primary" type="submit">Log</button>
+      <div class="td-barchart-wrap">
+        <div class="td-barchart" title="Last 30 days">${bars}</div>
+        <div class="td-barchart-label">Last 30 days</div>
+      </div>
+      <form class="td-quickadd td-quickadd-v" data-quickadd>
+        <div class="td-quickadd-hint">📍 ${leg?.country || '—'}${leg?.city ? ' · ' + leg.city : ''} · ${currencySymbol(defaultCurrency(_legs, today))}${defaultCurrency(_legs, today)}</div>
+        <div class="td-quickadd-row2">
+          <div class="td-quickadd-amt-wrap">
+            <span class="td-quickadd-sym">${sym}</span>
+            <input class="td-quickadd-amt" type="text" inputmode="decimal" placeholder="0.00" required>
+          </div>
+          <select class="td-quickadd-cat select">
+            <option value="">Category…</option>
+            ${EXPENSE_CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="td-quickadd-row2">
+          <input class="td-quickadd-desc" type="text" placeholder="What for? (optional)">
+          <button class="td-quickadd-save btn btn-primary" type="submit">Save</button>
+        </div>
       </form>
-      <div class="td-barchart" title="Last 30 days">${bars}</div>
-      <div class="td-barchart-label">Last 30 days</div>
     </div>`;
-  void leg;
 }
 
 /* ── Map thumbnail ────────────────────────────────────────────────────────── */
@@ -671,7 +694,7 @@ function renderTodoWidget(): string {
       if (b.dueDate) return 1;
       return a.order - b.order;
     })
-    .slice(0, 5);
+    .slice(0, 3);
   const doneToday = _todos.filter(t => t.done && t.dueDate === today).length;
 
   const rows = pending.map(t => {
@@ -699,7 +722,7 @@ function renderTodoWidget(): string {
         <div class="td-widget-label">☑️ To-do</div>
         <button class="td-link" data-nav="calendar">All tasks ›</button>
       </div>
-      ${rows}${empty}
+      <div class="td-todo-list">${rows}${empty}</div>
       <form class="td-todo-add" data-todo-add>
         <button class="td-todo-add-cal" type="button" data-todo-add-modal title="Add with due date">📅</button>
         <input class="td-todo-add-input" type="text" placeholder="+ Quick add task…">
@@ -708,55 +731,47 @@ function renderTodoWidget(): string {
     </div>`;
 }
 
-/* ── Safety mini — shows city emergency numbers ───────────────────────────── */
+/* ── Safety mini — shows city emergency numbers with call buttons ─────────── */
 function renderSafetyMini(): string {
   const leg = currentLeg();
   if (!leg) {
     return `
-      <div class="td-widget td-w-safety" data-nav="safety">
+      <div class="td-widget td-w-safety">
         <div class="td-widget-label">🛡️ Safety</div>
         <div class="td-safety-city">Setup emergency info</div>
-        <div class="td-safety-hint">Profile & emergency contacts</div>
+        <div class="td-safety-hint">Add stops in Route view</div>
       </div>`;
   }
 
-  // Find safety data for current city
   const safetyCard = _citySafety.find(s =>
     s.city.toLowerCase() === leg.city.toLowerCase()
   );
 
+  function callRow(label: string, number: string): string {
+    return `<div class="td-safety-number-row">
+      <span class="td-safety-number-label">${esc(label)}</span>
+      <a class="td-safety-call-btn" href="tel:${esc(number)}">${esc(number)} 📞</a>
+    </div>`;
+  }
+
   if (!safetyCard) {
     return `
-      <div class="td-widget td-w-safety" data-nav="safety">
+      <div class="td-widget td-w-safety">
         <div class="td-widget-label">🛡️ ${esc(leg.flag)} ${esc(leg.city)}</div>
-        <div class="td-safety-number-row">
-          <span class="td-safety-number-label">General</span>
-          <span class="td-safety-number-val">112</span>
-        </div>
-        <div class="td-safety-hint">Tap Safety for full info</div>
+        ${callRow('General', '112')}
       </div>`;
   }
 
   const rows: string[] = [];
-  // General emergency first
   if (safetyCard.generalEmergency) {
-    rows.push(`<div class="td-safety-number-row">
-      <span class="td-safety-number-label">General</span>
-      <span class="td-safety-number-val">${esc(safetyCard.generalEmergency)}</span>
-    </div>`);
+    rows.push(callRow('General', safetyCard.generalEmergency));
   }
-  // Specific emergency numbers (police, ambulance, fire, etc.)
   for (const n of (safetyCard.emergencyNumbers ?? []).slice(0, 3)) {
-    if (n.number) {
-      rows.push(`<div class="td-safety-number-row">
-        <span class="td-safety-number-label">${esc(n.label)}</span>
-        <span class="td-safety-number-val">${esc(n.number)}</span>
-      </div>`);
-    }
+    if (n.number) rows.push(callRow(n.label, n.number));
   }
 
   return `
-    <div class="td-widget td-w-safety" data-nav="safety">
+    <div class="td-widget td-w-safety">
       <div class="td-widget-label">🛡️ ${esc(leg.flag)} ${esc(leg.city)}</div>
       ${rows.join('')}
     </div>`;
@@ -863,76 +878,70 @@ function renderNomadWidget(): string | null {
     </div>`;
 }
 
-/* ── Where-to-Go widget — top 3 guide picks for current city ─────────────── */
-function renderWhereToGoWidget(): string | null {
+/* ── Where-to-Go widget — one pick per category, with add-to-itinerary ──────── */
+function renderWhereToGoWidget(): string {
   const leg = currentLeg();
-  if (!leg) return null;
+  if (!leg) {
+    return `
+      <div class="td-widget td-w-whereto">
+        <div class="td-widget-label">✨ Where to go</div>
+        <div class="td-whereto-empty">Add stops in Route view to get recommendations.</div>
+      </div>`;
+  }
 
   const intel = _cityIntel.find(c =>
     c.city.toLowerCase() === leg.city.toLowerCase()
   );
-  if (!intel) return null;
 
-  // Mix attractions + restaurants + cafes, take first 3 non-empty
-  const allCards = [
-    ...((intel.attractions ?? []).map(c => ({ ...c, _tab: 'attractions' }))),
-    ...((intel.restaurants ?? []).map(c => ({ ...c, _tab: 'restaurants' }))),
-    ...((intel.cafes ?? []).map(c => ({ ...c, _tab: 'cafes' }))),
-    ...((intel.experiences ?? []).map(c => ({ ...c, _tab: 'experiences' }))),
-  ].filter(c => c.title);
-
-  if (!allCards.length) return null;
-
-  const picks = allCards.slice(0, 3);
-
-  const TAB_ICON: Record<string, string> = {
-    attractions: '🏛️', restaurants: '🍽️', cafes: '☕', experiences: '✨',
-  };
-
-  const cards = picks.map(c => {
-    const icon = TAB_ICON[c._tab] ?? '📌';
+  if (!intel || (!intel.attractions?.length && !intel.restaurants?.length && !intel.experiences?.length && !intel.cafes?.length)) {
     return `
-      <div class="td-whereto-card">
-        <div class="td-whereto-card-header">
-          <span class="td-whereto-type-icon">${icon}</span>
-          <span class="td-whereto-name">${esc(c.title)}</span>
-          ${c.cost ? `<span class="td-whereto-cost">${esc(c.cost)}</span>` : ''}
+      <div class="td-widget td-w-whereto">
+        <div class="td-widget-header">
+          <div class="td-widget-label">✨ Where to go · ${esc(leg.flag)} ${esc(leg.city)}</div>
+          <button class="td-link" data-nav="cities">Guide ›</button>
         </div>
-        ${c.highlight ? `<div class="td-whereto-highlight">${esc(c.highlight)}</div>` : ''}
+        <div class="td-whereto-empty">No guide data for ${esc(leg.city)} yet.<br>Open Guide to generate recommendations.</div>
       </div>`;
-  }).join('');
+  }
+
+  const CATEGORIES: Array<{ key: string; icon: string }> = [
+    { key: 'attractions', icon: '🏛️' },
+    { key: 'restaurants', icon: '🍽️' },
+    { key: 'experiences', icon: '✨' },
+    { key: 'cafes',       icon: '☕' },
+  ];
+
+  const picks: Array<{ icon: string; title: string; highlight?: string; cost?: string }> = [];
+  for (const cat of CATEGORIES) {
+    const arr = ((intel as any)[cat.key] as any[] | undefined) ?? [];
+    const first = arr.find((c: any) => c.title);
+    if (first) picks.push({ icon: cat.icon, title: first.title, highlight: first.highlight, cost: first.cost });
+    if (picks.length >= 3) break;
+  }
+
+  const cards = picks.map(c => `
+    <div class="td-whereto-card">
+      <div class="td-whereto-card-header">
+        <span class="td-whereto-type-icon">${c.icon}</span>
+        <div class="td-whereto-card-body">
+          <div class="td-whereto-name-row">
+            <span class="td-whereto-name">${esc(c.title)}</span>
+            ${c.cost ? `<span class="td-whereto-cost">${esc(c.cost)}</span>` : ''}
+          </div>
+          ${c.highlight ? `<div class="td-whereto-highlight">${esc(c.highlight)}</div>` : ''}
+        </div>
+        <button class="td-whereto-add-btn" data-wtg-add="${esc(c.title)}" title="Add to itinerary">+</button>
+      </div>
+    </div>`).join('');
 
   return `
-    <div class="td-widget td-w-whereto" data-widget-id="whereto">
+    <div class="td-widget td-w-whereto">
       <div class="td-widget-header">
-        <div class="td-widget-label">🗺️ Where to go · ${esc(leg.city)}</div>
+        <div class="td-widget-label">✨ Where to go · ${esc(leg.flag)} ${esc(leg.city)}</div>
         <button class="td-link" data-nav="cities">Guide ›</button>
       </div>
       <div class="td-whereto-cards">${cards}</div>
     </div>`;
-}
-
-/* ── Widget order persistence ─────────────────────────────────────────────── */
-const LAYOUT_KEY = 'otr:dashboard-layout';
-const DEFAULT_ORDER = ['currency', 'calendar', 'todo', 'leftcol', 'map', 'upcoming', 'journal', 'pack', 'nomad', 'whereto'];
-function savedOrder(): string[] {
-  try {
-    const raw = localStorage.getItem(LAYOUT_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as string[];
-      // Accept any saved order — just return it as-is, new widgets append at end
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Ensure new widget IDs are always present
-        const ids = new Set(parsed);
-        const out = [...parsed];
-        for (const id of DEFAULT_ORDER) {
-          if (!ids.has(id)) out.push(id);
-        }
-        return out;
-      }
-    }
-  } catch { /* ignore */ }
-  return DEFAULT_ORDER;
 }
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
@@ -940,55 +949,43 @@ function layout(phase: Phase): string {
   const calWidget   = renderCalendarWidget();
   const todoWidget  = renderTodoWidget();
   const currWidget  = renderCurrencyWidget();
-  const leftCol = `
-    <div class="td-left-col td-draggable" data-widget-id="leftcol">
-      ${renderSpendWidget()}
-      ${renderSafetyMini()}
-    </div>`;
-  const mapWidget  = renderMapWidget();
-  const upWidget   = renderUpcomingWidget();
-  const jrnWidget  = renderJournalWidget(phase);
-  const nomadHtml  = renderNomadWidget();
-  const whereHtml  = renderWhereToGoWidget();
-  const packHtml   = renderPackWidget();
+  const spendWidget = renderSpendWidget();
+  const mapWidget   = renderMapWidget();
+  const upWidget    = renderUpcomingWidget();
+  const jrnWidget   = renderJournalWidget(phase);
+  const nomadHtml   = renderNomadWidget();
+  const whereHtml   = renderWhereToGoWidget();
+  const packHtml    = renderPackWidget();
+  const safetyHtml  = renderSafetyMini();
 
-  // Inject data-widget-id on widget divs (no draggable attr — set dynamically by wireDragDrop)
-  function tag(html: string, id: string): string {
-    return html.replace(/^(\s*<div class="td-widget)/, `$1 td-draggable" data-widget-id="${id}"`);
-  }
-
-  const widgetMap: Record<string, string> = {
-    currency: tag(currWidget, 'currency'),
-    calendar: tag(calWidget,  'calendar'),
-    todo:     tag(todoWidget, 'todo'),
-    leftcol:  leftCol,
-    map:      tag(mapWidget,  'map'),
-    upcoming: tag(upWidget,   'upcoming'),
-    journal:  tag(jrnWidget,  'journal'),
-    pack:     packHtml   ? tag(packHtml,   'pack')   : '',
-    nomad:    nomadHtml  ? tag(nomadHtml,  'nomad')  : '',
-    whereto:  whereHtml  ? tag(whereHtml,  'whereto') : '',
-  };
-
-  const order = savedOrder();
-  const widgets = order.map(id => widgetMap[id] ?? '').join('\n');
-
-  return `<div class="td-grid" id="td-grid">${widgets}</div>`;
+  return `<div class="td-grid" id="td-grid">
+    ${currWidget}
+    ${calWidget}
+    ${todoWidget}
+    ${spendWidget}
+    ${mapWidget}
+    ${jrnWidget}
+    <div class="td-w-mini-col">
+      ${packHtml ?? ''}
+      ${safetyHtml}
+    </div>
+    ${upWidget}
+    ${whereHtml}
+    ${nomadHtml ?? ''}
+  </div>`;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
    ACTIONS
    ══════════════════════════════════════════════════════════════════════════ */
 
-function quickAddSpend(amount: number, desc: string): void {
-  // Shared add path: remembers currency/country/city like the Expenses page, so
-  // a quick add still lands in the right country/city buckets for analysis.
+function quickAddSpend(amount: number, desc: string, category: string): void {
   const today = todayIso();
   const place = defaultPlace(_legs, today);
   const currency = defaultCurrency(_legs, today);
   void addExpenseWithDefaults({
     amount, currency, description: desc || 'Quick add', date: today,
-    category: '', country: place.country, city: place.city, rates: _rates,
+    category, country: place.country, city: place.city, rates: _rates,
   });
 }
 
@@ -1186,10 +1183,12 @@ function wire(body: HTMLElement): void {
     const form = e.currentTarget as HTMLFormElement;
     const amt  = parseFloat((form.querySelector('.td-quickadd-amt') as HTMLInputElement).value);
     const desc = (form.querySelector('.td-quickadd-desc') as HTMLInputElement).value.trim();
+    const cat  = (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value;
     if (!Number.isFinite(amt) || amt <= 0) return;
-    quickAddSpend(amt, desc);
+    quickAddSpend(amt, desc, cat);
     (form.querySelector('.td-quickadd-amt') as HTMLInputElement).value  = '';
     (form.querySelector('.td-quickadd-desc') as HTMLInputElement).value = '';
+    (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value = '';
   });
 
   // Currency converter — amount input.
@@ -1262,6 +1261,51 @@ function wire(body: HTMLElement): void {
     openDashboardTodoModal(todayIso());
   });
 
+  // Where-to-go: add to itinerary button
+  body.querySelectorAll<HTMLButtonElement>('[data-wtg-add]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const title = btn.dataset.wtgAdd ?? '';
+      const leg = currentLeg();
+      if (!leg) return;
+      const handle = openModal({
+        title: '+ Add to itinerary',
+        body: `
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <input class="input" id="wtg-plan-title" value="${esc(title)}" placeholder="Activity name">
+            <div style="display:flex;gap:8px;align-items:center">
+              <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">Day</label>
+              <input class="input" id="wtg-plan-date" type="date" value="${esc(todayIso())}">
+            </div>
+          </div>`,
+        footer: `<button class="btn btn-ghost" data-act="cancel">Cancel</button>
+                 <button class="btn btn-primary" data-act="confirm">Add</button>`,
+      });
+      handle.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => handle.close());
+      handle.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+        const itemTitle = (handle.root.querySelector<HTMLInputElement>('#wtg-plan-title')?.value ?? '').trim();
+        const dateVal   = handle.root.querySelector<HTMLInputElement>('#wtg-plan-date')?.value ?? todayIso();
+        if (!itemTitle) return;
+        const days = ensurePlanDaysLocal(leg);
+        const targetDay = days.find(d => d.date === dateVal) ?? days[0];
+        if (!targetDay) return;
+        const existingPlans = (leg.plans ?? []) as PlanItem[];
+        const maxOrder = existingPlans.filter(p => p.dayId === targetDay.id).reduce((m, p) => Math.max(m, p.order ?? 0), -1);
+        const newItem: PlanItem = {
+          id: `plan-${Date.now()}`,
+          dayId: targetDay.id,
+          title: itemTitle,
+          category: '',
+          done: false,
+          order: maxOrder + 1,
+        };
+        await routeStore.update(leg.id, { plans: [...existingPlans, newItem] });
+        handle.close();
+      });
+      handle.root.querySelector<HTMLInputElement>('#wtg-plan-title')?.select();
+    });
+  });
+
   // New trip button.
   body.querySelector<HTMLButtonElement>('[data-action="new-trip"]')?.addEventListener('click', () => {
     openNewTrip();
@@ -1281,128 +1325,8 @@ function wire(body: HTMLElement): void {
     dashboardMapZoom('fit');
   });
 
-  // Drag-and-drop widget reordering.
-  wireDragDrop(body);
 }
 
-function wireDragDrop(body: HTMLElement): void {
-  const gridEl = body.querySelector<HTMLElement>('#td-grid');
-  if (!gridEl) return;
-  const grid = gridEl; // non-null alias for closures
-
-  // Insert-line indicator element
-  const indicator = document.createElement('div');
-  indicator.className = 'td-drop-indicator';
-  indicator.style.display = 'none';
-
-  let dragId: string | null = null;
-  let _insertBefore: HTMLElement | null = null; // null = append
-
-  function getWidgets(): HTMLElement[] {
-    return Array.from(grid.querySelectorAll<HTMLElement>('[data-widget-id]'));
-  }
-
-  function clearIndicator() {
-    indicator.style.display = 'none';
-    indicator.remove();
-    _insertBefore = null;
-  }
-
-  function showIndicator(before: HTMLElement | null) {
-    if (before) {
-      grid.insertBefore(indicator, before);
-    } else {
-      grid.appendChild(indicator);
-    }
-    indicator.style.display = 'block';
-    _insertBefore = before;
-  }
-
-  // Make widget-label the drag handle — grabbing the label row activates drag
-  getWidgets().forEach(w => {
-    // Disable draggable by default; only enable when mousedown on label/header
-    w.removeAttribute('draggable');
-    const labelEl = w.querySelector<HTMLElement>('.td-widget-label, .td-widget-header');
-    if (!labelEl) return;
-    labelEl.classList.add('td-drag-handle');
-    labelEl.addEventListener('mousedown', () => { w.setAttribute('draggable', 'true'); });
-    labelEl.addEventListener('mouseup',   () => { w.removeAttribute('draggable'); });
-    // Also reset on dragend (handled globally below)
-  });
-
-  grid.addEventListener('dragstart', e => {
-    const widget = (e.target as HTMLElement).closest<HTMLElement>('[data-widget-id]');
-    if (!widget || !widget.getAttribute('draggable')) { e.preventDefault(); return; }
-    dragId = widget.dataset.widgetId ?? null;
-    widget.classList.add('td-dragging');
-    e.dataTransfer!.effectAllowed = 'move';
-    requestAnimationFrame(() => { indicator.style.display = 'none'; });
-  });
-
-  grid.addEventListener('dragend', () => {
-    getWidgets().forEach(el => {
-      el.classList.remove('td-dragging');
-      el.removeAttribute('draggable');
-    });
-    clearIndicator();
-    dragId = null;
-  });
-
-  grid.addEventListener('dragover', e => {
-    e.preventDefault();
-    if (!dragId) return;
-    e.dataTransfer!.dropEffect = 'move';
-
-    const widgets = getWidgets().filter(el => el.dataset.widgetId !== dragId);
-    if (!widgets.length) { showIndicator(null); return; }
-
-    // Find closest widget by vertical midpoint
-    let closest: HTMLElement | null = null;
-    let closestDist = Infinity;
-    let insertBefore: HTMLElement | null = null;
-
-    for (const w of widgets) {
-      const rect = w.getBoundingClientRect();
-      const mid  = rect.top + rect.height / 2;
-      const dist = Math.abs(e.clientY - mid);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closest = w;
-        insertBefore = e.clientY < mid ? w : (w.nextElementSibling as HTMLElement | null);
-      }
-    }
-
-    if (closest) showIndicator(insertBefore);
-  });
-
-  grid.addEventListener('dragleave', e => {
-    if (!grid.contains(e.relatedTarget as Node)) clearIndicator();
-  });
-
-  grid.addEventListener('drop', e => {
-    e.preventDefault();
-    if (!dragId) return;
-
-    const items = getWidgets();
-    const dragged = items.find(el => el.dataset.widgetId === dragId);
-    if (!dragged) { clearIndicator(); return; }
-
-    const before = _insertBefore;
-    clearIndicator();
-
-    if (before && before !== dragged) {
-      grid.insertBefore(dragged, before);
-    } else if (!before) {
-      grid.appendChild(dragged);
-    }
-
-    // Persist
-    const newOrder = getWidgets().map(el => el.dataset.widgetId ?? '');
-    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(newOrder)); } catch { /* ignore */ }
-
-    dragId = null;
-  });
-}
 
 function bootMap(): void {
   const canvas = document.getElementById('td-map-canvas') as HTMLElement | null;

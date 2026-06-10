@@ -218,23 +218,31 @@ function applySection(intel: Partial<CityIntel> & { id: string }, section: strin
 
 function showSkeleton(_root: HTMLElement, city: string, country: string) {
   const detail = document.querySelector<HTMLElement>('#view-cities .guide-detail')!;
+  const base = (document.querySelector('base')?.getAttribute('href') ?? import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+  const assetBase = `${base}/assets`;
   detail.innerHTML = `
-    <div class="guide-detail-header guide-skeleton-header">
-      <div class="guide-skeleton guide-skeleton-flag"></div>
-      <div class="guide-detail-header-text">
-        <div class="guide-skeleton guide-skeleton-title"></div>
-        <div class="guide-skeleton guide-skeleton-sub"></div>
+    <div class="guide-gen-splash">
+      <div class="guide-gen-gifs">
+        <img class="guide-gen-gif guide-gen-gif--active" src="${assetBase}/travel.gif" alt="">
+        <img class="guide-gen-gif" src="${assetBase}/location.gif" alt="">
+        <img class="guide-gen-gif" src="${assetBase}/logo.gif" alt="">
       </div>
-    </div>
-    <div class="guide-generating-msg">
-      <div class="city-loading-spinner"></div>
-      <span>Generating guide for <strong>${city}, ${country || 'finding country…'}</strong></span>
-    </div>
-    <div class="guide-skeleton-cards">
-      ${Array(4).fill('<div class="guide-skeleton guide-skeleton-card"></div>').join('')}
+      <div class="guide-gen-label">
+        Generating guide for <strong>${city}${country ? `, ${country}` : ''}</strong>
+      </div>
     </div>
   `;
   detail.classList.add('active');
+
+  // Cycle through the three GIFs
+  const imgs = detail.querySelectorAll<HTMLImageElement>('.guide-gen-gif');
+  let idx = 0;
+  const interval = setInterval(() => {
+    imgs[idx].classList.remove('guide-gen-gif--active');
+    idx = (idx + 1) % imgs.length;
+    imgs[idx].classList.add('guide-gen-gif--active');
+  }, 2000);
+  (detail as HTMLElement & { _gifInterval?: ReturnType<typeof setInterval> })._gifInterval = interval;
 }
 
 // ── History (right-side drawer with filter + scroll) ──────────────────────────
@@ -307,7 +315,8 @@ function renderCityList(root: HTMLElement) { renderHistoryBar(root); }
 // ── Main detail view ──────────────────────────────────────────────────────────
 
 function renderCityDetail(_root: HTMLElement) {
-  const detail = document.querySelector<HTMLElement>('#view-cities .guide-detail')!;
+  const detail = document.querySelector<HTMLElement>('#view-cities .guide-detail')! as HTMLElement & { _gifInterval?: ReturnType<typeof setInterval> };
+  if (detail._gifInterval) { clearInterval(detail._gifInterval); detail._gifInterval = undefined; }
   // Stored cities win; fall back to a transient preview if the API failed.
   const intel = _cities.find(c => c.id === _activeCityId)
     ?? (_previewIntel?.id === _activeCityId ? _previewIntel as StoredCityIntel : undefined);
@@ -408,7 +417,7 @@ function renderIntroTab(intel: StoredCityIntel): string {
 
       ${intel.funFacts?.length ? `
         <div class="guide-funfacts-block">
-          <div class="guide-funfacts-label">⚡ Did you know?</div>
+          <div class="guide-funfacts-label">💡 Did you know?</div>
           <div class="guide-fun-facts">
             ${intel.funFacts.map(f => `<div class="guide-fun-fact">${f}</div>`).join('')}
           </div>

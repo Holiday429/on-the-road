@@ -22,6 +22,17 @@ import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import type { RateTable } from '../../data/rates.ts';
 
+/* ── Shared expense categories (used by widget + expenses page) ──────────── */
+export const BUILTIN_CATEGORIES = [
+  { id: 'accommodation', label: 'Stay',       icon: '🏠' },
+  { id: 'food',          label: 'Food',       icon: '🍜' },
+  { id: 'transport',     label: 'Transport',  icon: '🚆' },
+  { id: 'activities',    label: 'Activities', icon: '🎭' },
+  { id: 'shopping',      label: 'Shopping',   icon: '🛍️' },
+  { id: 'health',        label: 'Health',     icon: '💊' },
+  { id: 'misc',          label: 'Misc',       icon: '📌' },
+] as const;
+
 /* ── Country → default currency ──────────────────────────────────────────────
    Used to seed the currency from the leg's country. Not exhaustive — anything
    unmapped falls back to the trip base currency. */

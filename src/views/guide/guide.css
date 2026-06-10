@@ -386,6 +386,7 @@
   border: 1px solid var(--amber-200);
   border-radius: var(--r-lg);
   padding: var(--sp-5);
+  margin-top: var(--sp-6);
 }
 .guide-funfacts-label {
   font-family: var(--font-ui);
@@ -710,15 +711,41 @@ a.guide-icon-btn { text-decoration: none; }
   font-size: var(--fs-sm);
 }
 
-/* ── Skeleton ────────────────────────────────────────────────────────────── */
-.guide-generating-msg {
+/* ── GIF generation splash ───────────────────────────────────────────────── */
+.guide-gen-splash {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--sp-3);
-  font-size: var(--fs-sm);
-  color: var(--ink-muted);
-  padding: var(--sp-5) 0;
+  justify-content: center;
+  gap: var(--sp-6);
+  padding: var(--sp-10) var(--sp-6);
+  min-height: 320px;
 }
+.guide-gen-gifs {
+  position: relative;
+  width: 180px;
+  height: 180px;
+}
+.guide-gen-gif {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--r-xl);
+  opacity: 0;
+  transition: opacity 0.5s var(--ease-out);
+  pointer-events: none;
+}
+.guide-gen-gif--active { opacity: 1; }
+.guide-gen-label {
+  font-size: var(--fs-base);
+  color: var(--ink-muted);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ── Skeleton ────────────────────────────────────────────────────────────── */
 .guide-skeleton-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -730,19 +757,6 @@ a.guide-icon-btn { text-decoration: none; }
   background-size: 200% 100%;
   animation: shimmer 1.4s ease infinite;
   border-radius: var(--r-lg);
-}
-.guide-skeleton-flag  { width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0; }
-.guide-skeleton-title { width: 160px; height: 24px; margin-bottom: 8px; }
-.guide-skeleton-sub   { width: 100px; height: 16px; }
-.guide-skeleton-header {
-  display: flex;
-  gap: var(--sp-4);
-  align-items: center;
-  padding: var(--sp-4) var(--sp-5);
-  margin-bottom: var(--sp-5);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-xl);
-  background: var(--surface-2);
 }
 .guide-skeleton-card { height: 200px; }
 

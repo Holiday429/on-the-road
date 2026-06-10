@@ -4,16 +4,26 @@
 
 #view-expenses { animation: fadeUp var(--dur-mid) var(--ease-out); }
 
+/* Hide number input spinners throughout expenses */
+#view-expenses input[type="number"]::-webkit-inner-spin-button,
+#view-expenses input[type="number"]::-webkit-outer-spin-button,
+.exp-records-overlay input[type="number"]::-webkit-inner-spin-button,
+.exp-records-overlay input[type="number"]::-webkit-outer-spin-button,
+.exp-budget-overlay input[type="number"]::-webkit-inner-spin-button,
+.exp-budget-overlay input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#view-expenses input[type="number"],
+.exp-records-overlay input[type="number"],
+.exp-budget-overlay input[type="number"] { -moz-appearance: textfield; }
+
 /* ── Summary cards ───────────────────────────────────────────────────────── */
 .exp-summary {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.3fr;
+  grid-template-columns: 1fr 1fr;
   gap: var(--sp-4);
   margin-bottom: var(--sp-6);
 }
-@media (max-width: 700px) {
-  .exp-summary { grid-template-columns: 1fr 1fr; }
-  .exp-summary .exp-budget-card { grid-column: 1 / -1; }
+@media (max-width: 500px) {
+  .exp-summary { grid-template-columns: 1fr; }
 }
 .exp-stat-card {
   position: relative;
@@ -586,3 +596,270 @@ body.exp-records-lock { overflow: hidden; }
   color: var(--ink-muted);
 }
 .exp-budget-flex.over { background: #fef2f2; color: var(--coral-500); }
+
+/* ── Hero summary buttons ───────────────────────────────────────────────────── */
+.exp-summary-heroes {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+.exp-hero-btn {
+  display: flex; flex-direction: column; align-items: flex-start;
+  gap: 2px;
+  padding: 14px 16px;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  border: 1.5px solid var(--rule-soft);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: box-shadow var(--dur-fast), border-color var(--dur-fast), filter var(--dur-fast);
+  text-align: left;
+  width: 100%;
+  min-height: 90px;
+}
+.exp-hero-btn:hover { box-shadow: var(--shadow-md); filter: brightness(0.98); }
+.exp-hero-spend { border-color: var(--amber-300); background: var(--amber-50, #fffbeb); }
+.exp-hero-budget { border-color: var(--sage-300, #a7c4a0); background: var(--sage-50, #f0f7ef); }
+.exp-hero-eyebrow {
+  font-size: 11px; font-weight: 600;
+  color: var(--ink-faint);
+}
+.exp-hero-num {
+  font-family: var(--font-ui);
+  font-size: 1.5rem; font-weight: 800;
+  color: var(--ink); line-height: 1.15;
+  margin: 1px 0;
+}
+.exp-hero-empty { color: var(--ink-faint); }
+.exp-hero-label {
+  font-size: var(--fs-sm); font-weight: 600;
+  color: var(--ink-muted);
+  margin-top: auto;
+  align-self: flex-end;
+}
+.exp-hero-label-over { color: var(--coral-500); }
+.exp-hero-bar-track {
+  width: 100%; height: 4px;
+  background: rgba(0,0,0,0.08); border-radius: var(--r-full);
+  overflow: hidden; margin: 4px 0 2px;
+  align-self: stretch;
+}
+.exp-hero-bar-fill {
+  height: 100%; border-radius: var(--r-full);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.exp-hero-sub {
+  font-size: 11px; font-weight: 600; color: var(--ink-faint);
+}
+
+/* ── Records overlay — bar stats area ──────────────────────────────────────── */
+.exp-records-bar-stats {
+  margin-left: auto;
+  display: flex; align-items: center; gap: var(--sp-4);
+}
+.exp-records-avg {
+  font-size: var(--fs-sm); font-weight: 700; color: var(--ink-muted);
+}
+.exp-records-avg span { color: var(--ink); }
+
+/* ── Budget overlay (independent full-screen page) ──────────────────────────── */
+.exp-budget-panel { display: none; }
+.exp-budget-panel.open { display: block; }
+.exp-budget-overlay {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; flex-direction: column;
+  background: var(--surface-2, #fafaf9);
+  animation: expRecordsIn var(--dur-mid) var(--ease-out);
+}
+.exp-budget-bar {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--gutter);
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule-soft);
+  box-shadow: var(--shadow-sm);
+}
+.exp-budget-bar-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg); font-weight: 700;
+}
+.exp-budget-scroll {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: var(--sp-5) var(--gutter) calc(var(--gutter) * 2);
+  max-width: var(--content-max); width: 100%; margin: 0 auto;
+}
+.exp-budget-section-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm); font-weight: 700;
+  color: var(--ink-muted);
+  margin: var(--sp-5) 0 var(--sp-3);
+}
+.exp-budget-section-title:first-child { margin-top: 0; }
+
+/* Compare section — total card */
+.exp-budget-compare { display: flex; flex-direction: column; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.exp-budget-compare-total {
+  background: var(--surface); border-radius: var(--r-xl);
+  padding: var(--sp-4) var(--sp-5); box-shadow: var(--shadow-sm);
+}
+.exp-budget-compare-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+.exp-bcp-label { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted); }
+.exp-bcp-val { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+.exp-budget-compare-bar {
+  height: 8px; background: var(--surface-3); border-radius: var(--r-full); overflow: hidden;
+  margin: var(--sp-2) 0;
+}
+.exp-budget-compare-foot {
+  font-size: var(--fs-sm); font-weight: 600;
+}
+
+/* Compare section — per-country / per-category rows */
+.exp-budget-cmp-row {
+  background: var(--surface); border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4); box-shadow: var(--shadow-sm);
+}
+.exp-budget-cmp-name {
+  font-size: var(--fs-sm); font-weight: 700; color: var(--ink);
+  margin-bottom: 4px;
+}
+.exp-budget-cmp-bar-wrap {
+  display: flex; align-items: center; gap: var(--sp-2); margin-bottom: 4px;
+}
+.exp-budget-cmp-nums {
+  display: flex; align-items: center; gap: 4px;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted);
+}
+.exp-budget-cmp-sep { color: var(--ink-faint); }
+
+/* Settings section */
+.exp-budget-settings { background: var(--surface); border-radius: var(--r-xl); box-shadow: var(--shadow-sm); overflow: hidden; }
+.exp-budget-settings-title {
+  font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 700;
+  padding: var(--sp-4) var(--sp-5) var(--sp-3);
+}
+.exp-budget-settings-tabs {
+  display: flex; gap: var(--sp-2);
+  padding: 0 var(--sp-5) var(--sp-3);
+}
+.exp-budget-settings-content { padding: var(--sp-3) var(--sp-5) var(--sp-5); }
+
+/* ── Breakdown: donut + legend ──────────────────────────────────────────────── */
+.exp-breakdown-empty {
+  color: var(--ink-faint); font-size: 13px; text-align: center; padding: 20px 0;
+}
+.exp-donut-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--sp-4); padding-top: var(--sp-2);
+}
+.exp-donut { flex-shrink: 0; }
+.exp-donut-label {
+  font-family: var(--font-ui); font-size: 13px; font-weight: 700; fill: var(--ink);
+}
+.exp-legend { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.exp-legend-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: center; gap: 6px;
+}
+.exp-legend-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.exp-legend-name {
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  display: flex; align-items: center; gap: 4px;
+}
+.exp-legend-pct { font-size: 11px; font-weight: 700; color: var(--ink-faint); }
+.exp-legend-amt { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+.exp-legend-budget { grid-column: 2 / -1; font-size: 11px; font-weight: 600; color: var(--ink-faint); }
+.exp-legend-row .exp-cat-budget-btn { font-size: 11px; color: var(--ink-faint); padding: 1px 4px; border-radius: var(--r-sm); opacity: 0; transition: opacity var(--dur-fast); }
+.exp-legend-row:hover .exp-cat-budget-btn { opacity: 1; }
+
+/* ── Breakdown: vertical bar chart (time) ───────────────────────────────────── */
+.exp-barchart-wrap { padding-top: var(--sp-2); }
+.exp-barchart-svg {
+  width: 100%; height: 120px;
+  display: block; overflow: visible;
+}
+.exp-bar-label { font-size: 8px; fill: var(--ink-faint); }
+.exp-bar-legend {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--ink-muted); margin-top: var(--sp-2);
+}
+
+/* ── Breakdown: place rows (country + city) ─────────────────────────────────── */
+.exp-place-row {
+  background: var(--surface); border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-3); box-shadow: var(--shadow-sm);
+}
+.exp-place-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
+}
+.exp-place-flag { font-size: 18px; line-height: 1; }
+.exp-place-name { font-size: var(--fs-sm); font-weight: 700; flex: 1; color: var(--ink); }
+.exp-place-total { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+.exp-place-sub { font-size: 11px; color: var(--ink-faint); font-weight: 600; margin-bottom: 4px; }
+.exp-place-row .exp-cat-budget-btn { font-size: 11px; color: var(--ink-faint); padding: 1px 4px; border-radius: var(--r-sm); opacity: 0; transition: opacity var(--dur-fast); }
+.exp-place-row:hover .exp-cat-budget-btn { opacity: 1; }
+.exp-place-cities { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding-left: 26px; }
+.exp-place-city {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; color: var(--ink-muted);
+}
+.exp-place-city-name { font-weight: 600; }
+.exp-place-city-amt { font-family: var(--font-ui); font-weight: 700; }
+
+/* ── Expense calendar (time tab) ────────────────────────────────────────────── */
+.exp-cal-wrap {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--rule-soft);
+}
+.exp-cal-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+.exp-cal-month {
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
+  color: var(--ink);
+}
+.exp-cal-nav {
+  font-size: 16px; font-weight: 700; color: var(--ink-muted);
+  padding: 2px 10px; border-radius: var(--r-full);
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.exp-cal-nav:hover { background: var(--surface-3); color: var(--ink); }
+.exp-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.exp-cal-hdr {
+  font-family: var(--font-ui); font-size: 10px; font-weight: 700;
+  color: var(--ink-faint); text-align: center;
+  padding: 2px 0 4px;
+}
+.exp-cal-cell {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 2px; padding: 5px 2px 6px;
+  border-radius: var(--r-sm); min-height: 44px;
+  cursor: default;
+  transition: background var(--dur-fast);
+}
+.exp-cal-empty { visibility: hidden; pointer-events: none; }
+.exp-cal-has-spend:hover { background: var(--surface-3); }
+.exp-cal-day {
+  font-size: 11px; font-weight: 500; color: var(--ink-soft); line-height: 1;
+}
+.exp-cal-today .exp-cal-day {
+  background: var(--accent); color: var(--ink); font-weight: 700;
+  border-radius: 50%; width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+}
+.exp-cal-amt {
+  font-family: var(--font-ui); font-size: 9px; font-weight: 700;
+  line-height: 1.2; text-align: center;
+  max-width: 100%; overflow: hidden;
+}

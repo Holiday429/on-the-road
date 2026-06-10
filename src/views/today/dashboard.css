@@ -99,69 +99,78 @@
 @media (max-width: 560px) { .td-hero-logo { display: none; } }
 
 /* ── Bento grid ──────────────────────────────────────────────────────────────
-   3-col equal top row: currency | calendar | todo
-   2-col main row:      [left-col: spend+mini] | [map: tall right]
-   2-col bottom row:    upcoming | journal-quick
-
-   Reflow is driven by container queries on the grid's own inline-size, not
-   the viewport — so the layout responds to the space actually left after the
-   sidebar, and every column shrinks together instead of squeezing one side.
+   8 equal tracks.
+   Row 1: currency(1-3) | calendar(4-5) | todo(6-8)  ≈ thirds  (3+2+3)
+   Row 2: spend(1-4)    | map(5-8, spans rows 2-3)   — equal halves
+   Row 3: journal(1-2)  | mini-col(3-4) | map continues
+   Row 4: upcoming(1-4) | whereto(5-8)               — equal halves
    ─────────────────────────────────────────────────────────────────────────── */
 .td-grid {
   container-type: inline-size;
   container-name: tdgrid;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(8, 1fr);
   gap: var(--sp-4);
   align-items: start;
 }
 
-/* Row 1: 3 truly equal cols, equal height via align-self stretch */
-.td-w-currency { grid-column: 1; align-self: stretch; }
-.td-w-calendar { grid-column: 2; align-self: stretch; }
-.td-w-todo     { grid-column: 3; align-self: stretch; }
+/* Row 1: 3 roughly-equal thirds (3+3+2 ≈ even) */
+.td-w-currency { grid-column: 1 / span 3; align-self: stretch; }
+.td-w-calendar { grid-column: 4 / span 3; align-self: stretch; }
+.td-w-todo     { grid-column: 7 / span 2; align-self: stretch; }
 
-/* Row 2: left-col spans 2, map spans 1 */
-.td-left-col   { grid-column: 1 / span 2; display: flex; flex-direction: column; gap: var(--sp-4); }
-.td-w-map      { grid-column: 1 / span 3; align-self: stretch; }
+/* Row 2: spend left half (4), map right half (4, spans rows 2-3) */
+.td-w-spend    { grid-column: 1 / span 4; align-self: stretch; }
+.td-w-map      { grid-column: 5 / span 4; grid-row: span 2; align-self: stretch; }
 
-/* Row 3: upcoming spans 2, journal spans 1 — journal auto-height only */
-.td-w-upcoming { grid-column: 1 / span 2; }
-.td-w-journal  { grid-column: 3; align-self: start; }
+/* Row 3: journal 2 cols, mini-col 2 cols — equal split within left half */
+.td-w-journal  { grid-column: 1 / span 2; align-self: stretch; }
+.td-w-journal .td-jq-grid { flex: 1; }
+.td-w-mini-col { grid-column: 3 / span 2; display: flex; flex-direction: column; gap: var(--sp-4); align-self: stretch; }
+.td-w-mini-col .td-w-pack,
+.td-w-mini-col .td-w-safety { flex: 1; }
 
-/* Mini row inside left-col */
-.td-mini-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-4);
-}
+/* Row 4: upcoming and whereto equal halves */
+.td-w-upcoming { grid-column: 1 / span 4; }
+.td-w-whereto  { grid-column: 5 / span 4; align-self: start; }
 
-/* nomad + where-to-go + pack: each full width */
-.td-w-nomad    { grid-column: 1 / span 3; }
-.td-w-whereto  { grid-column: 1 / span 3; }
-.td-w-pack     { grid-column: 3; align-self: start; }
+/* Extra widgets: full width */
+.td-w-nomad    { grid-column: 1 / span 8; }
 
-/* Below ~860px of available grid width: collapse to 2 cols */
+/* Below ~860px: 3-col */
 @container tdgrid (max-width: 860px) {
+  .td-grid { grid-template-columns: 1fr 1fr 1fr; }
+  .td-w-currency { grid-column: 1; }
+  .td-w-calendar { grid-column: 2; }
+  .td-w-todo     { grid-column: 3; }
+  .td-w-spend    { grid-column: 1 / span 2; }
+  .td-w-map      { grid-column: 3; grid-row: span 2; }
+  .td-w-journal  { grid-column: 1; }
+  .td-w-mini-col { grid-column: 2; }
+  .td-w-upcoming { grid-column: 1 / span 2; }
+  .td-w-whereto  { grid-column: 3; }
+  .td-w-nomad    { grid-column: 1 / span 3; }
+}
+/* Below ~580px: 2-col */
+@container tdgrid (max-width: 580px) {
   .td-grid { grid-template-columns: 1fr 1fr; }
   .td-w-currency { grid-column: 1; }
   .td-w-calendar { grid-column: 2; }
   .td-w-todo     { grid-column: 1 / span 2; }
-  .td-left-col   { grid-column: 1 / span 2; }
-  .td-w-map      { grid-column: 1 / span 2; }
+  .td-w-spend    { grid-column: 1 / span 2; }
+  .td-w-map      { grid-column: 1 / span 2; grid-row: auto; }
+  .td-w-journal  { grid-column: 1; }
+  .td-w-mini-col { grid-column: 2; }
   .td-w-upcoming { grid-column: 1 / span 2; }
-  .td-w-journal  { grid-column: 1 / span 2; }
-  .td-w-pack     { grid-column: 1 / span 2; }
-  .td-w-nomad    { grid-column: 1 / span 2; }
   .td-w-whereto  { grid-column: 1 / span 2; }
+  .td-w-nomad    { grid-column: 1 / span 2; }
 }
-/* Below ~520px: single column stack */
-@container tdgrid (max-width: 520px) {
+/* Below ~420px: single col */
+@container tdgrid (max-width: 420px) {
   .td-grid { grid-template-columns: 1fr; }
-  .td-w-currency,.td-w-calendar,.td-w-todo,.td-left-col,
-  .td-w-map,.td-w-upcoming,.td-w-journal,
-  .td-w-pack,.td-w-nomad,.td-w-whereto { grid-column: 1; }
-  .td-mini-row { grid-template-columns: 1fr; }
+  .td-w-currency,.td-w-calendar,.td-w-todo,
+  .td-w-spend,.td-w-map,.td-w-journal,.td-w-mini-col,
+  .td-w-upcoming,.td-w-whereto,.td-w-nomad { grid-column: 1; grid-row: auto; }
 }
 
 /* ── Widget shell ─────────────────────────────────────────────────────────── */
@@ -229,14 +238,13 @@
   cursor: pointer; transition: background var(--dur-fast);
 }
 .td-currency-swap:hover { background: var(--amber-50); color: var(--accent-deep); }
-/* Rate info rows — centered with comfortable spacing */
-.td-cur-rates { display: flex; flex-direction: column; gap: 0; }
+/* Rate info rows — no dividers */
+.td-cur-rates { display: flex; flex-direction: column; gap: 2px; padding-top: var(--sp-1); }
 .td-cur-rate-row {
   display: flex; align-items: center; justify-content: center; gap: var(--sp-3);
   font-size: var(--fs-sm); color: var(--ink-soft);
-  padding: 8px var(--sp-3); border-top: 1px solid var(--rule-soft);
+  padding: 5px var(--sp-3);
 }
-.td-cur-rate-row:first-child { border-top: none; }
 .td-cur-rate-row span:last-child { display: flex; align-items: center; gap: 5px; }
 .td-cur-rate-row strong { font-weight: 700; color: var(--ink); font-family: var(--font-ui); font-size: var(--fs-sm); }
 .td-cur-rate-eq { color: var(--ink-faint); padding: 0 2px; }
@@ -278,25 +286,45 @@
 .td-over   { font-size: var(--fs-xs); font-weight: 600; color: var(--coral-500); }
 .td-pct    { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-muted); }
 
-.td-quickadd { display: flex; align-items: center; gap: var(--sp-2); }
-.td-quickadd-sym { font-family: var(--font-ui); font-weight: 700; color: var(--ink-muted); flex-shrink: 0; }
-.td-quickadd-amt {
-  width: 80px; flex-shrink: 0; padding: 6px 8px;
+/* Vertical quickadd form */
+.td-quickadd.td-quickadd-v { display: flex; flex-direction: column; gap: var(--sp-2); }
+.td-quickadd-row2 { display: flex; align-items: center; gap: var(--sp-2); }
+/* Amount input with symbol inside the border */
+.td-quickadd-amt-wrap {
+  flex: 1; display: flex; align-items: center;
   border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
-  font-size: var(--fs-sm); outline: none; background: var(--surface);
+  background: var(--surface); transition: border-color var(--dur-fast);
+  padding: 0 10px;
+}
+.td-quickadd-amt-wrap:focus-within { border-color: var(--accent); }
+.td-quickadd-sym {
+  font-family: var(--font-ui); font-weight: 700; color: var(--ink-muted);
+  flex-shrink: 0; padding-right: 4px; user-select: none;
+}
+.td-quickadd-amt {
+  flex: 1; padding: 8px 0;
+  border: none; outline: none; background: transparent;
+  font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 700; color: var(--ink);
+  -moz-appearance: textfield;
+}
+.td-quickadd-amt::-webkit-inner-spin-button,
+.td-quickadd-amt::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.td-quickadd-cat {
+  flex: 1; padding: 8px 8px;
+  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
+  font-size: var(--fs-sm); background: var(--surface); outline: none;
 }
 .td-quickadd-desc {
-  flex: 1; min-width: 0; padding: 6px 8px;
+  flex: 1; padding: 8px 10px;
   border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
   font-size: var(--fs-sm); outline: none; background: var(--surface);
 }
-.td-quickadd-amt:focus, .td-quickadd-desc:focus { border-color: var(--accent); }
-.td-quickadd-save { flex-shrink: 0; padding: 6px 14px; font-size: var(--fs-sm); }
-
-.td-barchart {
-  display: flex; align-items: flex-end; gap: 2px;
-  height: 40px; padding-top: 2px;
-}
+.td-quickadd-hint { font-size: 11px; font-weight: 600; color: var(--ink-faint); }
+.td-quickadd-desc:focus, .td-quickadd-cat:focus { border-color: var(--accent); }
+.td-quickadd-save { flex-shrink: 0; padding: 8px 16px; font-size: var(--fs-sm); white-space: nowrap; }
+/* Bar chart */
+.td-barchart-wrap { display: flex; flex-direction: column; gap: 2px; }
+.td-barchart { display: flex; align-items: flex-end; gap: 2px; height: 56px; padding-top: 2px; }
 .td-bar { flex: 1; min-width: 2px; background: var(--surface-4); border-radius: 2px 2px 0 0; transition: background var(--dur-fast); }
 .td-bar.is-today { background: var(--amber-400); }
 .td-bar:hover    { background: var(--amber-300); }
@@ -308,7 +336,7 @@
   position: relative; flex: 1;
 }
 .td-map-container {
-  width: 100%; min-height: clamp(300px, 30vw, 420px);
+  width: 100%; min-height: clamp(360px, 35vw, 520px);
   border-radius: var(--r-lg); overflow: hidden; background: var(--surface-3);
 }
 .td-map-zoom-controls {
@@ -356,14 +384,23 @@
 .td-safety-hint { font-size: var(--fs-xs); color: var(--ink-muted); }
 .td-safety-number-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 4px 0; border-top: 1px solid var(--rule-soft);
+  padding: 5px 0; border-top: 1px solid var(--rule-soft);
   font-size: var(--fs-xs);
 }
 .td-safety-number-row:first-of-type { border-top: none; }
 .td-safety-number-label { color: var(--ink-muted); font-weight: 600; }
-.td-safety-number-val   { font-family: var(--font-ui); font-weight: 700; color: var(--ink); font-size: var(--fs-sm); }
+.td-safety-call-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-ui); font-weight: 700; font-size: var(--fs-sm); color: var(--ink);
+  text-decoration: none; background: var(--surface-3);
+  border: 1px solid var(--rule-soft); border-radius: var(--r-md);
+  padding: 2px 8px; transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.td-safety-call-btn:hover { background: #dcfce7; border-color: #86efac; color: #15803d; }
 
 /* ── To-do ────────────────────────────────────────────────────────────────── */
+.td-w-todo { justify-content: space-between; }
+.td-todo-list { display: flex; flex-direction: column; gap: var(--sp-2); flex: 1; }
 .td-todo-row {
   display: flex; align-items: center; gap: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
@@ -570,28 +607,39 @@
 }
 
 /* ── Where-to-Go widget ───────────────────────────────────────────────────── */
-.td-whereto-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
-@container tdgrid (max-width: 700px) { .td-whereto-cards { grid-template-columns: 1fr 1fr; } }
-@container tdgrid (max-width: 440px) { .td-whereto-cards { grid-template-columns: 1fr; } }
+.td-whereto-cards { display: flex; flex-direction: column; gap: var(--sp-2); }
 .td-whereto-card {
   background: var(--surface-3); border-radius: var(--r-md);
-  padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-1);
-  border: 1px solid var(--rule-soft);
+  padding: var(--sp-2) var(--sp-3); border: 1px solid var(--rule-soft);
 }
-.td-whereto-card-header { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.td-whereto-type-icon { font-size: 16px; flex-shrink: 0; }
+.td-whereto-card-header {
+  display: flex; align-items: flex-start; gap: var(--sp-2);
+}
+.td-whereto-type-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.td-whereto-card-body { flex: 1; min-width: 0; }
+.td-whereto-name-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .td-whereto-name {
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink);
-  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 .td-whereto-cost {
   font-size: 10px; font-weight: 700; color: var(--accent-deep);
   background: var(--amber-50); border-radius: var(--r-sm); padding: 1px 6px; flex-shrink: 0;
 }
 .td-whereto-highlight {
-  font-size: var(--fs-xs); color: var(--ink-muted);
+  font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.td-whereto-add-btn {
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: var(--r-full);
+  border: 1.5px solid var(--rule-soft); background: var(--surface);
+  font-size: 14px; font-weight: 700; color: var(--ink-muted);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+  margin-top: 1px;
+}
+.td-whereto-add-btn:hover { background: var(--amber-50); border-color: var(--accent); color: var(--accent-deep); }
+.td-whereto-empty { font-size: var(--fs-xs); color: var(--ink-muted); line-height: 1.5; }
 
 /* ── Pack widget ─────────────────────────────────────────────────────────── */
 .td-pk-header-weight {
@@ -618,22 +666,3 @@
 .td-pk-action-btn:hover { border-color: var(--amber-400); background: var(--amber-50); color: var(--ink); }
 .td-pk-action-btn--nav { color: var(--accent-deep); }
 
-/* ── Drag-and-drop ────────────────────────────────────────────────────────── */
-.td-draggable { position: relative; }
-.td-dragging { opacity: 0.35; transform: scale(0.98); pointer-events: none; }
-/* Widget label / header becomes the drag handle when hovered */
-.td-drag-handle {
-  cursor: grab;
-  user-select: none;
-}
-.td-drag-handle:active { cursor: grabbing; }
-/* Notion-style insert line spanning full row */
-.td-drop-indicator {
-  grid-column: 1 / -1;
-  height: 3px;
-  background: var(--accent);
-  border-radius: var(--r-full);
-  box-shadow: 0 0 0 3px var(--amber-100);
-  pointer-events: none;
-  margin: -8px 0;
-}
