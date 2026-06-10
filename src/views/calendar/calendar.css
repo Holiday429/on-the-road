@@ -69,8 +69,8 @@
 }
 .cal-cell {
   position: relative;
-  min-height: 72px;
-  padding: 8px 6px 6px;
+  min-height: 96px;
+  padding: 6px 5px 5px;
   border-radius: var(--r-md);
   background: var(--surface);
   border: 1.5px solid transparent;
@@ -78,7 +78,7 @@
   transition: border-color var(--dur-fast), background var(--dur-fast);
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 .cal-cell:hover  { background: var(--amber-50); border-color: var(--amber-200); }
 .cal-cell.is-today  { border-color: var(--amber-400); background: var(--amber-50); }
@@ -86,6 +86,10 @@
 .cal-cell.cal-empty { pointer-events: none; background: transparent; }
 .cal-cell.has-leg { background: linear-gradient(135deg, #fffbf0, #ffffff); }
 
+.cal-cell-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1px;
+}
 .cal-daynum {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
@@ -96,11 +100,12 @@
 .cal-cell.is-today .cal-daynum {
   background: var(--accent);
   color: var(--ink);
-  width: 24px; height: 24px;
+  width: 22px; height: 22px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-size: 11px;
 }
 .cal-leg-label {
   font-size: 10px;
@@ -114,20 +119,31 @@
   text-overflow: ellipsis;
   max-width: 100%;
 }
-.cal-dots {
-  display: flex;
-  gap: 3px;
-  margin-top: auto;
+
+/* Inline event chips */
+.cal-chip {
+  display: block;
+  font-size: 10px; font-weight: 600;
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%; line-height: 1.4;
 }
+.cal-chip.is-done { opacity: 0.45; text-decoration: line-through; }
+.cal-chip-plan { background: #ede9fe; color: #6d28d9; }
+.cal-chip-todo { background: #fee2e2; color: #b91c1c; }
+.cal-chip-more {
+  font-size: 9px; color: var(--ink-faint); font-weight: 600;
+  padding: 0 2px; margin-top: 1px;
+}
+
+/* Journal dot (kept as small indicator in top-right) */
 .cal-dot {
   width: 6px; height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.cal-dot-journal   { background: var(--sky-400); }
-.cal-dot-todo      { background: #f87171; }
-.cal-dot-todo-done { background: var(--surface-4); }
-.cal-dot-plan      { background: var(--amber-400); }
+.cal-dot-journal { background: var(--sky-400); }
 
 /* ── Day panel (inside modal) ─────────────────────────────────────────────── */
 .cal-day-panel {

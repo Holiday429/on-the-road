@@ -110,18 +110,28 @@ function renderMonthGrid(): string {
     const hasLeg     = ev.legs.length > 0;
     const legLabel   = hasLeg ? esc(ev.legs[0].city) : '';
 
-    const dots = [
-      ev.journal.length ? `<span class="cal-dot cal-dot-journal"></span>` : '',
-      ev.todos.filter(t => !t.done && t.dueDate).length ? `<span class="cal-dot cal-dot-todo"></span>` : '',
-      ev.todos.filter(t => t.done).length  ? `<span class="cal-dot cal-dot-todo-done"></span>` : '',
-      ev.plans.length ? `<span class="cal-dot cal-dot-plan"></span>` : '',
-    ].join('');
+    // Inline chips: plan items (violet), todos with dueDate (red/grey), journal dot
+    const planChips = ev.plans.slice(0, 3).map(p =>
+      `<span class="cal-chip cal-chip-plan ${p.done ? 'is-done' : ''}">${esc(p.title)}</span>`
+    ).join('');
+    const todoChips = ev.todos.filter(t => t.dueDate).slice(0, 2).map(t =>
+      `<span class="cal-chip cal-chip-todo ${t.done ? 'is-done' : ''}">${esc(t.text)}</span>`
+    ).join('');
+    const journalDot = ev.journal.length
+      ? `<span class="cal-dot cal-dot-journal" title="${ev.journal.length} journal entr${ev.journal.length > 1 ? 'ies' : 'y'}"></span>`
+      : '';
+    const overflow = (ev.plans.length > 3 || ev.todos.filter(t => t.dueDate).length > 2)
+      ? `<span class="cal-chip-more">+${ev.plans.length + ev.todos.filter(t => t.dueDate).length - 3 - Math.min(ev.todos.filter(t => t.dueDate).length, 2)}</span>`
+      : '';
 
     cells += `
       <div class="cal-cell ${hasLeg ? 'has-leg' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}" data-day="${iso}">
-        <span class="cal-daynum">${d}</span>
+        <div class="cal-cell-top">
+          <span class="cal-daynum">${d}</span>
+          ${journalDot}
+        </div>
         ${hasLeg ? `<span class="cal-leg-label">${legLabel}</span>` : ''}
-        ${dots ? `<span class="cal-dots">${dots}</span>` : ''}
+        ${planChips}${todoChips}${overflow}
       </div>`;
   }
 
