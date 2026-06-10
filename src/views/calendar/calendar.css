@@ -127,6 +127,7 @@
 .cal-dot-journal   { background: var(--sky-400); }
 .cal-dot-todo      { background: #f87171; }
 .cal-dot-todo-done { background: var(--surface-4); }
+.cal-dot-plan      { background: var(--amber-400); }
 
 /* ── Day panel (inside modal) ─────────────────────────────────────────────── */
 .cal-day-panel {
@@ -235,6 +236,9 @@
   border-radius: var(--r-sm);
   padding: 1px 6px;
 }
+
+/* Plan item rows */
+.cal-row-plan.is-done .cal-row-title { text-decoration: line-through; color: var(--ink-faint); }
 
 /* Section label (undated todos) */
 .cal-section-label {

@@ -31,6 +31,23 @@ let _month = new Date().getMonth();   // 0-based
 let _selectedDay: string | null = null;
 let _unsubs: Array<() => void> = [];
 
+// Flattened plan items with resolved ISO date, derived from _legs
+interface FlatPlanItem { date: string; title: string; category: string; cost?: string; done: boolean; legId: string; legFlag: string; legCity: string; }
+function flatPlanItems(): FlatPlanItem[] {
+  const items: FlatPlanItem[] = [];
+  for (const leg of _legs) {
+    const days = leg.planDays ?? [];
+    const plans = leg.plans ?? [];
+    for (const p of plans) {
+      if (!p.dayId) continue;
+      const day = days.find(d => d.id === p.dayId);
+      if (!day?.date) continue;
+      items.push({ date: day.date, title: p.title, category: p.category, cost: p.cost, done: p.done, legId: leg.id, legFlag: leg.flag ?? '', legCity: leg.city });
+    }
+  }
+  return items;
+}
+
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 function isoDate(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -45,6 +62,7 @@ interface DayEvents {
   legs:    StoredLeg[];
   journal: StoredJournalEntry[];
   todos:   StoredTodo[];
+  plans:   FlatPlanItem[];
 }
 function eventsForDay(iso: string): DayEvents {
   const undated = iso === todayIso()
@@ -57,6 +75,7 @@ function eventsForDay(iso: string): DayEvents {
       ..._todos.filter(t => t.dueDate === iso),
       ...undated,
     ],
+    plans:   flatPlanItems().filter(p => p.date === iso),
   };
 }
 
@@ -85,6 +104,7 @@ function renderMonthGrid(): string {
       ev.journal.length ? `<span class="cal-dot cal-dot-journal"></span>` : '',
       ev.todos.filter(t => !t.done && t.dueDate).length ? `<span class="cal-dot cal-dot-todo"></span>` : '',
       ev.todos.filter(t => t.done).length  ? `<span class="cal-dot cal-dot-todo-done"></span>` : '',
+      ev.plans.length ? `<span class="cal-dot cal-dot-plan"></span>` : '',
     ].join('');
 
     cells += `
@@ -159,6 +179,19 @@ function renderDayPanel(iso: string): string {
       </div>`;
   }).join('');
 
+  /* ── Plan item rows ── */
+  const planRows = ev.plans.length ? `
+    <div class="cal-section-label">Itinerary plans</div>
+    ${ev.plans.map(p => `
+      <div class="cal-panel-row cal-row-plan ${p.done ? 'is-done' : ''}" data-nav="route" data-intent='${esc(JSON.stringify({ legId: p.legId } satisfies NavIntent))}'>
+        <span class="cal-row-icon">📌</span>
+        <div class="cal-row-body">
+          <div class="cal-row-title">${esc(p.title)}</div>
+          ${p.cost ? `<div class="cal-row-sub">${esc(p.cost)}</div>` : ''}
+        </div>
+        <span class="cal-row-arrow">›</span>
+      </div>`).join('')}` : '';
+
   /* ── Journal rows ── */
   const jRows = ev.journal.map(e => {
     const preview = e.body.slice(0, 80).replace(/\n/g, ' ');
@@ -197,7 +230,7 @@ function renderDayPanel(iso: string): string {
       </div>`;
   }).join('');
 
-  const empty = !legRows && !jRows && !ev.todos.length
+  const empty = !legRows && !planRows && !jRows && !ev.todos.length
     ? `<div class="cal-panel-empty">Nothing scheduled — looks like a free day.</div>` : '';
 
   return `
@@ -207,6 +240,7 @@ function renderDayPanel(iso: string): string {
         <button class="cal-panel-close" data-otr-close aria-label="Close">✕</button>
       </div>
       ${legRows}
+      ${planRows}
       ${jRows}
       ${undatedHeader}
       ${todoRows}
