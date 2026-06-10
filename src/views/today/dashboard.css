@@ -102,8 +102,14 @@
    3-col equal top row: currency | calendar | todo
    2-col main row:      [left-col: spend+mini] | [map: tall right]
    2-col bottom row:    upcoming | journal-quick
+
+   Reflow is driven by container queries on the grid's own inline-size, not
+   the viewport — so the layout responds to the space actually left after the
+   sidebar, and every column shrinks together instead of squeezing one side.
    ─────────────────────────────────────────────────────────────────────────── */
 .td-grid {
+  container-type: inline-size;
+  container-name: tdgrid;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   gap: var(--sp-4);
@@ -135,7 +141,8 @@
 .td-w-whereto  { grid-column: 1 / span 3; }
 .td-w-pack     { grid-column: 3; align-self: start; }
 
-@media (max-width: 900px) {
+/* Below ~860px of available grid width: collapse to 2 cols */
+@container tdgrid (max-width: 860px) {
   .td-grid { grid-template-columns: 1fr 1fr; }
   .td-w-currency { grid-column: 1; }
   .td-w-calendar { grid-column: 2; }
@@ -148,7 +155,8 @@
   .td-w-nomad    { grid-column: 1 / span 2; }
   .td-w-whereto  { grid-column: 1 / span 2; }
 }
-@media (max-width: 560px) {
+/* Below ~520px: single column stack */
+@container tdgrid (max-width: 520px) {
   .td-grid { grid-template-columns: 1fr; }
   .td-w-currency,.td-w-calendar,.td-w-todo,.td-left-col,
   .td-w-map,.td-w-upcoming,.td-w-journal,
@@ -300,7 +308,7 @@
   position: relative; flex: 1;
 }
 .td-map-container {
-  width: 100%; min-height: 380px;
+  width: 100%; min-height: clamp(300px, 30vw, 420px);
   border-radius: var(--r-lg); overflow: hidden; background: var(--surface-3);
 }
 .td-map-zoom-controls {
@@ -533,8 +541,8 @@
 
 /* ── Nomad widget ─────────────────────────────────────────────────────────── */
 .td-nomad-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
-@media (max-width: 700px) { .td-nomad-cards { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 480px) { .td-nomad-cards { grid-template-columns: 1fr; } }
+@container tdgrid (max-width: 700px) { .td-nomad-cards { grid-template-columns: 1fr 1fr; } }
+@container tdgrid (max-width: 440px) { .td-nomad-cards { grid-template-columns: 1fr; } }
 .td-nomad-card {
   background: var(--surface-3); border-radius: var(--r-md);
   padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-1);
@@ -563,8 +571,8 @@
 
 /* ── Where-to-Go widget ───────────────────────────────────────────────────── */
 .td-whereto-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
-@media (max-width: 700px) { .td-whereto-cards { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 480px) { .td-whereto-cards { grid-template-columns: 1fr; } }
+@container tdgrid (max-width: 700px) { .td-whereto-cards { grid-template-columns: 1fr 1fr; } }
+@container tdgrid (max-width: 440px) { .td-whereto-cards { grid-template-columns: 1fr; } }
 .td-whereto-card {
   background: var(--surface-3); border-radius: var(--r-md);
   padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-1);
