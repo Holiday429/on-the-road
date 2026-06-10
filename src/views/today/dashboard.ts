@@ -914,24 +914,22 @@ function renderWhereToGoWidget(): string {
   const picks: Array<{ icon: string; title: string; highlight?: string; cost?: string }> = [];
   for (const cat of CATEGORIES) {
     const arr = ((intel as any)[cat.key] as any[] | undefined) ?? [];
-    const first = arr.find((c: any) => c.title);
-    if (first) picks.push({ icon: cat.icon, title: first.title, highlight: first.highlight, cost: first.cost });
-    if (picks.length >= 3) break;
+    for (const item of arr) {
+      if (item.title) picks.push({ icon: cat.icon, title: item.title, highlight: item.highlight, cost: item.cost });
+      if (picks.length >= 6) break;
+    }
+    if (picks.length >= 6) break;
   }
 
   const cards = picks.map(c => `
     <div class="td-whereto-card">
-      <div class="td-whereto-card-header">
+      <div class="td-whereto-card-top">
         <span class="td-whereto-type-icon">${c.icon}</span>
-        <div class="td-whereto-card-body">
-          <div class="td-whereto-name-row">
-            <span class="td-whereto-name">${esc(c.title)}</span>
-            ${c.cost ? `<span class="td-whereto-cost">${esc(c.cost)}</span>` : ''}
-          </div>
-          ${c.highlight ? `<div class="td-whereto-highlight">${esc(c.highlight)}</div>` : ''}
-        </div>
         <button class="td-whereto-add-btn" data-wtg-add="${esc(c.title)}" title="Add to itinerary">+</button>
       </div>
+      <div class="td-whereto-name">${esc(c.title)}</div>
+      ${c.cost ? `<div class="td-whereto-cost">${esc(c.cost)}</div>` : ''}
+      ${c.highlight ? `<div class="td-whereto-highlight">${esc(c.highlight)}</div>` : ''}
     </div>`).join('');
 
   return `

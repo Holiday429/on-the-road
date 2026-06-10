@@ -99,43 +99,43 @@
 @media (max-width: 560px) { .td-hero-logo { display: none; } }
 
 /* ── Bento grid ──────────────────────────────────────────────────────────────
-   8 equal tracks.
-   Row 1: currency(1-3) | calendar(4-5) | todo(6-8)  ≈ thirds  (3+2+3)
-   Row 2: spend(1-4)    | map(5-8, spans rows 2-3)   — equal halves
-   Row 3: journal(1-2)  | mini-col(3-4) | map continues
-   Row 4: upcoming(1-4) | whereto(5-8)               — equal halves
+   12 equal tracks.
+   Row 1: currency(1-4) | calendar(5-8) | todo(9-12)  — exact thirds
+   Row 2: spend(1-6)    | map(7-12, spans rows 2-3)   — exact halves
+   Row 3: journal(1-3)  | mini-col(4-6) | map continues
+   Row 4: upcoming(1-5) | whereto(6-12)               — narrower left, wider right
    ─────────────────────────────────────────────────────────────────────────── */
 .td-grid {
   container-type: inline-size;
   container-name: tdgrid;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(12, 1fr);
   gap: var(--sp-4);
   align-items: start;
 }
 
-/* Row 1: 3 roughly-equal thirds (3+3+2 ≈ even) */
-.td-w-currency { grid-column: 1 / span 3; align-self: stretch; }
-.td-w-calendar { grid-column: 4 / span 3; align-self: stretch; }
-.td-w-todo     { grid-column: 7 / span 2; align-self: stretch; }
+/* Row 1: exact thirds */
+.td-w-currency { grid-column: 1 / span 4; align-self: stretch; }
+.td-w-calendar { grid-column: 5 / span 4; align-self: stretch; }
+.td-w-todo     { grid-column: 9 / span 4; align-self: stretch; }
 
-/* Row 2: spend left half (4), map right half (4, spans rows 2-3) */
-.td-w-spend    { grid-column: 1 / span 4; align-self: stretch; }
-.td-w-map      { grid-column: 5 / span 4; grid-row: span 2; align-self: stretch; }
+/* Row 2: exact halves, map spans rows 2-3 */
+.td-w-spend    { grid-column: 1 / span 6; align-self: stretch; }
+.td-w-map      { grid-column: 7 / span 6; grid-row: span 2; align-self: stretch; }
 
-/* Row 3: journal 2 cols, mini-col 2 cols — equal split within left half */
-.td-w-journal  { grid-column: 1 / span 2; align-self: stretch; }
+/* Row 3: journal 3 cols, mini-col 3 cols — equal within left half */
+.td-w-journal  { grid-column: 1 / span 3; align-self: stretch; }
 .td-w-journal .td-jq-grid { flex: 1; }
-.td-w-mini-col { grid-column: 3 / span 2; display: flex; flex-direction: column; gap: var(--sp-4); align-self: stretch; }
+.td-w-mini-col { grid-column: 4 / span 3; display: flex; flex-direction: column; gap: var(--sp-4); align-self: stretch; }
 .td-w-mini-col .td-w-pack,
 .td-w-mini-col .td-w-safety { flex: 1; }
 
-/* Row 4: upcoming and whereto equal halves */
-.td-w-upcoming { grid-column: 1 / span 4; }
-.td-w-whereto  { grid-column: 5 / span 4; align-self: start; }
+/* Row 4: upcoming narrower (5), whereto wider (7) */
+.td-w-upcoming { grid-column: 1 / span 5; }
+.td-w-whereto  { grid-column: 6 / span 7; align-self: start; }
 
 /* Extra widgets: full width */
-.td-w-nomad    { grid-column: 1 / span 8; }
+.td-w-nomad    { grid-column: 1 / span 12; }
 
 /* Below ~860px: 3-col */
 @container tdgrid (max-width: 860px) {
@@ -608,36 +608,40 @@
 }
 
 /* ── Where-to-Go widget ───────────────────────────────────────────────────── */
-.td-whereto-cards { display: flex; flex-direction: column; gap: var(--sp-2); }
+.td-whereto-cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2);
+}
 .td-whereto-card {
   background: var(--surface-3); border-radius: var(--r-md);
-  padding: var(--sp-2) var(--sp-3); border: 1px solid var(--rule-soft);
+  padding: var(--sp-3); border: 1px solid var(--rule-soft);
+  display: flex; flex-direction: column; gap: 4px;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
 }
-.td-whereto-card-header {
-  display: flex; align-items: flex-start; gap: var(--sp-2);
+.td-whereto-card:hover { border-color: var(--amber-200); background: var(--amber-50); }
+.td-whereto-card-top {
+  display: flex; align-items: center; justify-content: space-between;
 }
-.td-whereto-type-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
-.td-whereto-card-body { flex: 1; min-width: 0; }
-.td-whereto-name-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.td-whereto-type-icon { font-size: 18px; line-height: 1; }
 .td-whereto-name {
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
 .td-whereto-cost {
   font-size: 10px; font-weight: 700; color: var(--accent-deep);
-  background: var(--amber-50); border-radius: var(--r-sm); padding: 1px 6px; flex-shrink: 0;
+  background: var(--amber-100, #fef3c7); border-radius: var(--r-sm);
+  padding: 1px 6px; align-self: flex-start;
 }
 .td-whereto-highlight {
-  font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px;
+  font-size: var(--fs-xs); color: var(--ink-muted);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .td-whereto-add-btn {
-  flex-shrink: 0; width: 22px; height: 22px; border-radius: var(--r-full);
+  flex-shrink: 0; width: 20px; height: 20px; border-radius: var(--r-full);
   border: 1.5px solid var(--rule-soft); background: var(--surface);
-  font-size: 14px; font-weight: 700; color: var(--ink-muted);
+  font-size: 13px; font-weight: 700; color: var(--ink-muted);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
   transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
-  margin-top: 1px;
 }
 .td-whereto-add-btn:hover { background: var(--amber-50); border-color: var(--accent); color: var(--accent-deep); }
 .td-whereto-empty { font-size: var(--fs-xs); color: var(--ink-muted); line-height: 1.5; }
