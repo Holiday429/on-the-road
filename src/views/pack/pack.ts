@@ -20,6 +20,7 @@ import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit
 import { itemWeightG, formatKg, itemsPresentAtLeg } from '../../data/packing-formula.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
 import { escHtml } from '../../core/utils.ts';
+import { consumeNavIntent } from '../../core/app.ts';
 
 /* ── Item categories ─────────────────────────────────────────────────────── */
 // Colors: NOTE_PALETTE tones extended with a few extra muted hues.
@@ -1111,8 +1112,9 @@ function bindDetail(c: HTMLElement, l: PackList) {
 /* ── Init ────────────────────────────────────────────────────────────────── */
 
 export function initPack() {
-  screen = 'list';
-  activeId = null;
+  const intent = consumeNavIntent('pack');
+  screen = intent?.listId ? 'detail' : 'list';
+  activeId = intent?.listId ?? null;
   packCheckMode = false;
   weightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
   startSubscriptions();

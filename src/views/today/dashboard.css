@@ -331,12 +331,12 @@
 .td-barchart-label { font-size: 10px; color: var(--ink-faint); text-align: right; }
 
 /* ── Map ──────────────────────────────────────────────────────────────────── */
-.td-w-map { display: flex; flex-direction: column; gap: var(--sp-3); }
+.td-w-map { display: flex; flex-direction: column; }
 .td-map-wrap {
-  position: relative; flex: 1;
+  position: relative; flex: 1; min-height: clamp(360px, 35vw, 520px);
 }
 .td-map-container {
-  width: 100%; min-height: clamp(360px, 35vw, 520px);
+  position: absolute; inset: 0;
   border-radius: var(--r-lg); overflow: hidden; background: var(--surface-3);
 }
 .td-map-zoom-controls {
@@ -355,8 +355,11 @@
 .td-map-zoom-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
 #tdMapZoomFit { font-size: 13px; }
 .td-map-legend {
+  position: absolute; left: 10px; bottom: 10px; z-index: 4;
   display: flex; align-items: center; gap: var(--sp-3);
   font-size: 10px; color: var(--ink-muted);
+  background: rgba(255,255,255,0.82); backdrop-filter: blur(4px);
+  border-radius: var(--r-md); padding: 3px 8px;
 }
 .td-map-legend span { display: flex; align-items: center; gap: 4px; }
 .td-map-dot {
@@ -384,17 +387,15 @@
 .td-safety-hint { font-size: var(--fs-xs); color: var(--ink-muted); }
 .td-safety-number-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 5px 0; border-top: 1px solid var(--rule-soft);
   font-size: var(--fs-xs);
 }
-.td-safety-number-row:first-of-type { border-top: none; }
 .td-safety-number-label { color: var(--ink-muted); font-weight: 600; }
 .td-safety-call-btn {
   display: inline-flex; align-items: center; gap: 4px;
   font-family: var(--font-ui); font-weight: 700; font-size: var(--fs-sm); color: var(--ink);
   text-decoration: none; background: var(--surface-3);
-  border: 1px solid var(--rule-soft); border-radius: var(--r-md);
-  padding: 2px 8px; transition: background var(--dur-fast), border-color var(--dur-fast);
+  border: 1px solid var(--rule-soft); border-radius: var(--r-full);
+  padding: 4px 12px; transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .td-safety-call-btn:hover { background: #dcfce7; border-color: #86efac; color: #15803d; }
 
@@ -476,12 +477,12 @@
   display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2);
 }
 .td-jq-btn {
-  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
   padding: var(--sp-3) var(--sp-2);
   background: var(--surface-3); border-radius: var(--r-md);
   border: 1.5px solid transparent;
   cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast);
-  text-align: center;
+  text-align: center; width: 100%;
 }
 .td-jq-btn:hover { background: var(--amber-50); border-color: var(--amber-200); }
 .td-jq-icon  { font-size: 22px; line-height: 1; }

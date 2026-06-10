@@ -490,11 +490,11 @@ function renderMapWidget(): string {
           <button class="td-map-zoom-btn" id="tdMapZoomFit" title="Fit to route">⊡</button>
           <button class="td-map-zoom-btn" id="tdMapZoomOut" title="Zoom out">−</button>
         </div>
-      </div>
-      <div class="td-map-legend">
-        <span><span class="td-map-dot" style="background:#22c55e"></span>Now</span>
-        <span><span class="td-map-dot" style="background:#f9b830"></span>Upcoming</span>
-        <span><span class="td-map-dot" style="background:#a8a29e"></span>Past</span>
+        <div class="td-map-legend">
+          <span><span class="td-map-dot" style="background:#22c55e"></span>Now</span>
+          <span><span class="td-map-dot" style="background:#f9b830"></span>Upcoming</span>
+          <span><span class="td-map-dot" style="background:#a8a29e"></span>Past</span>
+        </div>
       </div>
     </div>`;
 }
@@ -762,18 +762,18 @@ function renderSafetyMini(): string {
       </div>`;
   }
 
-  const rows: string[] = [];
-  if (safetyCard.generalEmergency) {
-    rows.push(callRow('General', safetyCard.generalEmergency));
-  }
-  for (const n of (safetyCard.emergencyNumbers ?? []).slice(0, 3)) {
-    if (n.number) rows.push(callRow(n.label, n.number));
-  }
+  // Show only the single most important number (general emergency first)
+  const topNumber = safetyCard.generalEmergency
+    || safetyCard.emergencyNumbers?.find(n => n.number)?.number
+    || '112';
+  const topLabel = safetyCard.generalEmergency
+    ? 'General'
+    : (safetyCard.emergencyNumbers?.find(n => n.number)?.label ?? 'General');
 
   return `
     <div class="td-widget td-w-safety">
       <div class="td-widget-label">🛡️ ${esc(leg.flag)} ${esc(leg.city)}</div>
-      ${rows.join('')}
+      ${callRow(topLabel, topNumber)}
     </div>`;
 }
 
@@ -818,7 +818,7 @@ function renderPackWidget(): string | null {
     <div class="td-widget td-w-pack">
       <div class="td-widget-header">
         <div class="td-widget-label">🎒 Bag <span class="td-pk-header-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</span></div>
-        <button class="td-link" data-nav="pack">Open Bag ›</button>
+        <button class="td-link" data-nav="pack" data-intent='${esc(JSON.stringify({ listId: list.id }))}'>Open Bag ›</button>
       </div>
       ${allowanceBar}
       ${recentHtml}
