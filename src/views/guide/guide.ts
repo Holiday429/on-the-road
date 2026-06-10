@@ -30,6 +30,8 @@ let _selectedCity: { label: string; country: string } | null = null;
 let _previewIntel: (CityIntel & { id: string }) | null = null;
 // History panel visibility
 let _historyOpen = false;
+// Block store-subscriber re-renders while the GIF splash is showing
+let _generating = false;
 
 type TabKey = 'intro' | 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'know' | 'moneyTips';
 
@@ -55,6 +57,7 @@ async function generateGuide(city: string, country: string, query: string): Prom
   const statusEl0 = document.getElementById('guide-search-status');
   if (statusEl0) statusEl0.textContent = '';
 
+  _generating = true;
   showSkeleton(root, city, country);
 
   try {
@@ -116,9 +119,11 @@ async function generateGuide(city: string, country: string, query: string): Prom
       for (const line of lines) await applyLine(line);
     }
 
+    _generating = false;
     // Background-prefetch a safety card for the same city if one doesn't exist yet.
     void prefetchSafetyForCity(city, country);
   } catch (err) {
+    _generating = false;
     // API failed — show a sample preview WITHOUT persisting it to Firestore,
     // so a transient outage never poisons the cache with mock data.
     console.warn('Guide API unavailable, showing sample (not saved):', err);
@@ -1194,6 +1199,8 @@ export function initCities() {
     const root = document.getElementById('view-cities');
     if (!root) return;
     renderCityList(root);
+    // Don't overwrite the GIF splash while generation is in progress
+    if (_generating) return;
     if (_activeCityId && _cities.find(c => c.id === _activeCityId)) {
       renderCityDetail(root);
     } else if (!_activeCityId && _cities.length) {

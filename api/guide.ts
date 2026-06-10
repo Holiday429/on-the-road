@@ -341,7 +341,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.flushHeaders();
 
   try {
-    // Run all Tavily searches in parallel
+    // Run all Tavily searches in parallel (fast, low-latency)
     const [metaCtx, knowCtx, attractCtx, walkCtx, foodCtx, cafeCtx, expCtx, moneyCtx] =
       await Promise.all([
         tavilySearch(`${city} ${country} travel highlights overview ${query}`),
@@ -354,68 +354,59 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         tavilySearch(`${city} budget travel money saving tips 2025`),
       ]);
 
-    // Fire all DeepSeek calls in parallel
-    const [metaRaw, knowRaw, attrRaw, walkRaw, restRaw, cafeRaw, expRaw, moneyRaw] =
-      await Promise.all([
-        deepseek(metaPrompt(city, country, metaCtx, query)),
-        deepseek(knowPrompt(city, country, knowCtx)),
-        deepseek(attractionsPrompt(city, attractCtx, query)),
-        deepseek(cityWalksPrompt(city, walkCtx, query)),
-        deepseek(restaurantsPrompt(city, foodCtx, query)),
-        deepseek(cafesPrompt(city, cafeCtx, query)),
-        deepseek(experiencesPrompt(city, expCtx, query)),
-        deepseek(moneyTipsPrompt(city, moneyCtx)),
-      ]);
-
-    const meta = metaRaw as {
-      flag: string; intro: string; funFacts: string[];
-      overviewSections?: { icon: string; title: string; body: string }[];
-    };
-    const know = knowRaw as {
-      greetings: { phrase: string; pronunciation: string; meaning: string }[];
-      customs: string[]; taboos: string[];
-      neighborhoods: { name: string; vibe: string }[];
-      safetyTips: string[]; transport: string[];
-    };
-
-    // Emit sections as they're ready (all parallel, so order is deterministic)
-    emit(res, 'meta', {
-      city, country,
-      flag: meta.flag ?? '🗺️',
-      bannerColor: randomBanner(),
-      intro: meta.intro ?? '',
-      funFacts: meta.funFacts ?? [],
-      overviewSections: meta.overviewSections ?? [],
+    // Emit each section as soon as its DeepSeek call resolves — don't wait for all 8.
+    // meta + know fire first; the rest fire in parallel and emit as they land.
+    const metaPromise = deepseek(metaPrompt(city, country, metaCtx, query)).then((raw) => {
+      const meta = raw as {
+        flag: string; intro: string; funFacts: string[];
+        overviewSections?: { icon: string; title: string; body: string }[];
+      };
+      emit(res, 'meta', {
+        city, country,
+        flag: meta.flag ?? '🗺️',
+        bannerColor: randomBanner(),
+        intro: meta.intro ?? '',
+        funFacts: meta.funFacts ?? [],
+        overviewSections: meta.overviewSections ?? [],
+      });
     });
 
-    emit(res, 'know', know);
+    const knowPromise = deepseek(knowPrompt(city, country, knowCtx)).then((raw) => {
+      emit(res, 'know', raw);
+    });
 
-    // Photo-backed sections: attach Unsplash images (landmark-ish content).
-    const attractions = await addPhotos(
-      addSearchUrls((Array.isArray(attrRaw) ? attrRaw : []) as GuideCard[], city), city
-    );
-    emit(res, 'attractions', attractions);
+    const attractionsPromise = deepseek(attractionsPrompt(city, attractCtx, query)).then(async (raw) => {
+      const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city), city);
+      emit(res, 'attractions', items);
+    });
 
-    const cityWalks = await addPhotos(
-      addSearchUrls((Array.isArray(walkRaw) ? walkRaw : []) as CityWalk[], city), city
-    );
-    emit(res, 'cityWalks', cityWalks);
+    const cityWalksPromise = deepseek(cityWalksPrompt(city, walkCtx, query)).then(async (raw) => {
+      const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as CityWalk[], city), city);
+      emit(res, 'cityWalks', items);
+    });
 
-    // Restaurants & cafés: no Unsplash image (only generic mood shots exist).
-    emit(res, 'restaurants', addSearchUrls(
-      (Array.isArray(restRaw) ? restRaw : []) as GuideCard[], city
-    ));
-    emit(res, 'cafes', addSearchUrls(
-      (Array.isArray(cafeRaw) ? cafeRaw : []) as GuideCard[], city
-    ));
+    const restaurantsPromise = deepseek(restaurantsPrompt(city, foodCtx, query)).then((raw) => {
+      emit(res, 'restaurants', addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city));
+    });
 
-    const experiences = await addPhotos(
-      addSearchUrls((Array.isArray(expRaw) ? expRaw : []) as GuideCard[], city), city
-    );
-    emit(res, 'experiences', experiences);
+    const cafesPromise = deepseek(cafesPrompt(city, cafeCtx, query)).then((raw) => {
+      emit(res, 'cafes', addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city));
+    });
 
-    const tips = (Array.isArray(moneyRaw) ? moneyRaw : []) as GuideTip[];
-    emit(res, 'moneyTips', tips.map((t, i) => ({ ...t, id: t.id || `tip-${i}` })));
+    const experiencesPromise = deepseek(experiencesPrompt(city, expCtx, query)).then(async (raw) => {
+      const items = await addPhotos(addSearchUrls((Array.isArray(raw) ? raw : []) as GuideCard[], city), city);
+      emit(res, 'experiences', items);
+    });
+
+    const moneyPromise = deepseek(moneyTipsPrompt(city, moneyCtx)).then((raw) => {
+      const tips = (Array.isArray(raw) ? raw : []) as GuideTip[];
+      emit(res, 'moneyTips', tips.map((t, i) => ({ ...t, id: t.id || `tip-${i}` })));
+    });
+
+    await Promise.all([
+      metaPromise, knowPromise, attractionsPromise, cityWalksPromise,
+      restaurantsPromise, cafesPromise, experiencesPromise, moneyPromise,
+    ]);
 
     emit(res, 'done', {});
   } catch (err) {
