@@ -5,6 +5,9 @@
 import './guide.css';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import travelGif from '../../../assets/travel.gif';
+import locationGif from '../../../assets/location.gif';
+import logoGif from '../../../assets/logo.gif';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';
@@ -78,6 +81,11 @@ async function generateGuide(city: string, country: string, query: string): Prom
       generatedQuery: query,
     };
 
+    // Keep the GIF splash up until the overview (meta) lands; only then swap to
+    // the detail view. Other sections lazy-load behind their own tabs, so a
+    // section arriving before meta must NOT tear down the splash early.
+    let _overviewShown = false;
+
     // Apply one SSE "data: {...}" line: parse, merge, persist, re-render.
     // cityStore.save failures must NOT bubble to the outer catch (which would
     // wrongly show the mock) — they only mean this chunk didn't persist yet.
@@ -87,7 +95,19 @@ async function generateGuide(city: string, country: string, query: string): Prom
       try { parsed = JSON.parse(line.slice(6)); } catch { return; }
       applySection(intel, parsed.section, parsed.payload);
       _activeCityId = id;
-      renderCityDetail(root);
+
+      // First render only once meta (intro/overview) is present. After that,
+      // re-render on every chunk so each tab fills in as its section arrives.
+      if (!_overviewShown) {
+        if (intel.intro || intel.overviewSections?.length) {
+          _overviewShown = true;
+          _generating = false;
+          renderCityDetail(root);
+        }
+      } else {
+        renderCityDetail(root);
+      }
+
       try { await cityStore.save(intel as CityIntel & { id: string }); }
       catch (e) { console.warn('cityStore.save failed for a chunk:', e); }
     };
@@ -120,6 +140,9 @@ async function generateGuide(city: string, country: string, query: string): Prom
     }
 
     _generating = false;
+    // Stream finished — if meta never arrived (so the splash is still up),
+    // fall through to the detail view anyway so the user isn't stuck.
+    if (!_overviewShown) renderCityDetail(root);
     // Background-prefetch a safety card for the same city if one doesn't exist yet.
     void prefetchSafetyForCity(city, country);
   } catch (err) {
@@ -221,19 +244,17 @@ function applySection(intel: Partial<CityIntel> & { id: string }, section: strin
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
-function showSkeleton(_root: HTMLElement, city: string, country: string) {
+function showSkeleton(_root: HTMLElement, city: string, _country: string) {
   const detail = document.querySelector<HTMLElement>('#view-cities .guide-detail')!;
-  const base = (document.querySelector('base')?.getAttribute('href') ?? import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
-  const assetBase = `${base}/assets`;
   detail.innerHTML = `
     <div class="guide-gen-splash">
       <div class="guide-gen-gifs">
-        <img class="guide-gen-gif guide-gen-gif--active" src="${assetBase}/travel.gif" alt="">
-        <img class="guide-gen-gif" src="${assetBase}/location.gif" alt="">
-        <img class="guide-gen-gif" src="${assetBase}/logo.gif" alt="">
+        <img class="guide-gen-gif guide-gen-gif--active" src="${travelGif}" alt="">
+        <img class="guide-gen-gif" src="${locationGif}" alt="">
+        <img class="guide-gen-gif" src="${logoGif}" alt="">
       </div>
       <div class="guide-gen-label">
-        Generating guide for <strong>${city}${country ? `, ${country}` : ''}</strong>
+        Planning your <strong>${city}</strong> guide — this takes a moment…
       </div>
     </div>
   `;

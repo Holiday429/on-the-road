@@ -312,6 +312,9 @@ Return ONLY valid JSON array:
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
+// Allow up to 60s — 8 parallel DeepSeek calls can exceed the 10s default.
+export const config = { maxDuration: 60 };
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
