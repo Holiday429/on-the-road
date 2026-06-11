@@ -1,18 +1,19 @@
 /* ==========================================================================
    On the Road · Trip context
    --------------------------------------------------------------------------
-   Resolves "the current trip". In the personal version this is a single
-   default trip, auto-created on first sign-in. The public version will swap
-   the resolver for a trip picker — every store already takes a tripId, so
-   nothing downstream changes.
+   Resolves "the current trip". Trips are top-level documents (trips/{tripId})
+   shared via a members map, so the same resolver serves both the owner and any
+   collaborators. Every store takes a tripId, so nothing downstream changes when
+   the active trip switches.
    ========================================================================== */
 
 import {
-  collection, doc as fbDoc, getDoc, getDocs, setDoc, deleteDoc, query,
+  collection, doc as fbDoc, getDoc, getDocs, setDoc, deleteDoc, query, where,
 } from 'firebase/firestore';
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
-import { SCHEMA_VERSION, TripSchema, type Trip, type TravelStyle } from './schema.ts';
+import { setMyTripIdsResolver } from '../firebase/db.ts';
+import { SCHEMA_VERSION, TripSchema, type Trip, type TravelStyle, type TripRole } from './schema.ts';
 
 export const DEFAULT_TRIP_ID = 'europe-2025'; // kept for migrate-retag reference only
 
@@ -21,6 +22,11 @@ export type StoredTrip = Trip;
 let _currentTripId = DEFAULT_TRIP_ID;
 let _baseCurrency = 'EUR';
 let _currentTrip: Trip | null = null;
+
+// Snapshot of the trip ids the user belongs to, refreshed by listTrips().
+// Powers the cross-trip aggregation fan-out in db.ts (map/journal "all" view).
+let _myTripIds: string[] = [];
+setMyTripIdsResolver(() => _myTripIds);
 
 export function currentTripId(): string {
   return _currentTripId;
@@ -132,7 +138,7 @@ export async function setBaseCurrency(code: string): Promise<void> {
   _baseCurrency = code;
   const u = currentUser();
   if (!u) return;
-  const ref = tripRef(u.uid, _currentTripId);
+  const ref = tripRef(_currentTripId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const existing = snap.data() as Trip;
@@ -145,8 +151,8 @@ export async function setBaseCurrency(code: string): Promise<void> {
   await setDoc(ref, stripUndefined(updated));
 }
 
-function tripRef(uid: string, tripId: string) {
-  return fbDoc(firestore, `users/${uid}/trips/${tripId}`);
+function tripRef(tripId: string) {
+  return fbDoc(firestore, `trips/${tripId}`);
 }
 
 function stripUndefined<T extends object>(obj: T): T {
@@ -155,26 +161,28 @@ function stripUndefined<T extends object>(obj: T): T {
   ) as T;
 }
 
-function tripsCol(uid: string) {
-  return collection(firestore, `users/${uid}/trips`);
+function tripsCol() {
+  return collection(firestore, 'trips');
 }
 
 /* ── Trip CRUD ───────────────────────────────────────────────────────────── */
 
-/** All trips for the signed-in user, newest start date first. */
+/** All trips the signed-in user is a member of, newest start date first. */
 export async function listTrips(): Promise<Trip[]> {
   const u = currentUser();
   if (!u) return [];
-  const snap = await getDocs(query(tripsCol(u.uid)));
-  return snap.docs
+  const snap = await getDocs(query(tripsCol(), where('memberUids', 'array-contains', u.uid)));
+  const trips = snap.docs
     .map((d) => d.data() as Trip)
     .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+  _myTripIds = trips.map((t) => t.id);
+  return trips;
 }
 
 export async function getTrip(id: string): Promise<Trip | null> {
   const u = currentUser();
   if (!u) return null;
-  const snap = await getDoc(tripRef(u.uid, id));
+  const snap = await getDoc(tripRef(id));
   return snap.exists() ? (snap.data() as Trip) : null;
 }
 
@@ -220,11 +228,17 @@ export async function createTrip(input: NewTripInput): Promise<string> {
     homeCity: input.homeCity,
     returnCity: input.returnCity,
     userCreated: true,
+    // Collaboration: creator is the sole owner; memberUids mirrors members'
+    // keys for the array-contains membership query and security rules.
+    ownerUid: u.uid,
+    members: { [u.uid]: 'owner' as TripRole },
+    memberUids: [u.uid],
     createdAt: now,
     updatedAt: now,
     schemaVersion: SCHEMA_VERSION,
   });
-  await setDoc(tripRef(u.uid, id), stripUndefined(trip));
+  await setDoc(tripRef(id), stripUndefined(trip));
+  _myTripIds = [...new Set([..._myTripIds, id])];
   return id;
 }
 
@@ -232,7 +246,7 @@ export async function createTrip(input: NewTripInput): Promise<string> {
 export async function updateTrip(id: string, patch: Partial<Omit<Trip, 'id' | 'createdAt' | 'schemaVersion'>>): Promise<void> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
-  const ref = tripRef(u.uid, id);
+  const ref = tripRef(id);
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error('Trip not found.');
   const existing = snap.data() as Trip;
@@ -249,7 +263,55 @@ export async function updateTrip(id: string, patch: Partial<Omit<Trip, 'id' | 'c
 export async function removeTrip(id: string): Promise<void> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
-  await deleteDoc(tripRef(u.uid, id));
+  await deleteDoc(tripRef(id));
+  _myTripIds = _myTripIds.filter((t) => t !== id);
+}
+
+/* ── Collaboration ───────────────────────────────────────────────────────── */
+
+/** The signed-in user's role on the current trip, or null if not a member. */
+export function currentRole(): TripRole | null {
+  const u = currentUser();
+  if (!u || !_currentTrip) return null;
+  return _currentTrip.members?.[u.uid] ?? null;
+}
+
+/** True when the user may edit the current trip (owner or editor). */
+export function canEdit(): boolean {
+  const role = currentRole();
+  return role === 'owner' || role === 'editor';
+}
+
+/** True when the user owns the current trip (can manage members / delete). */
+export function isOwner(): boolean {
+  return currentRole() === 'owner';
+}
+
+/** Members of a trip as [uid, role] pairs. */
+export async function tripMembers(id: string): Promise<Array<{ uid: string; role: TripRole }>> {
+  const trip = await getTrip(id);
+  if (!trip?.members) return [];
+  return Object.entries(trip.members).map(([uid, role]) => ({ uid, role }));
+}
+
+/** Add or update a member's role on a trip (owner only — enforced by rules). */
+export async function setMember(tripId: string, uid: string, role: TripRole): Promise<void> {
+  const trip = await getTrip(tripId);
+  if (!trip) throw new Error('Trip not found.');
+  const members = { ...(trip.members ?? {}), [uid]: role };
+  const memberUids = [...new Set(Object.keys(members))];
+  await updateTrip(tripId, { members, memberUids });
+}
+
+/** Remove a member from a trip (owner only). Owner cannot be removed. */
+export async function removeMember(tripId: string, uid: string): Promise<void> {
+  const trip = await getTrip(tripId);
+  if (!trip?.members) return;
+  if (trip.members[uid] === 'owner') throw new Error('Cannot remove the owner.');
+  const members = { ...trip.members };
+  delete members[uid];
+  const memberUids = [...new Set(Object.keys(members))];
+  await updateTrip(tripId, { members, memberUids });
 }
 
 /** Persist the active trip choice onto the user profile so refreshes restore it. */
