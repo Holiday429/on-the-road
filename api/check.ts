@@ -11,7 +11,7 @@
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
-import { verifyAndMeter } from './_guard.ts';
+import { verifyAndMeter } from './_guard';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; method: string; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & {

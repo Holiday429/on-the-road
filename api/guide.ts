@@ -22,7 +22,7 @@
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
-import { verifyAndMeter } from './_guard.ts';
+import { verifyAndMeter } from './_guard';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse; write(chunk: string): boolean; flushHeaders(): void; setHeader(k: string, v: string): void; end(): void; };
