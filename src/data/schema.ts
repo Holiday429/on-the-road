@@ -90,6 +90,9 @@ export const TripSchema = doc({
   ownerUid: z.string().optional(),
   members: z.record(z.string(), z.enum(['owner', 'editor', 'viewer'])).optional(),
   memberUids: z.array(z.string()).optional(),
+  // Transient: set only on a self-join write so security rules can verify the
+  // invite token grants the role being claimed. Persisted but inert afterwards.
+  joinToken: z.string().optional(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 export type TripRole = 'owner' | 'editor' | 'viewer';
