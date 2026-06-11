@@ -8,10 +8,10 @@ import { LegSchema, type Leg } from '../schema.ts';
 
 export type StoredLeg = WithMeta<Leg>;
 
-// Legs are flattened to users/{uid}/legs with a tripId tag, so the map can
-// either show one trip's itinerary or aggregate every trip's footprints.
-// Per-trip consumers (itinerary, stay, expenses, journal) use subscribe(),
-// which filters to the current trip; the map uses subscribeAll().
+// Legs live at trips/{tripId}/legs (each doc also carries a tripId tag). Per-trip
+// consumers (itinerary, stay, expenses, journal) use subscribe(), which reads the
+// current trip's sub-collection; the map uses subscribeAll(), which fans out
+// across every trip the user belongs to.
 function store() {
   return createTaggedCollectionStore('legs', LegSchema);
 }
