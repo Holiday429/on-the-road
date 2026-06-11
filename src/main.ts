@@ -28,8 +28,14 @@ import { initCompare }  from './views/compare/compare.ts';
 import { initPack }     from './views/pack/pack.ts';
 import { initSafety }   from './views/safety/safety.ts';
 
-// Consume any pending Google redirect result on iOS PWA (runs before auth state settles).
-void consumeRedirectResult();
+// Consume any pending Google redirect result on iOS PWA. Must resolve before
+// the onAuth callback can act on the resulting user — we store the promise and
+// gate onAuth on it so the redirect user isn't lost to a race condition.
+let _redirectConsumed = false;
+const redirectResultPromise = consumeRedirectResult().then((u) => {
+  _redirectConsumed = true;
+  return u;
+}).catch(() => { _redirectConsumed = true; return null; });
 
 // Register lazy view inits (fire once on first navigation)
 registerView('today',    initDashboard);
@@ -384,6 +390,8 @@ authButton?.addEventListener('click', async () => {
       enterApp();
       return;
     }
+    // Wait for any pending iOS PWA redirect result before reading auth state.
+    await redirectResultPromise;
     const user = await entryUser();
     if (user && !user.isAnonymous) {
       await bootAuthenticatedShell(user);
@@ -427,6 +435,15 @@ if ('serviceWorker' in navigator) {
 onAuth(async ({ user, ready }) => {
   if (!ready) return;
 
+  // On iOS PWA a sign-in redirect just landed. Wait for consumeRedirectResult()
+  // to finish so Firebase auth state is fully resolved before we act on it.
+  if (!_redirectConsumed) {
+    await redirectResultPromise;
+    // After the redirect result is consumed, onAuthStateChanged fires again with
+    // the real user — let that second callback do the work.
+    return;
+  }
+
   // If the app is already open (user signed in/out after entering), update the shell.
   if (appEntered) {
     if (user) {
@@ -463,6 +480,10 @@ onAuth(async ({ user, ready }) => {
 
   // Preload screen is still showing — wait for the user to click Enter.
   if (!user) {
+    // If a redirect was just consumed, Firebase will fire onAuth again with the
+    // real user shortly. Don't flash the landing screen in the interim.
+    const redirectUser = await redirectResultPromise;
+    if (redirectUser) return;
     preparedUserId = null;
     showLandingState();
   }
