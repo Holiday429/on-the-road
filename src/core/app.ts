@@ -624,16 +624,43 @@ function buildCalendarHTML(startDate: string, endDate: string | null, legs: Stor
 
 function buildMobileNav() {
   const mobileNav = document.getElementById('mobile-nav')!;
-  mobileNav.innerHTML = `<div id="mobile-nav-inner">${NAV_ITEMS.map(item => {
+  const navItems = NAV_ITEMS.map(item => {
     return `<div class="mobile-nav-item" data-view="${item.id}" role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
       <span class="nav-label">${item.label.split(' ')[0]}</span>
     </div>`;
-  }).join('')}</div>`;
+  }).join('');
 
-  mobileNav.querySelectorAll('.mobile-nav-item').forEach(item => {
-    item.addEventListener('click', () => navigateTo((item as HTMLElement).dataset.view as ViewId));
+  mobileNav.innerHTML = `<div id="mobile-nav-inner">${navItems}${buildMobileAccountItem()}</div>`;
+
+  mobileNav.querySelectorAll<HTMLElement>('.mobile-nav-item[data-view]').forEach(item => {
+    item.addEventListener('click', () => navigateTo(item.dataset.view as ViewId));
   });
+
+  mobileNav.querySelector<HTMLElement>('#mobile-account-item')?.addEventListener('click', () => {
+    sessionPrimaryAction?.();
+  });
+}
+
+/** Account/login entry pinned at the end of the mobile bottom nav.
+   On phones the sidebar (which hosts the sign-in avatar) is hidden, so this is
+   the only way to reach login / account on mobile. */
+function buildMobileAccountItem(): string {
+  const { user } = sessionState;
+  if (!user) {
+    return `<div class="mobile-nav-item mobile-nav-account" id="mobile-account-item" role="button" tabindex="0">
+      <span class="nav-icon" aria-hidden="true"><img src="${profileIcon}" class="nav-icon-image" alt=""></span>
+      <span class="nav-label">Sign in</span>
+    </div>`;
+  }
+  const photo = user.photoURL?.trim();
+  const avatar = photo
+    ? `<img src="${escapeHtml(photo)}" class="mobile-nav-avatar-img" alt="">`
+    : `<span class="mobile-nav-avatar-fallback">${initialsFor(user)}</span>`;
+  return `<div class="mobile-nav-item mobile-nav-account" id="mobile-account-item" role="button" tabindex="0">
+    <span class="nav-icon mobile-nav-avatar" aria-hidden="true">${avatar}</span>
+    <span class="nav-label">Account</span>
+  </div>`;
 }
 
 function navItemMarkup(item: NavItem): string {
@@ -663,6 +690,7 @@ export function renderSession(user: User | null, onPrimaryAction: () => void) {
   sessionPrimaryAction = onPrimaryAction;
   document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
+  buildMobileNav();
   applyRoleState();
   if (!user) {
     const hash = window.location.hash.replace('#', '') as ViewId;
