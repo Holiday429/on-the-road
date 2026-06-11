@@ -14,7 +14,7 @@
    ========================================================================== */
 
 import {
-  collection, doc as fbDoc, getDocs, onSnapshot,
+  collection, doc as fbDoc, getDocs, getDoc, onSnapshot,
   setDoc, deleteDoc, query, type Firestore,
 } from 'firebase/firestore';
 import { db as firestore } from './config.ts';
@@ -96,17 +96,18 @@ export function createUserCollectionStore<S extends z.ZodTypeAny>(
 
     async update(id, patch) {
       const uid = requireUid();
-      let existing = readCache<T>(userCacheKey(uid, name)).find((r) => r.id === id);
-      if (!existing) {
-        const snap = await getDocs(query(ref(uid)));
-        const rows = snap.docs.map((d) => d.data() as WithMeta<T>);
-        writeCache(userCacheKey(uid, name), rows);
-        existing = rows.find((r) => r.id === id);
+      const docRef = fbDoc(ref(uid), id);
+      const snap = await getDoc(docRef);
+      let existing: WithMeta<T> | undefined;
+      if (snap.exists()) {
+        existing = snap.data() as WithMeta<T>;
+      } else {
+        existing = readCache<T>(userCacheKey(uid, name)).find((r) => r.id === id);
       }
       if (!existing) throw new Error(`update: doc ${id} not found`);
       const merged = { ...existing, ...patch, id, updatedAt: now() };
       const payload = schema.parse(merged);
-      await setDoc(fbDoc(ref(uid), id), payload as object);
+      await setDoc(docRef, payload as object);
     },
 
     async remove(id) {
@@ -301,19 +302,21 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
 
     async update(id, patch) {
       const uid = requireUid();
-      // Fall back to a Firestore fetch if the local cache doesn't have the doc yet
-      // (race: doc was just created but the snapshot callback hasn't fired yet).
-      let existing = readCache<T>(cacheKey(uid, tripId, name)).find((r) => r.id === id);
-      if (!existing) {
-        const snap = await getDocs(query(ref()));
-        const rows = snap.docs.map((d) => d.data() as WithMeta<T>);
-        writeCache(cacheKey(uid, tripId, name), rows);
-        existing = rows.find((r) => r.id === id);
+      // Always read the live Firestore doc before merging so stale cache
+      // cannot overwrite changes made from another device or tab.
+      const docRef = fbDoc(ref(), id);
+      const snap = await getDoc(docRef);
+      let existing: WithMeta<T> | undefined;
+      if (snap.exists()) {
+        existing = snap.data() as WithMeta<T>;
+      } else {
+        // Doc not in Firestore yet — fall back to cache (just-created doc race).
+        existing = readCache<T>(cacheKey(uid, tripId, name)).find((r) => r.id === id);
       }
       if (!existing) throw new Error(`update: doc ${id} not found`);
       const merged = { ...existing, ...patch, id, updatedAt: now() };
       const payload = schema.parse(merged);
-      await setDoc(fbDoc(ref(), id), payload as object);
+      await setDoc(docRef, payload as object);
     },
 
     async remove(id) {

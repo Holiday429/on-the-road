@@ -91,6 +91,22 @@ let _planLeafletEl: HTMLElement | null = null;
 
 /* ── Helpers (pure utilities live in route-utils.ts) ─────────────────────── */
 
+let _saveToastTimer = 0;
+function saveFailed(e?: unknown) {
+  console.error('[route] save failed:', e);
+  let el = document.getElementById('rd-save-toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'rd-save-toast';
+    el.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#ef4444;color:#fff;padding:.5rem 1.25rem;border-radius:9999px;font-size:.875rem;z-index:9999;pointer-events:none;opacity:0;transition:opacity .2s';
+    document.body.appendChild(el);
+  }
+  el.textContent = '⚠ Save failed — check your connection and retry';
+  el.style.opacity = '1';
+  clearTimeout(_saveToastTimer);
+  _saveToastTimer = window.setTimeout(() => { if (el) el.style.opacity = '0'; }, 4000);
+}
+
 /* ── Mutations (all async → Firestore) ──────────────────────────────────── */
 
 async function addLeg(city: string, country: string, dateFrom: string, dateTo: string,
@@ -110,18 +126,18 @@ async function addLeg(city: string, country: string, dateFrom: string, dateTo: s
     };
   }
   addFormOpen = false;
-  await routeStore.set(clean(row));
+  await routeStore.set(clean(row)).catch(saveFailed);
   // render() fires from the Firestore subscription
 }
 
 async function deleteLeg(id: string) {
   if (!confirm('Remove this stop from the itinerary?')) return;
   if (selectedLegId === id) selectedLegId = null;
-  await routeStore.remove(id);
+  await routeStore.remove(id).catch(saveFailed);
 }
 
 function patchLeg(id: string, patch: Partial<SchemaLeg>) {
-  return routeStore.update(id, clean(patch));
+  return routeStore.update(id, clean(patch)).catch(saveFailed);
 }
 
 /** Rewrite a leg from scratch, dropping any keys listed in `omit`. Needed for
@@ -129,7 +145,7 @@ function patchLeg(id: string, patch: Partial<SchemaLeg>) {
 function rewriteLeg(leg: Leg, omit: (keyof SchemaLeg)[]) {
   const next: Record<string, unknown> = { ...leg };
   for (const k of omit) delete next[k as string];
-  return routeStore.set(clean(next) as Partial<SchemaLeg> & { id: string });
+  return routeStore.set(clean(next) as Partial<SchemaLeg> & { id: string }).catch(saveFailed);
 }
 
 /* ── Render: list (timeline grouped by country) ─────────────────────────── */
