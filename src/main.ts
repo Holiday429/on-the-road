@@ -13,6 +13,7 @@ import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
+import { migrateCollab } from './data/migrate-collab.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
 import { initDashboard } from './views/today/dashboard.ts';
 import { initCalendar } from './views/calendar/calendar.ts';
@@ -174,11 +175,9 @@ async function bootAuthenticatedShell(user: User) {
 
   bootPromise = (async () => {
     let needsOnboarding = false;
-    try {
-      const trip = await ensureDefaultTrip();
-      needsOnboarding = trip === null;
-    } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
+    // Legacy migrations first — they operate on the OLD users/{uid}/** layout
+    // and must run before the collab migration copies everything to trips/**.
     try {
       const n = await migrateMultiTrip();
       if (n > 0) console.info(`Flattened ${n} legs/journal entries for multi-trip.`);
@@ -198,6 +197,19 @@ async function bootAuthenticatedShell(user: User) {
       const n = await migrateStaysToCompares();
       if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
     } catch (e) { console.warn('Stay→compare migration skipped:', e); }
+
+    // Collaboration migration: copy users/{uid}/trips/** and the flat tagged
+    // collections into the new top-level trips/**. Copy-only, non-destructive.
+    // Must run before ensureDefaultTrip(), which now reads from trips/**.
+    try {
+      const r = await migrateCollab();
+      if (r.trips > 0 || r.docs > 0) console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs copied to trips/**.`);
+    } catch (e) { console.warn('Collab migration skipped:', e); }
+
+    try {
+      const trip = await ensureDefaultTrip();
+      needsOnboarding = trip === null;
+    } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
     try { await restoreActiveTrip(); }
     catch (e) { console.warn('Restore active trip skipped:', e); }
