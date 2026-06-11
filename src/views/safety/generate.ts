@@ -1,20 +1,66 @@
 /* ==========================================================================
    On the Road · Safety card generation
    --------------------------------------------------------------------------
-   Calls the /api/safety serverless function (DeepSeek + Tavily, key kept
-   server-side). On failure or offline, returns generic mock data so the SOS
-   card is never blank — the user still gets 112 and sensible defaults.
+   Three-tier resolution:
+     1. Static library  — instant, offline, human-verified (major countries)
+        → embassy and hospitals are always empty here (nationality-dependent /
+          city-specific) and get filled by AI in the background.
+     2. AI generation   — /api/safety serverless (DeepSeek + Tavily)
+        → used when country not in static library, or to enrich embassy/hospitals
+     3. Mock fallback   — generic sensible defaults when offline / API down
    ========================================================================== */
 
 import type { CitySafety } from '../../data/schema.ts';
 import { postJson } from '../../core/api.ts';
+import { staticSafetyForCountry } from '../../data/safety-static/countries.ts';
 
 export type GeneratedSafety = Omit<
   CitySafety,
   'id' | 'createdAt' | 'updatedAt' | 'schemaVersion' | 'source'
 >;
 
+/**
+ * Resolves safety data for a city.
+ * - Static library countries: instant return, then kicks off a background AI
+ *   call to fill in embassy + hospitals (persisted back via the caller).
+ * - Unknown countries: full AI generation.
+ * - Offline / AI error: generic mock.
+ *
+ * The `nationality` param is already the human-readable label (e.g. "Chinese").
+ * Returns the best available data synchronously-as-possible; caller saves to store.
+ */
 export async function fetchCitySafety(
+  city: string,
+  country: string,
+  nationality: string,
+): Promise<GeneratedSafety | null> {
+  const staticData = staticSafetyForCountry(city, country);
+
+  if (staticData) {
+    // Return static data immediately, then enrich embassy+hospitals via AI in background.
+    enrichWithAi(city, country, nationality, staticData).catch(() => {/* silent */});
+    return staticData;
+  }
+
+  // Unknown country — full AI generation.
+  return fetchFromApi(city, country, nationality);
+}
+
+/** Fire-and-forget: fetch AI data and merge embassy+hospitals into the static base. */
+async function enrichWithAi(
+  city: string,
+  country: string,
+  nationality: string,
+  base: GeneratedSafety,
+): Promise<void> {
+  const ai = await fetchFromApi(city, country, nationality);
+  if (!ai) return;
+  // Merge only the fields the static library left empty.
+  if (ai.embassy?.name) base.embassy = ai.embassy;
+  if (ai.hospitals?.length) base.hospitals = ai.hospitals;
+}
+
+async function fetchFromApi(
   city: string,
   country: string,
   nationality: string,
