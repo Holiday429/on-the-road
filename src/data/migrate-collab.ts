@@ -24,7 +24,9 @@ import { collection, getDocs, getDoc, doc as fbDoc, setDoc, query } from 'fireba
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
 
-const FLAG = 'otr:migrated:collab';
+// v2: bumped when `todos` was added to the migrated collections, so accounts
+// that already ran v1 re-run once to move their todos to trips/{tripId}/todos.
+const FLAG = 'otr:migrated:collab:v2';
 
 // Sub-collections that lived under each trip.
 const TRIP_SUBCOLLECTIONS = [
@@ -34,7 +36,9 @@ const TRIP_SUBCOLLECTIONS = [
 ];
 
 // Flat, tripId-tagged collections (lived at users/{uid}/{name}).
-const TAGGED_COLLECTIONS = ['legs', 'journalEntries', 'nomadSpots'];
+// `todos` was user-scoped but is now trip-scoped (shared with members), so it
+// migrates the same way — grouped by each doc's tripId tag.
+const TAGGED_COLLECTIONS = ['legs', 'journalEntries', 'nomadSpots', 'todos'];
 
 interface MigrationResult { trips: number; docs: number; }
 
@@ -111,19 +115,28 @@ export async function migrateCollab(): Promise<MigrationResult> {
       }
     }
 
+    // Fallback trip for untagged docs (e.g. todos created with tripId=null):
+    // route them to the user's most recently created trip.
+    const ownedTrips = oldTripsSnap.docs
+      .map((d) => ({ id: d.id, createdAt: (d.data() as { createdAt?: number }).createdAt ?? 0 }))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    const fallbackTripId = ownedTrips[0]?.id ?? '';
+
     /* ── 2. Flat tagged collections → grouped under each tripId ────────── */
     for (const name of TAGGED_COLLECTIONS) {
       const flatSnap = await getDocs(query(collection(firestore, `users/${uid}/${name}`)));
       if (flatSnap.empty) continue;
 
-      // Group docs by their tripId tag.
+      // Group docs by their tripId tag; untagged docs fall back to the most
+      // recent trip so they aren't orphaned (matters for null-tripId todos).
       const byTrip = new Map<string, { id: string; data: Record<string, unknown> }[]>();
       for (const d of flatSnap.docs) {
         const data = d.data() as Record<string, unknown>;
-        const tid = (data.tripId as string | undefined) ?? '';
-        if (!tid) continue; // untagged legacy doc — skip (can't place it)
+        const tid = (data.tripId as string | undefined) || fallbackTripId;
+        if (!tid) continue; // no tag and no fallback trip — can't place it
         const list = byTrip.get(tid) ?? [];
-        list.push({ id: d.id, data });
+        // Stamp the resolved tripId onto the doc so it filters correctly.
+        list.push({ id: d.id, data: { ...data, tripId: tid } });
         byTrip.set(tid, list);
       }
 
