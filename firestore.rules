@@ -15,54 +15,52 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
+    // Membership read off the parent trip doc (used by sub-collection rules).
+    function tripExists(tripId) {
+      return exists(/databases/$(database)/documents/trips/$(tripId));
+    }
     function tripData(tripId) {
       return get(/databases/$(database)/documents/trips/$(tripId)).data;
     }
-
-    function isMember(tripId) {
-      return signedIn() && uid() in tripData(tripId).memberUids;
+    function subIsMember(tripId) {
+      return signedIn() && tripExists(tripId) && uid() in tripData(tripId).memberUids;
+    }
+    function subCanEdit(tripId) {
+      return subIsMember(tripId) && tripData(tripId).members[uid()] in ['owner', 'editor'];
     }
 
-    function roleOn(tripId) {
-      return tripData(tripId).members[uid()];
+    // Membership read off THIS trip doc (update/delete operate on an existing
+    // doc, so resource is always present there).
+    function selfIsMember() {
+      return signedIn() && uid() in resource.data.memberUids;
+    }
+    function selfIsOwner() {
+      return selfIsMember() && resource.data.members[uid()] == 'owner';
+    }
+    function selfCanEdit() {
+      return selfIsMember() && resource.data.members[uid()] in ['owner', 'editor'];
     }
 
-    function canEdit(tripId) {
-      return isMember(tripId) && roleOn(tripId) in ['owner', 'editor'];
+    function inviteFor(token) {
+      return get(/databases/$(database)/documents/tripInvites/$(token)).data;
     }
 
-    function isOwner(tripId) {
-      return isMember(tripId) && roleOn(tripId) == 'owner';
-    }
-
-    // A signed-in user accepting an invite: the only membership change is
-    // adding THEMSELVES, the rest of the trip doc is untouched, and the role
-    // they grant themselves matches a valid (non-revoked) invite for this trip.
-    function isSelfJoin(tripId) {
+    // A signed-in user accepting an invite: adds only THEMSELVES, with a role
+    // matching a live invite they pass as joinToken.
+    function isSelfJoin() {
       let before = resource.data;
       let after = request.resource.data;
       let me = uid();
       return signedIn()
         && !(me in before.memberUids)
-        && after.memberUids.hasAll(before.memberUids)
         && after.memberUids.hasOnly(before.memberUids.concat([me]))
         && after.ownerUid == before.ownerUid
-        // Everything except members/memberUids/updatedAt must be unchanged.
-        && after.diff(before).affectedKeys().hasOnly(['members', 'memberUids', 'updatedAt'])
-        && validInviteGrants(tripId, after.members[me]);
-    }
-
-    // True if some invite doc authorises `role` for this trip. The client must
-    // have created/holds the invite; we just confirm one exists and is live.
-    function validInviteGrants(tripId, role) {
-      return exists(/databases/$(database)/documents/tripInvites/$(request.resource.data.joinToken))
-        && inviteFor(request.resource.data.joinToken).tripId == tripId
-        && inviteFor(request.resource.data.joinToken).revoked == false
-        && inviteFor(request.resource.data.joinToken).role == role;
-    }
-
-    function inviteFor(token) {
-      return get(/databases/$(database)/documents/tripInvites/$(token)).data;
+        && after.diff(before).affectedKeys().hasOnly(['members', 'memberUids', 'joinToken', 'updatedAt'])
+        && after.members.diff(before.members).affectedKeys().hasOnly([me])
+        && exists(/databases/$(database)/documents/tripInvites/$(after.joinToken))
+        && inviteFor(after.joinToken).tripId == tripId
+        && inviteFor(after.joinToken).revoked == false
+        && inviteFor(after.joinToken).role == after.members[me];
     }
 
     /* ── User profiles — private to each user ─────────────────────────── */
@@ -75,43 +73,53 @@ service cloud.firestore {
 
     /* ── Trips ────────────────────────────────────────────────────────── */
     match /trips/{tripId} {
-      allow read: if isMember(tripId);
+      // Single-doc reads: members may read. Reading a NON-EXISTENT doc is also
+      // permitted (returns not-found) — required so existence prechecks
+      // (migration, getTrip on a stale id) don't hard-fail. Trip ids carry a
+      // random suffix, so existence probing leaks nothing useful.
+      allow get: if signedIn() && (resource == null || uid() in resource.data.memberUids);
 
-      // Create: only as yourself, sole owner at creation.
+      // Queries: only the canonical "my trips" query is provable — the client
+      // must constrain with where('memberUids','array-contains', myUid).
+      allow list: if signedIn() && uid() in resource.data.memberUids;
+
+      // Create: as yourself, sole owner at creation.
       allow create: if signedIn()
         && request.resource.data.ownerUid == uid()
         && request.resource.data.members[uid()] == 'owner'
-        && request.resource.data.memberUids.hasOnly([uid()]);
+        && uid() in request.resource.data.memberUids;
 
-      // Update paths:
+      // Update:
       //  - owner: full control (incl. member management)
-      //  - editor: trip fields only, may NOT touch members/memberUids/ownerUid
-      //  - anyone with a valid invite: self-join only
-      allow update: if isOwner(tripId)
-        || (canEdit(tripId)
+      //  - editor: may not change members/memberUids/ownerUid
+      //  - invite holder: self-join only
+      allow update: if selfIsOwner()
+        || (selfCanEdit()
             && request.resource.data.members == resource.data.members
             && request.resource.data.memberUids == resource.data.memberUids
             && request.resource.data.ownerUid == resource.data.ownerUid)
-        || isSelfJoin(tripId);
+        || isSelfJoin();
 
-      allow delete: if isOwner(tripId);
+      allow delete: if selfIsOwner();
 
       // Sub-collections: read for members, write for editors/owners.
+      // These DO use get() on the parent — fine for single-doc reads/writes.
       match /{sub}/{docId} {
-        allow read: if isMember(tripId);
-        allow write: if canEdit(tripId);
+        allow read: if subIsMember(tripId);
+        allow write: if subCanEdit(tripId);
       }
     }
 
     /* ── Trip invites ─────────────────────────────────────────────────── */
     match /tripInvites/{token} {
-      // Any signed-in user can read an invite (to render the join screen).
       allow read: if signedIn();
-      // Only a trip owner can create / revoke invites for their trip.
       allow create: if signedIn()
         && request.resource.data.createdByUid == uid()
-        && isOwner(request.resource.data.tripId);
-      allow update, delete: if signedIn() && isOwner(resource.data.tripId);
+        && subCanEdit(request.resource.data.tripId)
+        && tripData(request.resource.data.tripId).members[uid()] == 'owner';
+      allow update, delete: if signedIn()
+        && tripExists(resource.data.tripId)
+        && tripData(resource.data.tripId).members[uid()] == 'owner';
     }
 
     // Deny everything else by default.

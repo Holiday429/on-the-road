@@ -69,36 +69,45 @@ export async function migrateCollab(): Promise<MigrationResult> {
   const uid = u.uid;
   let trips = 0;
   let docs = 0;
+  let failures = 0;
 
   try {
     /* ── 1. Trip docs + their sub-collections ─────────────────────────── */
     const oldTripsSnap = await getDocs(query(collection(firestore, `users/${uid}/trips`)));
+    const knownTripIds = new Set(oldTripsSnap.docs.map((d) => d.id));
 
     for (const tripDoc of oldTripsSnap.docs) {
       const tripId = tripDoc.id;
-      const data = tripDoc.data() as Record<string, unknown>;
+      try {
+        const data = tripDoc.data() as Record<string, unknown>;
 
-      // Backfill collaboration fields (owner = migrating user) unless present.
-      const members = (data.members as Record<string, string> | undefined)
-        ?? { [uid]: 'owner' };
-      const memberUids = (data.memberUids as string[] | undefined)
-        ?? Object.keys(members);
-      const ownerUid = (data.ownerUid as string | undefined) ?? uid;
+        // Backfill collaboration fields (owner = migrating user) unless present.
+        const members = (data.members as Record<string, string> | undefined)
+          ?? { [uid]: 'owner' };
+        const memberUids = (data.memberUids as string[] | undefined)
+          ?? Object.keys(members);
+        const ownerUid = (data.ownerUid as string | undefined) ?? uid;
 
-      // Only write the trip doc if the destination doesn't exist yet.
-      const dstTripRef = fbDoc(firestore, `trips/${tripId}`);
-      const dstExists = await getDoc(dstTripRef);
-      if (!dstExists.exists()) {
-        await setDoc(dstTripRef, { ...data, id: tripId, ownerUid, members, memberUids });
-        trips++;
-      }
+        // Only write the trip doc if the destination doesn't exist yet.
+        // (Rules allow get on a non-existent trips doc — returns not-found.)
+        const dstTripRef = fbDoc(firestore, `trips/${tripId}`);
+        const dstExists = await getDoc(dstTripRef);
+        if (!dstExists.exists()) {
+          await setDoc(dstTripRef, { ...data, id: tripId, ownerUid, members, memberUids });
+          trips++;
+        }
 
-      // Copy each known sub-collection.
-      for (const sub of TRIP_SUBCOLLECTIONS) {
-        docs += await copyCollection(
-          `users/${uid}/trips/${tripId}/${sub}`,
-          `trips/${tripId}/${sub}`,
-        );
+        // Copy each known sub-collection.
+        for (const sub of TRIP_SUBCOLLECTIONS) {
+          docs += await copyCollection(
+            `users/${uid}/trips/${tripId}/${sub}`,
+            `trips/${tripId}/${sub}`,
+          );
+        }
+      } catch (e) {
+        // One bad trip must not abort the rest — log and continue.
+        failures++;
+        console.warn(`Collab migration: trip "${tripId}" failed, continuing:`, e);
       }
     }
 
@@ -119,17 +128,27 @@ export async function migrateCollab(): Promise<MigrationResult> {
       }
 
       for (const [tid, list] of byTrip) {
-        const dstCol = collection(firestore, `trips/${tid}/${name}`);
-        const dstSnap = await getDocs(query(dstCol));
-        if (!dstSnap.empty) continue; // already migrated
-        for (const { id, data } of list) {
-          await setDoc(fbDoc(dstCol, id), { ...data, id });
-          docs++;
+        // Tags can reference trips that were deleted — only copy into trips we
+        // actually migrated (writes to a non-existent trip would be denied).
+        if (!knownTripIds.has(tid)) continue;
+        try {
+          const dstCol = collection(firestore, `trips/${tid}/${name}`);
+          const dstSnap = await getDocs(query(dstCol));
+          if (!dstSnap.empty) continue; // already migrated
+          for (const { id, data } of list) {
+            await setDoc(fbDoc(dstCol, id), { ...data, id });
+            docs++;
+          }
+        } catch (e) {
+          failures++;
+          console.warn(`Collab migration: ${name} for trip "${tid}" failed, continuing:`, e);
         }
       }
     }
 
-    localStorage.setItem(FLAG, '1');
+    // Only mark done when everything copied cleanly; otherwise retry next boot
+    // (copies already done are skipped by the "destination populated" guards).
+    if (failures === 0) localStorage.setItem(FLAG, '1');
   } catch (e) {
     console.warn('Collaboration migration skipped (will retry next boot):', e);
   }
