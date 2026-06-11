@@ -45,9 +45,25 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/tripInvites/$(token)).data;
     }
 
+    // A member (not the owner) removing ONLY themselves from the trip.
+    function isSelfLeave() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let me = uid();
+      return signedIn()
+        && me in before.memberUids
+        && before.members[me] != 'owner'
+        && !(me in after.memberUids)
+        && before.memberUids.hasOnly(after.memberUids.concat([me]))
+        && after.ownerUid == before.ownerUid
+        && after.diff(before).affectedKeys().hasOnly(['members', 'memberUids', 'updatedAt'])
+        && before.members.diff(after.members).affectedKeys().hasOnly([me]);
+    }
+
     // A signed-in user accepting an invite: adds only THEMSELVES, with a role
-    // matching a live invite they pass as joinToken.
-    function isSelfJoin() {
+    // matching a live invite they pass as joinToken. tripId is passed in from
+    // the match path (this helper lives outside the match block).
+    function isSelfJoin(tripId) {
       let before = resource.data;
       let after = request.resource.data;
       let me = uid();
@@ -98,7 +114,8 @@ service cloud.firestore {
             && request.resource.data.members == resource.data.members
             && request.resource.data.memberUids == resource.data.memberUids
             && request.resource.data.ownerUid == resource.data.ownerUid)
-        || isSelfJoin();
+        || isSelfJoin(tripId)
+        || isSelfLeave();
 
       allow delete: if selfIsOwner();
 

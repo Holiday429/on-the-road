@@ -294,6 +294,30 @@ export async function removeMember(tripId: string, uid: string): Promise<void> {
   await updateTrip(tripId, { members, memberUids });
 }
 
+/**
+ * Leave a trip you collaborate on (self-removal). The owner can't leave their
+ * own trip — they delete it instead. Rules permit a member to remove only
+ * themselves. Clears local active-trip state if it was the one left.
+ */
+export async function leaveTrip(tripId: string): Promise<void> {
+  const u = currentUser();
+  if (!u) throw new Error('Not signed in.');
+  const trip = await getTrip(tripId);
+  if (!trip?.members) return;
+  if (trip.members[u.uid] === 'owner') throw new Error('Owners cannot leave their own trip.');
+
+  const members = { ...trip.members };
+  delete members[u.uid];
+  const memberUids = Object.keys(members);
+  await updateTrip(tripId, { members, memberUids });
+
+  _myTripIds = _myTripIds.filter((t) => t !== tripId);
+  if (tripId === _currentTripId) {
+    _currentTrip = null;
+    _currentTripId = DEFAULT_TRIP_ID;
+  }
+}
+
 /** Persist the active trip choice onto the user profile so refreshes restore it. */
 async function persistDefaultTripId(id: string): Promise<void> {
   const u = currentUser();
