@@ -60,57 +60,98 @@ export function viewerTripId(): string | null { return _viewerTripId; }
 
 let appEntered = false;
 
-// Detect an invite link on page load.
-// - Viewer invite → load trip immediately without requiring login.
-// - Editor invite → stash token, personalise landing card, require login.
-void (async () => {
-  const { joinTokenFromHash, savePendingJoin } = await import('./core/trip-share.ts');
-  const tok = joinTokenFromHash();
-  if (!tok) return;
+// Capture any invite token from the URL SYNCHRONOUSLY, at the very top of the
+// module, before any await yields control. This is the single source of truth
+// for "is this an invite link" — nothing else reads window.location.hash for
+// joins, and the hash is NOT cleared here. We clear it only after the invite
+// has been acted on, so a failed/slow read never loses the token.
+const INVITE_TOKEN: string | null = (() => {
+  const m = window.location.hash.match(/^#\/join\/([A-Za-z0-9]+)/);
+  return m ? m[1] : null;
+})();
 
-  history.replaceState(null, '', window.location.pathname + window.location.search);
+// True while we're still resolving an invite link, so onAuth and the Enter
+// button know not to fall back to the landing/guest flow prematurely.
+let invitePending = INVITE_TOKEN !== null;
+
+function clearInviteHash() {
+  if (window.location.hash.startsWith('#/join/')) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+}
+
+// Resolve the invite link. Runs once on boot. Waits for Firebase auth to be
+// ready before touching Firestore (an unauthenticated read fired before auth
+// initialises is what previously failed and dropped us back to "/").
+async function resolveInviteLink(): Promise<void> {
+  if (!INVITE_TOKEN) return;
+  const tok = INVITE_TOKEN;
+
+  // Always stash the token first. If anything below fails, the token survives
+  // the Google sign-in round-trip and consumePendingJoin() picks it up after
+  // the user signs in — so we never strand an invited user on a bare page.
+  const { savePendingJoin } = await import('./core/trip-share.ts');
+  savePendingJoin(tok);
 
   try {
+    // Wait for the Firebase auth state to settle before any Firestore read.
+    await authReady();
+
+    // Sign in anonymously up front so we can read the invite under any rules
+    // (viewer invites are public, but editor invites require an authenticated
+    // read). An anonymous session is harmless and gets upgraded if the user
+    // later signs in with Google.
+    if (!currentUser()) await signInAsGuest();
+
     const { getInvite } = await import('./data/trip-invites.ts');
     const inv = await getInvite(tok);
-    if (!inv || inv.revoked) return;
+
+    if (!inv || inv.revoked) {
+      clearInviteHash();
+      invitePending = false;
+      if (!appEntered) showLandingState();
+      return;
+    }
 
     if (inv.role === 'viewer') {
-      // Viewer: sign in anonymously so Firestore rules are satisfied,
-      // accept the invite to become a viewer member, then auto-enter the app.
-      try {
-        await signInAsGuest();
-        const { acceptInvite } = await import('./data/trip-invites.ts');
-        const { switchTrip } = await import('./data/trip-context.ts');
-        await acceptInvite(tok);
-        await switchTrip(inv.tripId);
-        _viewerMode = true;
-        _viewerTripId = inv.tripId;
-        appRoot?.setAttribute('data-viewer', 'true');
-        // onAuth already fired for the anonymous sign-in before _viewerMode was set,
-        // so trigger entry explicitly now that the trip is loaded.
-        // appEntered is declared below — safe to read here since this async code
-        // only runs after the module has fully initialized.
-        if (!appEntered) {
-          await bootViewerShell();
-          enterApp();
-        }
-      } catch (e) {
-        console.warn('Viewer invite setup failed:', e);
-        // Fall through to normal landing
+      // Viewer: accept the invite to become a viewer member, then auto-enter.
+      const { acceptInvite } = await import('./data/trip-invites.ts');
+      const { switchTrip } = await import('./data/trip-context.ts');
+      await acceptInvite(tok);
+      await switchTrip(inv.tripId);
+
+      _viewerMode = true;
+      _viewerTripId = inv.tripId;
+      appRoot?.setAttribute('data-viewer', 'true');
+      invitePending = false;
+      clearInviteHash();
+
+      if (!appEntered) {
+        await bootViewerShell();
+        enterApp();
       }
     } else {
-      // Editor: stash token and personalise landing card.
-      savePendingJoin(tok);
+      // Editor: personalise the landing card; the user must sign in with Google
+      // to accept (the anonymous session can't claim editor rights). The stashed
+      // token is consumed by consumePendingJoin() after real sign-in.
+      invitePending = false;
+      clearInviteHash();
       if (authCard) {
         const titleEl = authCard.querySelector('.auth-card-title');
         const textEl = authCard.querySelector('.auth-card-text');
         if (titleEl) titleEl.textContent = `You're invited to edit "${inv.tripName}"`;
-        if (textEl) textEl.textContent = 'Sign in to accept the edit invite and collaborate on this trip.';
+        if (textEl) textEl.textContent = 'Sign in with Google to accept the edit invite and collaborate on this trip.';
       }
+      if (!appEntered) showLandingState();
     }
-  } catch { /* non-fatal */ }
-})();
+  } catch (e) {
+    console.warn('Invite link resolution failed:', e);
+    // Token is already stashed; keep the hash so a refresh can retry and stop
+    // blocking the UI so the user can at least sign in.
+    invitePending = false;
+    if (!appEntered) showLandingState();
+  }
+}
 
 let shellBooted = false;
 let signingIn = false;
@@ -344,9 +385,11 @@ authButton?.addEventListener('click', async () => {
       return;
     }
     const user = await entryUser();
-    if (user) {
+    if (user && !user.isAnonymous) {
       await bootAuthenticatedShell(user);
     } else {
+      // No user, or only an anonymous session (e.g. from an editor invite that
+      // wasn't accepted) — boot as guest.
       await bootGuestShell();
     }
     enterApp();
@@ -413,9 +456,18 @@ onAuth(async ({ user, ready }) => {
     return;
   }
 
+  // An invite link is still being resolved (e.g. anonymous sign-in just fired
+  // this callback). Don't flash the landing screen — resolveInviteLink() owns
+  // the UI until it finishes.
+  if (invitePending) return;
+
   // Preload screen is still showing — wait for the user to click Enter.
   if (!user) {
     preparedUserId = null;
     showLandingState();
   }
 });
+
+// Kick off invite-link resolution. Defined above; called here so all the
+// shell helpers (bootViewerShell, enterApp, showLandingState) are in scope.
+void resolveInviteLink();
