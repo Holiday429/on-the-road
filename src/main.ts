@@ -113,6 +113,22 @@ async function resolveInviteLink(): Promise<void> {
       return;
     }
 
+    // If a real (non-anonymous) user is already signed in AND is a member of
+    // the invited trip — e.g. the owner opening their own share link — never
+    // enter read-only viewer mode. Drop the invite and let the normal
+    // authenticated shell boot with full edit rights.
+    const signedInUser = currentUser();
+    if (signedInUser) {
+      const { getTrip } = await import('./data/trip-context.ts');
+      const trip = await getTrip(inv.tripId);
+      const members = (trip as { members?: Record<string, string> } | null)?.members;
+      if (members && members[signedInUser.uid]) {
+        invitePending = false;
+        clearInviteHash();
+        return; // normal boot (Enter button / onAuth) handles the rest
+      }
+    }
+
     if (inv.role === 'viewer') {
       // Viewer: read the trip publicly (no login, no membership write). The trip
       // doc and its sub-collections are readable when hasPublicView is set, which

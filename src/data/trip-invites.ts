@@ -120,6 +120,14 @@ export async function acceptInvite(tok: string): Promise<string | null> {
   const invite = await getInvite(tok);
   if (!invite || invite.revoked) return null;
 
+  // Never downgrade an existing member. If the caller is already on this trip
+  // (e.g. the owner opening their own link), leave their role untouched. The
+  // viewer flow no longer calls this at all, but guard anyway so a stray accept
+  // can't overwrite an owner/editor with a lesser role.
+  const trip = await getTrip(invite.tripId);
+  const existingRole = (trip as { members?: Record<string, TripRole> } | null)?.members?.[u.uid];
+  if (existingRole) return invite.tripId;
+
   await updateDoc(fbDoc(firestore, `trips/${invite.tripId}`), {
     [`members.${u.uid}`]: invite.role as TripRole,
     memberUids: arrayUnion(u.uid),
