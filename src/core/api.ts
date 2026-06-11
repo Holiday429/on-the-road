@@ -12,6 +12,8 @@
    the security boundary and the single choke point for usage metering / paywall.
    ========================================================================== */
 
+import { currentUser } from '../firebase/auth.ts';
+
 const VERCEL_ORIGIN = 'https://easy-on-the-road.vercel.app';
 
 /** Base URL for /api/* calls. Empty string = same-origin relative fetch. */
@@ -24,16 +26,80 @@ export function apiUrl(path: string): string {
   return `${apiBase()}${path}`;
 }
 
+/** Thrown by postJson when the server returns 402 (quota exceeded / not paid). */
+export class QuotaError extends Error {
+  readonly plan: string;
+  readonly upgrade: boolean;
+  constructor(plan: string, upgrade: boolean, message: string) {
+    super(message);
+    this.name = 'QuotaError';
+    this.plan = plan;
+    this.upgrade = upgrade;
+  }
+}
+
+/** Thrown by postJson when the server returns 401 (not authenticated). */
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
+}
+
+/**
+ * Returns Authorization + Content-Type headers with the current ID token.
+ * Use this for manual fetch() calls (e.g. SSE streams) that can't go through postJson.
+ */
+export async function authHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const user = currentUser();
+  if (user) {
+    try {
+      headers['Authorization'] = `Bearer ${await user.getIdToken()}`;
+    } catch { /* guard will return 401 */ }
+  }
+  return headers;
+}
+
 /**
  * POST JSON to a serverless endpoint and parse the JSON response.
- * Throws on non-2xx so callers can fall back to a heuristic/offline path.
+ * Attaches the Firebase ID token so the guard can verify the caller.
+ * Throws QuotaError on 402, AuthError on 401, generic Error on other failures.
  */
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  // Attach ID token if signed in. Guard will reject unauthenticated requests.
+  const user = currentUser();
+  if (user) {
+    try {
+      const token = await user.getIdToken();
+      headers['Authorization'] = `Bearer ${token}`;
+    } catch {
+      // getIdToken failing is not fatal here — the guard will return 401.
+    }
+  }
+
   const res = await fetch(apiUrl(path), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
   });
+
+  if (res.status === 401) {
+    const data = await res.json().catch(() => ({})) as { message?: string };
+    throw new AuthError(data.message ?? 'Sign in to use AI features.');
+  }
+
+  if (res.status === 402) {
+    const data = await res.json().catch(() => ({})) as { plan?: string; upgrade?: boolean; message?: string };
+    throw new QuotaError(
+      data.plan ?? 'free',
+      data.upgrade ?? true,
+      data.message ?? 'AI features require a Trip Pass.',
+    );
+  }
+
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
   return res.json() as Promise<T>;
 }

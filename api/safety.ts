@@ -16,8 +16,9 @@
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
+import { verifyAndMeter } from './_guard.ts';
 
-type VercelRequest  = IncomingMessage & { body: Record<string, unknown> };
+type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & {
   json(data: unknown): void;
   status(code: number): VercelResponse;
@@ -202,6 +203,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── Generate mode ─────────────────────────────────────────────────────────
+  const guardUid = await verifyAndMeter(req as Parameters<typeof verifyAndMeter>[0], res as Parameters<typeof verifyAndMeter>[1]);
+  if (!guardUid) return;
+
   const city = (body.city as string ?? '').trim();
   const country = (body.country as string ?? '').trim();
   const nationality = (body.nationality as string ?? '').trim();

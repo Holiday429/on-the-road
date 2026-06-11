@@ -73,6 +73,8 @@ async function fetchFromApi(
       nationality,
     });
   } catch (e) {
+    const { handleAiError } = await import('../../core/paywall.ts');
+    if (handleAiError(e)) return null; // paywall shown, caller checks for null
     console.error('[Safety] generation error — using mock data:', e);
     return mockSafety(city, country, nationality);
   }

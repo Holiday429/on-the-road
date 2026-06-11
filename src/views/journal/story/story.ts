@@ -4,6 +4,7 @@ import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import { generateStoryDraft } from './generator.ts';
 import { renderStory } from './render.ts';
 import type { StoryUiState } from './types.ts';
+import { handleAiError } from '../../../core/paywall.ts';
 
 interface StoryControllerDeps {
   getEntries: () => StoredJournalEntry[];
@@ -101,6 +102,7 @@ export function createStoryController(deps: StoryControllerDeps) {
       });
       ui.activeStoryId = id;
     } catch (error) {
+      if (handleAiError(error)) { ui.generating = false; deps.requestRender(); return; }
       console.error('Story generation failed:', error);
       ui.error = 'Could not generate a recap right now.';
     } finally {

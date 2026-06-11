@@ -22,8 +22,9 @@
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
+import { verifyAndMeter } from './_guard.ts';
 
-type VercelRequest  = IncomingMessage & { body: Record<string, unknown> };
+type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse; write(chunk: string): boolean; flushHeaders(): void; setHeader(k: string, v: string): void; end(): void; };
 
 // ── Types (inline — no shared import needed for serverless) ──────────────────
@@ -263,6 +264,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
+
+  const uid = await verifyAndMeter(req as Parameters<typeof verifyAndMeter>[0], res as Parameters<typeof verifyAndMeter>[1]);
+  if (!uid) return;
 
   const { city, country, query = '' } = req.body as {
     city: string; country: string; query?: string;

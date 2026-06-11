@@ -15,7 +15,8 @@ import { geocode } from '../map/geocode.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
 import { slugId } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
-import { apiUrl } from '../../core/api.ts';
+import { apiUrl, authHeaders } from '../../core/api.ts';
+import { handleAiError } from '../../core/paywall.ts';
 import { prefetchSafetyForCity } from '../safety/safety.ts';
 import { nomadStore } from '../../data/stores/nomad-store.ts';
 
@@ -70,9 +71,18 @@ async function generateGuide(city: string, country: string, query: string): Prom
   try {
     const res = await fetch(apiUrl('/api/guide'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({ city, country, query }),
     });
+
+    if (res.status === 401 || res.status === 402) {
+      const data = await res.json().catch(() => ({})) as { error?: string; plan?: string; upgrade?: boolean; message?: string };
+      const { QuotaError, AuthError } = await import('../../core/api.ts');
+      const err = res.status === 402
+        ? new QuotaError(data.plan ?? 'free', data.upgrade ?? true, data.message ?? 'AI features require a Trip Pass.')
+        : new AuthError(data.message ?? 'Sign in to use AI features.');
+      throw err;
+    }
 
     if (!res.ok) throw new Error(`API error ${res.status}`);
 
@@ -161,13 +171,18 @@ async function generateGuide(city: string, country: string, query: string): Prom
   } catch (err) {
     _generating = false;
     _liveIntel = null;
-    // API failed — show a sample preview WITHOUT persisting it to Firestore,
-    // so a transient outage never poisons the cache with mock data.
+    if (handleAiError(err)) {
+      // Paywall/auth error — clear the skeleton and return without showing mock.
+      const detail = root.querySelector<HTMLElement>('.guide-detail');
+      if (detail) { detail.innerHTML = ''; detail.classList.remove('active'); }
+      return;
+    }
+    // API failed — show a sample preview WITHOUT persisting it to Firestore.
     console.warn('Guide API unavailable, showing sample (not saved):', err);
     const statusEl = document.getElementById('guide-search-status');
     if (statusEl) {
       const reason = (err as Error)?.message ? ` (${(err as Error).message})` : '';
-      statusEl.textContent = `Couldn’t reach the AI service${reason} — showing a sample. Try Regen in a moment.`;
+      statusEl.textContent = `Couldn't reach the AI service${reason} — showing a sample. Try Regen in a moment.`;
     }
     const mock = getMockIntel(city, country) as CityIntel & { id: string };
     mock.id = id;
@@ -772,12 +787,19 @@ async function loadMore(intel: StoredCityIntel, section: TabKey, btn: HTMLButton
   try {
     const res = await fetch(apiUrl('/api/guide-more'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders(),
       body: JSON.stringify({
         city: intel.city, country: intel.country, section,
         existingTitles, query: intel.generatedQuery ?? '',
       }),
     });
+    if (res.status === 401 || res.status === 402) {
+      const data = await res.json().catch(() => ({})) as { error?: string; plan?: string; upgrade?: boolean; message?: string };
+      const { QuotaError, AuthError } = await import('../../core/api.ts');
+      throw res.status === 402
+        ? new QuotaError(data.plan ?? 'free', data.upgrade ?? true, data.message ?? 'AI features require a Trip Pass.')
+        : new AuthError(data.message ?? 'Sign in to use AI features.');
+    }
     if (!res.ok) throw new Error(`API ${res.status}`);
     const { items } = await res.json() as { items: unknown[] };
 
@@ -804,6 +826,7 @@ async function loadMore(intel: StoredCityIntel, section: TabKey, btn: HTMLButton
       return;
     }
   } catch (err) {
+    if (handleAiError(err)) { btn.textContent = original; btn.disabled = false; return; }
     console.warn('guide-more failed:', err);
     btn.textContent = '⚠ Failed — retry';
     setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1800);

@@ -39,13 +39,45 @@ export function doc<T extends z.ZodRawShape>(shape: T) {
   return z.object({ id: z.string(), ...shape }).merge(MetaSchema);
 }
 
+/* ── Entitlements ────────────────────────────────────────────────────────── */
+// Single source of truth for what each plan unlocks. Add new entitlements here
+// and update PLAN_ENTITLEMENTS; the guard and UI both read from this type.
+export type Entitlement =
+  | 'ai.guide'      // City guide + guide-more
+  | 'ai.safety'     // AI safety briefing
+  | 'ai.story'      // Journal recap
+  | 'ai.check'      // Checklist gap analysis
+  | 'export.pdf'    // Trip PDF export (B3)
+  | 'collab.unlimited'; // Unlimited collaborators (future)
+
+export type Plan = 'free' | 'trip_pass' | 'lifetime';
+
+const FREE_ENTITLEMENTS: Entitlement[] = [];
+
+const PAID_ENTITLEMENTS: Entitlement[] = [
+  'ai.guide', 'ai.safety', 'ai.story', 'ai.check',
+];
+
+const LIFETIME_ENTITLEMENTS: Entitlement[] = [
+  ...PAID_ENTITLEMENTS,
+  'export.pdf',
+  'collab.unlimited',
+];
+
+export const PLAN_ENTITLEMENTS: Record<Plan, Entitlement[]> = {
+  free:       FREE_ENTITLEMENTS,
+  trip_pass:  PAID_ENTITLEMENTS,
+  lifetime:   LIFETIME_ENTITLEMENTS,
+};
+
 /* ── User & Trip ─────────────────────────────────────────────────────────── */
 export const UserProfileSchema = doc({
   displayName: z.string().default(''),
   email: z.string().default(''),
   photoURL: z.string().default(''),
-  // Reserved for the public version — defaults keep the single-user case free.
-  plan: z.enum(['free', 'pro']).default('free'),
+  plan: z.enum(['free', 'trip_pass', 'lifetime']).default('free'),
+  entitlements: z.array(z.string()).default([]),
+  tripPassExpiresAt: z.number().nullable().optional(), // epoch ms; null = lifetime trip_pass
   defaultTripId: z.string().nullable().default(null),
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;

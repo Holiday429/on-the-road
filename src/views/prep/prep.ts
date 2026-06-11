@@ -15,6 +15,7 @@ import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/sch
 import { noteColor } from '../../data/palette.ts';
 import { escHtml } from '../../core/utils.ts';
 import { postJson } from '../../core/api.ts';
+import { handleAiError } from '../../core/paywall.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -818,6 +819,7 @@ async function runAiCheck(container: HTMLElement, cl: StoredChecklist) {
   } catch (err) {
     loading.setAttribute('hidden', '');
     result.removeAttribute('hidden');
+    if (handleAiError(err)) { result.textContent = ''; return; }
     result.innerHTML = `<div class="ai-error">Could not reach AI. Check your network and try again.<br><small>${escHtml(String(err))}</small></div>`;
   }
 }
