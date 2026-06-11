@@ -94,7 +94,17 @@ export async function listInvites(tripId: string): Promise<TripInvite[]> {
   const snap = await getDocs(
     query(collection(firestore, 'tripInvites'), where('tripId', '==', tripId)),
   );
-  return snap.docs.map((d) => d.data() as TripInvite).filter((i) => !i.revoked);
+  const invites = snap.docs.map((d) => d.data() as TripInvite).filter((i) => !i.revoked);
+  // Backfill: if live viewer invites exist but hasPublicView isn't set on the
+  // trip yet (e.g. invites created before this flag was introduced), write it now.
+  const hasViewer = invites.some((i) => i.role === 'viewer');
+  if (hasViewer) {
+    const trip = await getTrip(tripId);
+    if (trip && !(trip as { hasPublicView?: boolean }).hasPublicView) {
+      await updateDoc(fbDoc(firestore, `trips/${tripId}`), { hasPublicView: true, updatedAt: Date.now() });
+    }
+  }
+  return invites;
 }
 
 /**

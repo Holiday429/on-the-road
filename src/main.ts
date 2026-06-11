@@ -6,7 +6,7 @@ import './core/base.css';
 import './core/app.css';
 
 import { initApp, registerView, renderSession, openOnboarding, navigateTo, type ViewId } from './core/app.ts';
-import { onAuth, authReady, currentUser, signInWithGoogle, consumeRedirectResult, type User } from './firebase/auth.ts';
+import { onAuth, authReady, currentUser, signInWithGoogle, signInAsGuest, consumeRedirectResult, type User } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
@@ -58,6 +58,8 @@ let _viewerTripId: string | null = null;
 export function isViewerMode(): boolean { return _viewerMode; }
 export function viewerTripId(): string | null { return _viewerTripId; }
 
+let appEntered = false;
+
 // Detect an invite link on page load.
 // - Viewer invite → load trip immediately without requiring login.
 // - Editor invite → stash token, personalise landing card, require login.
@@ -74,14 +76,29 @@ void (async () => {
     if (!inv || inv.revoked) return;
 
     if (inv.role === 'viewer') {
-      // Viewer: load the trip as a public read-only guest, no login needed.
-      const { switchTrip } = await import('./data/trip-context.ts');
+      // Viewer: sign in anonymously so Firestore rules are satisfied,
+      // accept the invite to become a viewer member, then auto-enter the app.
       try {
+        await signInAsGuest();
+        const { acceptInvite } = await import('./data/trip-invites.ts');
+        const { switchTrip } = await import('./data/trip-context.ts');
+        await acceptInvite(tok);
         await switchTrip(inv.tripId);
         _viewerMode = true;
         _viewerTripId = inv.tripId;
         appRoot?.setAttribute('data-viewer', 'true');
-      } catch { /* trip not readable — fall through to landing */ }
+        // onAuth already fired for the anonymous sign-in before _viewerMode was set,
+        // so trigger entry explicitly now that the trip is loaded.
+        // appEntered is declared below — safe to read here since this async code
+        // only runs after the module has fully initialized.
+        if (!appEntered) {
+          await bootViewerShell();
+          enterApp();
+        }
+      } catch (e) {
+        console.warn('Viewer invite setup failed:', e);
+        // Fall through to normal landing
+      }
     } else {
       // Editor: stash token and personalise landing card.
       savePendingJoin(tok);
@@ -100,7 +117,6 @@ let signingIn = false;
 let landingMapInitialized = false;
 let bootPromise: Promise<void> | null = null;
 let appPrepared = false;
-let appEntered = false;
 let preparedUserId: string | null = null;
 let guestShellReady = false;
 
@@ -218,6 +234,7 @@ async function entryUser(): Promise<User | null> {
 }
 
 async function bootAuthenticatedShell(user: User) {
+  if (user.isAnonymous) return; // anonymous viewers use bootViewerShell instead
   if (preparedUserId === user.uid) return;
   if (bootPromise) {
     await bootPromise;
@@ -370,12 +387,14 @@ onAuth(async ({ user, ready }) => {
   // If the app is already open (user signed in/out after entering), update the shell.
   if (appEntered) {
     if (user) {
-      // If we were in viewer mode and the user just signed in, upgrade to full shell.
-      if (_viewerMode) {
+      // Anonymous viewer signs in with Google: upgrade to full authenticated shell.
+      if (_viewerMode && !user.isAnonymous) {
         _viewerMode = false;
         _viewerTripId = null;
         appRoot?.removeAttribute('data-viewer');
       }
+      // Don't re-boot for anonymous user (viewer shell already running).
+      if (user.isAnonymous) return;
       await bootAuthenticatedShell(user);
     } else {
       preparedUserId = null;

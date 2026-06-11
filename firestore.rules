@@ -45,6 +45,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/tripInvites/$(token)).data;
     }
 
+    // True when a specific invite token grants live viewer access to a trip.
+    function isLiveViewerToken(token, tripId) {
+      return exists(/databases/$(database)/documents/tripInvites/$(token))
+        && inviteFor(token).tripId == tripId
+        && inviteFor(token).role == 'viewer'
+        && inviteFor(token).revoked == false;
+    }
+
     // A member (not the owner) removing ONLY themselves from the trip.
     function isSelfLeave() {
       let before = resource.data;
