@@ -18,6 +18,7 @@ import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { openModal } from '../../core/modal.ts';
 import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
 import { itemWeightG, formatKg, itemsPresentAtLeg } from '../../data/packing-formula.ts';
+import { buildPackSuggestions } from '../../data/pack-suggestions.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
 import { escHtml } from '../../core/utils.ts';
 import { consumeNavIntent } from '../../core/app.ts';
@@ -234,6 +235,7 @@ function renderList(c: HTMLElement) {
     ${renderTripBar()}
     <div class="pack-action-bar">
       <button class="btn btn-primary" id="pk-new">+ New Pack List</button>
+      ${_legs.length > 0 ? `<button class="btn btn-ghost" id="pk-formula">✨ Pack Formula</button>` : ''}
     </div>
 
     ${_lists.length === 0 ? `
@@ -753,10 +755,115 @@ function coreKitItems(): PackItem[] {
   }));
 }
 
+/* ── Formula modal ───────────────────────────────────────────────────────── */
+
+function openFormulaModal() {
+  const groups = buildPackSuggestions(_legs);
+  const totalDays = (() => {
+    if (!_legs.length) return 0;
+    const from = new Date(_legs[0].dateFrom);
+    const to   = new Date(_legs[_legs.length - 1].dateTo);
+    return Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
+  })();
+
+  const body = `
+    <p class="formula-intro">Based on your ${totalDays}-day itinerary across ${[...new Set(_legs.map(l => l.country))].length} countries. Select items to add to a pack list.</p>
+    <div class="formula-groups">
+      ${groups.map(g => `
+        <div class="formula-group">
+          <div class="formula-group-header">
+            <span class="formula-group-icon">${g.icon}</span>
+            <span class="formula-group-title">${escHtml(g.title)}</span>
+            <label class="formula-select-all">
+              <input type="checkbox" class="formula-group-check" data-group="${escHtml(g.title)}" checked>
+              <span>All</span>
+            </label>
+          </div>
+          <div class="formula-items">
+            ${g.items.map((item, i) => `
+              <label class="formula-item">
+                <input type="checkbox" class="formula-item-check" checked
+                  data-group="${escHtml(g.title)}"
+                  data-name="${escHtml(item.text)}"
+                  data-qty="${item.qty}"
+                  data-cat="${escHtml(item.category)}"
+                  id="fi-${escHtml(g.title)}-${i}">
+                <div class="formula-item-body">
+                  <span class="formula-item-name">${escHtml(item.text)}</span>
+                  ${item.qty > 1 ? `<span class="formula-item-qty">× ${item.qty}</span>` : ''}
+                  <span class="formula-item-why">${escHtml(item.rationale)}</span>
+                </div>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="formula-footer-target">
+      <label class="field-label" for="formula-target-list">Add to list</label>
+      <select class="input" id="formula-target-list">
+        ${_lists.map(l => `<option value="${escHtml(l.id)}">${escHtml(l.name)}</option>`).join('')}
+        <option value="__new__">+ Create new list</option>
+      </select>
+    </div>
+  `;
+
+  const m = openModal({
+    title: '✨ Pack Formula',
+    variant: 'sheet',
+    body,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm">Add selected items</button>
+    `,
+  });
+
+  // Group checkbox toggles all items in group
+  m.root.querySelectorAll<HTMLInputElement>('.formula-group-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      m.root.querySelectorAll<HTMLInputElement>(`.formula-item-check[data-group="${cb.dataset.group}"]`)
+        .forEach(ic => { ic.checked = cb.checked; });
+    });
+  });
+
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const checked = [...m.root.querySelectorAll<HTMLInputElement>('.formula-item-check:checked')];
+    if (!checked.length) { m.close(); return; }
+
+    let targetId = (m.root.querySelector<HTMLSelectElement>('#formula-target-list')?.value ?? '');
+    if (targetId === '__new__') {
+      targetId = await packStore.create({ name: 'Formula Pack' });
+    }
+
+    await Promise.all(checked.map(cb => packStore.addItem(targetId, {
+      name: cb.dataset.name ?? '',
+      category: cb.dataset.cat ?? 'other',
+      qty: parseInt(cb.dataset.qty ?? '1', 10),
+      unitWeightG: 0,
+      containerId: null,
+      priority: 'nice' as const,
+      locked: false,
+      packed: false,
+      source: 'manual' as const,
+      acquiredLegId: null,
+      droppedLegId: null,
+      consumable: false,
+    })));
+
+    m.close();
+    activeId = targetId;
+    screen = 'detail';
+    packCheckMode = false;
+    render();
+  });
+}
+
 /* ── Bind: list screen ───────────────────────────────────────────────────── */
 
 function bindList(c: HTMLElement) {
   c.querySelector('#pk-new')?.addEventListener('click', () => openNewListModal());
+  c.querySelector('#pk-formula')?.addEventListener('click', () => openFormulaModal());
 
   /* Unit selector */
   c.querySelector<HTMLSelectElement>('#pk-unit-sel')?.addEventListener('change', e => {
