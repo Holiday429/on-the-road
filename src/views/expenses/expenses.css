@@ -863,3 +863,12 @@ body.exp-records-lock { overflow: hidden; }
   line-height: 1.2; text-align: center;
   max-width: 100%; overflow: hidden;
 }
+
+/* ── Budget auto-estimate row ──────────────────────────────────────────── */
+.exp-budget-auto-row {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin-bottom: var(--sp-3); flex-wrap: wrap;
+}
+.exp-budget-auto-hint { font-size: var(--fs-sm); color: var(--ink-muted); white-space: nowrap; }
+.exp-budget-auto-unit { font-size: var(--fs-sm); color: var(--ink-muted); white-space: nowrap; }
+.exp-budget-daily-rate { width: 90px; flex-shrink: 0; }

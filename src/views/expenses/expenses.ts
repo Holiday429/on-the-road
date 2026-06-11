@@ -1188,20 +1188,58 @@ function renderBudgetPage() {
       const countriesList = [...new Set([...legCountries(legs), ...Object.keys(caps)])];
       const totalCap = Object.values(caps).reduce((s, v) => s + v, 0);
       const flex = tripTotal ? tripTotal - totalCap : null;
+
+      // Per-country day count from itinerary
+      const countryDays: Record<string, number> = {};
+      for (const leg of legs) {
+        if (!leg.country) continue;
+        const from = new Date(leg.dateFrom);
+        const to   = new Date(leg.dateTo);
+        const d = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
+        countryDays[leg.country] = (countryDays[leg.country] ?? 0) + d;
+      }
+
       settingsPane.innerHTML = `
-        ${countriesList.length === 0 ? '<p class="exp-modal-hint">No countries on the itinerary yet.</p>' : ''}
+        ${countriesList.length === 0 ? '<p class="exp-modal-hint">No countries on the itinerary yet.</p>' : `
+          <div class="exp-budget-auto-row">
+            <div class="exp-budget-auto-hint">Auto-estimate by itinerary days ×</div>
+            <input class="input exp-budget-daily-rate" type="number" id="bm-daily-rate" min="0" step="1" placeholder="daily rate" value="">
+            <span class="exp-budget-auto-unit">${sym}/day</span>
+            <button class="btn btn-ghost pk-sm" id="bm-apply-daily">Apply</button>
+          </div>`}
         <div class="exp-budget-rows">
           ${countriesList.map((c) => {
             const flag = legs.find((l) => l.country === c)?.flag ?? '';
             const spent = countrySpend(c);
+            const daysLabel = countryDays[c] ? ` · ${countryDays[c]}d` : '';
             return `
               <div class="exp-budget-row">
-                <div class="exp-budget-row-name">${flag} ${c}<span class="exp-budget-row-spent">${fmt(spent)} spent</span></div>
-                <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${c}" placeholder="no cap" value="${caps[c] ?? ''}">
+                <div class="exp-budget-row-name">${flag} ${c}<span class="exp-budget-row-spent">${fmt(spent)} spent${daysLabel}</span></div>
+                <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${c}" data-days="${countryDays[c] ?? 0}" placeholder="no cap" value="${caps[c] ?? ''}">
               </div>`;
           }).join('')}
         </div>
         ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total` : `${fmt(flex)} unallocated`}</p>` : ''}`;
+
+      // Auto-estimate: fill all inputs with days × daily rate
+      settingsPane.querySelector('#bm-apply-daily')?.addEventListener('click', async () => {
+        const rateEl = settingsPane.querySelector<HTMLInputElement>('#bm-daily-rate');
+        const rate = parseFloat(rateEl?.value ?? '');
+        if (!rate || rate <= 0) { rateEl?.focus(); return; }
+        const saves = [...settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input')]
+          .map(async (inp) => {
+            const d = parseInt(inp.dataset.days ?? '0', 10);
+            if (!d) return;
+            const est = Math.round(d * rate);
+            inp.value = String(est);
+            await setCountryBudget(inp.dataset.country!, est);
+          });
+        await Promise.all(saves);
+        renderBudgetPage();
+        renderSummaryRoot();
+        renderForm(document.querySelector('.exp-form-wrap') as HTMLElement);
+      });
+
       settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
         input.addEventListener('change', async () => {
           const val = parseFloat(input.value);
