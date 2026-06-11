@@ -2,16 +2,19 @@
    On the Road · Data schemas (zod)
    --------------------------------------------------------------------------
    Single source of truth for the shape of every stored document.
-   Firestore layout (public-version ready):
+   Firestore layout (collaboration-ready — trips are top-level so they can be
+   shared across users):
 
-   users/{uid}                      profile + settings
-     trips/{tripId}                 a single trip
-       legs/{legId}                 itinerary stops      (route)
-       prepTasks/{taskId}           pre-departure tasks  (prep)
-       expenses/{expenseId}         spend log            (expenses)
-        cityIntel/{cityId}           AI city briefings    (cities)
-        journalEntries/{entryId}    travel notes         (journal)
-        journalStories/{storyId}    AI trip recaps       (journal)
+   users/{uid}                      profile + settings (private to that user)
+   tripInvites/{token}              active share links
+
+   trips/{tripId}                   a single trip (members[] grants access)
+     legs/{legId}                   itinerary stops      (route)
+     prepTasks/{taskId}             pre-departure tasks  (prep)
+     expenses/{expenseId}           spend log            (expenses)
+     cityIntel/{cityId}             AI city briefings    (cities)
+     journalEntries/{entryId}       travel notes         (journal)
+     journalStories/{storyId}       AI trip recaps       (journal)
 
    Every document carries meta (createdAt/updatedAt/schemaVersion) so we can
    migrate shapes later without guessing a document's age or version.
@@ -76,8 +79,38 @@ export const TripSchema = doc({
   // Per-country budget caps in baseCurrency, keyed by country name (as stored
   // on legs/expenses, e.g. 'Germany'). Absent keys = no cap.
   countryBudgets: z.record(z.string(), z.number()).optional(),
+
+  /* ── Collaboration ──────────────────────────────────────────────────────
+     A trip lives at the top level (trips/{tripId}) so multiple users can
+     share it. `ownerUid` is the creator; `members` maps each member's uid to
+     their role. `memberUids` is a denormalised array of the same keys so
+     Firestore security rules and "trips I belong to" queries can use a single
+     array-contains filter (rules can't iterate a map's keys cheaply).
+     Absent on legacy single-user trips — the migration backfills them. */
+  ownerUid: z.string().optional(),
+  members: z.record(z.string(), z.enum(['owner', 'editor', 'viewer'])).optional(),
+  memberUids: z.array(z.string()).optional(),
+  // Transient: set only on a self-join write so security rules can verify the
+  // invite token grants the role being claimed. Persisted but inert afterwards.
+  joinToken: z.string().optional(),
 });
 export type Trip = z.infer<typeof TripSchema>;
+export type TripRole = 'owner' | 'editor' | 'viewer';
+
+/* ── Trip invites ───────────────────────────────────────────────────────────
+   One doc per active invite link, at tripInvites/{token}. The token is the
+   doc id (also the URL code). Anyone signed in can read an invite by its
+   token (to learn which trip + role it grants) and, on accept, add themselves
+   to the trip's members — enforced by rules. */
+export const TripInviteSchema = doc({
+  tripId: z.string(),
+  tripName: z.string().default(''),       // shown on the join screen before accepting
+  role: z.enum(['editor', 'viewer']).default('editor'),
+  createdByUid: z.string(),
+  expiresAt: z.number().nullable().default(null), // epoch ms; null = no expiry
+  revoked: z.boolean().default(false),
+});
+export type TripInvite = z.infer<typeof TripInviteSchema>;
 
 /* ── Prep (legacy — kept for migration) ──────────────────────────────────── */
 export const PrepTaskSchema = doc({

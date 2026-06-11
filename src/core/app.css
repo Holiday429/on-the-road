@@ -633,10 +633,14 @@
   align-items: center;
   border-radius: var(--r-md);
 }
+.trip-menu-row:hover .trip-menu-share,
 .trip-menu-row:hover .trip-menu-edit,
+.trip-menu-row:hover .trip-menu-leave,
 .trip-menu-row:hover .trip-menu-delete { opacity: 1; }
 .trip-menu-row .trip-menu-item { flex: 1; min-width: 0; }
+.trip-menu-share,
 .trip-menu-edit,
+.trip-menu-leave,
 .trip-menu-delete {
   flex-shrink: 0;
   border: none;
@@ -650,8 +654,28 @@
   line-height: 1;
   color: var(--ink-muted);
 }
+.trip-menu-share:hover { color: var(--ink-1); background: var(--surface-2); }
 .trip-menu-edit:hover { color: var(--ink-1); background: var(--surface-2); }
+.trip-menu-leave:hover { color: #b45309; background: #fef3c7; }
 .trip-menu-delete:hover { color: #b91c1c; background: #fee2e2; }
+
+/* ── Share modal ──────────────────────────────────────────────────────── */
+.share-section { margin-bottom: var(--sp-5); }
+.share-section-title { font-weight: 700; font-size: var(--fs-sm); margin-bottom: var(--sp-2); color: var(--ink); }
+.share-role-row { display: flex; gap: var(--sp-4); margin-bottom: var(--sp-3); }
+.share-role-opt { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); cursor: pointer; }
+.share-gen-btn { margin-bottom: var(--sp-3); }
+.share-hint { font-size: var(--fs-sm); color: var(--ink-muted); }
+.share-link-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.share-link-role { font-size: 11px; font-weight: 600; color: var(--ink-muted); white-space: nowrap; }
+.share-link-input { flex: 1; font-size: 12px; }
+.share-members { display: flex; flex-direction: column; gap: var(--sp-2); }
+.share-member-row { display: flex; align-items: center; gap: var(--sp-2); }
+.share-member-uid { flex: 1; font-size: var(--fs-sm); }
+.share-member-role { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--r-full); text-transform: capitalize; }
+.share-role-owner  { background: #fef3c7; color: #92400e; }
+.share-role-editor { background: #dbeafe; color: #1e40af; }
+.share-role-viewer { background: #f3f4f6; color: #4b5563; }
 .trip-menu-item,
 .trip-menu-new {
   display: flex;
@@ -1163,4 +1187,28 @@
   #sidebar { display: none; }
   #main { margin-left: 0; padding-bottom: 70px; }
   #mobile-nav { display: block; }
+}
+
+/* ── Collaboration role badges ─────────────────────────────────────────── */
+.trip-pill-role {
+  margin-top: var(--sp-1);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  display: inline-block;
+}
+.trip-pill-role--viewer { background: #f3f4f6; color: #4b5563; }
+.trip-pill-role--editor { background: #dbeafe; color: #1e40af; }
+
+/* Viewer mode: disable write affordances as a UX safety net. The Firestore
+   rules are the real guard; this prevents silent failures on edit attempts.
+   Scoped to primary/add-style buttons so navigation and read controls stay live. */
+#app[data-role="viewer"] .btn-primary,
+#app[data-role="viewer"] [data-quickadd],
+#app[data-role="viewer"] .pk-add-item,
+#app[data-role="viewer"] .exp-fab,
+#app[data-role="viewer"] [data-act="confirm"] {
+  opacity: 0.45;
+  pointer-events: none;
 }

@@ -5,7 +5,7 @@
 import type { User } from '../firebase/auth.ts';
 import {
   currentTrip, currentTripId, listTrips, createTrip, switchTrip, onTripChange,
-  updateTrip, removeTrip,
+  updateTrip, removeTrip, currentRole, leaveTrip as leaveTripCtx,
   type StoredTrip, type NewTripInput,
 } from '../data/trip-context.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
@@ -86,17 +86,28 @@ function openTripPopover() {
   }
 
   const activeId = currentTrip()?.id;
-  const rows = tripList.map((t) => `
+  const myUid = sessionState.user?.uid;
+  const rows = tripList.map((t) => {
+    // Owner-only trips show edit + delete; trips shared with me as a
+    // collaborator show "leave" instead of delete (I can't delete someone
+    // else's trip). A trip with no members map is a legacy owner trip.
+    const amOwner = !t.members || !myUid || t.members[myUid] === 'owner';
+    return `
     <div class="trip-menu-row" data-trip-id="${escapeHtml(t.id)}">
       <button class="trip-menu-item${t.id === activeId ? ' is-active' : ''}" data-trip-id="${escapeHtml(t.id)}">
         <span class="trip-menu-dot" style="background:${escapeHtml(t.coverColor || '#f9b830')}"></span>
         <span class="trip-menu-name">${escapeHtml(t.name)}</span>
         ${t.id === activeId ? '<span class="trip-menu-check">✓</span>' : ''}
       </button>
-      <button class="trip-menu-edit" data-trip-id="${escapeHtml(t.id)}" title="Rename trip" aria-label="Rename ${escapeHtml(t.name)}">✎</button>
-      <button class="trip-menu-delete" data-trip-id="${escapeHtml(t.id)}" title="Delete trip" aria-label="Delete ${escapeHtml(t.name)}">🗑</button>
-    </div>
-  `).join('');
+      <button class="trip-menu-share" data-trip-id="${escapeHtml(t.id)}" title="Share trip" aria-label="Share ${escapeHtml(t.name)}">👥</button>
+      ${amOwner ? `
+        <button class="trip-menu-edit" data-trip-id="${escapeHtml(t.id)}" title="Rename trip" aria-label="Rename ${escapeHtml(t.name)}">✎</button>
+        <button class="trip-menu-delete" data-trip-id="${escapeHtml(t.id)}" title="Delete trip" aria-label="Delete ${escapeHtml(t.name)}">🗑</button>
+      ` : `
+        <button class="trip-menu-leave" data-trip-id="${escapeHtml(t.id)}" title="Leave trip" aria-label="Leave ${escapeHtml(t.name)}">🚪</button>
+      `}
+    </div>`;
+  }).join('');
 
   panel.innerHTML = `
     <div class="trip-popover-header">My Trips</div>
@@ -118,6 +129,17 @@ function openTripPopover() {
       if (trip) {
         import('./trip-chooser.ts').then(({ showTripToast }) => showTripToast(trip.name));
       }
+    });
+  });
+
+  panel.querySelectorAll<HTMLElement>('.trip-menu-share').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.tripId!;
+      tripMenuOpen = false;
+      closeTripPopover();
+      buildSidebar();
+      import('./trip-share.ts').then(({ openShareModal }) => openShareModal(id));
     });
   });
 
@@ -144,6 +166,19 @@ function openTripPopover() {
       closeTripPopover();
       buildSidebar();
       openDeleteTripModal(trip);
+    });
+  });
+
+  panel.querySelectorAll<HTMLElement>('.trip-menu-leave').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.tripId!;
+      const trip = tripList.find(t => t.id === id);
+      if (!trip) return;
+      tripMenuOpen = false;
+      closeTripPopover();
+      buildSidebar();
+      void leaveTrip(trip);
     });
   });
 
@@ -375,12 +410,20 @@ function buildTripPill(): string {
     ? `Departing <strong>today!</strong> 🎉`
     : `Trip started <strong>${Math.abs(days)} days</strong> ago`;
 
+  const role = currentRole();
+  const roleBadge = role === 'viewer'
+    ? `<div class="trip-pill-role trip-pill-role--viewer">👁 View only</div>`
+    : role === 'editor'
+    ? `<div class="trip-pill-role trip-pill-role--editor">✎ Shared with you</div>`
+    : '';
+
   return `
     <div class="trip-pill${tripMenuOpen ? ' is-open' : ''}" id="trip-pill" role="button" tabindex="0" aria-haspopup="true" aria-expanded="${tripMenuOpen}">
       <div class="trip-pill-label">Current Trip <span class="trip-pill-caret">▾</span></div>
       <div class="trip-pill-name">${escapeHtml(name)}</div>
       <div class="trip-pill-date ${compactClass}">${compactBadge}</div>
       <div class="trip-pill-days">${daysText}</div>
+      ${roleBadge}
     </div>
   `;
 }
@@ -620,6 +663,7 @@ export function renderSession(user: User | null, onPrimaryAction: () => void) {
   sessionPrimaryAction = onPrimaryAction;
   document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
+  applyRoleState();
   if (!user) {
     const hash = window.location.hash.replace('#', '') as ViewId;
     navigateTo(NAV_ITEMS.find((item) => item.id === hash) ? hash : 'prep');
@@ -725,6 +769,47 @@ function openDeleteTripModal(trip: StoredTrip) {
     } catch (e) {
       btn.disabled = false; btn.textContent = 'Delete';
       errorEl.textContent = e instanceof Error ? e.message : 'Could not delete trip.';
+    }
+  });
+}
+
+function leaveTrip(trip: StoredTrip) {
+  const m = openModal({
+    title: 'Leave trip',
+    className: 'trip-edit-modal',
+    body: `
+      <p style="font-size:var(--fs-sm);color:var(--ink-muted);margin:0">
+        Leave <strong>${escapeHtml(trip.name)}</strong>? You'll lose access to it
+        until the owner invites you again. The trip itself isn't deleted.
+      </p>
+      <div class="trip-modal-error" id="lt-error"></div>`,
+    footer: `
+      <button class="btn" data-otr-close>Cancel</button>
+      <button class="btn btn-danger" id="lt-confirm">Leave</button>`,
+  });
+
+  m.root.querySelector('#lt-confirm')!.addEventListener('click', async () => {
+    const btn = m.root.querySelector<HTMLButtonElement>('#lt-confirm')!;
+    const errorEl = m.root.querySelector<HTMLElement>('#lt-error')!;
+    btn.disabled = true; btn.textContent = 'Leaving…';
+    try {
+      const wasActive = currentTripId() === trip.id;
+      await leaveTripCtx(trip.id);
+      tripList = await listTrips();
+      m.close();
+      if (wasActive) {
+        if (tripList.length > 0) {
+          await switchTrip(tripList[0].id);
+        } else {
+          buildSidebar();
+          openOnboarding();
+        }
+      } else {
+        buildSidebar();
+      }
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Leave';
+      errorEl.textContent = e instanceof Error ? e.message : 'Could not leave trip.';
     }
   });
 }
@@ -957,16 +1042,29 @@ export function openOnboarding() {
   });
 }
 
+/**
+ * Reflect the user's role on the active trip onto the app root as a data
+ * attribute. Viewer mode flips a flag that CSS uses to disable write controls;
+ * the security rules are the real guard, this just avoids silent write failures.
+ */
+export function applyRoleState() {
+  const role = currentRole();
+  const root = document.getElementById('app');
+  if (root) root.dataset.role = role ?? '';
+}
+
 export function initApp() {
   document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
   buildMobileNav();
   decorateViewTitles();
+  applyRoleState();
 
   // Trip switch: rebuild the sidebar (name/countdown) and re-init mounted views
   // so their stores re-subscribe under the new tripId. Registered once.
   onTripChange(() => {
     buildSidebar();
+    applyRoleState();
     reinitForTripChange();
   });
 

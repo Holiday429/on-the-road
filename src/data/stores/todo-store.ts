@@ -1,27 +1,30 @@
 /* ==========================================================================
    On the Road · To-Do store
-   User-scoped (lives at users/{uid}/todos), not trip-scoped, so todos survive
-   trip switches and can carry a tripId field for optional filtering.
+   Trip-scoped (lives at trips/{tripId}/todos) so trip members share the same
+   to-do list. Each doc also carries a tripId tag for convenience. Per-trip
+   consumers (dashboard, calendar, notifications) use subscribe(), which reads
+   the current trip's list.
    ========================================================================== */
 
-import { createUserCollectionStore, type WithMeta } from '../../firebase/db.ts';
+import { createTaggedCollectionStore, type WithMeta } from '../../firebase/db.ts';
+import { currentTripId } from '../trip-context.ts';
 import { TodoSchema, type Todo } from '../schema.ts';
 
 export type StoredTodo = WithMeta<Todo>;
 
 function store() {
-  return createUserCollectionStore('todos', TodoSchema);
+  return createTaggedCollectionStore('todos', TodoSchema);
 }
 
 export const todoStore = {
   peek: (): StoredTodo[] => store().peek() as StoredTodo[],
 
   subscribe: (cb: (rows: StoredTodo[]) => void) =>
-    store().subscribe(cb as (rows: WithMeta<Todo>[]) => void),
+    store().subscribeForTrip(currentTripId(), cb as (rows: WithMeta<Todo>[]) => void),
 
   add(input: Pick<Todo, 'text'> & Partial<Omit<Todo, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'>>) {
     const order = (store().peek() as StoredTodo[]).length;
-    return store().set({ done: false, dueDate: null, remindAt: null, tripId: null, order, ...input });
+    return store().set({ done: false, dueDate: null, remindAt: null, order, ...input });
   },
 
   toggle(id: string, current: boolean) {

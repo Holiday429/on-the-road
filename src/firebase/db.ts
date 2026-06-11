@@ -121,15 +121,26 @@ export function createUserCollectionStore<S extends z.ZodTypeAny>(
 }
 
 /**
- * A user-scoped store whose docs carry a `tripId` tag. Lives at
- * users/{uid}/{name} (flat, not under a trip), so a single subscription can
- * either filter to one trip or aggregate across all trips — the pattern the
- * map / journal calendar / nomad gallery need.
+ * Resolver that returns the trip ids the signed-in user can see. Injected from
+ * trip-context to avoid a circular import. Used by tagged stores when they need
+ * to aggregate across all of a user's trips (map "all footprints", journal
+ * cross-trip calendar). Returns a snapshot list; callers re-resolve on demand.
+ */
+let _myTripIdsResolver: () => string[] = () => [];
+export function setMyTripIdsResolver(fn: () => string[]) {
+  _myTripIdsResolver = fn;
+}
+
+/**
+ * A trip-scoped store whose docs also carry a `tripId` tag. Each trip's docs
+ * live at trips/{tripId}/{name} (so collaborators see them). The `tripId` tag
+ * is retained on each doc for convenience and aggregation filtering.
  *
- * - On write, an absent `tripId` defaults to the current trip.
- * - `subscribeForTrip(tripId, cb)` filters client-side (tripId === value);
- *   pass `null` to receive every row (global view). Data volume is small for a
- *   single user, so no composite index is required.
+ * - On write, an absent `tripId` defaults to the current trip; the doc is
+ *   written under that trip's sub-collection.
+ * - `subscribeForTrip(tripId, cb)` subscribes to one trip's sub-collection.
+ *   Passing `null` fans out across every trip the user belongs to (resolved via
+ *   setMyTripIdsResolver) and merges the results — the map / journal "all" view.
  */
 export interface TaggedCollectionStore<T> extends CollectionStore<T> {
   subscribeForTrip(tripId: string | null, cb: (rows: WithMeta<T>[]) => void): () => void;
@@ -139,22 +150,40 @@ export function createTaggedCollectionStore<S extends z.ZodTypeAny>(
   name: string,
   schema: S,
 ): TaggedCollectionStore<z.infer<S>> {
-  const base = createUserCollectionStore(name, schema);
+  // The "current trip" store handles peek/set/update/remove against the active
+  // trip's sub-collection. Writes always target currentTripId().
+  const current = () => createCollectionStore(currentTripId(), name, schema);
 
   return {
-    ...base,
-    async set(data) {
-      const withTrip = (data as { tripId?: string | null }).tripId == null
-        ? { ...data, tripId: currentTripId() }
-        : data;
-      return base.set(withTrip);
+    peek: () => current().peek(),
+    list: () => current().list(),
+    subscribe: (cb) => current().subscribe(cb),
+    set(data) {
+      const tripId = (data as { tripId?: string | null }).tripId ?? currentTripId();
+      const withTrip = { ...data, tripId };
+      return createCollectionStore(tripId, name, schema).set(withTrip);
     },
+    update: (id, patch) => current().update(id, patch),
+    remove: (id) => current().remove(id),
+    bulkSet: (rows) => current().bulkSet(rows),
+
     subscribeForTrip(tripId, cb) {
-      return base.subscribe((rows) => {
-        cb(tripId == null
-          ? rows
-          : rows.filter((r) => (r as { tripId?: string | null }).tripId === tripId));
-      });
+      if (tripId != null) {
+        return createCollectionStore(tripId, name, schema).subscribe(cb);
+      }
+      // Aggregate across all of the user's trips. Subscribe to each trip's
+      // sub-collection and merge; re-emit the combined set on any change.
+      const tripIds = _myTripIdsResolver();
+      const byTrip = new Map<string, WithMeta<z.infer<S>>[]>();
+      const emit = () => cb([...byTrip.values()].flat());
+      const unsubs = tripIds.map((tid) =>
+        createCollectionStore(tid, name, schema).subscribe((rows) => {
+          byTrip.set(tid, rows);
+          emit();
+        }),
+      );
+      if (!tripIds.length) cb([]);
+      return () => unsubs.forEach((u) => u());
     },
   };
 }
@@ -163,9 +192,9 @@ export type WithMeta<T> = T & { id: string } & Meta;
 
 function now() { return Date.now(); }
 
-/** users/{uid}/trips/{tripId}/{name} */
-function colPath(uid: string, tripId: string, name: string) {
-  return `users/${uid}/trips/${tripId}/${name}`;
+/** trips/{tripId}/{name} — top-level so trips can be shared across users. */
+function colPath(tripId: string, name: string) {
+  return `trips/${tripId}/${name}`;
 }
 
 function cacheKey(uid: string, tripId: string, name: string) {
@@ -222,8 +251,10 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
     return u.uid;
   }
 
-  function ref(uid: string) {
-    return collection(firestore as Firestore, colPath(uid, tripId, name));
+  // Path no longer depends on uid — trips/{tripId}/{name} is shared. The cache
+  // is still keyed by uid (it's a local per-account cache, not the source).
+  function ref() {
+    return collection(firestore as Firestore, colPath(tripId, name));
   }
 
   return {
@@ -235,7 +266,7 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
 
     async list() {
       const uid = requireUid();
-      const snap = await getDocs(query(ref(uid)));
+      const snap = await getDocs(query(ref()));
       const rows = snap.docs.map((d) => d.data() as WithMeta<T>);
       writeCache(cacheKey(uid, tripId, name), rows);
       return rows;
@@ -247,7 +278,7 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
       const uid = u.uid;
       const key = cacheKey(uid, tripId, name);
       cb(readCache<T>(key)); // instant paint from cache
-      return onSnapshot(query(ref(uid)), (snap) => {
+      return onSnapshot(query(ref()), (snap) => {
         const rows = snap.docs.map((d) => d.data() as WithMeta<T>);
         writeCache(key, rows);
         cb(rows);
@@ -264,7 +295,7 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
         schemaVersion: SCHEMA_VERSION,
       };
       const payload = schema.parse({ ...data, id, ...meta });
-      await setDoc(fbDoc(ref(uid), id), payload as object);
+      await setDoc(fbDoc(ref(), id), payload as object);
       return id;
     },
 
@@ -274,7 +305,7 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
       // (race: doc was just created but the snapshot callback hasn't fired yet).
       let existing = readCache<T>(cacheKey(uid, tripId, name)).find((r) => r.id === id);
       if (!existing) {
-        const snap = await getDocs(query(ref(uid)));
+        const snap = await getDocs(query(ref()));
         const rows = snap.docs.map((d) => d.data() as WithMeta<T>);
         writeCache(cacheKey(uid, tripId, name), rows);
         existing = rows.find((r) => r.id === id);
@@ -282,12 +313,12 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
       if (!existing) throw new Error(`update: doc ${id} not found`);
       const merged = { ...existing, ...patch, id, updatedAt: now() };
       const payload = schema.parse(merged);
-      await setDoc(fbDoc(ref(uid), id), payload as object);
+      await setDoc(fbDoc(ref(), id), payload as object);
     },
 
     async remove(id) {
-      const uid = requireUid();
-      await deleteDoc(fbDoc(ref(uid), id));
+      requireUid();
+      await deleteDoc(fbDoc(ref(), id));
     },
 
     async bulkSet(rows) {

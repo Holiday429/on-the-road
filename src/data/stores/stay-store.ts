@@ -1,6 +1,6 @@
 /* ==========================================================================
    On the Road · Stay store — accommodation comparison (one Stay per Leg)
-   users/{uid}/trips/{tripId}/stays/{stayId}
+   trips/{tripId}/stays/{stayId}
    --------------------------------------------------------------------------
    Candidates (columns) and dimensions (rows) are embedded in the Stay doc.
    Pure scoring helpers (PRICE_DIM_ID, perNight, scoreStay) live here too so

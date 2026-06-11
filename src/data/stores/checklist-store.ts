@@ -1,7 +1,7 @@
 /* ==========================================================================
    On the Road · Checklist store — Firestore-backed
-   - Checklists: users/{uid}/trips/{tripId}/checklists  (trip-scoped)
-   - Templates:  users/{uid}/checklistTemplates          (user-scoped)
+   - Checklists: trips/{tripId}/checklists      (trip-scoped, shareable)
+   - Templates:  users/{uid}/checklistTemplates (user-scoped, private)
    ========================================================================== */
 
 import {

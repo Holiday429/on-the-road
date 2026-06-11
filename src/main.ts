@@ -13,6 +13,7 @@ import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
+import { migrateCollab } from './data/migrate-collab.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
 import { initDashboard } from './views/today/dashboard.ts';
 import { initCalendar } from './views/calendar/calendar.ts';
@@ -174,16 +175,27 @@ async function bootAuthenticatedShell(user: User) {
 
   bootPromise = (async () => {
     let needsOnboarding = false;
-    try {
-      const trip = await ensureDefaultTrip();
-      needsOnboarding = trip === null;
-    } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
+    // Legacy localStorage→cloud migrations first. These read localStorage and,
+    // for older accounts, seed the OLD users/{uid}/** layout. They early-return
+    // via their own done-flags for accounts already on the cloud. migrateMultiTrip
+    // operates entirely on users/{uid}/** (always permitted).
     try {
       const n = await migrateMultiTrip();
       if (n > 0) console.info(`Flattened ${n} legs/journal entries for multi-trip.`);
     } catch (e) { console.warn('Multi-trip migration skipped:', e); }
 
+    // Collaboration migration: copy users/{uid}/trips/** and the flat tagged
+    // collections into the new top-level trips/**. Copy-only, non-destructive.
+    // MUST run before anything reads/subscribes the new trips/** paths
+    // (ensureDefaultTrip, the route/expense legacy migrations, view stores).
+    try {
+      const r = await migrateCollab();
+      if (r.trips > 0 || r.docs > 0) console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs copied to trips/**.`);
+    } catch (e) { console.warn('Collab migration skipped:', e); }
+
+    // These now target trips/** (via the repathed stores). They early-return
+    // for accounts already migrated; run after collab so the trip docs exist.
     try {
       const n = await migrateRouteToCloud();
       if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
@@ -198,6 +210,20 @@ async function bootAuthenticatedShell(user: User) {
       const n = await migrateStaysToCompares();
       if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
     } catch (e) { console.warn('Stay→compare migration skipped:', e); }
+
+    // Handle an invite link (#/join/{token}) before normal trip bootstrap.
+    // If it accepts, the page reloads under the joined trip and the rest of
+    // this boot is moot.
+    try {
+      const { openJoinFromHash } = await import('./core/trip-share.ts');
+      const joined = await openJoinFromHash();
+      if (joined) return; // confirm dialog + reload took over
+    } catch (e) { console.warn('Join-from-link skipped:', e); }
+
+    try {
+      const trip = await ensureDefaultTrip();
+      needsOnboarding = trip === null;
+    } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
     try { await restoreActiveTrip(); }
     catch (e) { console.warn('Restore active trip skipped:', e); }

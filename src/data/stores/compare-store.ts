@@ -1,6 +1,6 @@
 /* ==========================================================================
    On the Road · Compare store — universal multi-criteria comparison
-   users/{uid}/trips/{tripId}/compares/{groupId}
+   trips/{tripId}/compares/{groupId}
    --------------------------------------------------------------------------
    Each CompareGroup holds candidates (columns) and dimensions (rows) embedded
    in the document. Scoring logic (pure functions) lives here too so the view
