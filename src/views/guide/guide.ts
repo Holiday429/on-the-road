@@ -15,6 +15,7 @@ import { geocode } from '../map/geocode.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
 import { slugId } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
+import { apiUrl } from '../../core/api.ts';
 import { prefetchSafetyForCity } from '../safety/safety.ts';
 import { nomadStore } from '../../data/stores/nomad-store.ts';
 
@@ -67,10 +68,7 @@ async function generateGuide(city: string, country: string, query: string): Prom
   showSkeleton(root, city, country);
 
   try {
-    const apiBase = window.location.hostname.includes('github.io')
-      ? 'https://easy-on-the-road.vercel.app'
-      : '';
-    const res = await fetch(`${apiBase}/api/guide`, {
+    const res = await fetch(apiUrl('/api/guide'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ city, country, query }),
@@ -189,12 +187,8 @@ export async function prefetchGuideForCity(city: string, country: string): Promi
   const id = slugId(city);
   if (_cities.some((c) => c.id === id)) return;
 
-  const apiBase = window.location.hostname.includes('github.io')
-    ? 'https://easy-on-the-road.vercel.app'
-    : '';
-
   try {
-    const res = await fetch(`${apiBase}/api/guide`, {
+    const res = await fetch(apiUrl('/api/guide'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ city, country, query: '' }),
@@ -776,10 +770,7 @@ async function loadMore(intel: StoredCityIntel, section: TabKey, btn: HTMLButton
   btn.textContent = '✨ Generating…';
 
   try {
-    const apiBase = window.location.hostname.includes('github.io')
-      ? 'https://easy-on-the-road.vercel.app'
-      : '';
-    const res = await fetch(`${apiBase}/api/guide-more`, {
+    const res = await fetch(apiUrl('/api/guide-more'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

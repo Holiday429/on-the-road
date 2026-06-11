@@ -28,18 +28,22 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=...
 VITE_FIREBASE_APP_ID=...
 ```
 
-> Note: Firebase is configured but the app currently uses localStorage for all data.
-> Firebase sync will be wired up in v2.
+> Firestore is the source of truth; localStorage is only an offline cache that
+> paints the UI instantly and queues writes while offline.
 
-### DeepSeek (for City Intel AI)
+### DeepSeek (powers all AI: Guide, Safety, Checklist check, Journal recap)
 Get your key from https://platform.deepseek.com
 
 ```
-VITE_DEEPSEEK_API_KEY=sk-...
+DEEPSEEK_API_KEY=sk-...
 ```
 
-Without this key, City Intel falls back to a generic template card.
-The key is used directly from the browser — for production, route through a backend function.
+This is a **server-side only** variable (no `VITE_` prefix) — all AI calls go
+through the `/api/*` serverless functions so the key never reaches the browser.
+Without it, AI features fall back to generic templates / heuristics.
+
+Optional server-side keys: `TAVILY_API_KEY` (web-search grounding for Safety),
+`UNSPLASH_ACCESS_KEY` (Guide card photos), `GOOGLE_GEOCODING_KEY`.
 
 ---
 

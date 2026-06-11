@@ -3,6 +3,7 @@ import type { JournalStoryModule, JournalStoryQuestion } from '../../../data/sch
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import { excerpt, titleFor } from '../shared/utils.ts';
+import { postJson } from '../../../core/api.ts';
 import type { GeneratedStoryDraft } from './types.ts';
 
 interface StorySourcePayload {
@@ -24,11 +25,10 @@ export async function generateStoryDraft(
   legs: StoredLeg[],
 ): Promise<GeneratedStoryDraft> {
   const heuristic = buildHeuristicDraft(entries, legs);
-  const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY;
-  if (!apiKey || entries.length < 2) return heuristic;
+  if (entries.length < 2) return heuristic;
 
   try {
-    const aiDraft = await fetchAiDraft(apiKey, entries, legs, heuristic);
+    const aiDraft = await fetchAiDraft(entries, legs, heuristic);
     return aiDraft ?? heuristic;
   } catch (error) {
     console.warn('Story AI generation fell back to heuristic mode:', error);
@@ -62,7 +62,6 @@ function buildHeuristicDraft(entries: StoredJournalEntry[], legs: StoredLeg[]): 
 }
 
 async function fetchAiDraft(
-  apiKey: string,
   entries: StoredJournalEntry[],
   legs: StoredLeg[],
   heuristic: GeneratedStoryDraft,
@@ -107,23 +106,7 @@ Constraints:
 Payload:
 ${JSON.stringify(payload)}`;
 
-  const res = await fetch('https://api.deepseek.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      temperature: 0.9,
-    }),
-  });
-
-  if (!res.ok) throw new Error(`AI error ${res.status}`);
-  const data = await res.json();
-  const parsed = JSON.parse(data.choices?.[0]?.message?.content ?? '{}');
+  const parsed = await postJson<any>('/api/story', { prompt });
 
   const validIds = new Set(entries.map((entry) => entry.id));
   const modules = Array.isArray(parsed.modules)

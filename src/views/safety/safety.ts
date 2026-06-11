@@ -20,6 +20,7 @@ import { openEssentialsSheet } from './essentials-sheet.ts';
 import { fetchCitySafety } from './generate.ts';
 import { escHtml as esc, slugId } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
+import { apiBase } from '../../core/api.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 let _cards: StoredCitySafety[] = [];
@@ -39,12 +40,6 @@ let _gpsAttempted = false;
 function telHref(number: string): string {
   return `tel:${number.replace(/[^+0-9]/g, '')}`;
 }
-function apiBase(): string {
-  return window.location.hostname.includes('github.io')
-    ? 'https://easy-on-the-road.vercel.app'
-    : '';
-}
-
 // ── Current leg (for itinerary fallback) ──────────────────────────────────────
 function currentLeg(): StoredLeg | null {
   if (!_legs.length) return null;

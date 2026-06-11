@@ -14,6 +14,7 @@ import { currentTrip } from '../../data/trip-context.ts';
 import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/schema.ts';
 import { noteColor } from '../../data/palette.ts';
 import { escHtml } from '../../core/utils.ts';
+import { postJson } from '../../core/api.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -797,34 +798,8 @@ async function runAiCheck(container: HTMLElement, cl: StoredChecklist) {
     return `${g.icon} ${g.name}:\n${items || '  (empty)'}`;
   }).join('\n\n');
 
-  const prompt = `You are a travel preparation assistant. Review this trip preparation checklist and identify the most important items that might be missing. Be concise — list at most 5 suggestions, each in one short sentence. Only flag genuinely critical items most travelers overlook.
-
-Checklist:
-${summary}
-
-Respond with a JSON array of strings, e.g. ["Consider getting an international driving permit if planning to rent a car", "..."]`;
-
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': (window as any).__ANTHROPIC_KEY__ ?? '',
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 512,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!resp.ok) throw new Error(`API error ${resp.status}`);
-    const data = await resp.json();
-    const text: string = data.content?.[0]?.text ?? '[]';
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    const suggestions: string[] = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+    const { suggestions } = await postJson<{ suggestions: string[] }>('/api/check', { summary });
 
     loading.setAttribute('hidden', '');
     result.removeAttribute('hidden');
@@ -843,7 +818,7 @@ Respond with a JSON array of strings, e.g. ["Consider getting an international d
   } catch (err) {
     loading.setAttribute('hidden', '');
     result.removeAttribute('hidden');
-    result.innerHTML = `<div class="ai-error">Could not reach AI. Check your API key or network.<br><small>${String(err)}</small></div>`;
+    result.innerHTML = `<div class="ai-error">Could not reach AI. Check your network and try again.<br><small>${escHtml(String(err))}</small></div>`;
   }
 }
 
