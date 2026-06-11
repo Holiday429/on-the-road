@@ -276,31 +276,11 @@ export function currentRole(): TripRole | null {
   return _currentTrip.members?.[u.uid] ?? null;
 }
 
-/** True when the user may edit the current trip (owner or editor). */
-export function canEdit(): boolean {
-  const role = currentRole();
-  return role === 'owner' || role === 'editor';
-}
-
-/** True when the user owns the current trip (can manage members / delete). */
-export function isOwner(): boolean {
-  return currentRole() === 'owner';
-}
-
 /** Members of a trip as [uid, role] pairs. */
 export async function tripMembers(id: string): Promise<Array<{ uid: string; role: TripRole }>> {
   const trip = await getTrip(id);
   if (!trip?.members) return [];
   return Object.entries(trip.members).map(([uid, role]) => ({ uid, role }));
-}
-
-/** Add or update a member's role on a trip (owner only — enforced by rules). */
-export async function setMember(tripId: string, uid: string, role: TripRole): Promise<void> {
-  const trip = await getTrip(tripId);
-  if (!trip) throw new Error('Trip not found.');
-  const members = { ...(trip.members ?? {}), [uid]: role };
-  const memberUids = [...new Set(Object.keys(members))];
-  await updateTrip(tripId, { members, memberUids });
 }
 
 /** Remove a member from a trip (owner only). Owner cannot be removed. */
