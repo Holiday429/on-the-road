@@ -181,6 +181,17 @@ export async function listTrips(): Promise<Trip[]> {
 
 export async function getTrip(id: string): Promise<Trip | null> {
   const u = currentUser();
+  // Allow unauthenticated reads for trips with hasPublicView (viewer links).
+  if (!u && id !== DEFAULT_TRIP_ID) {
+    try {
+      const snap = await getDoc(tripRef(id));
+      if (snap.exists()) {
+        const data = snap.data() as Trip;
+        if (data.hasPublicView) return data;
+      }
+    } catch { /* rules denied — not a public trip */ }
+    return null;
+  }
   if (!u) return null;
   const snap = await getDoc(tripRef(id));
   return snap.exists() ? (snap.data() as Trip) : null;
@@ -383,4 +394,28 @@ export async function restoreActiveTrip(): Promise<void> {
       _baseCurrency = trip.baseCurrency ?? _baseCurrency;
     }
   }
+}
+
+/**
+ * Check all of the signed-in user's trips for email-based editor invites that
+ * match their email address, and auto-accept them. Call once after boot.
+ * Returns the number of trips joined via email invite.
+ */
+export async function checkAndAcceptEmailInvites(): Promise<number> {
+  const u = currentUser();
+  if (!u?.email) return 0;
+  const { acceptEmailInvite } = await import('./trip-invites.ts');
+  const trips = await listTrips();
+  let joined = 0;
+  // Also check any pending-join trip id stored in sessionStorage by the share flow.
+  const pendingTripId = sessionStorage.getItem('otr_pending_email_trip');
+  const tripIds = new Set([...trips.map((t) => t.id), ...(pendingTripId ? [pendingTripId] : [])]);
+  for (const id of tripIds) {
+    try {
+      const accepted = await acceptEmailInvite(id);
+      if (accepted) joined++;
+    } catch { /* trip not readable or no invite */ }
+  }
+  if (pendingTripId) sessionStorage.removeItem('otr_pending_email_trip');
+  return joined;
 }

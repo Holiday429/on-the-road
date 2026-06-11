@@ -125,6 +125,13 @@ export const TripSchema = doc({
   // Transient: set only on a self-join write so security rules can verify the
   // invite token grants the role being claimed. Persisted but inert afterwards.
   joinToken: z.string().optional(),
+  // Email-based editor invites: { "email@example.com": "editor" }.
+  // On sign-in, if the user's email matches a key here they are auto-joined
+  // as an editor and the key is removed.
+  emailInvites: z.record(z.string(), z.literal('editor')).optional(),
+  // Set to true while at least one live viewer invite exists for this trip.
+  // Allows unauthenticated reads of the trip and its sub-collections.
+  hasPublicView: z.boolean().optional(),
 });
 export type Trip = z.infer<typeof TripSchema>;
 export type TripRole = 'owner' | 'editor' | 'viewer';

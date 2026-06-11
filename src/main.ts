@@ -8,7 +8,7 @@ import './core/app.css';
 import { initApp, registerView, renderSession, openOnboarding, navigateTo, type ViewId } from './core/app.ts';
 import { onAuth, authReady, currentUser, signInWithGoogle, consumeRedirectResult, type User } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
-import { ensureDefaultTrip, restoreActiveTrip } from './data/trip-context.ts';
+import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
@@ -48,8 +48,52 @@ registerView('safety',   initSafety);
 const authScreen = document.getElementById('auth-screen') as HTMLElement | null;
 const authButton = document.getElementById('auth-google-btn') as HTMLButtonElement | null;
 const authStatus = document.getElementById('auth-status') as HTMLElement | null;
+const authCard = document.querySelector<HTMLElement>('.auth-card');
 const appRoot = document.getElementById('app') as HTMLElement | null;
 const mapContainer = document.getElementById('landingMap') as HTMLElement | null;
+
+// Set when a viewer invite boots the app without auth.
+let _viewerMode = false;
+let _viewerTripId: string | null = null;
+export function isViewerMode(): boolean { return _viewerMode; }
+export function viewerTripId(): string | null { return _viewerTripId; }
+
+// Detect an invite link on page load.
+// - Viewer invite → load trip immediately without requiring login.
+// - Editor invite → stash token, personalise landing card, require login.
+void (async () => {
+  const { joinTokenFromHash, savePendingJoin } = await import('./core/trip-share.ts');
+  const tok = joinTokenFromHash();
+  if (!tok) return;
+
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+
+  try {
+    const { getInvite } = await import('./data/trip-invites.ts');
+    const inv = await getInvite(tok);
+    if (!inv || inv.revoked) return;
+
+    if (inv.role === 'viewer') {
+      // Viewer: load the trip as a public read-only guest, no login needed.
+      const { switchTrip } = await import('./data/trip-context.ts');
+      try {
+        await switchTrip(inv.tripId);
+        _viewerMode = true;
+        _viewerTripId = inv.tripId;
+        appRoot?.setAttribute('data-viewer', 'true');
+      } catch { /* trip not readable — fall through to landing */ }
+    } else {
+      // Editor: stash token and personalise landing card.
+      savePendingJoin(tok);
+      if (authCard) {
+        const titleEl = authCard.querySelector('.auth-card-title');
+        const textEl = authCard.querySelector('.auth-card-text');
+        if (titleEl) titleEl.textContent = `You're invited to edit "${inv.tripName}"`;
+        if (textEl) textEl.textContent = 'Sign in to accept the edit invite and collaborate on this trip.';
+      }
+    }
+  } catch { /* non-fatal */ }
+})();
 
 let shellBooted = false;
 let signingIn = false;
@@ -150,6 +194,15 @@ async function bootGuestShell() {
   guestShellReady = true;
 }
 
+async function bootViewerShell() {
+  prepareAppFrame();
+  bootShellOnce();
+  renderSession(null, handleSidebarAuth);
+  navigateTo('route'); // sensible default for viewing a shared trip
+  await nextFrame();
+  guestShellReady = true;
+}
+
 async function entryUser(): Promise<User | null> {
   try {
     return await Promise.race([
@@ -211,13 +264,17 @@ async function bootAuthenticatedShell(user: User) {
       if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
     } catch (e) { console.warn('Stay→compare migration skipped:', e); }
 
-    // Handle an invite link (#/join/{token}) before normal trip bootstrap.
-    // If it accepts, the page reloads under the joined trip and the rest of
-    // this boot is moot.
+    // Handle an invite link. The landing IIFE already stashed any #/join/{token}
+    // into sessionStorage. openJoinFromHash() handles the case where the user
+    // was already signed in at page load (hash still present); consumePendingJoin()
+    // handles the case where they signed in after the token was stashed.
+    // Both reload on success, so the rest of this boot is moot if they return true.
     try {
-      const { openJoinFromHash } = await import('./core/trip-share.ts');
-      const joined = await openJoinFromHash();
-      if (joined) return; // confirm dialog + reload took over
+      const { openJoinFromHash, consumePendingJoin } = await import('./core/trip-share.ts');
+      const joinedFromHash = await openJoinFromHash();
+      if (joinedFromHash) return;
+      const joinedFromStorage = await consumePendingJoin();
+      if (joinedFromStorage) return;
     } catch (e) { console.warn('Join-from-link skipped:', e); }
 
     try {
@@ -227,6 +284,12 @@ async function bootAuthenticatedShell(user: User) {
 
     try { await restoreActiveTrip(); }
     catch (e) { console.warn('Restore active trip skipped:', e); }
+
+    // Check for email-based editor invites and auto-accept them.
+    try {
+      const joined = await checkAndAcceptEmailInvites();
+      if (joined > 0) console.info(`Auto-accepted ${joined} email invite(s).`);
+    } catch (e) { console.warn('Email invite check skipped:', e); }
 
     bootShellOnce();
     renderSession(user, handleSidebarAuth);
@@ -252,11 +315,17 @@ async function bootAuthenticatedShell(user: User) {
 
 // Enter button: always just enters the app — no auth state shown on preload screen.
 // If Firebase already resolved a user in the background, boot the authenticated shell;
-// otherwise boot as guest. Google sign-in is handled exclusively via the sidebar avatar.
+// viewer invite → boot viewer shell directly without auth.
+// Otherwise boot as guest. Google sign-in is handled exclusively via the sidebar avatar.
 authButton?.addEventListener('click', async () => {
   setAuthButtonState('Entering…', true);
   setAuthStatus('');
   try {
+    if (_viewerMode) {
+      await bootViewerShell();
+      enterApp();
+      return;
+    }
     const user = await entryUser();
     if (user) {
       await bootAuthenticatedShell(user);
@@ -301,6 +370,12 @@ onAuth(async ({ user, ready }) => {
   // If the app is already open (user signed in/out after entering), update the shell.
   if (appEntered) {
     if (user) {
+      // If we were in viewer mode and the user just signed in, upgrade to full shell.
+      if (_viewerMode) {
+        _viewerMode = false;
+        _viewerTripId = null;
+        appRoot?.removeAttribute('data-viewer');
+      }
       await bootAuthenticatedShell(user);
     } else {
       preparedUserId = null;
@@ -310,8 +385,16 @@ onAuth(async ({ user, ready }) => {
     return;
   }
 
+  // Viewer mode: auto-enter without waiting for the Enter button click.
+  if (_viewerMode && !appEntered) {
+    try {
+      await bootViewerShell();
+      enterApp();
+    } catch (e) { console.warn('Viewer auto-enter failed:', e); }
+    return;
+  }
+
   // Preload screen is still showing — wait for the user to click Enter.
-  // Just record the auth user so the Enter button knows which shell to boot.
   if (!user) {
     preparedUserId = null;
     showLandingState();

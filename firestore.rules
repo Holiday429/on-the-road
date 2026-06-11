@@ -60,6 +60,25 @@ service cloud.firestore {
         && before.members.diff(after.members).affectedKeys().hasOnly([me]);
     }
 
+    // A signed-in user joining via email whitelist: their email must appear in
+    // the trip's emailInvites map, and they add themselves as editor.
+    function isEmailJoin() {
+      let before = resource.data;
+      let after = request.resource.data;
+      let me = uid();
+      let myEmail = request.auth.token.email;
+      return signedIn()
+        && myEmail != null
+        && !(me in before.memberUids)
+        && before.emailInvites != null
+        && myEmail in before.emailInvites
+        && before.emailInvites[myEmail] == 'editor'
+        && after.memberUids.hasOnly(before.memberUids.concat([me]))
+        && after.ownerUid == before.ownerUid
+        && after.members[me] == 'editor'
+        && after.diff(before).affectedKeys().hasOnly(['members', 'memberUids', 'emailInvites', 'updatedAt']);
+    }
+
     // A signed-in user accepting an invite: adds only THEMSELVES, with a role
     // matching a live invite they pass as joinToken. tripId is passed in from
     // the match path (this helper lives outside the match block).
@@ -89,14 +108,19 @@ service cloud.firestore {
 
     /* ── Trips ────────────────────────────────────────────────────────── */
     match /trips/{tripId} {
-      // Single-doc reads: members may read. Reading a NON-EXISTENT doc is also
-      // permitted (returns not-found) — required so existence prechecks
-      // (migration, getTrip on a stale id) don't hard-fail. Trip ids carry a
-      // random suffix, so existence probing leaks nothing useful.
-      allow get: if signedIn() && (resource == null || uid() in resource.data.memberUids);
+      // Single-doc reads: members may read; also allow unauthenticated reads
+      // when a live viewer invite token is passed as a query param (via the
+      // client passing viewerToken in the request context — we can't read
+      // query params in rules, so instead we allow unauthenticated get on
+      // viewer-invite trips by checking via a known invite token field).
+      // Simpler approach: allow unauthenticated get always for non-existent
+      // docs (existence probing is safe), or when caller is signed in.
+      // For viewer public access we gate at the sub-collection level instead.
+      allow get: if resource == null
+        || (signedIn() && uid() in resource.data.memberUids)
+        || resource.data.hasPublicView == true;
 
-      // Queries: only the canonical "my trips" query is provable — the client
-      // must constrain with where('memberUids','array-contains', myUid).
+      // Queries: only the canonical "my trips" query is provable.
       allow list: if signedIn() && uid() in resource.data.memberUids;
 
       // Create: as yourself, sole owner at creation.
@@ -108,28 +132,33 @@ service cloud.firestore {
       // Update:
       //  - owner: full control (incl. member management)
       //  - editor: may not change members/memberUids/ownerUid
-      //  - invite holder: self-join only
+      //  - invite holder: self-join only (token link)
+      //  - email-invited user: self-join via emailInvites whitelist
+      //  - self-leave
       allow update: if selfIsOwner()
         || (selfCanEdit()
             && request.resource.data.members == resource.data.members
             && request.resource.data.memberUids == resource.data.memberUids
             && request.resource.data.ownerUid == resource.data.ownerUid)
         || isSelfJoin(tripId)
+        || isEmailJoin()
         || isSelfLeave();
 
       allow delete: if selfIsOwner();
 
-      // Sub-collections: read for members, write for editors/owners.
-      // These DO use get() on the parent — fine for single-doc reads/writes.
+      // Sub-collections: read for members or when trip has public viewer access.
       match /{sub}/{docId} {
-        allow read: if subIsMember(tripId);
+        allow read: if subIsMember(tripId) || tripData(tripId).hasPublicView == true;
         allow write: if subCanEdit(tripId);
       }
     }
 
     /* ── Trip invites ─────────────────────────────────────────────────── */
     match /tripInvites/{token} {
-      allow read: if signedIn();
+      // Viewer invite tokens must be readable without auth so guests can see
+      // the trip name before deciding to enter. Editor invites stay auth-gated.
+      allow read: if signedIn()
+        || (resource != null && resource.data.role == 'viewer' && resource.data.revoked == false);
       allow create: if signedIn()
         && request.resource.data.createdByUid == uid()
         && subCanEdit(request.resource.data.tripId)

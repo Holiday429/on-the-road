@@ -10,7 +10,7 @@
    ========================================================================== */
 
 import {
-  doc as fbDoc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, arrayUnion,
+  doc as fbDoc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, arrayUnion, deleteField,
 } from 'firebase/firestore';
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
@@ -49,6 +49,10 @@ export async function createInvite(
     schemaVersion: SCHEMA_VERSION,
   });
   await setDoc(fbDoc(firestore, `tripInvites/${t}`), invite as object);
+  // If this is a viewer invite, flag the trip as publicly readable.
+  if (role === 'viewer') {
+    await updateDoc(fbDoc(firestore, `trips/${tripId}`), { hasPublicView: true, updatedAt: Date.now() });
+  }
   return t;
 }
 
@@ -66,6 +70,23 @@ export async function revokeInvite(tok: string): Promise<void> {
   await setDoc(fbDoc(firestore, `tripInvites/${tok}`), {
     ...existing, revoked: true, updatedAt: Date.now(),
   } as object);
+  // If this was a viewer invite, check if any other live viewer invites remain.
+  // If none, clear the hasPublicView flag on the trip.
+  if (existing.role === 'viewer') {
+    const remaining = await getDocs(
+      query(collection(firestore, 'tripInvites'),
+        where('tripId', '==', existing.tripId),
+        where('role', '==', 'viewer'),
+        where('revoked', '==', false),
+      ),
+    );
+    if (remaining.empty) {
+      await updateDoc(fbDoc(firestore, `trips/${existing.tripId}`), {
+        hasPublicView: deleteField(),
+        updatedAt: Date.now(),
+      });
+    }
+  }
 }
 
 /** All live invites for a trip (owner's share panel). */
@@ -101,4 +122,50 @@ export async function acceptInvite(tok: string): Promise<string | null> {
 /** Build a shareable join URL for a token. */
 export function inviteUrl(tok: string): string {
   return `${window.location.origin}/#/join/${tok}`;
+}
+
+/* ── Email whitelist invites ─────────────────────────────────────────────── */
+
+/** Add an email to the trip's editor whitelist. Owner only. */
+export async function addEmailInvite(tripId: string, email: string): Promise<void> {
+  const u = currentUser();
+  if (!u) throw new Error('Not signed in.');
+  const normalised = email.trim().toLowerCase();
+  if (!normalised) throw new Error('Invalid email.');
+  await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
+    [`emailInvites.${normalised}`]: 'editor',
+    updatedAt: Date.now(),
+  });
+}
+
+/** Remove an email from the trip's editor whitelist. Owner only. */
+export async function removeEmailInvite(tripId: string, email: string): Promise<void> {
+  const normalised = email.trim().toLowerCase();
+  await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
+    [`emailInvites.${normalised}`]: deleteField(),
+    updatedAt: Date.now(),
+  });
+}
+
+/**
+ * If the signed-in user's email appears in the trip's emailInvites whitelist,
+ * add them as an editor and remove the entry. Returns true if joined.
+ */
+export async function acceptEmailInvite(tripId: string): Promise<boolean> {
+  const u = currentUser();
+  if (!u?.email) return false;
+  const email = u.email.trim().toLowerCase();
+
+  const trip = await getTrip(tripId);
+  if (!trip) return false;
+  const invites = (trip as { emailInvites?: Record<string, string> }).emailInvites ?? {};
+  if (!(email in invites)) return false;
+
+  await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
+    [`members.${u.uid}`]: 'editor',
+    memberUids: arrayUnion(u.uid),
+    [`emailInvites.${email}`]: deleteField(),
+    updatedAt: Date.now(),
+  });
+  return true;
 }
