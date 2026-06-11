@@ -671,3 +671,20 @@
 .td-pk-action-btn:hover { border-color: var(--amber-400); background: var(--amber-50); color: var(--ink); }
 .td-pk-action-btn--nav { color: var(--accent-deep); }
 
+
+/* ── Budget alert banners ───────────────────────────────────────────────── */
+.td-budget-alerts { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0 var(--sp-4) var(--sp-3); }
+.td-budget-alert {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  border: 1px solid transparent;
+}
+.td-budget-alert.is-over    { background: #fef2f2; border-color: #fecaca; color: var(--coral-700, #b91c1c); }
+.td-budget-alert.is-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.td-budget-alert:hover { filter: brightness(0.97); }
+.td-ba-flag { font-size: 1.1em; }
+.td-ba-text { flex: 1; }
+.td-ba-arrow { color: currentColor; opacity: 0.5; }

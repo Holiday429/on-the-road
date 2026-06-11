@@ -390,6 +390,35 @@ function renderCalendarWidget(): string {
     </div>`;
 }
 
+/* ── Budget alerts ───────────────────────────────────────────────────────── */
+function renderBudgetAlerts(): string {
+  const caps = countryBudgets();
+  const sym  = currencySymbol(baseCurrency());
+  const alerts: string[] = [];
+
+  for (const [country, cap] of Object.entries(caps)) {
+    if (!cap) continue;
+    const spent = _expenses.filter(e => e.country === country).reduce((s, e) => s + inBase(e), 0);
+    const pct = spent / cap;
+    if (pct < 0.8) continue;
+    const over = spent > cap;
+    const flag = _legs.find(l => l.country === country)?.flag ?? '';
+    alerts.push(`
+      <div class="td-budget-alert ${over ? 'is-over' : 'is-warning'}" data-nav="expenses">
+        <span class="td-ba-flag">${flag}</span>
+        <span class="td-ba-text">
+          ${over
+            ? `<strong>${country}</strong> over budget — ${sym}${Math.round(spent - cap)} over`
+            : `<strong>${country}</strong> at ${Math.round(pct * 100)}% of ${sym}${Math.round(cap)} budget`}
+        </span>
+        <span class="td-ba-arrow">›</span>
+      </div>`);
+  }
+
+  if (!alerts.length) return '';
+  return `<div class="td-budget-alerts">${alerts.join('')}</div>`;
+}
+
 /* ── Spend widget ─────────────────────────────────────────────────────────── */
 function renderSpendWidget(): string {
   const base      = baseCurrency();
@@ -1024,7 +1053,7 @@ function render(): void {
   const body = document.querySelector<HTMLElement>('#view-today .today-body');
   if (!body) return;
   const phase = tripPhase();
-  body.innerHTML = `${renderGreeting()}${renderHero(phase)}${layout(phase)}`;
+  body.innerHTML = `${renderGreeting()}${renderHero(phase)}${renderBudgetAlerts()}${layout(phase)}`;
   wire(body);
   bootMap();
 }
