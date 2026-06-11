@@ -1185,3 +1185,27 @@
   #main { margin-left: 0; padding-bottom: 70px; }
   #mobile-nav { display: block; }
 }
+
+/* ── Collaboration role badges ─────────────────────────────────────────── */
+.trip-pill-role {
+  margin-top: var(--sp-1);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  display: inline-block;
+}
+.trip-pill-role--viewer { background: #f3f4f6; color: #4b5563; }
+.trip-pill-role--editor { background: #dbeafe; color: #1e40af; }
+
+/* Viewer mode: disable write affordances as a UX safety net. The Firestore
+   rules are the real guard; this prevents silent failures on edit attempts.
+   Scoped to primary/add-style buttons so navigation and read controls stay live. */
+#app[data-role="viewer"] .btn-primary,
+#app[data-role="viewer"] [data-quickadd],
+#app[data-role="viewer"] .pk-add-item,
+#app[data-role="viewer"] .exp-fab,
+#app[data-role="viewer"] [data-act="confirm"] {
+  opacity: 0.45;
+  pointer-events: none;
+}

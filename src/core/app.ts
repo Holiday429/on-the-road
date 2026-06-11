@@ -5,7 +5,7 @@
 import type { User } from '../firebase/auth.ts';
 import {
   currentTrip, currentTripId, listTrips, createTrip, switchTrip, onTripChange,
-  updateTrip, removeTrip,
+  updateTrip, removeTrip, currentRole,
   type StoredTrip, type NewTripInput,
 } from '../data/trip-context.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
@@ -387,12 +387,20 @@ function buildTripPill(): string {
     ? `Departing <strong>today!</strong> 🎉`
     : `Trip started <strong>${Math.abs(days)} days</strong> ago`;
 
+  const role = currentRole();
+  const roleBadge = role === 'viewer'
+    ? `<div class="trip-pill-role trip-pill-role--viewer">👁 View only</div>`
+    : role === 'editor'
+    ? `<div class="trip-pill-role trip-pill-role--editor">✎ Shared with you</div>`
+    : '';
+
   return `
     <div class="trip-pill${tripMenuOpen ? ' is-open' : ''}" id="trip-pill" role="button" tabindex="0" aria-haspopup="true" aria-expanded="${tripMenuOpen}">
       <div class="trip-pill-label">Current Trip <span class="trip-pill-caret">▾</span></div>
       <div class="trip-pill-name">${escapeHtml(name)}</div>
       <div class="trip-pill-date ${compactClass}">${compactBadge}</div>
       <div class="trip-pill-days">${daysText}</div>
+      ${roleBadge}
     </div>
   `;
 }
@@ -632,6 +640,7 @@ export function renderSession(user: User | null, onPrimaryAction: () => void) {
   sessionPrimaryAction = onPrimaryAction;
   document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
+  applyRoleState();
   if (!user) {
     const hash = window.location.hash.replace('#', '') as ViewId;
     navigateTo(NAV_ITEMS.find((item) => item.id === hash) ? hash : 'prep');
@@ -969,16 +978,29 @@ export function openOnboarding() {
   });
 }
 
+/**
+ * Reflect the user's role on the active trip onto the app root as a data
+ * attribute. Viewer mode flips a flag that CSS uses to disable write controls;
+ * the security rules are the real guard, this just avoids silent write failures.
+ */
+export function applyRoleState() {
+  const role = currentRole();
+  const root = document.getElementById('app');
+  if (root) root.dataset.role = role ?? '';
+}
+
 export function initApp() {
   document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
   buildMobileNav();
   decorateViewTitles();
+  applyRoleState();
 
   // Trip switch: rebuild the sidebar (name/countdown) and re-init mounted views
   // so their stores re-subscribe under the new tripId. Registered once.
   onTripChange(() => {
     buildSidebar();
+    applyRoleState();
     reinitForTripChange();
   });
 
