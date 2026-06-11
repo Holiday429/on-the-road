@@ -61,7 +61,9 @@ export function legStays(leg: Leg): Accommodation[] {
 
 /** Google Maps deep link: pasted URL wins, else search by name + city. */
 export function mapHref(a: Accommodation, leg: Leg): string {
-  if (a.mapUrl) return a.mapUrl;
+  if (a.mapUrl) {
+    return /^https?:\/\//i.test(a.mapUrl) ? a.mapUrl : `https://${a.mapUrl}`;
+  }
   const q = encodeURIComponent(`${a.name} ${leg.city}`.trim());
   return `https://www.google.com/maps/search/?api=1&query=${q}`;
 }
