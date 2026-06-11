@@ -6,7 +6,7 @@ import './core/base.css';
 import './core/app.css';
 
 import { initApp, registerView, renderSession, openOnboarding, navigateTo, type ViewId } from './core/app.ts';
-import { onAuth, authReady, currentUser, signInWithGoogle, signInAsGuest, consumeRedirectResult, type User } from './firebase/auth.ts';
+import { onAuth, authReady, currentUser, signInWithGoogle, consumeRedirectResult, type User } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
@@ -103,12 +103,6 @@ async function resolveInviteLink(): Promise<void> {
     // Wait for the Firebase auth state to settle before any Firestore read.
     await authReady();
 
-    // Sign in anonymously up front so we can read the invite under any rules
-    // (viewer invites are public, but editor invites require an authenticated
-    // read). An anonymous session is harmless and gets upgraded if the user
-    // later signs in with Google.
-    if (!currentUser()) await signInAsGuest();
-
     const { getInvite } = await import('./data/trip-invites.ts');
     const inv = await getInvite(tok);
 
@@ -120,10 +114,10 @@ async function resolveInviteLink(): Promise<void> {
     }
 
     if (inv.role === 'viewer') {
-      // Viewer: accept the invite to become a viewer member, then auto-enter.
-      const { acceptInvite } = await import('./data/trip-invites.ts');
+      // Viewer: read the trip publicly (no login, no membership write). The trip
+      // doc and its sub-collections are readable when hasPublicView is set, which
+      // every viewer invite guarantees. switchTrip() loads it into context.
       const { switchTrip } = await import('./data/trip-context.ts');
-      await acceptInvite(tok);
       await switchTrip(inv.tripId);
 
       _viewerMode = true;
@@ -281,7 +275,6 @@ async function entryUser(): Promise<User | null> {
 }
 
 async function bootAuthenticatedShell(user: User) {
-  if (user.isAnonymous) return; // anonymous viewers use bootViewerShell instead
   if (preparedUserId === user.uid) return;
   if (bootPromise) {
     await bootPromise;
@@ -393,11 +386,9 @@ authButton?.addEventListener('click', async () => {
     // Wait for any pending iOS PWA redirect result before reading auth state.
     await redirectResultPromise;
     const user = await entryUser();
-    if (user && !user.isAnonymous) {
+    if (user) {
       await bootAuthenticatedShell(user);
     } else {
-      // No user, or only an anonymous session (e.g. from an editor invite that
-      // wasn't accepted) — boot as guest.
       await bootGuestShell();
     }
     enterApp();
@@ -447,14 +438,12 @@ onAuth(async ({ user, ready }) => {
   // If the app is already open (user signed in/out after entering), update the shell.
   if (appEntered) {
     if (user) {
-      // Anonymous viewer signs in with Google: upgrade to full authenticated shell.
-      if (_viewerMode && !user.isAnonymous) {
+      // A viewer signs in with Google: upgrade from read-only to full shell.
+      if (_viewerMode) {
         _viewerMode = false;
         _viewerTripId = null;
         appRoot?.removeAttribute('data-viewer');
       }
-      // Don't re-boot for anonymous user (viewer shell already running).
-      if (user.isAnonymous) return;
       await bootAuthenticatedShell(user);
     } else {
       preparedUserId = null;

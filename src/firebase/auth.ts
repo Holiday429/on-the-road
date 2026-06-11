@@ -14,7 +14,6 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
-  signInAnonymously,
   getRedirectResult,
   signOut as fbSignOut,
   onAuthStateChanged,
@@ -106,10 +105,4 @@ export async function signInWithGoogle(): Promise<User> {
 
 export async function signOut(): Promise<void> {
   await fbSignOut(auth);
-}
-
-/** Sign in anonymously — used for viewer links so Firestore rules are satisfied. */
-export async function signInAsGuest(): Promise<User> {
-  const result = await signInAnonymously(auth);
-  return result.user;
 }

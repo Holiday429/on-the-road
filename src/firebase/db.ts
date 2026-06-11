@@ -258,26 +258,27 @@ export function createCollectionStore<S extends z.ZodTypeAny>(
     return collection(firestore as Firestore, colPath(tripId, name));
   }
 
+  // Public (unauthenticated) viewers have no uid; they read shared trips that
+  // carry hasPublicView. Reads still work — Firestore rules permit them — so
+  // these methods proceed with a 'guest' cache namespace instead of bailing.
+  function cacheUid(): string {
+    return currentUser()?.uid ?? 'guest';
+  }
+
   return {
     peek() {
-      const u = currentUser();
-      if (!u) return [];
-      return readCache<T>(cacheKey(u.uid, tripId, name));
+      return readCache<T>(cacheKey(cacheUid(), tripId, name));
     },
 
     async list() {
-      const uid = requireUid();
       const snap = await getDocs(query(ref()));
       const rows = snap.docs.map((d) => d.data() as WithMeta<T>);
-      writeCache(cacheKey(uid, tripId, name), rows);
+      writeCache(cacheKey(cacheUid(), tripId, name), rows);
       return rows;
     },
 
     subscribe(cb) {
-      const u = currentUser();
-      if (!u) { cb([]); return () => {}; }
-      const uid = u.uid;
-      const key = cacheKey(uid, tripId, name);
+      const key = cacheKey(cacheUid(), tripId, name);
       cb(readCache<T>(key)); // instant paint from cache
       return onSnapshot(query(ref()), (snap) => {
         const rows = snap.docs.map((d) => d.data() as WithMeta<T>);
