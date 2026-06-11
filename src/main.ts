@@ -6,7 +6,7 @@ import './core/base.css';
 import './core/app.css';
 
 import { initApp, registerView, renderSession, openOnboarding, navigateTo, type ViewId } from './core/app.ts';
-import { onAuth, authReady, currentUser, signInWithGoogle, type User } from './firebase/auth.ts';
+import { onAuth, authReady, currentUser, signInWithGoogle, consumeRedirectResult, type User } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip, restoreActiveTrip } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
@@ -26,6 +26,9 @@ import { initNomad }    from './views/nomad/nomad.ts';
 import { initCompare }  from './views/compare/compare.ts';
 import { initPack }     from './views/pack/pack.ts';
 import { initSafety }   from './views/safety/safety.ts';
+
+// Consume any pending Google redirect result on iOS PWA (runs before auth state settles).
+void consumeRedirectResult();
 
 // Register lazy view inits (fire once on first navigation)
 registerView('today',    initDashboard);
@@ -262,7 +265,7 @@ setTimeout(async () => {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/on-the-road/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
 

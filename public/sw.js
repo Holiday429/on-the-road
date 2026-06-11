@@ -1,8 +1,8 @@
-const CACHE = 'otr-shell-v1';
+const CACHE = 'otr-shell-v2';
 
 const SHELL = [
-  '/on-the-road/',
-  '/on-the-road/index.html',
+  '/',
+  '/index.html',
 ];
 
 self.addEventListener('install', e => {
@@ -25,8 +25,8 @@ self.addEventListener('message', e => {
     e.waitUntil(
       self.registration.showNotification(e.data.title || 'On the Road', {
         body: e.data.body || '',
-        icon: '/on-the-road/icons/apple-touch-icon.png',
-        badge: '/on-the-road/icons/apple-touch-icon.png',
+        icon: '/icons/apple-touch-icon.png',
+        badge: '/icons/apple-touch-icon.png',
         tag: 'otr-todo-reminder',
       })
     );
@@ -37,9 +37,9 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   e.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      const existing = list.find(c => c.url.includes('/on-the-road/'));
+      const existing = list.find(c => c.url.startsWith(self.location.origin));
       if (existing) return existing.focus();
-      return clients.openWindow('/on-the-road/');
+      return clients.openWindow('/');
     })
   );
 });
@@ -55,7 +55,7 @@ self.addEventListener('fetch', e => {
   if (request.mode === 'navigate') {
     e.respondWith(
       fetch(request).catch(() =>
-        caches.match('/on-the-road/') || caches.match('/on-the-road/index.html')
+        caches.match('/') || caches.match('/index.html')
       )
     );
     return;
