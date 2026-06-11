@@ -93,6 +93,7 @@ function openTripPopover() {
         <span class="trip-menu-name">${escapeHtml(t.name)}</span>
         ${t.id === activeId ? '<span class="trip-menu-check">✓</span>' : ''}
       </button>
+      <button class="trip-menu-share" data-trip-id="${escapeHtml(t.id)}" title="Share trip" aria-label="Share ${escapeHtml(t.name)}">👥</button>
       <button class="trip-menu-edit" data-trip-id="${escapeHtml(t.id)}" title="Rename trip" aria-label="Rename ${escapeHtml(t.name)}">✎</button>
       <button class="trip-menu-delete" data-trip-id="${escapeHtml(t.id)}" title="Delete trip" aria-label="Delete ${escapeHtml(t.name)}">🗑</button>
     </div>
@@ -118,6 +119,17 @@ function openTripPopover() {
       if (trip) {
         import('./trip-chooser.ts').then(({ showTripToast }) => showTripToast(trip.name));
       }
+    });
+  });
+
+  panel.querySelectorAll<HTMLElement>('.trip-menu-share').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.tripId!;
+      tripMenuOpen = false;
+      closeTripPopover();
+      buildSidebar();
+      import('./trip-share.ts').then(({ openShareModal }) => openShareModal(id));
     });
   });
 

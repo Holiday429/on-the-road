@@ -206,6 +206,15 @@ async function bootAuthenticatedShell(user: User) {
       if (r.trips > 0 || r.docs > 0) console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs copied to trips/**.`);
     } catch (e) { console.warn('Collab migration skipped:', e); }
 
+    // Handle an invite link (#/join/{token}) before normal trip bootstrap.
+    // If it accepts, the page reloads under the joined trip and the rest of
+    // this boot is moot.
+    try {
+      const { openJoinFromHash } = await import('./core/trip-share.ts');
+      const joined = await openJoinFromHash();
+      if (joined) return; // confirm dialog + reload took over
+    } catch (e) { console.warn('Join-from-link skipped:', e); }
+
     try {
       const trip = await ensureDefaultTrip();
       needsOnboarding = trip === null;
