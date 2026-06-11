@@ -1,24 +1,20 @@
 /* ==========================================================================
    On the Road · /api/create-checkout  — Vercel Serverless Function
    --------------------------------------------------------------------------
-   Creates a Lemon Squeezy checkout session and returns the URL. The client
-   opens this URL in a new tab; after payment LS fires a webhook that writes
-   users/{uid}.plan back to Firestore (see billing-webhook.ts).
+   Creates a Lemon Squeezy checkout session and returns the URL.
 
    POST body: { plan: 'trip_pass' | 'lifetime' }
    Headers:   Authorization: Bearer <Firebase ID token>
 
    Keys in .env (server-side only, no VITE_ prefix):
-     FIREBASE_SERVICE_ACCOUNT      — Firebase Admin SDK JSON
-     LEMON_SQUEEZY_API_KEY         — LS API key (Bearer)
-     LEMON_SQUEEZY_STORE_ID        — numeric store id
-     LEMON_SQUEEZY_VARIANT_TRIP    — product variant id for trip_pass
-     LEMON_SQUEEZY_VARIANT_LIFETIME — product variant id for lifetime
+     FIREBASE_SERVICE_ACCOUNT
+     LEMON_SQUEEZY_API_KEY
+     LEMON_SQUEEZY_STORE_ID
+     LEMON_SQUEEZY_VARIANT_TRIP
+     LEMON_SQUEEZY_VARIANT_LIFETIME
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined>; method?: string };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse; setHeader(k: string, v: string): void; end(): void };
@@ -30,6 +26,25 @@ const VARIANT_ENV: Record<Plan, string> = {
   lifetime:  'LEMON_SQUEEZY_VARIANT_LIFETIME',
 };
 
+// ── Firebase token verification (same pattern as _guard.ts) ──────────────────
+
+async function verifyFirebaseToken(token: string): Promise<string> {
+  const { createRemoteJWKSet, jwtVerify } = await import('jose');
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT not set');
+  const sa = JSON.parse(raw) as { project_id: string };
+  const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/robot/v1/metadata/jwks/securetoken@system.gserviceaccount.com'));
+  const { payload } = await jwtVerify(token, JWKS, {
+    issuer: `https://securetoken.google.com/${sa.project_id}`,
+    audience: sa.project_id,
+  });
+  const uid = payload.sub ?? (payload as Record<string, unknown>).user_id;
+  if (!uid || typeof uid !== 'string') throw new Error('No uid in token');
+  return uid;
+}
+
+// ── Handler ───────────────────────────────────────────────────────────────────
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -38,11 +53,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  // ── Auth: verify ID token, but don't meter (checkout is not an AI call) ──────
-  // We re-use the admin init from _guard but call verifyIdToken directly.
-  // Simplest approach: call verifyAndMeter with a temporary plan override that
-  // always passes. Instead, we do a lighter auth-only check here.
-
   const authHeader = req.headers['authorization'];
   const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
     ? authHeader.slice(7) : null;
@@ -50,13 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   let uid: string;
   try {
-    if (getApps().length === 0) {
-      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-      if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT not set');
-      initializeApp({ credential: cert(JSON.parse(raw)) });
-    }
-    const decoded = await getAuth().verifyIdToken(token);
-    uid = decoded.uid;
+    uid = await verifyFirebaseToken(token);
   } catch {
     res.status(401).json({ error: 'unauthenticated', message: 'Session expired.' });
     return;
@@ -89,7 +93,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         data: {
           type: 'checkouts',
           attributes: {
-            // Embed uid so the webhook can map the purchase back to a user.
             checkout_data: { custom: { uid } },
             product_options: {
               redirect_url: `${process.env.APP_URL ?? 'https://easy-on-the-road.vercel.app'}/?payment=success`,

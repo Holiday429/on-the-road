@@ -1,63 +1,73 @@
 /* ==========================================================================
    On the Road · AI endpoint guard
    --------------------------------------------------------------------------
-   Call verifyAndMeter(req, res) at the top of every AI handler. It:
-     1. Verifies the Firebase ID token from Authorization: Bearer <token>
-     2. Reads the user's plan from users/{uid}
-     3. Blocks free users (quota = 0 currently) with a 402 response
-     4. Passes through trip_pass / lifetime users
+   Verifies Firebase ID tokens via jose (dynamic import, ESM-safe in CJS)
+   and reads Firestore via REST API to avoid firebase-admin's CJS/ESM conflict
+   (firebase-admin → jwks-rsa → jose ESM-only → ERR_REQUIRE_ESM).
 
-   FREE_MONTHLY_QUOTA = 0 → all free users are blocked. Raise this constant
-   to e.g. 3 later to enable a free tier without any other code changes.
-
-   Fail-CLOSED: if Admin SDK is unavailable we return 503 rather than letting
-   requests through — because quota=0, a fail-open policy would let all users
-   bypass the paywall during outages.
+   FREE_MONTHLY_QUOTA = 0 → all free users blocked. Raise to grant free calls.
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
-import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import { GoogleAuth } from 'google-auth-library';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse };
 
-// ── Admin SDK init (lazy singleton) ──────────────────────────────────────────
-
-let _app: App | null = null;
-let _adminError: Error | null = null;
-
-function getAdminApp(): App | null {
-  if (_app) return _app;
-  if (_adminError) return null;
-  try {
-    const existing = getApps();
-    if (existing.length > 0) { _app = existing[0]; return _app; }
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-    if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT env var not set');
-    _app = initializeApp({ credential: cert(JSON.parse(raw)) });
-    return _app;
-  } catch (e) {
-    _adminError = e instanceof Error ? e : new Error(String(e));
-    console.error('[guard] Admin SDK init failed:', _adminError.message);
-    return null;
-  }
-}
-
-// ── Quota constants ───────────────────────────────────────────────────────────
-
-// Raise this to e.g. 3 to grant free users N AI calls per calendar month.
 const FREE_MONTHLY_QUOTA = 0;
 
-// ── Period key ────────────────────────────────────────────────────────────────
+// ── Service account singleton ─────────────────────────────────────────────────
 
-function currentPeriod(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+interface ServiceAccount {
+  project_id: string;
+  client_email: string;
+  private_key: string;
 }
 
-// ── Plan types (mirrors src/data/schema.ts — inlined to avoid TS path issues) ─
+let _sa: ServiceAccount | null = null;
+function getServiceAccount(): ServiceAccount {
+  if (_sa) return _sa;
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT env var not set');
+  _sa = JSON.parse(raw) as ServiceAccount;
+  return _sa;
+}
+
+// ── Google access token (for Firestore REST) ──────────────────────────────────
+
+let _auth: GoogleAuth | null = null;
+async function getAccessToken(): Promise<string> {
+  if (!_auth) {
+    const sa = getServiceAccount();
+    _auth = new GoogleAuth({
+      credentials: { client_email: sa.client_email, private_key: sa.private_key },
+      scopes: ['https://www.googleapis.com/auth/datastore'],
+    });
+  }
+  const client = await _auth.getClient();
+  const tokenResp = await client.getAccessToken();
+  if (!tokenResp.token) throw new Error('Failed to obtain Google access token');
+  return tokenResp.token;
+}
+
+// ── Firebase ID token verification via jose ───────────────────────────────────
+
+const JWKS_URL = 'https://www.googleapis.com/robot/v1/metadata/jwks/securetoken@system.gserviceaccount.com';
+
+async function verifyFirebaseToken(token: string): Promise<string> {
+  const { createRemoteJWKSet, jwtVerify } = await import('jose');
+  const sa = getServiceAccount();
+  const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
+  const { payload } = await jwtVerify(token, JWKS, {
+    issuer: `https://securetoken.google.com/${sa.project_id}`,
+    audience: sa.project_id,
+  });
+  const uid = payload.sub ?? payload.user_id;
+  if (!uid || typeof uid !== 'string') throw new Error('No uid in token');
+  return uid;
+}
+
+// ── Firestore REST read ───────────────────────────────────────────────────────
 
 type Plan = 'free' | 'trip_pass' | 'lifetime';
 
@@ -66,25 +76,93 @@ interface UserDoc {
   tripPassExpiresAt?: number | null;
 }
 
+async function readUserDoc(uid: string): Promise<UserDoc> {
+  const sa = getServiceAccount();
+  const token = await getAccessToken();
+  const url = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents/users/${uid}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return {};
+  if (!res.ok) throw new Error(`Firestore REST ${res.status}: ${await res.text()}`);
+  const doc = await res.json() as { fields?: Record<string, unknown> };
+  return parseFirestoreFields(doc.fields ?? {});
+}
+
+function parseFirestoreValue(v: unknown): unknown {
+  if (!v || typeof v !== 'object') return v;
+  const val = v as Record<string, unknown>;
+  if ('stringValue'  in val) return val.stringValue;
+  if ('integerValue' in val) return Number(val.integerValue);
+  if ('doubleValue'  in val) return val.doubleValue;
+  if ('booleanValue' in val) return val.booleanValue;
+  if ('nullValue'    in val) return null;
+  if ('timestampValue' in val) return new Date(val.timestampValue as string).getTime();
+  if ('arrayValue'   in val) {
+    const arr = (val.arrayValue as { values?: unknown[] }).values ?? [];
+    return arr.map(parseFirestoreValue);
+  }
+  if ('mapValue'     in val) {
+    return parseFirestoreFields((val.mapValue as { fields?: Record<string, unknown> }).fields ?? {});
+  }
+  return null;
+}
+
+function parseFirestoreFields(fields: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(fields)) out[k] = parseFirestoreValue(v);
+  return out;
+}
+
+// ── Firestore REST write (usage counter) ─────────────────────────────────────
+
+async function incrementUsage(uid: string, period: string): Promise<boolean> {
+  const sa = getServiceAccount();
+  const token = await getAccessToken();
+  const base = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents`;
+
+  // Read current usage
+  const url = `${base}/users/${uid}/usage/ai`;
+  const readRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+
+  let count = 0;
+  if (readRes.ok) {
+    const doc = await readRes.json() as { fields?: Record<string, unknown> };
+    const fields = parseFirestoreFields(doc.fields ?? {}) as { period?: string; count?: number };
+    if (fields.period === period) count = fields.count ?? 0;
+  }
+
+  if (count >= FREE_MONTHLY_QUOTA) return false;
+
+  // Write incremented value
+  const writeUrl = `${url}?updateMask.fieldPaths=period&updateMask.fieldPaths=count&updateMask.fieldPaths=updatedAt`;
+  await fetch(writeUrl, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fields: {
+        period:    { stringValue: period },
+        count:     { integerValue: String(count + 1) },
+        updatedAt: { integerValue: String(Date.now()) },
+      },
+    }),
+  });
+  return true;
+}
+
+// ── Period key ────────────────────────────────────────────────────────────────
+
+function currentPeriod(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 // ── Guard entry point ─────────────────────────────────────────────────────────
 
-/**
- * Returns the verified uid on success, or sends an error response and returns
- * null. Callers must return immediately when null is returned.
- */
 export async function verifyAndMeter(
   req: VercelRequest,
   res: VercelResponse,
 ): Promise<string | null> {
-  const app = getAdminApp();
 
-  if (!app) {
-    res.status(503).json({ error: 'service_unavailable', message: 'Auth service temporarily unavailable. Try again shortly.' });
-    return null;
-  }
-
-  // ── 1. Extract + verify ID token ─────────────────────────────────────────
-
+  // 1. Extract + verify ID token
   const authHeader = req.headers['authorization'];
   const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
     ? authHeader.slice(7)
@@ -97,40 +175,34 @@ export async function verifyAndMeter(
 
   let uid: string;
   try {
-    const decoded = await getAuth(app).verifyIdToken(token);
-    uid = decoded.uid;
-  } catch {
+    uid = await verifyFirebaseToken(token);
+  } catch (e) {
+    console.error('[guard] Token verification failed:', e);
     res.status(401).json({ error: 'unauthenticated', message: 'Session expired. Please sign in again.' });
     return null;
   }
 
-  // ── 2. Read plan ─────────────────────────────────────────────────────────
-
-  const db = getFirestore(app);
+  // 2. Read plan
   let userDoc: UserDoc = {};
   try {
-    const snap = await db.doc(`users/${uid}`).get();
-    if (snap.exists) userDoc = snap.data() as UserDoc;
+    userDoc = await readUserDoc(uid) as UserDoc;
   } catch (e) {
     console.error('[guard] Firestore read failed for uid=%s:', uid, e);
     res.status(503).json({ error: 'service_unavailable', message: 'Auth service temporarily unavailable.' });
     return null;
   }
 
-  const plan: Plan = userDoc.plan ?? 'free';
+  const plan: Plan = (userDoc.plan as Plan) ?? 'free';
 
-  // ── 3. Plan gate ──────────────────────────────────────────────────────────
-
+  // 3. Plan gate
   if (plan === 'lifetime') return uid;
 
   if (plan === 'trip_pass') {
-    const exp = userDoc.tripPassExpiresAt;
+    const exp = userDoc.tripPassExpiresAt as number | null | undefined;
     if (exp == null || exp > Date.now()) return uid;
-    // Expired trip_pass falls through to quota check.
   }
 
-  // ── 4. Quota check (free / expired trip_pass) ─────────────────────────────
-
+  // 4. Quota check (free / expired trip_pass)
   if (FREE_MONTHLY_QUOTA === 0) {
     res.status(402).json({
       error: 'quota_exceeded',
@@ -141,21 +213,9 @@ export async function verifyAndMeter(
     return null;
   }
 
-  // Monthly quota > 0: read, check, increment atomically.
   const period = currentPeriod();
-  const usageRef = db.doc(`users/${uid}/usage/ai`);
   try {
-    const allowed = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(usageRef);
-      const data = snap.exists ? (snap.data() as { period?: string; count?: number }) : {};
-      const count = data.period === period ? (data.count ?? 0) : 0;
-
-      if (count >= FREE_MONTHLY_QUOTA) return false;
-
-      tx.set(usageRef, { period, count: count + 1, updatedAt: Date.now() }, { merge: true });
-      return true;
-    });
-
+    const allowed = await incrementUsage(uid, period);
     if (!allowed) {
       res.status(402).json({
         error: 'quota_exceeded',
@@ -168,7 +228,7 @@ export async function verifyAndMeter(
       return null;
     }
   } catch (e) {
-    console.error('[guard] Usage transaction failed for uid=%s:', uid, e);
+    console.error('[guard] Usage write failed for uid=%s:', uid, e);
     res.status(503).json({ error: 'service_unavailable', message: 'Usage tracking temporarily unavailable.' });
     return null;
   }
