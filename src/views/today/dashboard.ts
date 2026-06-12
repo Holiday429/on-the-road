@@ -550,12 +550,16 @@ function categoryByIdLocal(leg: StoredLeg, id: string): ClipCategory | undefined
 }
 
 function ensurePlanDaysLocal(leg: StoredLeg): PlanDay[] {
-  const total = daysBetween(leg.dateFrom, leg.dateTo) + 1;
+  const total = daysBetween(leg.dateFrom, leg.dateTo);
   const existing = [...(leg.planDays ?? [])].sort((a, b) => a.order - b.order);
+  const pad = (n: number) => String(n).padStart(2, '0');
   return Array.from({ length: total }, (_, i) => {
     const d = new Date(leg.dateFrom + 'T00:00:00');
     d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
+    // Build the iso in *local* time (matches route.ts ensurePlanDays). Using
+    // toISOString() here would shift to UTC and roll the date back a day in
+    // negative-offset timezones, mismatching stored planDay dates.
+    const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     return existing.find(e => e.date === iso) ?? { id: `day-${iso}`, date: iso, order: i, label: '', notes: '' };
   });
 }
