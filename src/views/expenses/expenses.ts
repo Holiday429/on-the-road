@@ -95,19 +95,18 @@ const ANALYSIS_DIMS: { id: AnalysisDim; label: string }[] = [
 
 /* ── Leg-aware helpers ───────────────────────────────────────────────────── */
 
-/** Inclusive day-count between two ISO dates (>=1). */
-function dayCount(fromIso: string, toIso: string): number {
+/** Nights stayed: dateFrom is check-in, dateTo is check-out (not counted). */
+function nightCount(fromIso: string, toIso: string): number {
   const ms = new Date(toIso).getTime() - new Date(fromIso).getTime();
-  return Math.max(1, Math.round(ms / 86400000) + 1);
+  return Math.max(1, Math.round(ms / 86400000));
 }
 
-/** Days the itinerary allocates to a country/city, from its legs. Falls back to
- *  the number of distinct days we have expenses for if the leg isn't known —
- *  so the per-day average stays meaningful even for ad-hoc places. */
+/** Nights the itinerary allocates to a country/city, from its legs. Falls back to
+ *  the number of distinct expense dates for the place if no leg covers it. */
 function daysForPlace(key: 'country' | 'city', value: string): number {
   const matching = legs.filter((l) => l[key === 'country' ? 'country' : 'city'] === value);
   if (matching.length) {
-    return matching.reduce((s, l) => s + dayCount(l.dateFrom, l.dateTo), 0);
+    return matching.reduce((s, l) => s + nightCount(l.dateFrom, l.dateTo), 0);
   }
   const dates = new Set(expenses.filter((e) => e[key] === value).map((e) => e.date));
   return Math.max(1, dates.size);
