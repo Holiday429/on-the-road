@@ -222,17 +222,26 @@ function currencyOptions(selected: string): string {
 
 const CUSTOM_PLACE = '__custom__';
 
+const WHOLE_TRIP = '__whole__';
+
+function flagForCountry(country: string): string {
+  return legs.find((l) => l.country === country)?.flag ?? '';
+}
+
 function countryOptions(selected: string): string {
   const opts = legCountries(legs);
-  const known = opts.map((c) =>
-    `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
-  // If the remembered/edited country isn't on the itinerary, keep it selectable.
-  const extra = selected && !opts.includes(selected)
+  const isWholeTrip = !selected || selected === WHOLE_TRIP;
+  const known = opts.map((c) => {
+    const flag = flagForCountry(c);
+    return `<option value="${c}" ${c === selected ? 'selected' : ''}>${flag ? flag + ' ' : ''}${c}</option>`;
+  }).join('');
+  const extra = selected && selected !== WHOLE_TRIP && !opts.includes(selected)
     ? `<option value="${selected}" selected>${selected}</option>` : '';
-  return `<option value="">— Country —</option>${known}${extra}<option value="${CUSTOM_PLACE}">＋ Other…</option>`;
+  return `<option value="${WHOLE_TRIP}" ${isWholeTrip ? 'selected' : ''}>🌍 Whole trip</option>${known}${extra}<option value="${CUSTOM_PLACE}">＋ Other…</option>`;
 }
 
 function cityOptions(country: string, selected: string): string {
+  if (!country || country === WHOLE_TRIP) return '';
   const opts = legCitiesFor(legs, country);
   const known = opts.map((c) =>
     `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
@@ -244,7 +253,7 @@ function cityOptions(country: string, selected: string): string {
 /** Inline reminder of country-budget standing, shown above the form when the
  *  selected country has a cap set. */
 function countryReminderHtml(): string {
-  if (!formCountry) return '';
+  if (!formCountry || formCountry === WHOLE_TRIP) return '';
   const cap = countryBudgets()[formCountry];
   if (!cap) return '';
   const spent = countrySpend(formCountry);
@@ -271,9 +280,12 @@ function renderForm(el: HTMLElement) {
   // re-render after store updates doesn't clobber an in-progress selection).
   if (!formCountry && !formCity) {
     const place = defaultPlace(legs, todayIso);
-    formCountry = place.country;
+    formCountry = place.country || WHOLE_TRIP;
     formCity = place.city;
   }
+
+  const isWholeTrip = !formCountry || formCountry === WHOLE_TRIP;
+  const cityOpts = cityOptions(formCountry, formCity);
 
   el.innerHTML = `
     <div class="exp-form">
@@ -318,10 +330,11 @@ function renderForm(el: HTMLElement) {
           <label class="field-label">Country</label>
           <select class="input select" id="exp-country">${countryOptions(formCountry)}</select>
         </div>
+        ${!isWholeTrip && cityOpts ? `
         <div>
           <label class="field-label">City</label>
-          <select class="input select" id="exp-city">${cityOptions(formCountry, formCity)}</select>
-        </div>
+          <select class="input select" id="exp-city">${cityOpts}</select>
+        </div>` : '<div></div>'}
       </div>
       <button class="btn btn-primary" id="exp-add-btn" style="width:100%;justify-content:center">Add expense</button>
     </div>
@@ -329,32 +342,29 @@ function renderForm(el: HTMLElement) {
 
   const curInput = el.querySelector('#exp-currency') as HTMLSelectElement;
   const countrySel = el.querySelector('#exp-country') as HTMLSelectElement;
-  const citySel = el.querySelector('#exp-city') as HTMLSelectElement;
 
-  // Country change → refresh city options, update the reminder, and (if the
-  // user hasn't manually picked a currency this session) seed the currency.
   countrySel.addEventListener('change', () => {
     if (countrySel.value === CUSTOM_PLACE) {
       const name = prompt('Country name?')?.trim();
-      formCountry = name || '';
+      formCountry = name || WHOLE_TRIP;
     } else {
       formCountry = countrySel.value;
     }
     formCity = '';
-    if (!lastUsed().currency) {
-      // No remembered currency yet — follow the chosen country.
+    if (!lastUsed().currency && formCountry !== WHOLE_TRIP) {
       curInput.value = COUNTRY_CURRENCY[formCountry] ?? base;
     }
     renderForm(el);
   });
 
-  citySel.addEventListener('change', () => {
-    if (citySel.value === CUSTOM_PLACE) {
+  el.querySelector('#exp-city')?.addEventListener('change', (ev) => {
+    const val = (ev.target as HTMLSelectElement).value;
+    if (val === CUSTOM_PLACE) {
       const name = prompt('City name?')?.trim();
       formCity = name || '';
       renderForm(el);
     } else {
-      formCity = citySel.value;
+      formCity = val;
     }
   });
 
@@ -375,10 +385,11 @@ function renderForm(el: HTMLElement) {
     const currency = curInput.value;
     const desc = (el.querySelector('#exp-desc') as HTMLInputElement).value;
     const date = (el.querySelector('#exp-date') as HTMLInputElement).value;
+    const country = formCountry === WHOLE_TRIP ? '' : formCountry;
 
     const ok = await addExpenseWithDefaults({
       amount, currency, description: desc, date,
-      category: selectedCategory, country: formCountry, city: formCity, rates,
+      category: selectedCategory, country, city: formCity, rates,
     });
     if (ok) {
       (el.querySelector('#exp-amount') as HTMLInputElement).value = '';
@@ -488,19 +499,113 @@ function dayLabel(iso: string): string {
   });
 }
 
+function filterBtnStyle(catId: string | null): string {
+  if (catId === null || catId === 'all') return '';
+  const cat = categoryById(catId);
+  return cat?.color ? `background:${cat.color};border-color:${cat.color}` : '';
+}
+
+function renderRecordsScrollContent(scroll: HTMLElement) {
+  const cities = getCities();
+  const list = filteredExpenses();
+  const grouped = groupByDate(list);
+  const unsortedCount = expenses.filter((e) => e.category === UNCLASSIFIED).length;
+  const shownTotal = total(list);
+
+  // Update stats in bar
+  const panel = scroll.closest('.exp-records-panel') as HTMLElement | null;
+  if (panel) {
+    const countEl = panel.querySelector('.exp-records-count');
+    if (countEl) countEl.textContent = `${list.length} items · ${fmt(shownTotal)}`;
+  }
+
+  scroll.innerHTML = `
+    ${unsortedCount > 0 && filterCategory !== UNCLASSIFIED ? `
+      <button class="exp-sort-banner" id="exp-sort-banner">
+        🗂️ <strong>${unsortedCount}</strong> ${unsortedCount === 1 ? 'expense needs' : 'expenses need'} a category — sort them now
+      </button>` : ''}
+    ${cities.length > 1 ? `
+    <div class="exp-city-pills">
+      <div class="exp-city-pill ${filterCity === 'all' ? 'active' : ''}" data-city="all">All cities</div>
+      ${cities.map((c) => `<div class="exp-city-pill ${filterCity === c ? 'active' : ''}" data-city="${c}">${c}</div>`).join('')}
+    </div>` : ''}
+    <div class="exp-filter-row">
+      <button class="exp-filter-btn ${filterCategory === 'all' ? 'active' : ''}" data-filter="all">All</button>
+      ${categories().map((c) => {
+        const isActive = filterCategory === c.id;
+        const style = isActive ? `style="${filterBtnStyle(c.id)}"` : '';
+        return `<button class="exp-filter-btn ${isActive ? 'active' : ''}" data-filter="${c.id}" ${style}>${c.icon} ${c.label}</button>`;
+      }).join('')}
+      <button class="exp-filter-btn ${filterCategory === UNCLASSIFIED ? 'active' : ''}" data-filter="">🗂️ To sort</button>
+    </div>
+    ${list.length === 0 ? `
+      <div class="empty-state">
+        <div class="empty-icon">💸</div>
+        <p>No expenses here yet.</p>
+      </div>
+    ` : grouped.map(([date, items]) => `
+      <div class="exp-day-group">
+        <div class="exp-day-head">
+          <span class="exp-day-date">${dayLabel(date)}</span>
+          <span class="exp-day-sum">${fmt(total(items))}</span>
+        </div>
+        <div class="exp-tags">
+          ${items.map((e) => renderRecordTag(e)).join('')}
+        </div>
+      </div>
+    `).join('')}
+  `;
+
+  scroll.querySelectorAll('.exp-filter-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      filterCategory = (btn as HTMLElement).dataset.filter!;
+      renderRecordsScrollContent(scroll);
+    });
+  });
+
+  scroll.querySelectorAll('.exp-city-pill').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      filterCity = (pill as HTMLElement).dataset.city!;
+      renderRecordsScrollContent(scroll);
+    });
+  });
+
+  scroll.querySelector('#exp-sort-banner')?.addEventListener('click', () => {
+    filterCategory = UNCLASSIFIED;
+    renderRecordsScrollContent(scroll);
+  });
+
+  scroll.querySelectorAll<HTMLElement>('.exp-tag-item').forEach((tag) => {
+    tag.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).closest('.exp-tag-del')) return;
+      openExpenseEditor(tag.dataset.id!);
+    });
+  });
+  scroll.querySelectorAll('.exp-tag-del').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      deleteExpense((btn as HTMLElement).dataset.id!);
+    });
+  });
+}
+
 function renderRecordsPanel() {
   const panel = document.querySelector('.exp-records-panel') as HTMLElement | null;
   if (!panel) return;
   panel.classList.toggle('open', showRecords);
   if (!showRecords) { panel.innerHTML = ''; return; }
 
-  const cities = getCities();
-  const list = filteredExpenses();
-  const grouped = groupByDate(list);
-  const unsortedCount = expenses.filter((e) => e.category === UNCLASSIFIED).length;
-  const shownTotal = total(list);
+  // If the overlay shell already exists, just refresh the scroll content.
+  const existingScroll = panel.querySelector<HTMLElement>('.exp-records-scroll');
+  if (existingScroll) {
+    renderRecordsScrollContent(existingScroll);
+    return;
+  }
+
   const days = new Set(expenses.map((e) => e.date)).size || 1;
   const dailyAvg = total(expenses) / days;
+  const list = filteredExpenses();
+  const shownTotal = total(list);
 
   panel.innerHTML = `
     <div class="exp-records-overlay">
@@ -512,77 +617,14 @@ function renderRecordsPanel() {
           <span class="exp-records-avg">avg ${fmt(dailyAvg)}/day</span>
         </div>
       </div>
-      <div class="exp-records-scroll">
-        ${unsortedCount > 0 && filterCategory !== UNCLASSIFIED ? `
-          <button class="exp-sort-banner" id="exp-sort-banner">
-            🗂️ <strong>${unsortedCount}</strong> ${unsortedCount === 1 ? 'expense needs' : 'expenses need'} a category — sort them now
-          </button>` : ''}
-        ${cities.length > 1 ? `
-        <div class="exp-city-pills">
-          <div class="exp-city-pill ${filterCity === 'all' ? 'active' : ''}" data-city="all">All cities</div>
-          ${cities.map((c) => `<div class="exp-city-pill ${filterCity === c ? 'active' : ''}" data-city="${c}">${c}</div>`).join('')}
-        </div>` : ''}
-        <div class="exp-filter-row">
-          <button class="exp-filter-btn ${filterCategory === 'all' ? 'active' : ''}" data-filter="all">All</button>
-          ${categories().map((c) => `
-            <button class="exp-filter-btn ${filterCategory === c.id ? 'active' : ''}" data-filter="${c.id}">${c.icon} ${c.label}</button>
-          `).join('')}
-          <button class="exp-filter-btn ${filterCategory === UNCLASSIFIED ? 'active' : ''}" data-filter="">🗂️ To sort</button>
-        </div>
-        ${list.length === 0 ? `
-          <div class="empty-state">
-            <div class="empty-icon">💸</div>
-            <p>No expenses here yet.</p>
-          </div>
-        ` : grouped.map(([date, items]) => `
-          <div class="exp-day-group">
-            <div class="exp-day-head">
-              <span class="exp-day-date">${dayLabel(date)}</span>
-              <span class="exp-day-sum">${fmt(total(items))}</span>
-            </div>
-            <div class="exp-tags">
-              ${items.map((e) => renderRecordTag(e)).join('')}
-            </div>
-          </div>
-        `).join('')}
-      </div>
+      <div class="exp-records-scroll"></div>
     </div>
   `;
 
   panel.querySelector('#exp-records-back')?.addEventListener('click', () => closeRecords());
 
-  panel.querySelectorAll('.exp-filter-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      filterCategory = (btn as HTMLElement).dataset.filter!;
-      renderRecordsPanel();
-    });
-  });
-
-  panel.querySelectorAll('.exp-city-pill').forEach((pill) => {
-    pill.addEventListener('click', () => {
-      filterCity = (pill as HTMLElement).dataset.city!;
-      renderRecordsPanel();
-    });
-  });
-
-  panel.querySelector('#exp-sort-banner')?.addEventListener('click', () => {
-    filterCategory = UNCLASSIFIED;
-    renderRecordsPanel();
-  });
-
-  // Whole tag opens the editor; the ✕ deletes without opening.
-  panel.querySelectorAll<HTMLElement>('.exp-tag-item').forEach((tag) => {
-    tag.addEventListener('click', (ev) => {
-      if ((ev.target as HTMLElement).closest('.exp-tag-del')) return;
-      openExpenseEditor(tag.dataset.id!);
-    });
-  });
-  panel.querySelectorAll('.exp-tag-del').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      deleteExpense((btn as HTMLElement).dataset.id!);
-    });
-  });
+  const scroll = panel.querySelector<HTMLElement>('.exp-records-scroll')!;
+  renderRecordsScrollContent(scroll);
 }
 
 /** A compact, category-tinted record chip — mirrors the route plan-tag logic:
@@ -593,11 +635,14 @@ function renderRecordTag(e: StoredExpense): string {
   const baseStr = e.currency !== baseCurrency() ? ` · ${fmt(inBase(e))}` : '';
   const place = [e.city, e.country].filter(Boolean).join(', ');
   const tip = [cat?.label ?? 'Unsorted', place].filter(Boolean).join(' · ');
+  const tagsHtml = (e.tags ?? []).length
+    ? `<span class="exp-tag-labels">${(e.tags ?? []).map((t) => `<span class="exp-tag-label">${t}</span>`).join('')}</span>`
+    : '';
   return `
     <div class="exp-tag-item ${e.category === UNCLASSIFIED ? 'unsorted' : ''}"
          data-id="${e.id}" style="background:${color}"${tip ? ` data-tooltip="${tip}"` : ''}>
       <span class="exp-tag-icon">${cat?.icon ?? '🗂️'}</span>
-      <span class="exp-tag-name">${e.description}</span>
+      <span class="exp-tag-name">${e.description}${tagsHtml}</span>
       <span class="exp-tag-amount">${fmtRaw(e.amount, e.currency)}${baseStr}</span>
       <button class="exp-tag-del" data-id="${e.id}" title="Delete">✕</button>
     </div>`;
@@ -608,6 +653,9 @@ function renderRecordTag(e: StoredExpense): string {
 function openExpenseEditor(id: string) {
   const e = expenses.find((x) => x.id === id);
   if (!e) return;
+
+  const editorCountry = e.country || WHOLE_TRIP;
+  const editorCityOpts = cityOptions(e.country, e.city);
 
   const m = openModal({
     title: 'Edit expense',
@@ -631,13 +679,17 @@ function openExpenseEditor(id: string) {
           <label class="field-label">What for?</label>
           <input class="input" id="ee-desc" value="${(e.description ?? '').replace(/"/g, '&quot;')}">
         </div>
-        <div>
-          <label class="field-label">Country</label>
-          <select class="input select" id="ee-country">${countryOptions(e.country)}</select>
+        <div class="field-full">
+          <label class="field-label">Tags <span style="font-weight:400;color:var(--ink-faint)">(comma-separated, e.g. #ramen, souvenir)</span></label>
+          <input class="input" id="ee-tags" placeholder="e.g. #ramen, business" value="${(e.tags ?? []).join(', ')}">
         </div>
         <div>
+          <label class="field-label">Country</label>
+          <select class="input select" id="ee-country">${countryOptions(editorCountry)}</select>
+        </div>
+        <div id="ee-city-wrap">${editorCityOpts ? `
           <label class="field-label">City</label>
-          <select class="input select" id="ee-city">${cityOptions(e.country, e.city)}</select>
+          <select class="input select" id="ee-city">${editorCityOpts}</select>` : ''}
         </div>
         <div class="field-full">
           <label class="field-label">Date</label>
@@ -659,24 +711,46 @@ function openExpenseEditor(id: string) {
   });
 
   const countrySel = m.root.querySelector('#ee-country') as HTMLSelectElement;
-  const citySel = m.root.querySelector('#ee-city') as HTMLSelectElement;
+  const cityWrap = m.root.querySelector('#ee-city-wrap') as HTMLElement;
   let editCountry = e.country;
   let editCity = e.city;
+
+  function refreshEditorCity() {
+    const opts = cityOptions(editCountry, editCity);
+    cityWrap.innerHTML = opts ? `
+      <label class="field-label">City</label>
+      <select class="input select" id="ee-city">${opts}</select>` : '';
+    cityWrap.querySelector('#ee-city')?.addEventListener('change', (ev) => {
+      const val = (ev.target as HTMLSelectElement).value;
+      if (val === CUSTOM_PLACE) {
+        editCity = prompt('City name?')?.trim() || '';
+        refreshEditorCity();
+      } else {
+        editCity = val;
+      }
+    });
+  }
+
   countrySel.addEventListener('change', () => {
     if (countrySel.value === CUSTOM_PLACE) {
       editCountry = prompt('Country name?')?.trim() || '';
+    } else if (countrySel.value === WHOLE_TRIP) {
+      editCountry = '';
     } else {
       editCountry = countrySel.value;
     }
     editCity = '';
-    citySel.innerHTML = cityOptions(editCountry, '');
+    refreshEditorCity();
   });
-  citySel.addEventListener('change', () => {
-    if (citySel.value === CUSTOM_PLACE) {
+
+  // Wire initial city select if present
+  cityWrap.querySelector('#ee-city')?.addEventListener('change', (ev) => {
+    const val = (ev.target as HTMLSelectElement).value;
+    if (val === CUSTOM_PLACE) {
       editCity = prompt('City name?')?.trim() || '';
-      citySel.innerHTML = cityOptions(editCountry, editCity);
+      refreshEditorCity();
     } else {
-      editCity = citySel.value;
+      editCity = val;
     }
   });
 
@@ -685,12 +759,13 @@ function openExpenseEditor(id: string) {
     const currency = (m.root.querySelector('#ee-currency') as HTMLSelectElement).value;
     const desc = (m.root.querySelector('#ee-desc') as HTMLInputElement).value.trim();
     const date = (m.root.querySelector('#ee-date') as HTMLInputElement).value;
+    const tagsRaw = (m.root.querySelector('#ee-tags') as HTMLInputElement).value;
+    const tags = tagsRaw.split(',').map((t) => t.trim()).filter(Boolean);
     if (!amount || !desc) return;
-    // Re-snapshot the conversion when amount or currency changed.
     const { rate, baseAmount } = convert(rates, amount, currency);
     await expenseStore.update(id, {
       amount, currency, rate, baseAmount, baseCurrency: baseCurrency(),
-      description: desc, category: editCat, country: editCountry, city: editCity, date,
+      description: desc, category: editCat, country: editCountry, city: editCity, date, tags,
     });
     m.close();
   });
@@ -983,6 +1058,7 @@ function renderBreakdown(el: HTMLElement) {
 
   el.innerHTML = `
     <div class="exp-breakdown">
+      <div class="exp-form-title" style="margin-bottom:var(--sp-4)">Expense Analysis</div>
       <div class="exp-analysis-tabs">${tabs}</div>
       ${content}
     </div>`;

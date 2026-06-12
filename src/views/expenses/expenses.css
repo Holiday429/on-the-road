@@ -206,6 +206,7 @@
   transition: all var(--dur-fast);
 }
 .exp-filter-btn.active { background: var(--surface-3); color: var(--ink); border-color: var(--surface-4); }
+.exp-filter-btn.active[style] { color: var(--ink); }
 .exp-filter-btn:hover { border-color: var(--amber-300); }
 
 /* ── By-category breakdown ───────────────────────────────────────────────── */
@@ -539,6 +540,19 @@ body.exp-records-lock { overflow: hidden; }
 }
 .exp-tag-item:hover .exp-tag-del { opacity: 1; }
 .exp-tag-del:hover { color: var(--coral-500); }
+.exp-tag-labels {
+  display: flex; flex-wrap: wrap; gap: 3px;
+  margin-top: 2px;
+}
+.exp-tag-label {
+  display: inline-block;
+  font-size: 10px; font-weight: 600;
+  color: var(--ink-soft);
+  background: rgba(0,0,0,0.08);
+  border-radius: var(--r-full);
+  padding: 1px 6px;
+  line-height: 1.4;
+}
 /* Tooltip — reuse the route plan-tag pattern */
 .exp-tag-item[data-tooltip]::after {
   content: attr(data-tooltip);
