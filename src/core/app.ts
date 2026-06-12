@@ -57,6 +57,33 @@ const NAV_ITEMS: NavItem[] = [
 
 const SECTION_LABELS = { before: 'Before', during: 'On The Road', after: 'After' };
 
+// Page-level view restriction. When non-null, the nav + router only allow these
+// view ids — used by viewer share links that expose a subset of pages. null =
+// no restriction (full members see everything).
+let _allowedViews: ViewId[] | null = null;
+
+/** Restrict (or clear, with null) the views the current session may see. */
+export function setAllowedViews(ids: ViewId[] | null) {
+  // Keep only known view ids; ignore unknowns. Empty array → treat as no data.
+  _allowedViews = ids && ids.length
+    ? ids.filter((id) => NAV_ITEMS.some((n) => n.id === id))
+    : (ids === null ? null : []);
+}
+
+/** Whether a view is navigable in the current session. */
+export function isViewAllowed(id: ViewId): boolean {
+  return !_allowedViews || _allowedViews.includes(id);
+}
+
+/** First view the current session is allowed to land on. */
+export function firstAllowedView(): ViewId {
+  if (_allowedViews && _allowedViews.length) {
+    const inNav = NAV_ITEMS.find((n) => _allowedViews!.includes(n.id));
+    if (inNav) return inNav.id;
+  }
+  return 'today';
+}
+
 // Trips loaded for the switcher (refreshed on open / after create).
 let tripList: StoredTrip[] = [];
 let tripMenuOpen = false;
@@ -333,6 +360,9 @@ export function consumeNavIntent(view: ViewId): NavIntent | null {
 }
 
 export function navigateTo(id: ViewId, intent?: NavIntent) {
+  // Page-level access guard: bounce disallowed views to the first allowed one.
+  if (!isViewAllowed(id)) id = firstAllowedView();
+
   _pendingIntent = intent ? { view: id, intent } : null;
 
   // Hide all views
@@ -455,6 +485,10 @@ function buildSidebar() {
 function wireTripSwitcher(sidebar: HTMLElement) {
   const pill = sidebar.querySelector<HTMLElement>('#trip-pill');
   pill?.addEventListener('click', async () => {
+    // Always dismiss the calendar tooltip before opening the action popover
+    closeCalendarTooltip();
+    if (calHoverTimer) { clearTimeout(calHoverTimer); calHoverTimer = null; }
+
     if (!currentTrip()) {
       openNewTripModal();
       return;
@@ -471,7 +505,7 @@ function wireTripSwitcher(sidebar: HTMLElement) {
     openTripPopover();
   });
 
-  // Calendar thumbnail hover
+  // Calendar thumbnail hover — only show when no popover is open
   wireTripCalendarHover(pill);
 }
 
@@ -481,7 +515,10 @@ function wireTripCalendarHover(pill: HTMLElement | null) {
   if (!pill) return;
 
   pill.addEventListener('mouseenter', () => {
-    calHoverTimer = setTimeout(() => openCalendarTooltip(pill), 220);
+    if (tripMenuOpen) return;
+    calHoverTimer = setTimeout(() => {
+      if (!tripMenuOpen) openCalendarTooltip(pill);
+    }, 220);
   });
   pill.addEventListener('mouseleave', (e) => {
     if (calHoverTimer) { clearTimeout(calHoverTimer); calHoverTimer = null; }
@@ -624,7 +661,7 @@ function buildCalendarHTML(startDate: string, endDate: string | null, legs: Stor
 
 function buildMobileNav() {
   const mobileNav = document.getElementById('mobile-nav')!;
-  const navItems = NAV_ITEMS.map(item => {
+  const navItems = NAV_ITEMS.filter(item => isViewAllowed(item.id)).map(item => {
     return `<div class="mobile-nav-item" data-view="${item.id}" role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
       <span class="nav-label">${item.label.split(' ')[0]}</span>
@@ -673,10 +710,13 @@ function navItemMarkup(item: NavItem): string {
 
 function buildNavSections(_context: 'sidebar' | 'mobile'): string {
   // Pinned items (Today) sit above the labelled sections, with no header.
-  const pinned = NAV_ITEMS.filter(n => n.section === 'pinned').map(navItemMarkup).join('');
+  const pinned = NAV_ITEMS
+    .filter(n => n.section === 'pinned' && isViewAllowed(n.id))
+    .map(navItemMarkup).join('');
   const sections: ('before' | 'during' | 'after')[] = ['before', 'during', 'after'];
   const grouped = sections.map(section => {
-    const items = NAV_ITEMS.filter(n => n.section === section);
+    const items = NAV_ITEMS.filter(n => n.section === section && isViewAllowed(n.id));
+    if (!items.length) return ''; // hide an empty section label entirely
     return `
       <div class="nav-section-label">${SECTION_LABELS[section]}</div>
       ${items.map(navItemMarkup).join('')}
@@ -1096,10 +1136,10 @@ export function initApp() {
     reinitForTripChange();
   });
 
-  // Route from hash
+  // Route from hash (navigateTo applies the page-level access guard).
   const hash = window.location.hash.replace('#', '') as ViewId;
   const validHash = NAV_ITEMS.find(n => n.id === hash);
-  navigateTo(validHash ? hash : 'prep');
+  navigateTo(validHash ? hash : firstAllowedView());
 
   window.addEventListener('hashchange', () => {
     const h = window.location.hash.replace('#', '') as ViewId;
