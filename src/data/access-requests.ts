@@ -20,12 +20,14 @@ import { currentUser } from '../firebase/auth.ts';
 import { genId } from '../firebase/db.ts';
 import { SCHEMA_VERSION, TripAccessRequestSchema, type TripAccessRequest, type TripRole } from './schema.ts';
 import { getTrip } from './trip-context.ts';
+import { collectionsForPages } from './page-collections.ts';
 
 /**
- * Submit an edit-access request for a trip. No-ops (returns null) if the user
- * is already a member. Returns the request id on success.
+ * Submit an edit-access request for a trip. `pages` is the editor link's page
+ * restriction (empty = full access), carried so approval can apply it. No-ops
+ * (returns null) if the user is already a member. Returns the request id.
  */
-export async function createAccessRequest(tripId: string): Promise<string | null> {
+export async function createAccessRequest(tripId: string, pages: string[] = []): Promise<string | null> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
 
@@ -47,6 +49,7 @@ export async function createAccessRequest(tripId: string): Promise<string | null
     requesterEmail: u.email ?? '',
     requesterName: u.displayName ?? '',
     status: 'pending',
+    pages,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     schemaVersion: SCHEMA_VERSION,
@@ -95,14 +98,20 @@ export function subscribeAccessRequests(
   );
 }
 
-/** Approve a request: add the requester as an editor, then mark approved. */
+/** Approve a request: add the requester as an editor (with any page
+ *  restriction from the link), then mark approved. */
 export async function approveAccessRequest(req: TripAccessRequest): Promise<void> {
   // Owner has full member-management rights; add the requester directly.
-  await updateDoc(fbDoc(firestore, `trips/${req.tripId}`), {
+  const patch: Record<string, unknown> = {
     [`members.${req.requesterUid}`]: 'editor' as TripRole,
     memberUids: arrayUnion(req.requesterUid),
     updatedAt: Date.now(),
-  });
+  };
+  if (req.pages?.length) {
+    patch[`memberPages.${req.requesterUid}`] = req.pages;
+    patch[`memberCollections.${req.requesterUid}`] = collectionsForPages(req.pages);
+  }
+  await updateDoc(fbDoc(firestore, `trips/${req.tripId}`), patch);
   await updateDoc(fbDoc(firestore, `tripAccessRequests/${req.id}`), {
     status: 'approved',
     updatedAt: Date.now(),

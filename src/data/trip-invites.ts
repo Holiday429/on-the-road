@@ -27,7 +27,9 @@ function token(): string {
 }
 
 /** Create a share invite for a trip. Returns the token (the URL code).
- * For viewer invites, `pages` lists the ViewIds the link exposes. */
+ * `pages` lists the ViewIds the link grants — for a viewer link it scopes the
+ * public read; for an editor link it scopes what the approved editor can edit.
+ * Empty = all pages. */
 export async function createInvite(
   tripId: string,
   role: Exclude<TripRole, 'owner'> = 'editor',
@@ -47,7 +49,7 @@ export async function createInvite(
     createdByUid: u.uid,
     expiresAt: null,
     revoked: false,
-    pages: role === 'viewer' ? pages : [],
+    pages,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     schemaVersion: SCHEMA_VERSION,
@@ -149,14 +151,16 @@ export function inviteUrl(tok: string): string {
 
 /* ── Email whitelist invites ─────────────────────────────────────────────── */
 
-/** Add an email to the trip's editor whitelist. Owner only. */
-export async function addEmailInvite(tripId: string, email: string): Promise<void> {
+/** Add an email to the trip's editor whitelist with optional page restriction.
+ *  Empty `pages` = full access. Owner only. */
+export async function addEmailInvite(tripId: string, email: string, pages: string[] = []): Promise<void> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
   const normalised = email.trim().toLowerCase();
   if (!normalised) throw new Error('Invalid email.');
   await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
     [`emailInvites.${normalised}`]: 'editor',
+    [`emailInvitePages.${normalised}`]: pages,
     updatedAt: Date.now(),
   });
 }
@@ -166,13 +170,15 @@ export async function removeEmailInvite(tripId: string, email: string): Promise<
   const normalised = email.trim().toLowerCase();
   await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
     [`emailInvites.${normalised}`]: deleteField(),
+    [`emailInvitePages.${normalised}`]: deleteField(),
     updatedAt: Date.now(),
   });
 }
 
 /**
  * If the signed-in user's email appears in the trip's emailInvites whitelist,
- * add them as an editor and remove the entry. Returns true if joined.
+ * add them as an editor (carrying any page restriction into memberPages) and
+ * remove the email entry. Returns true if joined.
  */
 export async function acceptEmailInvite(tripId: string): Promise<boolean> {
   const u = currentUser();
@@ -184,11 +190,21 @@ export async function acceptEmailInvite(tripId: string): Promise<boolean> {
   const invites = (trip as { emailInvites?: Record<string, string> }).emailInvites ?? {};
   if (!(email in invites)) return false;
 
-  await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
+  const pageMap = (trip as { emailInvitePages?: Record<string, string[]> }).emailInvitePages ?? {};
+  const pages = pageMap[email] ?? [];
+
+  const patch: Record<string, unknown> = {
     [`members.${u.uid}`]: 'editor',
     memberUids: arrayUnion(u.uid),
     [`emailInvites.${email}`]: deleteField(),
+    [`emailInvitePages.${email}`]: deleteField(),
     updatedAt: Date.now(),
-  });
+  };
+  // Only set a restriction when pages were specified; full access = no entry.
+  if (pages.length) {
+    patch[`memberPages.${u.uid}`] = pages;
+    patch[`memberCollections.${u.uid}`] = collectionsForPages(pages);
+  }
+  await updateDoc(fbDoc(firestore, `trips/${tripId}`), patch);
   return true;
 }

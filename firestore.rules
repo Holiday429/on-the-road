@@ -28,6 +28,16 @@ service cloud.firestore {
     function subCanEdit(tripId) {
       return subIsMember(tripId) && tripData(tripId).members[uid()] in ['owner', 'editor'];
     }
+    // Page-restricted editors may only write sub-collections in their allow-list.
+    // Owners and unrestricted editors (no memberCollections entry) write anything.
+    function subCanEditCollection(tripId, sub) {
+      let t = tripData(tripId);
+      return subCanEdit(tripId)
+        && (t.members[uid()] == 'owner'
+            || t.memberCollections == null
+            || !(uid() in t.memberCollections)
+            || (sub in t.memberCollections[uid()]));
+    }
 
     // Membership read off THIS trip doc (update/delete operate on an existing
     // doc, so resource is always present there).
@@ -83,7 +93,9 @@ service cloud.firestore {
         && after.memberUids.hasOnly(before.memberUids.concat([me]))
         && after.ownerUid == before.ownerUid
         && after.members[me] == 'editor'
-        && after.diff(before).affectedKeys().hasOnly(['members', 'memberUids', 'emailInvites', 'updatedAt']);
+        && after.diff(before).affectedKeys().hasOnly(
+          ['members', 'memberUids', 'emailInvites', 'emailInvitePages',
+           'memberPages', 'memberCollections', 'updatedAt']);
     }
 
     // A signed-in user accepting an invite: adds only THEMSELVES, with a role
@@ -158,7 +170,7 @@ service cloud.firestore {
               && tripData(tripId).publicView.enabled == true
               && (sub in tripData(tripId).publicView.collections))
           || tripData(tripId).hasPublicView == true;
-        allow write: if subCanEdit(tripId);
+        allow write: if subCanEditCollection(tripId, sub);
       }
     }
 

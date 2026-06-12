@@ -289,6 +289,19 @@ export function currentRole(): TripRole | null {
   return _currentTrip.members?.[u.uid] ?? null;
 }
 
+/**
+ * The signed-in user's page restriction on the current trip, or null if they
+ * have full access (owner, or an editor with no memberPages entry). Returns the
+ * list of ViewIds they're limited to when restricted.
+ */
+export function currentMemberPages(): string[] | null {
+  const u = currentUser();
+  if (!u || !_currentTrip) return null;
+  if (_currentTrip.members?.[u.uid] === 'owner') return null; // owners unrestricted
+  const pages = (_currentTrip as { memberPages?: Record<string, string[]> }).memberPages?.[u.uid];
+  return pages && pages.length ? pages : null;
+}
+
 /** Members of a trip as [uid, role] pairs. */
 export async function tripMembers(id: string): Promise<Array<{ uid: string; role: TripRole }>> {
   const trip = await getTrip(id);
@@ -366,18 +379,21 @@ export async function ensureDefaultTrip(): Promise<Trip | null> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
 
-  // --- Check all trips first; if any are user-created, use the most recent ---
+  // --- Prefer a user-created trip; otherwise fall back to ANY trip the user is
+  // a member of (e.g. a trip shared with them via email/approval). Only when
+  // they belong to no trips at all do we trigger onboarding. This stops a
+  // collaborator who only has shared trips from being forced to create one. ---
   const allTrips = await listTrips();
   const userTrips = allTrips.filter(t => t.userCreated === true);
-  if (userTrips.length > 0) {
-    const first = userTrips[0];
-    _currentTripId = first.id;
-    _currentTrip = first;
-    _baseCurrency = first.baseCurrency ?? _baseCurrency;
-    return first;
+  const pick = userTrips[0] ?? allTrips[0];
+  if (pick) {
+    _currentTripId = pick.id;
+    _currentTrip = pick;
+    _baseCurrency = pick.baseCurrency ?? _baseCurrency;
+    return pick;
   }
 
-  // --- No user-created trips → trigger onboarding regardless of legacy data ---
+  // --- No trips at all → trigger onboarding so they create their first trip ---
   return null;
 }
 

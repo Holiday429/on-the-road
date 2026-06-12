@@ -5,7 +5,7 @@
 import type { User } from '../firebase/auth.ts';
 import {
   currentTrip, currentTripId, listTrips, createTrip, switchTrip, onTripChange,
-  updateTrip, removeTrip, currentRole, leaveTrip as leaveTripCtx,
+  updateTrip, removeTrip, currentRole, currentMemberPages, leaveTrip as leaveTripCtx,
   type StoredTrip, type NewTripInput,
 } from '../data/trip-context.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
@@ -13,6 +13,7 @@ import { routeStore, type StoredLeg } from '../data/stores/route-store.ts';
 import { createDestinationInput, type DestinationInputInstance } from './destination-input.ts';
 import { escHtml as escapeHtml } from './utils.ts';
 import { openModal } from './modal.ts';
+import { t, onLocaleChange } from './i18n.ts';
 import checklistIcon from '../../icon/Checklist.png';
 import guideIcon from '../../icon/Guide.png';
 import itineraryIcon from '../../icon/Itinerary.png';
@@ -55,7 +56,13 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'journal',  label: 'Journal',   iconSrc: journalIcon,   section: 'after'  },
 ];
 
-const SECTION_LABELS = { before: 'Before', during: 'On The Road', after: 'After' };
+/** Localized nav label for a view; falls back to the English NAV_ITEMS label. */
+function navLabel(item: NavItem): string {
+  return t(`nav.${item.id}`) || item.label;
+}
+function sectionLabel(section: 'before' | 'during' | 'after'): string {
+  return t(`nav.section${section.charAt(0).toUpperCase()}${section.slice(1)}`);
+}
 
 // Page-level view restriction. When non-null, the nav + router only allow these
 // view ids — used by viewer share links that expose a subset of pages. null =
@@ -329,7 +336,7 @@ export function renderViewTitleMarkup(id: ViewId, title?: string): string {
   const item = NAV_ITEMS.find((navItem) => navItem.id === id)!;
   return `
     <span class="view-title-icon" aria-hidden="true">${renderNavIcon(item)}</span>
-    <span>${escapeHtml(title?.trim() || item.label)}</span>
+    <span>${escapeHtml(title?.trim() || navLabel(item))}</span>
   `;
 }
 
@@ -337,9 +344,13 @@ function decorateViewTitles() {
   NAV_ITEMS.forEach((item) => {
     const titleEl = document.querySelector<HTMLElement>(`#view-${item.id} .view-title`);
     if (!titleEl) return;
-    const title = titleEl.dataset.title ?? titleEl.textContent?.trim() ?? item.label;
-    titleEl.dataset.title = title;
-    titleEl.innerHTML = renderViewTitleMarkup(item.id, title);
+    // The static HTML seeds each title with its English nav label. Treat that as
+    // "no custom title" so it localizes; only a title that differs from the
+    // English default (set by a view) is pinned via data-title.
+    const seeded = titleEl.dataset.title ?? titleEl.textContent?.trim();
+    const custom = seeded && seeded !== item.label ? seeded : undefined;
+    if (custom) titleEl.dataset.title = custom;
+    titleEl.innerHTML = renderViewTitleMarkup(item.id, custom);
   });
 }
 
@@ -710,7 +721,7 @@ function buildMobileNav() {
   const navItems = NAV_ITEMS.filter(item => isViewAllowed(item.id)).map(item => {
     return `<div class="mobile-nav-item" data-view="${item.id}" role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
-      <span class="nav-label">${item.label.split(' ')[0]}</span>
+      <span class="nav-label">${navLabel(item).split(' ')[0]}</span>
     </div>`;
   }).join('');
 
@@ -750,7 +761,7 @@ function navItemMarkup(item: NavItem): string {
   return `
     <div class="nav-item" data-view="${item.id}" role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
-      <span class="nav-label">${item.label}</span>
+      <span class="nav-label">${navLabel(item)}</span>
     </div>`;
 }
 
@@ -764,7 +775,7 @@ function buildNavSections(_context: 'sidebar' | 'mobile'): string {
     const items = NAV_ITEMS.filter(n => n.section === section && isViewAllowed(n.id));
     if (!items.length) return ''; // hide an empty section label entirely
     return `
-      <div class="nav-section-label">${SECTION_LABELS[section]}</div>
+      <div class="nav-section-label">${sectionLabel(section)}</div>
       ${items.map(navItemMarkup).join('')}
     `;
   }).join('');
@@ -1176,12 +1187,26 @@ export function initApp() {
   decorateViewTitles();
   applyRoleState();
 
-  // Trip switch: rebuild the sidebar (name/countdown) and re-init mounted views
-  // so their stores re-subscribe under the new tripId. Registered once.
+  // Trip switch: re-apply the member's page restriction for the new trip (an
+  // editor may be limited to some pages on one trip but not another), rebuild
+  // the sidebar, and re-init mounted views so stores re-subscribe. Registered
+  // once. Skipped in viewer mode (the invite owns the restriction there).
   onTripChange(() => {
+    if (sessionState.user) {
+      setAllowedViews(currentMemberPages() as ViewId[] | null);
+    }
     buildSidebar();
     applyRoleState();
     reinitForTripChange();
+  });
+
+  // Language switch: re-render the nav chrome and view-title labels in place.
+  // Each view re-renders itself via its own onLocaleChange subscription.
+  onLocaleChange(() => {
+    buildSidebar();
+    buildMobileNav();
+    decorateViewTitles();
+    applyRoleState();
   });
 
   // Route from hash (navigateTo applies the page-level access guard).

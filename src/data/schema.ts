@@ -122,6 +122,14 @@ export const TripSchema = doc({
   ownerUid: z.string().optional(),
   members: z.record(z.string(), z.enum(['owner', 'editor', 'viewer'])).optional(),
   memberUids: z.array(z.string()).optional(),
+  // Per-member page restriction (ViewIds), for the CLIENT nav filter. An entry
+  // limits that member to only those pages; absent = full access. Owners are
+  // never restricted. Mirrors the page-level model used by view links.
+  memberPages: z.record(z.string(), z.array(z.string())).optional(),
+  // Per-member allowed sub-collection names, derived from memberPages, for the
+  // RULES write gate (rules can't map pages→collections). Kept in lockstep with
+  // memberPages. Absent = full write access.
+  memberCollections: z.record(z.string(), z.array(z.string())).optional(),
   // Transient: set only on a self-join write so security rules can verify the
   // invite token grants the role being claimed. Persisted but inert afterwards.
   joinToken: z.string().optional(),
@@ -129,6 +137,9 @@ export const TripSchema = doc({
   // On sign-in, if the user's email matches a key here they are auto-joined
   // as an editor and the key is removed.
   emailInvites: z.record(z.string(), z.literal('editor')).optional(),
+  // Per-email page restriction for pending email invites, copied into
+  // memberPages on accept. Absent / empty = full access. Keyed by email.
+  emailInvitePages: z.record(z.string(), z.array(z.string())).optional(),
   // Page-level public read. `collections` is the union of Firestore
   // sub-collection names exposed by every live viewer invite's pages,
   // recomputed on each viewer-invite create/revoke. Security rules allow
@@ -178,6 +189,9 @@ export const TripAccessRequestSchema = doc({
   requesterEmail: z.string().default(''),
   requesterName: z.string().default(''),
   status: z.enum(['pending', 'approved', 'denied']).default('pending'),
+  // Page restriction requested via the editor link (from the invite's pages).
+  // Copied into the trip's memberPages on approval. Empty = full access.
+  pages: z.array(z.string()).default([]),
 });
 export type TripAccessRequest = z.infer<typeof TripAccessRequestSchema>;
 

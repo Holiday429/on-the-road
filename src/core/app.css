@@ -677,12 +677,26 @@
 .share-role-editor { background: #dbeafe; color: #1e40af; }
 .share-role-viewer { background: #f3f4f6; color: #4b5563; }
 
+/* Wide, two-column Share modal that fits without vertical scrolling */
+.otr-modal.share-modal-wide { max-width: 880px; }
+.share-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-5);
+  align-items: start;
+}
+.share-col { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.share-col .share-section { margin-bottom: 0; }
+@media (max-width: 720px) {
+  .share-grid { grid-template-columns: 1fr; gap: var(--sp-4); }
+}
+
 /* Page picker for view links */
 .share-pages-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: var(--sp-1) var(--sp-3);
-  margin-bottom: var(--sp-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px var(--sp-3);
+  margin-bottom: var(--sp-2);
 }
 .share-page-check {
   display: flex; align-items: center; gap: var(--sp-1);

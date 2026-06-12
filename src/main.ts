@@ -8,7 +8,7 @@ import './core/app.css';
 import { initApp, registerView, renderSession, openOnboarding, navigateTo, setAllowedViews, firstAllowedView, type ViewId } from './core/app.ts';
 import { onAuth, authReady, currentUser, signInWithGoogle, consumeRedirectResult, type User } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
-import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites } from './data/trip-context.ts';
+import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites, currentMemberPages } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
@@ -404,6 +404,17 @@ async function bootAuthenticatedShell(user: User) {
       const joined = await checkAndAcceptEmailInvites();
       if (joined > 0) console.info(`Auto-accepted ${joined} email invite(s).`);
     } catch (e) { console.warn('Email invite check skipped:', e); }
+
+    // Adopt the saved UI/AI language from the profile (only if this device has
+    // no explicit local choice yet), so the shell below builds in that language.
+    try {
+      const { loadLocaleFromProfile } = await import('./core/i18n.ts');
+      await loadLocaleFromProfile();
+    } catch (e) { console.warn('Locale load skipped:', e); }
+
+    // Apply any page restriction for this member (editor limited to some pages).
+    // null = full access. Owners are always unrestricted.
+    setAllowedViews(currentMemberPages() as ViewId[] | null);
 
     bootShellOnce();
     renderSession(user, handleSidebarAuth);
