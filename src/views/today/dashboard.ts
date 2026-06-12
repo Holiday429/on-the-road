@@ -23,6 +23,8 @@ import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts
 import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
 import { BUILTIN_CATEGORIES } from '../route/route.ts';
 import { openModal } from '../../core/modal.ts';
+import { t, onLocaleChange } from '../../core/i18n.ts';
+import { createLanguagePicker, type LanguagePickerInstance } from '../../core/language-picker.ts';
 import { openJournalComposerOverlay } from '../journal/index.ts';
 import { scheduleAllNotifications } from '../../core/notifications.ts';
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
@@ -40,6 +42,7 @@ let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency(
 let _rateTo    = '';          // selected "to" currency (empty = auto localCurrency())
 let _mapCanvas: HTMLElement | null = null; // tracks which canvas element the map was booted on
 let _unsubs: Array<() => void> = [];
+let _langPicker: LanguagePickerInstance | null = null;
 let _weather: { icon: string; tempHigh: string; tempLow: string } | null = null;
 let _weatherCity = '';
 let _nomadSpots: StoredNomadSpot[] = [];
@@ -95,10 +98,10 @@ function firstName(): string {
 }
 function greetingWord(): string {
   const h = new Date().getHours();
-  if (h < 5)  return 'Still up';
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (h < 5)  return t('dash.greeting.night');
+  if (h < 12) return t('dash.greeting.morning');
+  if (h < 18) return t('dash.greeting.afternoon');
+  return t('dash.greeting.evening');
 }
 
 /* ── Weather (wttr.in JSON) ──────────────────────────────────────────────── */
@@ -169,7 +172,10 @@ function renderGreeting(): string {
   return `
     <div class="td-greeting-row">
       <div class="td-greeting">${greetingWord()}, ${esc(firstName())}! 👋</div>
-      <button class="btn btn-ghost td-new-trip-btn" data-action="new-trip">+ New trip</button>
+      <div class="td-greeting-actions">
+        <button class="btn btn-ghost td-new-trip-btn" data-action="new-trip">${esc(t('common.newTrip'))}</button>
+        <div class="td-lang-mount" data-lang-mount></div>
+      </div>
     </div>`;
 }
 
@@ -1352,6 +1358,14 @@ function wire(body: HTMLElement): void {
     openNewTrip();
   });
 
+  // Language picker (top-right of the greeting row). innerHTML wiped the old
+  // node, so dispose the previous instance before mounting a fresh one.
+  const langMount = body.querySelector<HTMLElement>('[data-lang-mount]');
+  if (langMount) {
+    _langPicker?.destroy();
+    _langPicker = createLanguagePicker(langMount);
+  }
+
   // Dashboard map zoom controls.
   body.querySelector('#tdMapZoomIn')?.addEventListener('click', e => {
     e.stopPropagation();
@@ -1416,6 +1430,8 @@ export function initDashboard(): void {
       _mapCanvas = null; _weather = null; _weatherCity = '';
       disposeDashboardMap(); render();
     }),
+    // Re-render on language change so greeting/widget labels update in place.
+    onLocaleChange(() => { _mapCanvas = null; disposeDashboardMap(); render(); }),
   ];
 
   void getRateTable(baseCurrency()).then(table => { _rates = table; render(); });

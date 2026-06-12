@@ -46,6 +46,20 @@ async function tavilySearch(query: string): Promise<string> {
 
 // ── DeepSeek ──────────────────────────────────────────────────────────────────
 
+// Target output language for AI copy. Sanitised against an allow-list so the
+// client-supplied value can't inject prompt text. JSON keys stay English.
+let OUTPUT_LANGUAGE = 'English';
+const ALLOWED_LANGUAGES = new Set([
+  'English', 'Simplified Chinese', 'Japanese', 'French', 'Spanish', 'Korean',
+]);
+function setOutputLanguage(lang: unknown): void {
+  OUTPUT_LANGUAGE = typeof lang === 'string' && ALLOWED_LANGUAGES.has(lang) ? lang : 'English';
+}
+function langInstruction(): string {
+  if (OUTPUT_LANGUAGE === 'English') return '';
+  return `\nWrite ALL human-readable text values in ${OUTPUT_LANGUAGE}. Keep every JSON key in English and keep emoji unchanged.`;
+}
+
 async function deepseek(prompt: string): Promise<unknown> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
@@ -54,7 +68,7 @@ async function deepseek(prompt: string): Promise<unknown> {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.4,
     }),
@@ -209,6 +223,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const city = (body.city as string ?? '').trim();
   const country = (body.country as string ?? '').trim();
   const nationality = (body.nationality as string ?? '').trim();
+  setOutputLanguage(body.lang);
 
   if (!city) {
     res.status(400).json({ error: 'city is required' });

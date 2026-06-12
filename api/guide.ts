@@ -145,6 +145,23 @@ async function tavilySearch(query: string): Promise<string> {
 
 // ── DeepSeek call ─────────────────────────────────────────────────────────────
 
+// Target output language for AI-generated copy. Defaults to English. Sanitised
+// against an allow-list so the value (which originates client-side) can't inject
+// arbitrary prompt text. Set once per request from the `lang` body field.
+let OUTPUT_LANGUAGE = 'English';
+const ALLOWED_LANGUAGES = new Set([
+  'English', 'Simplified Chinese', 'Japanese', 'French', 'Spanish', 'Korean',
+]);
+function setOutputLanguage(lang: unknown): void {
+  OUTPUT_LANGUAGE = typeof lang === 'string' && ALLOWED_LANGUAGES.has(lang) ? lang : 'English';
+}
+/** Instruction appended to every prompt so the model answers in the chosen
+ *  language. JSON keys stay English; only the human-readable values translate. */
+function langInstruction(): string {
+  if (OUTPUT_LANGUAGE === 'English') return '';
+  return `\nWrite ALL human-readable text values in ${OUTPUT_LANGUAGE}. Keep every JSON key in English and keep emoji unchanged.`;
+}
+
 async function deepseek(prompt: string, maxTokens = 900): Promise<unknown> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
@@ -157,7 +174,7 @@ async function deepseek(prompt: string, maxTokens = 900): Promise<unknown> {
     },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.7,
       // Cap output so a single section can't run away and burn tokens.
@@ -268,9 +285,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const uid = await verifyAndMeter(req as Parameters<typeof verifyAndMeter>[0], res as Parameters<typeof verifyAndMeter>[1]);
   if (!uid) return;
 
-  const { city, country, query = '' } = req.body as {
-    city: string; country: string; query?: string;
+  const { city, country, query = '', lang } = req.body as {
+    city: string; country: string; query?: string; lang?: string;
   };
+  setOutputLanguage(lang);
 
   if (!city || !country) {
     res.status(400).json({ error: 'city and country required' });

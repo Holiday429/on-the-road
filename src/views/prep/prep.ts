@@ -15,6 +15,7 @@ import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/sch
 import { noteColor } from '../../data/palette.ts';
 import { escHtml } from '../../core/utils.ts';
 import { postJson } from '../../core/api.ts';
+import { aiLanguage } from '../../core/i18n.ts';
 import { handleAiError } from '../../core/paywall.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
@@ -800,7 +801,7 @@ async function runAiCheck(container: HTMLElement, cl: StoredChecklist) {
   }).join('\n\n');
 
   try {
-    const { suggestions } = await postJson<{ suggestions: string[] }>('/api/check', { summary });
+    const { suggestions } = await postJson<{ suggestions: string[] }>('/api/check', { summary, lang: aiLanguage() });
 
     loading.setAttribute('hidden', '');
     result.removeAttribute('hidden');

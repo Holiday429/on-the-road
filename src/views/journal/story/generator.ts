@@ -4,6 +4,7 @@ import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import { excerpt, titleFor } from '../shared/utils.ts';
 import { postJson } from '../../../core/api.ts';
+import { aiLanguage } from '../../../core/i18n.ts';
 import type { GeneratedStoryDraft } from './types.ts';
 
 interface StorySourcePayload {
@@ -106,7 +107,7 @@ Constraints:
 Payload:
 ${JSON.stringify(payload)}`;
 
-  const parsed = await postJson<any>('/api/story', { prompt });
+  const parsed = await postJson<any>('/api/story', { prompt, lang: aiLanguage() });
 
   const validIds = new Set(entries.map((entry) => entry.id));
   const modules = Array.isArray(parsed.modules)

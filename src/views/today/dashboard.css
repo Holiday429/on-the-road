@@ -26,6 +26,29 @@
   font-weight: 600;
   white-space: nowrap;
 }
+.td-greeting-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+/* ── Language picker ──────────────────────────────────────────────────────── */
+.lang-picker { position: relative; flex-shrink: 0; }
+.lang-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lang-picker-flag { font-size: 16px; line-height: 1; }
+.lang-picker-dropdown {
+  left: auto;
+  right: 0;
+  min-width: 180px;
+}
 
 /* ── Hero banner ─────────────────────────────────────────────────────────── */
 .td-hero {

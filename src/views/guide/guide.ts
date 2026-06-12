@@ -12,6 +12,7 @@ import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';
 import { geocode } from '../map/geocode.ts';
+import { aiLanguage } from '../../core/i18n.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
 import { slugId } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
@@ -72,7 +73,7 @@ async function generateGuide(city: string, country: string, query: string): Prom
     const res = await fetch(apiUrl('/api/guide'), {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ city, country, query }),
+      body: JSON.stringify({ city, country, query, lang: aiLanguage() }),
     });
 
     if (res.status === 401 || res.status === 402) {
@@ -206,7 +207,7 @@ export async function prefetchGuideForCity(city: string, country: string): Promi
     const res = await fetch(apiUrl('/api/guide'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ city, country, query: '' }),
+      body: JSON.stringify({ city, country, query: '', lang: aiLanguage() }),
     });
     if (!res.ok) return;
 
@@ -790,7 +791,7 @@ async function loadMore(intel: StoredCityIntel, section: TabKey, btn: HTMLButton
       headers: await authHeaders(),
       body: JSON.stringify({
         city: intel.city, country: intel.country, section,
-        existingTitles, query: intel.generatedQuery ?? '',
+        existingTitles, query: intel.generatedQuery ?? '', lang: aiLanguage(),
       }),
     });
     if (res.status === 401 || res.status === 402) {

@@ -21,6 +21,20 @@ type VercelResponse = ServerResponse & {
   end(): void;
 };
 
+// Target output language for AI copy. Sanitised against an allow-list so the
+// client-supplied value can't inject prompt text. JSON keys stay English.
+let OUTPUT_LANGUAGE = 'English';
+const ALLOWED_LANGUAGES = new Set([
+  'English', 'Simplified Chinese', 'Japanese', 'French', 'Spanish', 'Korean',
+]);
+function setOutputLanguage(lang: unknown): void {
+  OUTPUT_LANGUAGE = typeof lang === 'string' && ALLOWED_LANGUAGES.has(lang) ? lang : 'English';
+}
+function langInstruction(): string {
+  if (OUTPUT_LANGUAGE === 'English') return '';
+  return `\nWrite each suggestion in ${OUTPUT_LANGUAGE}. Keep the JSON keys in English.`;
+}
+
 async function deepseek(prompt: string): Promise<{ suggestions: string[] }> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
@@ -29,7 +43,7 @@ async function deepseek(prompt: string): Promise<{ suggestions: string[] }> {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.4,
       max_tokens: 400,
@@ -57,6 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const summary = (req.body.summary as string ?? '').trim();
   if (!summary) { res.status(400).json({ error: 'summary is required' }); return; }
+  setOutputLanguage(req.body.lang);
 
   const prompt = `You are a travel preparation assistant. Review this trip preparation checklist and identify the most important items that might be missing. Be concise — list at most 5 suggestions, each in one short sentence. Only flag genuinely critical items most travelers overlook.
 

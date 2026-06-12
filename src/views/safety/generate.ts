@@ -12,6 +12,7 @@
 
 import type { CitySafety } from '../../data/schema.ts';
 import { postJson } from '../../core/api.ts';
+import { aiLanguage } from '../../core/i18n.ts';
 import { staticSafetyForCountry } from '../../data/safety-static/countries.ts';
 
 export type GeneratedSafety = Omit<
@@ -71,6 +72,7 @@ async function fetchFromApi(
       city,
       country,
       nationality,
+      lang: aiLanguage(),
     });
   } catch (e) {
     const { handleAiError } = await import('../../core/paywall.ts');

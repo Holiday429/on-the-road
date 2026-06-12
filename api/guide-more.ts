@@ -49,6 +49,20 @@ async function tavilySearch(query: string): Promise<string> {
   } catch { return ''; }
 }
 
+// Target output language for AI copy. Sanitised against an allow-list so the
+// client-supplied value can't inject prompt text. JSON keys stay English.
+let OUTPUT_LANGUAGE = 'English';
+const ALLOWED_LANGUAGES = new Set([
+  'English', 'Simplified Chinese', 'Japanese', 'French', 'Spanish', 'Korean',
+]);
+function setOutputLanguage(lang: unknown): void {
+  OUTPUT_LANGUAGE = typeof lang === 'string' && ALLOWED_LANGUAGES.has(lang) ? lang : 'English';
+}
+function langInstruction(): string {
+  if (OUTPUT_LANGUAGE === 'English') return '';
+  return `\nWrite ALL human-readable text values in ${OUTPUT_LANGUAGE}. Keep every JSON key in English and keep emoji unchanged.`;
+}
+
 async function deepseek(prompt: string, maxTokens = 700): Promise<unknown> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
@@ -57,7 +71,7 @@ async function deepseek(prompt: string, maxTokens = 700): Promise<unknown> {
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.9,   // a touch higher for variety on "more"
       max_tokens: maxTokens,
@@ -189,10 +203,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const uid = await verifyAndMeter(req as Parameters<typeof verifyAndMeter>[0], res as Parameters<typeof verifyAndMeter>[1]);
   if (!uid) return;
 
-  const { city, section, existingTitles = [], query = '' } = req.body as {
+  const { city, section, existingTitles = [], query = '', lang } = req.body as {
     city: string; country?: string; section: SectionKey;
-    existingTitles?: string[]; query?: string;
+    existingTitles?: string[]; query?: string; lang?: string;
   };
+  setOutputLanguage(lang);
 
   if (!city || !section || !SECTIONS[section]) {
     res.status(400).json({ error: 'city and a valid section are required' });
