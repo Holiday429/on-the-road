@@ -1,4 +1,30 @@
 {
-  "indexes": [],
+  "indexes": [
+    {
+      "collectionGroup": "tripAccessRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tripId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tripAccessRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tripId", "order": "ASCENDING" },
+        { "fieldPath": "requesterUid", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tripInvites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tripId", "order": "ASCENDING" },
+        { "fieldPath": "role", "order": "ASCENDING" },
+        { "fieldPath": "revoked", "order": "ASCENDING" }
+      ]
+    }
+  ],
   "fieldOverrides": []
 }

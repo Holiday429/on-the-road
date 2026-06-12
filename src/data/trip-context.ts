@@ -181,13 +181,15 @@ export async function listTrips(): Promise<Trip[]> {
 
 export async function getTrip(id: string): Promise<Trip | null> {
   const u = currentUser();
-  // Allow unauthenticated reads for trips with hasPublicView (viewer links).
+  // Allow unauthenticated reads for trips with public view enabled (viewer
+  // links). Dual-read during the publicView migration: accept either the new
+  // publicView.enabled or the legacy hasPublicView flag.
   if (!u && id !== DEFAULT_TRIP_ID) {
     try {
       const snap = await getDoc(tripRef(id));
       if (snap.exists()) {
         const data = snap.data() as Trip;
-        if (data.hasPublicView) return data;
+        if (data.publicView?.enabled || data.hasPublicView) return data;
       }
     } catch { /* rules denied — not a public trip */ }
     return null;

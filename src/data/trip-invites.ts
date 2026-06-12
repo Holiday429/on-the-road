@@ -16,6 +16,7 @@ import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
 import { SCHEMA_VERSION, TripInviteSchema, type TripInvite, type TripRole } from './schema.ts';
 import { getTrip } from './trip-context.ts';
+import { collectionsForPages } from './page-collections.ts';
 
 function token(): string {
   // URL-safe, unguessable enough for an invite code.
@@ -25,10 +26,12 @@ function token(): string {
   );
 }
 
-/** Create a share invite for a trip. Returns the token (the URL code). */
+/** Create a share invite for a trip. Returns the token (the URL code).
+ * For viewer invites, `pages` lists the ViewIds the link exposes. */
 export async function createInvite(
   tripId: string,
   role: Exclude<TripRole, 'owner'> = 'editor',
+  pages: string[] = [],
 ): Promise<string> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
@@ -44,16 +47,42 @@ export async function createInvite(
     createdByUid: u.uid,
     expiresAt: null,
     revoked: false,
+    pages: role === 'viewer' ? pages : [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
     schemaVersion: SCHEMA_VERSION,
   });
   await setDoc(fbDoc(firestore, `tripInvites/${t}`), invite as object);
-  // If this is a viewer invite, flag the trip as publicly readable.
-  if (role === 'viewer') {
-    await updateDoc(fbDoc(firestore, `trips/${tripId}`), { hasPublicView: true, updatedAt: Date.now() });
-  }
+  // Viewer invites drive page-level public read — recompute the union.
+  if (role === 'viewer') await recomputePublicView(tripId);
   return t;
+}
+
+/**
+ * Recompute and write the trip's publicView config from all LIVE viewer
+ * invites. `collections` is the union of the page-derived sub-collection
+ * names across every live viewer link, so security rules can gate
+ * unauthenticated sub-collection reads by name. Always writes the whole
+ * publicView object (never a dotted merge) so collections from a revoked
+ * link drop out cleanly. Owner-only (rules require owner to write the trip).
+ */
+export async function recomputePublicView(tripId: string): Promise<void> {
+  const snap = await getDocs(
+    query(collection(firestore, 'tripInvites'),
+      where('tripId', '==', tripId),
+      where('role', '==', 'viewer'),
+      where('revoked', '==', false),
+    ),
+  );
+  const liveViewers = snap.docs.map((d) => d.data() as TripInvite);
+  const pages = [...new Set(liveViewers.flatMap((i) => i.pages ?? []))];
+  const collections = collectionsForPages(pages);
+  await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
+    publicView: { enabled: liveViewers.length > 0, collections },
+    // Clear the deprecated coarse flag as part of converting this trip.
+    hasPublicView: deleteField(),
+    updatedAt: Date.now(),
+  });
 }
 
 /** Read an invite by its token (used by the join screen). */
@@ -70,23 +99,9 @@ export async function revokeInvite(tok: string): Promise<void> {
   await setDoc(fbDoc(firestore, `tripInvites/${tok}`), {
     ...existing, revoked: true, updatedAt: Date.now(),
   } as object);
-  // If this was a viewer invite, check if any other live viewer invites remain.
-  // If none, clear the hasPublicView flag on the trip.
-  if (existing.role === 'viewer') {
-    const remaining = await getDocs(
-      query(collection(firestore, 'tripInvites'),
-        where('tripId', '==', existing.tripId),
-        where('role', '==', 'viewer'),
-        where('revoked', '==', false),
-      ),
-    );
-    if (remaining.empty) {
-      await updateDoc(fbDoc(firestore, `trips/${existing.tripId}`), {
-        hasPublicView: deleteField(),
-        updatedAt: Date.now(),
-      });
-    }
-  }
+  // Viewer invite revoked → recompute the public-read union (shrinks or
+  // disables publicView depending on what live viewer links remain).
+  if (existing.role === 'viewer') await recomputePublicView(existing.tripId);
 }
 
 /** All live invites for a trip (owner's share panel). */
@@ -94,17 +109,7 @@ export async function listInvites(tripId: string): Promise<TripInvite[]> {
   const snap = await getDocs(
     query(collection(firestore, 'tripInvites'), where('tripId', '==', tripId)),
   );
-  const invites = snap.docs.map((d) => d.data() as TripInvite).filter((i) => !i.revoked);
-  // Backfill: if live viewer invites exist but hasPublicView isn't set on the
-  // trip yet (e.g. invites created before this flag was introduced), write it now.
-  const hasViewer = invites.some((i) => i.role === 'viewer');
-  if (hasViewer) {
-    const trip = await getTrip(tripId);
-    if (trip && !(trip as { hasPublicView?: boolean }).hasPublicView) {
-      await updateDoc(fbDoc(firestore, `trips/${tripId}`), { hasPublicView: true, updatedAt: Date.now() });
-    }
-  }
-  return invites;
+  return snap.docs.map((d) => d.data() as TripInvite).filter((i) => !i.revoked);
 }
 
 /**

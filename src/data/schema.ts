@@ -129,8 +129,18 @@ export const TripSchema = doc({
   // On sign-in, if the user's email matches a key here they are auto-joined
   // as an editor and the key is removed.
   emailInvites: z.record(z.string(), z.literal('editor')).optional(),
-  // Set to true while at least one live viewer invite exists for this trip.
-  // Allows unauthenticated reads of the trip and its sub-collections.
+  // Page-level public read. `collections` is the union of Firestore
+  // sub-collection names exposed by every live viewer invite's pages,
+  // recomputed on each viewer-invite create/revoke. Security rules allow
+  // unauthenticated reads of the trip doc (when enabled) and of any
+  // sub-collection whose name is in `collections`.
+  publicView: z.object({
+    enabled: z.boolean().default(false),
+    collections: z.array(z.string()).default([]),
+  }).optional(),
+  // DEPRECATED — coarse all-or-nothing public read. Kept readable so the
+  // publicView migration can detect and convert legacy trips. Never written
+  // going forward (see migrate-publicview.ts).
   hasPublicView: z.boolean().optional(),
 });
 export type Trip = z.infer<typeof TripSchema>;
@@ -148,8 +158,28 @@ export const TripInviteSchema = doc({
   createdByUid: z.string(),
   expiresAt: z.number().nullable().default(null), // epoch ms; null = no expiry
   revoked: z.boolean().default(false),
+  // Viewer invites only: the page ids (ViewId) this link exposes. The client
+  // filters the nav to these pages; the trip's publicView.collections is the
+  // union of all live viewer invites' page-derived collections. Empty for
+  // editor invites; empty on a legacy viewer invite means "all pages".
+  pages: z.array(z.string()).default([]),
 });
 export type TripInvite = z.infer<typeof TripInviteSchema>;
+
+/* ── Trip access requests ────────────────────────────────────────────────────
+   One doc per pending edit-access request, at tripAccessRequests/{id}. A
+   signed-in non-member who opens an editor link submits a request; the trip
+   owner approves it in-app, which adds them to the trip's members. The
+   requester sees nothing about the trip until approved. */
+export const TripAccessRequestSchema = doc({
+  tripId: z.string(),
+  tripName: z.string().default(''),
+  requesterUid: z.string(),
+  requesterEmail: z.string().default(''),
+  requesterName: z.string().default(''),
+  status: z.enum(['pending', 'approved', 'denied']).default('pending'),
+});
+export type TripAccessRequest = z.infer<typeof TripAccessRequestSchema>;
 
 /* ── Prep (legacy — kept for migration) ──────────────────────────────────── */
 export const PrepTaskSchema = doc({

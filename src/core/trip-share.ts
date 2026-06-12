@@ -9,12 +9,25 @@
 import { openModal } from './modal.ts';
 import { escHtml as esc } from './utils.ts';
 import { currentUser } from '../firebase/auth.ts';
-import { getTrip, tripMembers, removeMember, switchTrip } from '../data/trip-context.ts';
+import { getTrip, tripMembers, removeMember } from '../data/trip-context.ts';
 import {
-  createInvite, listInvites, revokeInvite, acceptInvite, inviteUrl, getInvite,
+  createInvite, listInvites, revokeInvite, inviteUrl, getInvite,
   addEmailInvite, removeEmailInvite,
 } from '../data/trip-invites.ts';
+import {
+  listAccessRequests, approveAccessRequest, denyAccessRequest,
+} from '../data/access-requests.ts';
+import { shareablePages } from '../data/page-collections.ts';
 import type { Trip } from '../data/schema.ts';
+
+// Human labels for the shareable pages (mirror of the app shell's NAV_ITEMS,
+// kept local so this module doesn't pull in the nav's icon assets).
+const PAGE_LABELS: Record<string, string> = {
+  route: 'Itinerary', prep: 'Checklist', pack: 'Pack', budget: 'Compare',
+  cities: 'Guide', safety: 'Safety', expenses: 'Expenses', journal: 'Journal',
+  map: 'Map', nomad: 'Nomad',
+};
+function pageLabel(id: string): string { return PAGE_LABELS[id] ?? id; }
 
 /* ── Share modal (owner) ─────────────────────────────────────────────────── */
 
@@ -36,10 +49,11 @@ export async function openShareModal(tripId: string): Promise<void> {
 }
 
 async function renderShareBody(body: HTMLElement, tripId: string): Promise<void> {
-  const [trip, members, invites] = await Promise.all([
+  const [trip, members, invites, requests] = await Promise.all([
     getTrip(tripId),
     tripMembers(tripId),
     listInvites(tripId),
+    listAccessRequests(tripId).catch(() => []),
   ]);
   const me = currentUser()?.uid;
   const amOwner = !!(me && members.find((x) => x.uid === me)?.role === 'owner');
@@ -48,18 +62,34 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
 
   const viewerInvites = invites.filter((i) => i.role === 'viewer');
   const editorInvites = invites.filter((i) => i.role === 'editor');
+  const pages = shareablePages();
+
+  const pageChips = (ids: string[]) => ids.length
+    ? `<div class="share-link-pages">${ids.map((p) => `<span class="share-page-chip">${esc(pageLabel(p))}</span>`).join('')}</div>`
+    : `<div class="share-link-pages"><span class="share-page-chip">All pages</span></div>`;
 
   body.innerHTML = `
     <div class="share-section">
       <div class="share-section-title">View link — anyone with the link can view</div>
+      <p class="share-hint">Pick which pages this link can see.</p>
+      <div class="share-pages-grid" id="share-pages">
+        ${pages.map((p) => `
+          <label class="share-page-check">
+            <input type="checkbox" value="${esc(p)}" checked> ${esc(pageLabel(p))}
+          </label>
+        `).join('')}
+      </div>
       <button class="btn btn-primary share-gen-btn" id="share-gen-viewer">Create view link</button>
       <div id="share-viewer-links">
         ${viewerInvites.length ? viewerInvites.map((inv) => `
-          <div class="share-link-row" data-token="${esc(inv.id)}">
-            <span class="share-link-role">👁 View</span>
-            <input class="input share-link-input" readonly value="${esc(inviteUrl(inv.id))}">
-            <button class="btn btn-ghost pk-sm share-copy" data-token="${esc(inv.id)}">Copy</button>
-            <button class="btn btn-ghost pk-sm share-revoke" data-token="${esc(inv.id)}" title="Revoke">✕</button>
+          <div class="share-link-row share-link-row-stacked" data-token="${esc(inv.id)}">
+            <div class="share-link-top">
+              <span class="share-link-role">👁 View</span>
+              <input class="input share-link-input" readonly value="${esc(inviteUrl(inv.id))}">
+              <button class="btn btn-ghost pk-sm share-copy" data-token="${esc(inv.id)}">Copy</button>
+              <button class="btn btn-ghost pk-sm share-revoke" data-token="${esc(inv.id)}" title="Revoke">✕</button>
+            </div>
+            ${pageChips(inv.pages ?? [])}
           </div>
         `).join('') : '<p class="share-hint">No view link yet.</p>'}
       </div>
@@ -67,7 +97,7 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
 
     <div class="share-section">
       <div class="share-section-title">Edit access — invite by email</div>
-      <p class="share-hint">Enter the email address the person uses to sign in.</p>
+      <p class="share-hint">Enter the email the person uses to sign in with Google. They get edit access automatically on their next login.</p>
       <div class="share-email-row">
         <input class="input share-email-input" id="share-email-input" type="email" placeholder="email@example.com">
         <button class="btn btn-primary" id="share-email-add">Invite</button>
@@ -83,8 +113,25 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
       </div>
     </div>
 
+    ${amOwner ? `
     <div class="share-section">
-      <div class="share-section-title">Edit link — requires login (for reference)</div>
+      <div class="share-section-title">
+        Pending edit requests${requests.length ? ` <span class="share-badge">${requests.length}</span>` : ''}
+      </div>
+      <div id="share-requests">
+        ${requests.length ? requests.map((r) => `
+          <div class="share-request-row" data-req="${esc(r.id)}">
+            <span class="share-member-uid">${esc(r.requesterName || r.requesterEmail || shortUid(r.requesterUid))}</span>
+            <button class="btn btn-primary pk-sm share-approve" data-req="${esc(r.id)}">Approve</button>
+            <button class="btn btn-ghost pk-sm share-deny" data-req="${esc(r.id)}">Deny</button>
+          </div>
+        `).join('') : '<p class="share-hint">No pending requests.</p>'}
+      </div>
+    </div>` : ''}
+
+    <div class="share-section">
+      <div class="share-section-title">Edit link — requires login + your approval</div>
+      <p class="share-hint">Opening this link asks you to approve the person before they can edit.</p>
       <button class="btn btn-ghost share-gen-btn" id="share-gen-editor">Create edit link</button>
       <div id="share-editor-links">
         ${editorInvites.length ? editorInvites.map((inv) => `
@@ -114,10 +161,14 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
     </div>
   `;
 
-  // Generate viewer invite link
+  // Generate viewer invite link with the checked pages
   body.querySelector('#share-gen-viewer')?.addEventListener('click', async () => {
+    const checked = Array.from(
+      body.querySelectorAll<HTMLInputElement>('#share-pages input[type="checkbox"]:checked'),
+    ).map((c) => c.value);
+    if (!checked.length) { alert('Pick at least one page to share.'); return; }
     try {
-      await createInvite(tripId, 'viewer');
+      await createInvite(tripId, 'viewer', checked);
       await renderShareBody(body, tripId);
     } catch (e) { alert('Could not create view link. ' + String(e)); }
   });
@@ -149,6 +200,24 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
         await removeEmailInvite(tripId, btn.dataset.email!);
         await renderShareBody(body, tripId);
       } catch (e) { alert(String(e)); }
+    });
+  });
+
+  // Approve / deny access requests
+  body.querySelectorAll<HTMLElement>('.share-approve').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const req = requests.find((r) => r.id === btn.dataset.req);
+      if (!req) return;
+      try { await approveAccessRequest(req); await renderShareBody(body, tripId); }
+      catch (e) { alert('Could not approve. ' + String(e)); }
+    });
+  });
+  body.querySelectorAll<HTMLElement>('.share-deny').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const req = requests.find((r) => r.id === btn.dataset.req);
+      if (!req) return;
+      try { await denyAccessRequest(req); await renderShareBody(body, tripId); }
+      catch (e) { alert('Could not deny. ' + String(e)); }
     });
   });
 
@@ -186,7 +255,11 @@ function shortUid(uid: string): string {
 
 /* ── Join flow (collaborator) ────────────────────────────────────────────── */
 
-const PENDING_JOIN_KEY = 'otr_pending_join';
+// Editor links no longer auto-grant access. An editor link opening for a
+// signed-in non-member submits an access request that the owner approves
+// in-app. This key stashes the editor token across the Google sign-in
+// round-trip so the request can be created once the user is authenticated.
+const PENDING_ACCESS_KEY = 'otr_pending_access_request';
 
 /** Extract a join token from the current hash (does not clear it). */
 export function joinTokenFromHash(): string | null {
@@ -194,70 +267,38 @@ export function joinTokenFromHash(): string | null {
   return match ? match[1] : null;
 }
 
-/** Stash token so it survives a sign-in redirect / page reload. */
-export function savePendingJoin(token: string): void {
-  sessionStorage.setItem(PENDING_JOIN_KEY, token);
+/** Stash an editor token so it survives a sign-in redirect / page reload. */
+export function savePendingAccessRequest(token: string): void {
+  sessionStorage.setItem(PENDING_ACCESS_KEY, token);
 }
 
-/** Retrieve and clear the stashed token. */
-function consumeStoredJoin(): string | null {
-  const t = sessionStorage.getItem(PENDING_JOIN_KEY);
-  if (t) sessionStorage.removeItem(PENDING_JOIN_KEY);
+function consumeStoredAccessToken(): string | null {
+  const t = sessionStorage.getItem(PENDING_ACCESS_KEY);
+  if (t) sessionStorage.removeItem(PENDING_ACCESS_KEY);
   return t;
 }
 
-async function executeJoin(token: string): Promise<void> {
+/**
+ * Submit an edit-access request for an editor invite token. Returns true if a
+ * request was created (or already existed). The caller is responsible for
+ * showing the "request sent" UI. No-ops to false if the user is already a
+ * member (caller should boot normally instead).
+ */
+export async function submitAccessRequest(token: string): Promise<boolean> {
   const invite = await getInvite(token);
-  if (!invite || invite.revoked) {
-    alert('This invite link is no longer valid.');
-    return;
-  }
-
-  const ok = confirm(`Join "${invite.tripName}" as ${invite.role}?`);
-  if (!ok) return;
-
-  try {
-    const tripId = await acceptInvite(token);
-    if (tripId) {
-      await switchTrip(tripId);
-      location.reload();
-    }
-  } catch (e) {
-    alert('Could not join the trip. ' + String(e));
-  }
+  if (!invite || invite.revoked || invite.role !== 'editor') return false;
+  const { createAccessRequest } = await import('../data/access-requests.ts');
+  const id = await createAccessRequest(invite.tripId);
+  return id !== null;
 }
 
 /**
- * If the URL is #/join/{token}, show a confirm dialog and accept the invite.
- * Call on boot after auth is ready. Returns true if it handled a join.
- * When the user isn't signed in, saves the token to sessionStorage so it
- * survives the sign-in flow and can be consumed by consumePendingJoin().
+ * After a successful Google sign-in, if an editor token was stashed, create the
+ * access request now. Returns true if a request was created. Call once the
+ * authenticated shell has booted.
  */
-export async function openJoinFromHash(): Promise<boolean> {
-  const token = joinTokenFromHash();
-  if (!token) return false;
-
-  // Clear the join hash so a refresh doesn't re-trigger.
-  history.replaceState(null, '', window.location.pathname + window.location.search);
-
-  if (!currentUser()) {
-    // Stash token — will be picked up after sign-in by consumePendingJoin().
-    savePendingJoin(token);
-    return true;
-  }
-
-  await executeJoin(token);
-  return true;
-}
-
-/**
- * After a successful sign-in, check if there is a stashed join token and
- * process it. Call once the authenticated shell has fully booted.
- * Returns true if it handled a pending join.
- */
-export async function consumePendingJoin(): Promise<boolean> {
-  const token = consumeStoredJoin();
+export async function consumePendingAccessRequest(): Promise<boolean> {
+  const token = consumeStoredAccessToken();
   if (!token || !currentUser()) return false;
-  await executeJoin(token);
-  return true;
+  return submitAccessRequest(token);
 }

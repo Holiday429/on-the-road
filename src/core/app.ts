@@ -88,6 +88,36 @@ export function firstAllowedView(): ViewId {
 let tripList: StoredTrip[] = [];
 let tripMenuOpen = false;
 
+// Owner-only live subscription to pending edit-access requests for the current
+// trip. Drives the badge on the trip pill. Torn down + re-created on trip switch.
+let _reqUnsub: (() => void) | null = null;
+let _pendingRequestCount = 0;
+
+function updateRequestBadge(count: number) {
+  _pendingRequestCount = count;
+  const badge = document.getElementById('trip-pill-reqbadge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = `${count} request${count > 1 ? 's' : ''}`;
+    badge.removeAttribute('hidden');
+  } else {
+    badge.setAttribute('hidden', '');
+  }
+}
+
+/** (Re)subscribe to pending access requests for the current trip, owner-only. */
+function refreshRequestSubscription() {
+  if (_reqUnsub) { _reqUnsub(); _reqUnsub = null; }
+  updateRequestBadge(0);
+  if (currentRole() !== 'owner') return;
+  const tripId = currentTripId();
+  import('../data/access-requests.ts').then(({ subscribeAccessRequests }) => {
+    // Trip may have switched again while the import resolved.
+    if (currentTripId() !== tripId || currentRole() !== 'owner') return;
+    _reqUnsub = subscribeAccessRequests(tripId, (rows) => updateRequestBadge(rows.length));
+  }).catch(() => {});
+}
+
 // ── Trip popover (floating panel rendered into <body>) ────────────────────────
 function openTripPopover() {
   closeTripPopover();
@@ -447,6 +477,12 @@ function buildTripPill(): string {
     ? `<div class="trip-pill-role trip-pill-role--editor">✎ Shared with you</div>`
     : '';
 
+  // Owner-only: a pending-edit-request indicator. Count is filled live by the
+  // access-request subscription (updateRequestBadge); hidden when zero.
+  const reqBadge = role === 'owner'
+    ? `<button class="trip-pill-reqbadge" id="trip-pill-reqbadge" hidden title="Pending edit requests">0 requests</button>`
+    : '';
+
   return `
     <div class="trip-pill${tripMenuOpen ? ' is-open' : ''}" id="trip-pill" role="button" tabindex="0" aria-haspopup="true" aria-expanded="${tripMenuOpen}">
       <div class="trip-pill-label">Current Trip <span class="trip-pill-caret">▾</span></div>
@@ -454,6 +490,7 @@ function buildTripPill(): string {
       <div class="trip-pill-date ${compactClass}">${compactBadge}</div>
       <div class="trip-pill-days">${daysText}</div>
       ${roleBadge}
+      ${reqBadge}
     </div>
   `;
 }
@@ -478,6 +515,15 @@ function buildSidebar() {
 
   if (sessionState.user) {
     wireTripSwitcher(sidebar);
+    // Re-apply the current request count (the pill was just rebuilt) and wire
+    // the badge to open the Share modal (stopping the pill's own click).
+    updateRequestBadge(_pendingRequestCount);
+    const reqBadge = sidebar.querySelector<HTMLElement>('#trip-pill-reqbadge');
+    reqBadge?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = currentTripId();
+      import('./trip-share.ts').then(({ openShareModal }) => openShareModal(id));
+    });
   }
 }
 
@@ -1119,6 +1165,8 @@ export function applyRoleState() {
   const role = currentRole();
   const root = document.getElementById('app');
   if (root) root.dataset.role = role ?? '';
+  // Owners get a live pending-request badge; (re)subscribe for the active trip.
+  refreshRequestSubscription();
 }
 
 export function initApp() {

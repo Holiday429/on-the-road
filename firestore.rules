@@ -45,12 +45,11 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/tripInvites/$(token)).data;
     }
 
-    // True when a specific invite token grants live viewer access to a trip.
-    function isLiveViewerToken(token, tripId) {
-      return exists(/databases/$(database)/documents/tripInvites/$(token))
-        && inviteFor(token).tripId == tripId
-        && inviteFor(token).role == 'viewer'
-        && inviteFor(token).revoked == false;
+    // True if the caller is the owner of a given trip.
+    function isTripOwner(tripId) {
+      return signedIn()
+        && tripExists(tripId)
+        && tripData(tripId).members[uid()] == 'owner';
     }
 
     // A member (not the owner) removing ONLY themselves from the trip.
@@ -116,16 +115,12 @@ service cloud.firestore {
 
     /* ── Trips ────────────────────────────────────────────────────────── */
     match /trips/{tripId} {
-      // Single-doc reads: members may read; also allow unauthenticated reads
-      // when a live viewer invite token is passed as a query param (via the
-      // client passing viewerToken in the request context — we can't read
-      // query params in rules, so instead we allow unauthenticated get on
-      // viewer-invite trips by checking via a known invite token field).
-      // Simpler approach: allow unauthenticated get always for non-existent
-      // docs (existence probing is safe), or when caller is signed in.
-      // For viewer public access we gate at the sub-collection level instead.
+      // Single-doc reads: non-existent (probing is safe), members, or a trip
+      // with public view enabled. Dual-read during migration: accept either the
+      // new publicView.enabled or the legacy hasPublicView flag.
       allow get: if resource == null
         || (signedIn() && uid() in resource.data.memberUids)
+        || (resource.data.publicView != null && resource.data.publicView.enabled == true)
         || resource.data.hasPublicView == true;
 
       // Queries: only the canonical "my trips" query is provable.
@@ -154,9 +149,15 @@ service cloud.firestore {
 
       allow delete: if selfIsOwner();
 
-      // Sub-collections: read for members or when trip has public viewer access.
+      // Sub-collections: read for members, or when public view is enabled AND
+      // this sub-collection's name is in the published allow-list. Dual-read:
+      // also honour the legacy coarse hasPublicView flag during migration.
       match /{sub}/{docId} {
-        allow read: if subIsMember(tripId) || tripData(tripId).hasPublicView == true;
+        allow read: if subIsMember(tripId)
+          || (tripData(tripId).publicView != null
+              && tripData(tripId).publicView.enabled == true
+              && (sub in tripData(tripId).publicView.collections))
+          || tripData(tripId).hasPublicView == true;
         allow write: if subCanEdit(tripId);
       }
     }
@@ -174,6 +175,32 @@ service cloud.firestore {
       allow update, delete: if signedIn()
         && tripExists(resource.data.tripId)
         && tripData(resource.data.tripId).members[uid()] == 'owner';
+    }
+
+    /* ── Trip access requests (edit-access approval flow) ─────────────────── */
+    match /tripAccessRequests/{reqId} {
+      // A signed-in user creates their OWN pending request for an existing trip.
+      allow create: if signedIn()
+        && request.resource.data.requesterUid == uid()
+        && request.resource.data.status == 'pending'
+        && tripExists(request.resource.data.tripId);
+
+      // Read/list: the requester (their own) OR the trip owner. The owner-check
+      // reads the trip doc (no owner field on the request), so owner-side
+      // queries MUST be scoped by tripId for every matched doc to prove out.
+      allow get, list: if signedIn()
+        && (resource.data.requesterUid == uid()
+            || isTripOwner(resource.data.tripId));
+
+      // Update: only the trip owner, only flipping status (+ updatedAt). The
+      // member is added on the trip doc via the owner's full update rights.
+      allow update: if signedIn()
+        && isTripOwner(resource.data.tripId)
+        && request.resource.data.requesterUid == resource.data.requesterUid
+        && request.resource.data.tripId == resource.data.tripId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if signedIn() && isTripOwner(resource.data.tripId);
     }
 
     // Deny everything else by default.

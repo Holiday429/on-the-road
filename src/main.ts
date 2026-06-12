@@ -5,7 +5,7 @@
 import './core/base.css';
 import './core/app.css';
 
-import { initApp, registerView, renderSession, openOnboarding, navigateTo, type ViewId } from './core/app.ts';
+import { initApp, registerView, renderSession, openOnboarding, navigateTo, setAllowedViews, firstAllowedView, type ViewId } from './core/app.ts';
 import { onAuth, authReady, currentUser, signInWithGoogle, consumeRedirectResult, type User } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites } from './data/trip-context.ts';
@@ -14,6 +14,7 @@ import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
 import { migrateCollab } from './data/migrate-collab.ts';
+import { migratePublicView } from './data/migrate-publicview.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
 import { initDashboard } from './views/today/dashboard.ts';
 import { initCalendar } from './views/calendar/calendar.ts';
@@ -93,12 +94,6 @@ async function resolveInviteLink(): Promise<void> {
   if (!INVITE_TOKEN) return;
   const tok = INVITE_TOKEN;
 
-  // Always stash the token first. If anything below fails, the token survives
-  // the Google sign-in round-trip and consumePendingJoin() picks it up after
-  // the user signs in — so we never strand an invited user on a bare page.
-  const { savePendingJoin } = await import('./core/trip-share.ts');
-  savePendingJoin(tok);
-
   try {
     // Wait for the Firebase auth state to settle before any Firestore read.
     await authReady();
@@ -131,10 +126,14 @@ async function resolveInviteLink(): Promise<void> {
 
     if (inv.role === 'viewer') {
       // Viewer: read the trip publicly (no login, no membership write). The trip
-      // doc and its sub-collections are readable when hasPublicView is set, which
-      // every viewer invite guarantees. switchTrip() loads it into context.
+      // doc and its sub-collections are readable when publicView.enabled is set,
+      // which every viewer invite guarantees. switchTrip() loads it into context.
       const { switchTrip } = await import('./data/trip-context.ts');
       await switchTrip(inv.tripId);
+
+      // Restrict the nav to the pages this specific link exposes. An empty
+      // pages list (legacy viewer invite) means "all pages" → null restriction.
+      setAllowedViews(inv.pages?.length ? (inv.pages as ViewId[]) : null);
 
       _viewerMode = true;
       _viewerTripId = inv.tripId;
@@ -147,26 +146,59 @@ async function resolveInviteLink(): Promise<void> {
         enterApp();
       }
     } else {
-      // Editor: personalise the landing card; the user must sign in with Google
-      // to accept (the anonymous session can't claim editor rights). The stashed
-      // token is consumed by consumePendingJoin() after real sign-in.
+      // Editor link: never auto-grants. Requires login + owner approval.
+      const { savePendingAccessRequest, submitAccessRequest } = await import('./core/trip-share.ts');
       invitePending = false;
       clearInviteHash();
-      if (authCard) {
-        const titleEl = authCard.querySelector('.auth-card-title');
-        const textEl = authCard.querySelector('.auth-card-text');
-        if (titleEl) titleEl.textContent = `You're invited to edit "${inv.tripName}"`;
-        if (textEl) textEl.textContent = 'Sign in with Google to accept the edit invite and collaborate on this trip.';
+
+      if (currentUser()) {
+        // Signed-in non-member (the member short-circuit above already returned
+        // for existing members): submit an access request and show confirmation.
+        const created = await submitAccessRequest(tok);
+        showRequestSentCard(inv.tripName, created);
+      } else {
+        // Not signed in: stash the token so the request is created right after
+        // Google sign-in (consumePendingAccessRequest), and prompt to sign in.
+        savePendingAccessRequest(tok);
+        if (authCard) {
+          const titleEl = authCard.querySelector('.auth-card-title');
+          const textEl = authCard.querySelector('.auth-card-text');
+          if (titleEl) titleEl.textContent = `You've been invited to edit "${inv.tripName}"`;
+          if (textEl) textEl.textContent = 'Sign in with Google to request edit access. The owner will approve your request.';
+        }
       }
       if (!appEntered) showLandingState();
     }
   } catch (e) {
     console.warn('Invite link resolution failed:', e);
-    // Token is already stashed; keep the hash so a refresh can retry and stop
-    // blocking the UI so the user can at least sign in.
     invitePending = false;
     if (!appEntered) showLandingState();
   }
+}
+
+/** Transient toast confirming an edit-access request was submitted. */
+function showAccessRequestToast(): void {
+  const el = document.createElement('div');
+  el.textContent = '✓ Edit access requested — the owner will approve it.';
+  el.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;padding:.6rem 1.25rem;border-radius:9999px;font-size:.875rem;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.2)';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
+/** Replace the landing card with a "request sent" confirmation (reveals
+ *  nothing about the trip beyond its name). */
+function showRequestSentCard(tripName: string, created: boolean): void {
+  if (!authCard) return;
+  const titleEl = authCard.querySelector('.auth-card-title');
+  const textEl = authCard.querySelector('.auth-card-text');
+  if (titleEl) titleEl.textContent = created ? 'Request sent' : 'Already requested';
+  if (textEl) {
+    textEl.textContent = created
+      ? `Your request to edit "${tripName}" was sent. You'll get access once the owner approves it.`
+      : `You've already requested access to "${tripName}". Hang tight for the owner to approve.`;
+  }
+  // Hide the Enter/sign-in button — nothing to do until approval.
+  authButton?.setAttribute('hidden', '');
 }
 
 let shellBooted = false;
@@ -176,6 +208,9 @@ let bootPromise: Promise<void> | null = null;
 let appPrepared = false;
 let preparedUserId: string | null = null;
 let guestShellReady = false;
+// Set when a pending editor-link access request was just submitted on sign-in;
+// a confirmation toast is shown once the shell is up.
+let accessRequestToastPending = false;
 
 const AUTH_ENTRY_TIMEOUT_MS = 1500;
 
@@ -271,7 +306,7 @@ async function bootViewerShell() {
   prepareAppFrame();
   bootShellOnce();
   renderSession(null, handleSidebarAuth);
-  navigateTo('route'); // sensible default for viewing a shared trip
+  navigateTo(firstAllowedView()); // land on the first page this link exposes
   await nextFrame();
   guestShellReady = true;
 }
@@ -320,6 +355,14 @@ async function bootAuthenticatedShell(user: User) {
       if (r.trips > 0 || r.docs > 0) console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs copied to trips/**.`);
     } catch (e) { console.warn('Collab migration skipped:', e); }
 
+    // Convert owned trips from the coarse hasPublicView flag to page-level
+    // publicView. Owner-only; other members' trips migrate when their owner
+    // logs in (dual-read rules keep legacy share links working meanwhile).
+    try {
+      const n = await migratePublicView();
+      if (n > 0) console.info(`Converted ${n} trip(s) to page-level public view.`);
+    } catch (e) { console.warn('publicView migration skipped:', e); }
+
     // These now target trips/** (via the repathed stores). They early-return
     // for accounts already migrated; run after collab so the trip docs exist.
     try {
@@ -337,18 +380,16 @@ async function bootAuthenticatedShell(user: User) {
       if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
     } catch (e) { console.warn('Stay→compare migration skipped:', e); }
 
-    // Handle an invite link. The landing IIFE already stashed any #/join/{token}
-    // into sessionStorage. openJoinFromHash() handles the case where the user
-    // was already signed in at page load (hash still present); consumePendingJoin()
-    // handles the case where they signed in after the token was stashed.
-    // Both reload on success, so the rest of this boot is moot if they return true.
+    // If an editor link was opened before this sign-in, create the access
+    // request now (the owner must approve before the requester gets in). This
+    // does NOT grant access — it just records the request, then continues the
+    // normal boot (the user sees their own trips, plus a confirmation toast).
+    // Viewer links are handled entirely in resolveInviteLink() (public read).
     try {
-      const { openJoinFromHash, consumePendingJoin } = await import('./core/trip-share.ts');
-      const joinedFromHash = await openJoinFromHash();
-      if (joinedFromHash) return;
-      const joinedFromStorage = await consumePendingJoin();
-      if (joinedFromStorage) return;
-    } catch (e) { console.warn('Join-from-link skipped:', e); }
+      const { consumePendingAccessRequest } = await import('./core/trip-share.ts');
+      const requested = await consumePendingAccessRequest();
+      if (requested) accessRequestToastPending = true;
+    } catch (e) { console.warn('Access-request handling skipped:', e); }
 
     try {
       const trip = await ensureDefaultTrip();
@@ -374,6 +415,11 @@ async function bootAuthenticatedShell(user: User) {
 
     if (needsOnboarding) {
       openOnboarding();
+    }
+
+    if (accessRequestToastPending) {
+      accessRequestToastPending = false;
+      showAccessRequestToast();
     }
 
     await nextFrame();
@@ -459,6 +505,7 @@ onAuth(async ({ user, ready }) => {
         _viewerMode = false;
         _viewerTripId = null;
         appRoot?.removeAttribute('data-viewer');
+        setAllowedViews(null); // restore full nav for the now-authenticated member
       }
       await bootAuthenticatedShell(user);
     } else {
