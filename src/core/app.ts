@@ -875,8 +875,9 @@ function openDeleteTripModal(trip: StoredTrip) {
     className: 'trip-edit-modal',
     body: `
       <p style="font-size:var(--fs-sm);color:var(--ink-muted);margin:0">
-        Delete <strong>${escapeHtml(trip.name)}</strong>? The trip record will be removed.
-        Your itinerary legs, journal entries, and other data are kept.
+        Delete <strong>${escapeHtml(trip.name)}</strong>? This permanently removes the
+        trip and <strong>all of its data</strong> — itinerary, expenses, packing,
+        journal, and everything else. This can't be undone.
       </p>
       <div class="trip-modal-error" id="dt-error"></div>`,
     footer: `

@@ -65,9 +65,20 @@ function sortedLegs(): StoredLeg[] {
 function tripPhase(): Phase {
   const trip = currentTrip();
   const today = todayIso();
-  const legs = sortedLegs();
-  const start = trip?.startDate ?? legs[0]?.dateFrom;
-  const end   = trip?.endDate   ?? legs[legs.length - 1]?.dateTo;
+  // The trip's own start/end are the single source of truth for the phase —
+  // legs only fill in when there's no trip loaded yet (guest/boot). Mixing the
+  // two (trip start + leg end) produced before/during/after disagreeing with
+  // the itinerary when a user moved trip dates without re-touching the legs.
+  let start: string | undefined;
+  let end: string | undefined;
+  if (trip) {
+    start = trip.startDate;
+    end = trip.endDate;
+  } else {
+    const legs = sortedLegs();
+    start = legs[0]?.dateFrom;
+    end = legs[legs.length - 1]?.dateTo;
+  }
   if (!start) return 'before';
   if (today < start) return 'before';
   if (end && today > end) return 'after';

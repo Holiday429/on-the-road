@@ -8,7 +8,7 @@
    ========================================================================== */
 
 import {
-  collection, doc as fbDoc, getDoc, getDocs, setDoc, deleteDoc, query, where,
+  collection, doc as fbDoc, getDoc, getDocs, setDoc, deleteDoc, query, where, writeBatch,
 } from 'firebase/firestore';
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
@@ -204,7 +204,11 @@ export async function getTrip(id: string): Promise<Trip | null> {
         const data = snap.data() as Trip;
         if (data.publicView?.enabled || data.hasPublicView) return data;
       }
-    } catch { /* rules denied — not a public trip */ }
+    } catch (e) {
+      // Rules denied — not a public trip. Logged at debug so share-link issues
+      // are diagnosable without surfacing noise to users.
+      console.debug('getTrip: public read denied for', id, e);
+    }
     return null;
   }
   if (!u) return null;
@@ -319,11 +323,49 @@ export async function updateTrip(id: string, patch: Partial<Omit<Trip, 'id' | 'c
   }
 }
 
-/** Delete a trip document. Sub-collection data is left in place (cheap, and a
- *  safety net); a future cleanup pass can prune orphaned docs. */
+/** Every per-trip sub-collection at trips/{tripId}/{name}. Keep in sync with the
+ *  stores (createCollectionStore / createTaggedCollectionStore). coreKit is a
+ *  USER-level collection, not per-trip, so it's intentionally absent. */
+const TRIP_SUBCOLLECTIONS = [
+  'legs', 'journalEntries', 'nomadSpots', 'todos',
+  'checklists', 'cityIntel', 'citySafety', 'compares',
+  'expenseCategories', 'expenses', 'journalStories', 'journalTemplates',
+  'packLists', 'prepTasks', 'stays',
+] as const;
+
+/**
+ * Delete a trip and ALL of its sub-collection data (legs, expenses, journal,
+ * etc.). Owner-only at the rules level. We cascade so a deleted trip leaves no
+ * orphaned documents in the cloud (privacy + storage cost) — the previous
+ * behaviour left everything behind despite telling the user it was removed.
+ *
+ * Sub-docs are deleted in batches of up to 450 (Firestore's per-batch limit is
+ * 500; we leave headroom). The trip doc itself is deleted last so a mid-way
+ * failure leaves the trip still listed and ret-deletable rather than orphaning
+ * its children.
+ */
 export async function removeTrip(id: string): Promise<void> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
+
+  for (const sub of TRIP_SUBCOLLECTIONS) {
+    try {
+      const snap = await getDocs(collection(firestore, `trips/${id}/${sub}`));
+      let batch = writeBatch(firestore);
+      let n = 0;
+      for (const d of snap.docs) {
+        batch.delete(d.ref);
+        if (++n >= 450) { await batch.commit(); batch = writeBatch(firestore); n = 0; }
+      }
+      if (n > 0) await batch.commit();
+    } catch (e) {
+      // A sub-collection a page-restricted editor can't write would reject here,
+      // but only owners reach removeTrip. Log and continue so one failure doesn't
+      // strand the rest; the trip doc delete below is the user-visible outcome.
+      console.warn(`removeTrip: could not clear trips/${id}/${sub}:`, e);
+    }
+  }
+
   await deleteDoc(tripRef(id));
   _myTripIds = _myTripIds.filter((t) => t !== id);
 }

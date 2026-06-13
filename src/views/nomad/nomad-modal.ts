@@ -4,8 +4,15 @@
 
 import type { NomadRatings, NomadSpot } from './nomad-types.ts';
 import { RATING_DIMS, composite, scoreClass } from './nomad-types.ts';
+import { apiUrl } from '../../core/api.ts';
 
-/* ── Google Places helpers ───────────────────────────────────────────────── */
+/* ── Google Places helpers ───────────────────────────────────────────────────
+   Autocomplete / details / photo go through /api/places so the billable Places
+   key stays server-side (a client key is scraped and abused). The interactive
+   map embed (maps/embed/v1) has no proxy path — Google requires a key in the
+   iframe URL — so it uses a separate, HTTP-referrer-locked embed key that is
+   safe to expose (VITE_MAPS_EMBED_KEY). When neither is set we fall back to the
+   keyless maps.google.com/maps?...&output=embed iframe. */
 
 interface PlaceCandidate {
   description: string;
@@ -17,63 +24,50 @@ interface PlaceCandidate {
 let placesDebounce: ReturnType<typeof setTimeout> | null = null;
 let placesSession: string = String(Date.now());
 
+const EMBED_KEY = (import.meta as any).env?.VITE_MAPS_EMBED_KEY as string | undefined;
+
 async function fetchPlaceSuggestions(query: string): Promise<PlaceCandidate[]> {
   if (query.length < 3) return [];
-  const key = (window as any).__GOOGLE_PLACES_KEY as string | undefined;
-  if (!key) return [];
-
-  const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&types=establishment&key=${key}&sessiontoken=${placesSession}`;
+  const url = apiUrl(`/api/places?op=autocomplete&q=${encodeURIComponent(query)}&session=${placesSession}`);
   try {
     const res = await fetch(url);
+    if (!res.ok) return [];
     const data = await res.json();
-    return (data.predictions ?? []).slice(0, 5).map((p: any) => ({
-      description: p.description,
-      mainText: p.structured_formatting?.main_text ?? p.description,
-      secondaryText: p.structured_formatting?.secondary_text ?? '',
-      placeId: p.place_id,
-    }));
+    return (data.predictions ?? []) as PlaceCandidate[];
   } catch {
     return [];
   }
 }
 
 async function fetchPlaceDetail(placeId: string): Promise<{ address: string; mapsUrl: string; lat: number; lng: number; photoRef?: string } | null> {
-  const key = (window as any).__GOOGLE_PLACES_KEY as string | undefined;
-  if (!key) return null;
-
-  const fields = 'formatted_address,geometry,url,photos';
-  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=${fields}&key=${key}&sessiontoken=${placesSession}`;
+  const url = apiUrl(`/api/places?op=details&placeId=${encodeURIComponent(placeId)}&session=${placesSession}`);
   try {
     const res = await fetch(url);
+    if (!res.ok) return null;
     const data = await res.json();
-    const r = data.result;
-    if (!r) return null;
-    placesSession = String(Date.now());
-    return {
-      address: r.formatted_address ?? '',
-      mapsUrl: r.url ?? `https://maps.google.com/?place_id=${placeId}`,
-      lat: r.geometry?.location?.lat ?? 0,
-      lng: r.geometry?.location?.lng ?? 0,
-      photoRef: r.photos?.[0]?.photo_reference,
-    };
+    if (!data.result) return null;
+    placesSession = String(Date.now()); // new session token after a billable detail fetch
+    return data.result;
   } catch {
     return null;
   }
 }
 
 function buildPlacePhotoUrl(photoRef: string): string {
-  const key = (window as any).__GOOGLE_PLACES_KEY as string | undefined;
-  if (!key) return '';
-  return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${key}`;
+  if (!photoRef) return '';
+  return apiUrl(`/api/places?op=photo&ref=${encodeURIComponent(photoRef)}`);
 }
 
 function buildMapsEmbedUrl(spot: NomadSpot): string {
-  const key = (window as any).__GOOGLE_PLACES_KEY as string | undefined;
-  if (key && spot.placeId) {
-    return `https://www.google.com/maps/embed/v1/place?key=${key}&q=place_id:${spot.placeId}`;
+  if (EMBED_KEY && spot.placeId) {
+    return `https://www.google.com/maps/embed/v1/place?key=${EMBED_KEY}&q=place_id:${spot.placeId}`;
   }
   const q = encodeURIComponent(spot.address || `${spot.name} ${spot.city}`);
-  return `https://www.google.com/maps/embed/v1/place?key=${key || ''}&q=${q}`;
+  if (EMBED_KEY) {
+    return `https://www.google.com/maps/embed/v1/place?key=${EMBED_KEY}&q=${q}`;
+  }
+  // No embed key configured — keyless fallback iframe.
+  return `https://maps.google.com/maps?q=${q}&output=embed`;
 }
 
 /* ── Add spot modal ──────────────────────────────────────────────────────── */
@@ -410,10 +404,8 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
 
   document.body.appendChild(backdrop);
 
-  if (!(window as any).__GOOGLE_PLACES_KEY) {
-    const iframe = backdrop.querySelector<HTMLIFrameElement>('.nomad-map-iframe')!;
-    iframe.src = `https://maps.google.com/maps?q=${encodeURIComponent(spot.address || spot.name + ' ' + spot.city)}&output=embed`;
-  }
+  // embedUrl (buildMapsEmbedUrl) already falls back to the keyless iframe when
+  // no embed key is configured, so no post-mount src override is needed.
 
   function closeModal() { backdrop.remove(); onClose(); }
 

@@ -9,7 +9,8 @@
     "api/story.ts":           { "maxDuration": 30 },
     "api/check.ts":           { "maxDuration": 30 },
     "api/create-checkout.ts": { "maxDuration": 15 },
-    "api/billing-webhook.ts": { "maxDuration": 15 }
+    "api/billing-webhook.ts": { "maxDuration": 15 },
+    "api/places.ts":          { "maxDuration": 10 }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
