@@ -66,19 +66,22 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
   const pages = shareablePages();
 
   const pageChips = (ids: string[]) => ids.length
-    ? `<div class="share-link-pages">${ids.map((p) => `<span class="share-page-chip">${esc(pageLabel(p))}</span>`).join('')}</div>`
-    : `<div class="share-link-pages"><span class="share-page-chip">All pages</span></div>`;
+    ? ids.map((p) => `<span class="share-page-chip">${esc(pageLabel(p))}</span>`).join('')
+    : `<span class="share-page-chip">All pages</span>`;
 
-  // A reusable page-checkbox grid (all checked by default = full access).
+  // A reusable page-checkbox grid. Default UNCHECKED — the owner picks what to
+  // share. The selected boxes themselves show the choice, so we don't repeat
+  // the page list under each generated link.
   const pagePicker = (gridId: string) => `
     <div class="share-pages-grid" id="${gridId}">
       ${pages.map((p) => `
         <label class="share-page-check">
-          <input type="checkbox" value="${esc(p)}" checked> ${esc(pageLabel(p))}
+          <input type="checkbox" value="${esc(p)}"> ${esc(pageLabel(p))}
         </label>
       `).join('')}
     </div>`;
 
+  // A generated link row: url + copy/revoke, with a compact page summary.
   const linkRow = (inv: { id: string; pages?: string[] }, icon: string) => `
     <div class="share-link-row share-link-row-stacked" data-token="${esc(inv.id)}">
       <div class="share-link-top">
@@ -87,66 +90,56 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
         <button class="btn btn-ghost pk-sm share-copy" data-token="${esc(inv.id)}">Copy</button>
         <button class="btn btn-ghost pk-sm share-revoke" data-token="${esc(inv.id)}" title="Revoke">✕</button>
       </div>
-      ${pageChips(inv.pages ?? [])}
+      <div class="share-link-pages">${pageChips(inv.pages ?? [])}</div>
     </div>`;
 
   body.innerHTML = `
    <div class="share-grid">
     <div class="share-col">
       <div class="share-section">
-        <div class="share-section-title">👁 View link — anyone with the link can view</div>
+        <div class="share-section-title">👁 View — anyone with the link can view</div>
         <p class="share-hint">Pick which pages this link can see.</p>
         ${pagePicker('share-pages-view')}
         <button class="btn btn-primary share-gen-btn" id="share-gen-viewer">Create view link</button>
-        <div id="share-viewer-links">
-          ${viewerInvites.length ? viewerInvites.map((inv) => linkRow(inv, '👁 View')).join('') : '<p class="share-hint">No view link yet.</p>'}
-        </div>
-      </div>
-
-      <div class="share-section">
-        <div class="share-section-title">✉ Edit access — invite by email</div>
-        <p class="share-hint">Enter the Google email the person signs in with. They get edit access on their next login. Choose which pages they can edit.</p>
-        <div class="share-email-row">
-          <input class="input share-email-input" id="share-email-input" type="email" placeholder="email@example.com">
-          <button class="btn btn-primary" id="share-email-add">Invite</button>
-        </div>
-        ${pagePicker('share-pages-email')}
-        <div id="share-email-list">
-          ${pendingEmails.length ? pendingEmails.map((email) => `
-            <div class="share-member-row">
-              <span class="share-member-uid">${esc(email)}</span>
-              <span class="share-member-role share-role-editor">editor (pending)</span>
-              ${amOwner ? `<button class="btn btn-ghost pk-sm share-remove-email" data-email="${esc(email)}" title="Remove">Remove</button>` : ''}
-            </div>
-          `).join('') : ''}
-        </div>
+        ${viewerInvites.length ? `<div id="share-viewer-links">${viewerInvites.map((inv) => linkRow(inv, '👁 View')).join('')}</div>` : ''}
       </div>
     </div>
 
     <div class="share-col">
       <div class="share-section">
-        <div class="share-section-title">✎ Edit link — requires login + your approval</div>
-        <p class="share-hint">Opening this link asks you to approve the person. Pick which pages they can edit once approved.</p>
-        ${pagePicker('share-pages-editlink')}
-        <button class="btn btn-ghost share-gen-btn" id="share-gen-editor">Create edit link</button>
-        <div id="share-editor-links">
-          ${editorInvites.length ? editorInvites.map((inv) => linkRow(inv, '✎ Edit')).join('') : '<p class="share-hint">No edit link yet.</p>'}
+        <div class="share-section-title">✎ Edit — requires login</div>
+        <p class="share-hint">Pick which pages they can edit, then create a link (needs your approval) or invite by Google email (auto-granted on login).</p>
+        ${pagePicker('share-pages-edit')}
+
+        <div class="share-edit-actions">
+          <button class="btn btn-ghost share-gen-btn" id="share-gen-editor">Create edit link</button>
+          <div class="share-email-row">
+            <input class="input share-email-input" id="share-email-input" type="email" placeholder="email@example.com">
+            <button class="btn btn-primary" id="share-email-add">Invite</button>
+          </div>
         </div>
+
+        ${editorInvites.length ? `<div id="share-editor-links">${editorInvites.map((inv) => linkRow(inv, '✎ Edit')).join('')}</div>` : ''}
+        ${pendingEmails.length ? `<div id="share-email-list">${pendingEmails.map((email) => `
+          <div class="share-member-row">
+            <span class="share-member-uid">${esc(email)}</span>
+            <span class="share-member-role share-role-editor">editor (pending)</span>
+            ${amOwner ? `<button class="btn btn-ghost pk-sm share-remove-email" data-email="${esc(email)}" title="Remove">Remove</button>` : ''}
+          </div>
+        `).join('')}</div>` : ''}
       </div>
 
-      ${amOwner ? `
+      ${amOwner && requests.length ? `
       <div class="share-section">
-        <div class="share-section-title">
-          Pending edit requests${requests.length ? ` <span class="share-badge">${requests.length}</span>` : ''}
-        </div>
+        <div class="share-section-title">Pending edit requests <span class="share-badge">${requests.length}</span></div>
         <div id="share-requests">
-          ${requests.length ? requests.map((r) => `
+          ${requests.map((r) => `
             <div class="share-request-row" data-req="${esc(r.id)}">
               <span class="share-member-uid">${esc(r.requesterName || r.requesterEmail || shortUid(r.requesterUid))}</span>
               <button class="btn btn-primary pk-sm share-approve" data-req="${esc(r.id)}">Approve</button>
               <button class="btn btn-ghost pk-sm share-deny" data-req="${esc(r.id)}">Deny</button>
             </div>
-          `).join('') : '<p class="share-hint">No pending requests.</p>'}
+          `).join('')}
         </div>
       </div>` : ''}
 
@@ -172,7 +165,7 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
   const checkedPages = (gridId: string) => Array.from(
     body.querySelectorAll<HTMLInputElement>(`#${gridId} input[type="checkbox"]:checked`),
   ).map((c) => c.value);
-  // If every page is checked, treat as "all pages" (store [] = full access).
+  // If every page is checked, store [] (= full access, "All pages").
   const scopeOrAll = (ids: string[]) => (ids.length === pages.length ? [] : ids);
 
   // Generate viewer invite link with the checked pages
@@ -185,9 +178,9 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
     } catch (e) { alert('Could not create view link. ' + String(e)); }
   });
 
-  // Generate editor invite link with the checked pages
+  // Generate editor invite link with the checked edit pages
   body.querySelector('#share-gen-editor')?.addEventListener('click', async () => {
-    const checked = checkedPages('share-pages-editlink');
+    const checked = checkedPages('share-pages-edit');
     if (!checked.length) { alert('Pick at least one page they can edit.'); return; }
     try {
       await createInvite(tripId, 'editor', scopeOrAll(checked));
@@ -195,12 +188,12 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
     } catch (e) { alert('Could not create edit link. ' + String(e)); }
   });
 
-  // Add email invite with the checked pages
+  // Invite by email with the checked edit pages
   body.querySelector('#share-email-add')?.addEventListener('click', async () => {
     const input = body.querySelector<HTMLInputElement>('#share-email-input');
     const email = input?.value.trim() ?? '';
     if (!email) return;
-    const checked = checkedPages('share-pages-email');
+    const checked = checkedPages('share-pages-edit');
     if (!checked.length) { alert('Pick at least one page they can edit.'); return; }
     try {
       await addEmailInvite(tripId, email, scopeOrAll(checked));

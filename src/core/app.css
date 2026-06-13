@@ -702,9 +702,16 @@
   display: flex; align-items: center; gap: var(--sp-1);
   font-size: var(--fs-sm); cursor: pointer;
 }
-.share-link-row-stacked { flex-direction: column; align-items: stretch; gap: var(--sp-1); }
+.share-link-row-stacked { flex-direction: column; align-items: stretch; gap: var(--sp-1); margin-top: var(--sp-2); }
 .share-link-top { display: flex; align-items: center; gap: var(--sp-2); }
 .share-link-pages { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 2px; }
+
+/* Edit column actions: create-link button + inline email invite row */
+.share-edit-actions { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-1); }
+.share-edit-actions .share-gen-btn { margin-bottom: 0; align-self: flex-start; }
+.share-email-row { display: flex; gap: var(--sp-2); align-items: center; }
+.share-email-row .share-email-input { flex: 1; min-width: 0; }
+.share-email-row .btn { white-space: nowrap; }
 .share-page-chip {
   font-size: 10px; font-weight: 600; color: #4b5563;
   background: #f3f4f6; border-radius: var(--r-full); padding: 2px 8px;
