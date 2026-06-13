@@ -1,13 +1,16 @@
 /* ==========================================================================
    On the Road · /api/billing-webhook  — Vercel Serverless Function
    --------------------------------------------------------------------------
-   Receives Lemon Squeezy webhook events and updates users/{uid}.plan in
-   Firestore via REST API (no firebase-admin — avoids CJS/ESM conflict).
+   Receives Lemon Squeezy webhook events and grants the buyer their trip quota
+   via the shared grantQuota() (see _billing.ts), which is idempotent on the
+   order id and also reused by the future Alipay/WeChat callback.
+
+   Plan is read from custom_data.plan (set by create-checkout) so we never have
+   to guess which product was bought from the variant id — the China payment
+   path will set the same field.
 
    Supported events:
-     order_created            → trip_pass (one-time purchase)
-     subscription_cancelled   → free
-     subscription_expired     → free
+     order_created  → grant trip_pass or lifetime (per custom_data.plan)
 
    Keys in .env (server-side only, no VITE_ prefix):
      FIREBASE_SERVICE_ACCOUNT
@@ -16,66 +19,10 @@
 
 import * as crypto from 'crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { GoogleAuth } from 'google-auth-library';
+import { grantQuota, type Plan } from './_billing';
 
 type VercelRequest  = IncomingMessage & { body: Buffer | string; headers: Record<string, string | string[] | undefined>; method?: string };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse };
-
-type Plan = 'free' | 'trip_pass' | 'lifetime';
-
-const PLAN_ENTITLEMENTS: Record<Plan, string[]> = {
-  free:      [],
-  trip_pass: ['ai.guide', 'ai.safety', 'ai.story', 'ai.check'],
-  lifetime:  ['ai.guide', 'ai.safety', 'ai.story', 'ai.check', 'export.pdf', 'collab.unlimited'],
-};
-
-// ── Google access token ───────────────────────────────────────────────────────
-
-let _auth: GoogleAuth | null = null;
-async function getAccessToken(): Promise<{ token: string; projectId: string }> {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT not set');
-  const sa = JSON.parse(raw) as { project_id: string; client_email: string; private_key: string };
-  if (!_auth) {
-    _auth = new GoogleAuth({
-      credentials: { client_email: sa.client_email, private_key: sa.private_key },
-      scopes: ['https://www.googleapis.com/auth/datastore'],
-    });
-  }
-  const client = await _auth.getClient();
-  const tokenResp = await client.getAccessToken();
-  if (!tokenResp.token) throw new Error('Failed to obtain Google access token');
-  return { token: tokenResp.token, projectId: sa.project_id };
-}
-
-// ── Firestore REST write ──────────────────────────────────────────────────────
-
-async function writeUserPlan(uid: string, plan: Plan): Promise<void> {
-  const { token, projectId } = await getAccessToken();
-  const entitlements = PLAN_ENTITLEMENTS[plan];
-  const now = Date.now();
-
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${uid}` +
-    `?updateMask.fieldPaths=plan&updateMask.fieldPaths=entitlements&updateMask.fieldPaths=_updatedAt` +
-    (plan === 'trip_pass' ? '&updateMask.fieldPaths=tripPassExpiresAt' : '');
-
-  const fields: Record<string, unknown> = {
-    plan:         { stringValue: plan },
-    entitlements: { arrayValue: { values: entitlements.map(e => ({ stringValue: e })) } },
-    _updatedAt:   { integerValue: String(now) },
-  };
-  if (plan === 'trip_pass') {
-    fields.tripPassExpiresAt = { nullValue: null };
-  }
-
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fields }),
-  });
-
-  if (!res.ok) throw new Error(`Firestore REST ${res.status}: ${await res.text()}`);
-}
 
 // ── Signature verification ────────────────────────────────────────────────────
 
@@ -90,21 +37,30 @@ function verifySignature(rawBody: Buffer | string, signature: string, secret: st
   }
 }
 
-// ── LS payload shape ──────────────────────────────────────────────────────────
+// ── LS payload shape (only the fields we read) ────────────────────────────────
 
 interface LSPayload {
-  meta: { event_name: string; custom_data?: { uid?: string } };
-  data: { attributes: { custom_data?: { uid?: string } } };
+  meta: { event_name: string; custom_data?: { uid?: string; plan?: string } };
+  data: {
+    id?: string;
+    attributes: {
+      custom_data?: { uid?: string; plan?: string };
+      total?: number;           // order total in cents
+      order_number?: number;
+      identifier?: string;      // unique order identifier
+    };
+  };
 }
 
-function planFromEvent(event: string): Plan | null {
-  if (event === 'order_created' || event === 'subscription_created') return 'trip_pass';
-  if (event === 'subscription_cancelled' || event === 'subscription_expired') return 'free';
-  return null;
+function customData(payload: LSPayload): { uid?: string; plan?: string } {
+  return payload.meta.custom_data ?? payload.data.attributes.custom_data ?? {};
 }
 
-function uidFromPayload(payload: LSPayload): string | null {
-  return payload.meta.custom_data?.uid ?? payload.data.attributes.custom_data?.uid ?? null;
+/** A stable, unique id for this order so grantQuota can dedupe LS retries. */
+function orderIdFromPayload(payload: LSPayload): string | null {
+  return payload.data.attributes.identifier
+    ?? payload.data.id
+    ?? (payload.data.attributes.order_number != null ? `ord-${payload.data.attributes.order_number}` : null);
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -136,22 +92,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const event = payload.meta.event_name;
-  const plan = planFromEvent(event);
-  if (plan === null) { res.status(200).json({ ok: true, skipped: true }); return; }
+  // Only purchases grant quota. Everything else is acked so LS stops retrying.
+  if (event !== 'order_created') {
+    res.status(200).json({ ok: true, skipped: true, reason: `event ${event}` });
+    return;
+  }
 
-  const uid = uidFromPayload(payload);
+  const { uid, plan } = customData(payload);
   if (!uid) {
     console.warn('[billing-webhook] No uid in custom_data for event', event);
-    res.status(200).json({ ok: true, skipped: true });
+    res.status(200).json({ ok: true, skipped: true, reason: 'no uid' });
+    return;
+  }
+  if (plan !== 'trip_pass' && plan !== 'lifetime') {
+    console.warn('[billing-webhook] Unexpected plan in custom_data:', plan);
+    res.status(200).json({ ok: true, skipped: true, reason: 'unknown plan' });
+    return;
+  }
+
+  const orderId = orderIdFromPayload(payload);
+  if (!orderId) {
+    console.warn('[billing-webhook] No order id in payload');
+    res.status(400).json({ error: 'No order id' });
     return;
   }
 
   try {
-    await writeUserPlan(uid, plan);
-    console.info('[billing-webhook] Updated uid=%s plan=%s event=%s', uid, plan, event);
-    res.status(200).json({ ok: true });
+    const applied = await grantQuota(uid, plan as Plan, orderId, payload.data.attributes.total ?? null);
+    res.status(200).json({ ok: true, applied });
   } catch (e) {
-    console.error('[billing-webhook] Firestore write failed:', e);
-    res.status(500).json({ error: 'Database write failed' });
+    console.error('[billing-webhook] grant failed:', e);
+    res.status(500).json({ error: 'Grant failed' });
   }
 }

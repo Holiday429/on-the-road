@@ -235,6 +235,29 @@
   cursor: wait;
 }
 
+.auth-signin-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2, var(--amber-50));
+  font-size: var(--fs-xs, var(--fs-sm));
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.auth-signin-hint-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.auth-signin-hint strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 .auth-status {
   margin-top: var(--sp-3);
   min-height: 20px;

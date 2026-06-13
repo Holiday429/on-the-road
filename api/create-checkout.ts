@@ -93,7 +93,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         data: {
           type: 'checkouts',
           attributes: {
-            checkout_data: { custom: { uid } },
+            // Pass uid + plan through so the webhook (and the future China
+            // payment callback) know who bought what without guessing from the
+            // variant id. _billing.grantQuota dedupes on the order id.
+            checkout_data: { custom: { uid, plan } },
             product_options: {
               redirect_url: `${process.env.APP_URL ?? 'https://easy-on-the-road.vercel.app'}/?payment=success`,
             },
