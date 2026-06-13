@@ -1,0 +1,51 @@
+/* ==========================================================================
+   On the Road · Empty-state component styles
+   ========================================================================== */
+
+.otr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--sp-12) var(--sp-6);
+  max-width: 460px;
+  margin: 0 auto;
+  min-height: 240px;
+}
+
+.otr-empty-icon {
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: var(--sp-4);
+  opacity: 0.92;
+  filter: saturate(0.9);
+}
+
+.otr-empty-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.otr-empty-desc {
+  margin-top: var(--sp-2);
+  max-width: 40ch;
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.otr-empty-actions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Read-only viewers / page-restricted members can't act — hide the CTA so the
+   empty state reads as informational rather than a dead button. */
+#app[data-role="viewer"] .otr-empty-actions { display: none; }

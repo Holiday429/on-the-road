@@ -18,6 +18,7 @@ import { slugId } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
 import { apiUrl, authHeaders } from '../../core/api.ts';
 import { handleAiError } from '../../core/paywall.ts';
+import { emptyState } from '../../core/empty-state.ts';
 import { prefetchSafetyForCity } from '../safety/safety.ts';
 import { nomadStore } from '../../data/stores/nomad-store.ts';
 
@@ -376,12 +377,15 @@ function renderCityDetail(_root: HTMLElement) {
     ?? (_previewIntel?.id === _activeCityId ? _previewIntel as StoredCityIntel : undefined);
 
   if (!intel) {
-    detail.innerHTML = `
-      <div class="guide-empty-detail">
-        <div class="empty-icon">🗺️</div>
-        <p>Select a city or search for a new one above</p>
-      </div>
-    `;
+    detail.replaceChildren(emptyState({
+      icon: '🗺️',
+      title: 'Build a city guide',
+      desc: 'Search any city above to generate attractions, food, culture and more — then bookmark anything or send it to your itinerary.',
+      cta: {
+        label: 'Search a city',
+        onClick: () => document.getElementById('guide-city-input')?.focus(),
+      },
+    }));
     detail.classList.remove('active');
     return;
   }
