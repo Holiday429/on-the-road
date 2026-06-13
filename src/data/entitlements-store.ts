@@ -1,10 +1,16 @@
 /* ==========================================================================
    On the Road · Entitlements store
    --------------------------------------------------------------------------
-   Subscribes to users/{uid} via onSnapshot so plan + entitlements update
-   live (e.g. immediately after a Lemon Squeezy webhook fires).
+   DORMANT at launch. AI features aren't shipping yet, so nothing imports this
+   store and its onAuth subscription never wires. It's kept (not deleted) for
+   when ai.* entitlements light up — at which point AI button handlers will gate
+   on entitlementsStore.has('ai.guide') etc. The trip-creation paywall uses
+   quota-store.ts instead; see PLAN_ENTITLEMENTS / tripQuota in schema.ts.
 
-   Usage:
+   Note: the tripPassExpiresAt branch below is the legacy AI-era expiry model and
+   is unused by the current trip-quota system; revisit before re-enabling.
+
+   Usage (future):
      import { entitlementsStore } from '../data/entitlements-store.ts';
      if (entitlementsStore.has('ai.guide')) { ... }
      const unsub = entitlementsStore.subscribe(() => rerender());
