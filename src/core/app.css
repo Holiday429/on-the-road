@@ -328,16 +328,20 @@
   gap: var(--sp-3);
 }
 
-.sidebar-auth-trigger {
+.sidebar-auth-trigger,
+.sidebar-account-trigger {
   width: 100%;
   padding: 0;
   border: 0;
   background: transparent;
   text-align: left;
+  cursor: pointer;
 }
 
 .sidebar-auth-trigger:hover .sidebar-profile-title,
-.sidebar-auth-trigger:hover .sidebar-profile-subtitle {
+.sidebar-auth-trigger:hover .sidebar-profile-subtitle,
+.sidebar-account-trigger:hover .sidebar-profile-title,
+.sidebar-account-trigger:hover .sidebar-profile-subtitle {
   color: var(--amber-700);
 }
 
@@ -1359,3 +1363,27 @@
   z-index: 9999;
   pointer-events: none;
 }
+
+/* ── Account & billing modal ──────────────────────────────────────────────── */
+.account-body { display: flex; flex-direction: column; gap: var(--sp-3); }
+.account-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: var(--sp-4); font-size: var(--fs-sm);
+}
+.account-label { color: var(--ink-muted); }
+.account-value { font-weight: 600; color: var(--ink); text-align: right; }
+.account-upgrade { margin-top: var(--sp-2); align-self: flex-start; }
+.account-section-head {
+  margin-top: var(--sp-4); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint);
+}
+.account-purchases { display: flex; flex-direction: column; gap: var(--sp-2); }
+.account-purchase-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: var(--fs-sm); padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.account-purchase-meta { color: var(--ink-muted); font-size: var(--fs-xs); }
+.account-loading, .account-empty { color: var(--ink-faint); font-size: var(--fs-sm); }
+.account-support { margin-top: var(--sp-4); font-size: var(--fs-xs); color: var(--ink-muted); }
+.account-support a { color: var(--amber-700); }

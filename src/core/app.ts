@@ -320,12 +320,13 @@ function buildSidebarHeader(): string {
 
   return `
     <div class="sidebar-header">
-      <div class="sidebar-header-profile">
+      <button type="button" class="sidebar-header-profile sidebar-account-trigger" id="sidebar-account-trigger" title="Account & billing">
         <div class="sidebar-profile-avatar is-user">${avatar}</div>
         <div class="sidebar-profile-meta">
           <div class="sidebar-profile-title">${displayName}</div>
+          <div class="sidebar-profile-subtitle">Account &amp; billing</div>
         </div>
-      </div>
+      </button>
     </div>
   `;
 }
@@ -520,6 +521,11 @@ function buildSidebar() {
 
   sidebar.querySelector<HTMLElement>('#sidebar-auth-trigger')?.addEventListener('click', () => {
     sessionPrimaryAction?.();
+  });
+
+  // Signed-in profile header → account & billing.
+  sidebar.querySelector<HTMLElement>('#sidebar-account-trigger')?.addEventListener('click', () => {
+    import('./account.ts').then(({ openAccountModal }) => openAccountModal());
   });
 
   sidebar.querySelectorAll('.nav-item').forEach(item => {
@@ -745,7 +751,12 @@ function buildMobileNav() {
   });
 
   mobileNav.querySelector<HTMLElement>('#mobile-account-item')?.addEventListener('click', () => {
-    sessionPrimaryAction?.();
+    // Signed in → account & billing; signed out → the sign-in flow.
+    if (sessionState.user) {
+      import('./account.ts').then(({ openAccountModal }) => openAccountModal());
+    } else {
+      sessionPrimaryAction?.();
+    }
   });
 }
 

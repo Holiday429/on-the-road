@@ -433,6 +433,12 @@ async function bootAuthenticatedShell(user: User) {
       showAccessRequestToast();
     }
 
+    // If we just came back from a successful checkout, confirm + refresh quota.
+    try {
+      const { handlePaymentReturn } = await import('./core/payment-return.ts');
+      handlePaymentReturn();
+    } catch (e) { console.warn('Payment-return handling skipped:', e); }
+
     await nextFrame();
   })();
 
