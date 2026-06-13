@@ -1,0 +1,25 @@
+/* Shared styles for the static legal pages (terms / privacy / refund). */
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1f2937;
+  background: #fafaf7;
+}
+.legal-wrap { max-width: 720px; margin: 0 auto; padding: 48px 24px 96px; }
+.legal-top { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; }
+.legal-top a { color: #b45309; text-decoration: none; font-weight: 600; }
+.legal-top a:hover { text-decoration: underline; }
+h1 { font-size: 28px; margin: 0 0 4px; }
+.legal-updated { color: #6b7280; font-size: 14px; margin: 0 0 32px; }
+h2 { font-size: 19px; margin: 32px 0 8px; }
+p, li { color: #374151; }
+ul { padding-left: 22px; }
+a { color: #b45309; }
+.legal-note {
+  margin-top: 40px; padding: 14px 16px; border-radius: 10px;
+  background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; font-size: 14px;
+}
+footer { margin-top: 56px; font-size: 13px; color: #9ca3af; }
+footer a { color: #9ca3af; margin: 0 8px; }

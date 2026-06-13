@@ -270,6 +270,20 @@
   color: var(--coral-500);
 }
 
+.auth-legal {
+  margin-top: var(--sp-4);
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+.auth-legal a {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.auth-legal a:hover { color: var(--amber-700); text-decoration: underline; }
+
 /* ── Layout ─────────────────────────────────────────────────────────────── */
 #app {
   display: flex;
