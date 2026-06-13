@@ -866,14 +866,14 @@ function renderPackWidget(): string | null {
   return `
     <div class="td-widget td-w-pack">
       <div class="td-widget-header">
-        <div class="td-widget-label">🎒 Bag <span class="td-pk-header-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</span></div>
-        <button class="td-link" data-nav="pack" data-intent='${esc(JSON.stringify({ listId: list.id }))}'>Open Bag ›</button>
+        <div class="td-widget-label">🎒 Pack <span class="td-pk-header-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</span></div>
+        <button class="td-link" data-nav="pack" data-intent='${esc(JSON.stringify({ listId: list.id }))}'>Open Pack ›</button>
       </div>
       ${allowanceBar}
       ${recentHtml}
       ${hasLegs ? `<div class="td-pk-actions">
-        <button class="td-pk-action-btn" data-pk-action="acquired">+ Acquired</button>
-        <button class="td-pk-action-btn" data-pk-action="left">− Left behind</button>
+        <button class="td-pk-action-btn" data-pk-action="acquired">+ Add</button>
+        <button class="td-pk-action-btn" data-pk-action="left">− Left</button>
       </div>` : ''}
     </div>`;
 }

@@ -1147,14 +1147,13 @@ a.rd-clip-title:hover { color: #0369a1; text-decoration: underline; }
 /* Wider variant for the transport editor so every field fits without scrolling. */
 .rd-editor--wide { max-width: 680px; }
 .rd-editor--wide .rd-editor-grid { grid-template-columns: 1fr 1fr 1fr; }
-/* A full-width row that packs its own labelled inputs side by side
-   (e.g. Depart + From terminal, or the three baggage types). */
+/* The wide editor is short enough to show every field at once — no inner scroll. */
+.rd-editor--wide { max-height: none; overflow-y: visible; }
+/* A full-width row that packs its own labelled inputs side by side (baggage trio). */
 .rd-field-row { grid-column: 1 / -1; display: grid; gap: var(--sp-3); }
-.rd-field-row.is-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
 .rd-field-row.is-trio { grid-template-columns: 1fr 1fr 1fr; }
 @media (max-width: 560px) {
   .rd-editor--wide .rd-editor-grid { grid-template-columns: 1fr 1fr; }
-  .rd-field-row.is-pair { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) { .rd-editor-grid { grid-template-columns: 1fr; } }
 .rd-editor-btns { display: flex; gap: var(--sp-3); justify-content: flex-end; }

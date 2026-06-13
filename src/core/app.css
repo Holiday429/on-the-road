@@ -633,10 +633,6 @@
   align-items: center;
   border-radius: var(--r-md);
 }
-.trip-menu-row:hover .trip-menu-share,
-.trip-menu-row:hover .trip-menu-edit,
-.trip-menu-row:hover .trip-menu-leave,
-.trip-menu-row:hover .trip-menu-delete { opacity: 1; }
 .trip-menu-row .trip-menu-item { flex: 1; min-width: 0; }
 .trip-menu-share,
 .trip-menu-edit,
@@ -646,8 +642,8 @@
   border: none;
   background: none;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s, color 0.15s;
+  opacity: 1;
+  transition: color 0.15s, background 0.15s;
   padding: 6px 8px;
   border-radius: var(--r-sm);
   font-size: 14px;

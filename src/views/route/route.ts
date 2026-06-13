@@ -1815,25 +1815,13 @@ function openTransportEditor(timeline: HTMLElement, leg: Leg) {
           <label class="field-label">Currency</label>
           <select class="input select" id="te-currency">${stayCurrencyOptions(defaultCur)}</select>
         </div>
-        <div class="rd-field-row is-pair">
-          <div>
-            <label class="field-label">Depart</label>
-            <input class="input" id="te-time" value="${esc(t?.time)}" placeholder="e.g. 09:15">
-          </div>
-          <div>
-            <label class="field-label">From station / terminal</label>
-            <input class="input" id="te-dep-place" value="${esc(t?.depPlace)}" placeholder="optional">
-          </div>
+        <div>
+          <label class="field-label">Depart</label>
+          <input class="input" id="te-time" value="${esc(t?.time)}" placeholder="e.g. 09:15">
         </div>
-        <div class="rd-field-row is-pair">
-          <div>
-            <label class="field-label">Arrive</label>
-            <input class="input" id="te-arr-time" value="${esc(t?.arrivalTime)}" placeholder="e.g. 14:30">
-          </div>
-          <div>
-            <label class="field-label">To station / terminal</label>
-            <input class="input" id="te-arr-place" value="${esc(t?.arrPlace)}" placeholder="optional">
-          </div>
+        <div>
+          <label class="field-label">Arrive</label>
+          <input class="input" id="te-arr-time" value="${esc(t?.arrivalTime)}" placeholder="e.g. 14:30">
         </div>
         <div>
           <label class="field-label">Duration</label>
@@ -1887,8 +1875,8 @@ function openTransportEditor(timeline: HTMLElement, leg: Leg) {
       bookingRef: t?.bookingRef,                 // preserved; no longer edited here
       time: fieldVal(dlg, 'te-time') || undefined,
       arrivalTime: fieldVal(dlg, 'te-arr-time') || undefined,
-      depPlace: fieldVal(dlg, 'te-dep-place') || undefined,
-      arrPlace: fieldVal(dlg, 'te-arr-place') || undefined,
+      depPlace: t?.depPlace,                     // preserved; no longer edited here
+      arrPlace: t?.arrPlace,
       duration: fieldVal(dlg, 'te-duration') || undefined,
       priceAmount,
       priceCurrency: priceAmount != null ? currency : undefined,
@@ -1946,12 +1934,8 @@ function openStayEditor(timeline: HTMLElement, leg: Leg, stayKey: string | null)
           <datalist id="se-platform-list">${STAY_PLATFORMS.map(p => `<option value="${esc(p)}">`).join('')}</datalist>
         </div>
         <div>
-          <label class="field-label">Phone</label>
-          <input class="input" id="se-phone" value="${esc(existing?.phone)}" placeholder="optional">
-        </div>
-        <div class="field-full">
-          <label class="field-label">Order link <span style="font-weight:400;color:var(--ink-faint)">(jump back to the booking)</span></label>
-          <input class="input" id="se-booking" value="${esc(existing?.bookingUrl)}" placeholder="Paste the platform's order / reservation URL">
+          <label class="field-label">Order link</label>
+          <input class="input" id="se-booking" value="${esc(existing?.bookingUrl)}" placeholder="Jump back to the booking">
         </div>
         <div class="field-full">
           <label class="field-label">Google Maps link</label>
@@ -1991,7 +1975,7 @@ function openStayEditor(timeline: HTMLElement, leg: Leg, stayKey: string | null)
       price: priceAmount != null ? `${currencySymbol(currency)}${priceAmount}` : undefined,
       platform: fieldVal(dlg, 'se-platform') || undefined,
       bookingUrl: fieldVal(dlg, 'se-booking') || undefined,
-      phone: fieldVal(dlg, 'se-phone') || undefined,
+      phone: existing?.phone,                    // preserved; no longer edited here
       mapUrl: fieldVal(dlg, 'se-map') || undefined,
       confirmed: (dlg.querySelector('#se-confirmed') as HTMLInputElement).checked,
       // Preserve the expense link across edits so re-syncing still updates, not duplicates.

@@ -174,7 +174,7 @@ function openTripPopover() {
   }).join('');
 
   panel.innerHTML = `
-    <div class="trip-popover-header">My Trips</div>
+    <div class="trip-popover-header">My Trip</div>
     ${rows || '<div class="trip-menu-empty">No trips yet</div>'}
     <button class="trip-menu-new" id="trip-menu-new">+ New trip</button>
   `;
@@ -557,9 +557,20 @@ function wireTripSwitcher(sidebar: HTMLElement) {
       return;
     }
     tripMenuOpen = true;
-    try { tripList = await listTrips(); } catch (e) { console.warn('listTrips failed:', e); }
+    // Open instantly with whatever we already have cached, then refresh the
+    // list in the background and re-render the popover when it lands.
     buildSidebar();
     openTripPopover();
+    listTrips()
+      .then((trips) => {
+        tripList = trips;
+        // Only repaint if the popover is still open for this trip menu.
+        if (tripMenuOpen && document.getElementById('trip-popover')) {
+          buildSidebar();
+          openTripPopover();
+        }
+      })
+      .catch((e) => console.warn('listTrips failed:', e));
   });
 
   // Calendar thumbnail hover — only show when no popover is open
