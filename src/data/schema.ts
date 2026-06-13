@@ -52,22 +52,37 @@ export type Entitlement =
 
 export type Plan = 'free' | 'trip_pass' | 'lifetime';
 
+// Trip-quota model (must match api/_billing.ts).
+// At launch the paywall gates *trip creation*, not AI — a free account owns 1
+// trip, each trip_pass adds one slot, lifetime is effectively unlimited.
+export const FREE_QUOTA = 1;
+export const LIFETIME_QUOTA = 9999;
+
+// Entitlements are kept in the data model for when AI ships, but no plan grants
+// the ai.* set at launch (those endpoints aren't surfaced in any UI). lifetime
+// pre-grants the future paid features so lifetime buyers are covered when they
+// light up; trip_pass grants slots only.
 const FREE_ENTITLEMENTS: Entitlement[] = [];
 
-const PAID_ENTITLEMENTS: Entitlement[] = [
-  'ai.guide', 'ai.safety', 'ai.story', 'ai.check',
-];
+const TRIP_PASS_ENTITLEMENTS: Entitlement[] = [];
 
 const LIFETIME_ENTITLEMENTS: Entitlement[] = [
-  ...PAID_ENTITLEMENTS,
+  'ai.guide', 'ai.safety', 'ai.story', 'ai.check',
   'export.pdf',
   'collab.unlimited',
 ];
 
 export const PLAN_ENTITLEMENTS: Record<Plan, Entitlement[]> = {
   free:       FREE_ENTITLEMENTS,
-  trip_pass:  PAID_ENTITLEMENTS,
+  trip_pass:  TRIP_PASS_ENTITLEMENTS,
   lifetime:   LIFETIME_ENTITLEMENTS,
+};
+
+/** Owned-trip slots a plan grants on its own (before stacked trip_pass buys). */
+export const PLAN_BASE_QUOTA: Record<Plan, number> = {
+  free:      FREE_QUOTA,
+  trip_pass: FREE_QUOTA + 1, // floor; real quota is stored per-user and stacks
+  lifetime:  LIFETIME_QUOTA,
 };
 
 /* ── User & Trip ─────────────────────────────────────────────────────────── */
@@ -77,7 +92,10 @@ export const UserProfileSchema = doc({
   photoURL: z.string().default(''),
   plan: z.enum(['free', 'trip_pass', 'lifetime']).default('free'),
   entitlements: z.array(z.string()).default([]),
-  tripPassExpiresAt: z.number().nullable().optional(), // epoch ms; null = lifetime trip_pass
+  // Owned-trip slots. free = 1; each trip_pass purchase adds 1; lifetime = many.
+  // Written server-side by api/_billing.grantQuota; the client only reads it.
+  tripQuota: z.number().default(FREE_QUOTA),
+  tripPassExpiresAt: z.number().nullable().optional(), // legacy AI-era field; unused by quota model
   defaultTripId: z.string().nullable().default(null),
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;

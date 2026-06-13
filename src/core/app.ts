@@ -6,8 +6,10 @@ import type { User } from '../firebase/auth.ts';
 import {
   currentTrip, currentTripId, listTrips, createTrip, switchTrip, onTripChange,
   updateTrip, removeTrip, currentRole, currentMemberPages, leaveTrip as leaveTripCtx,
+  TripQuotaError,
   type StoredTrip, type NewTripInput,
 } from '../data/trip-context.ts';
+import { requireTripSlot, showTripQuotaPaywall } from './paywall.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
 import { routeStore, type StoredLeg } from '../data/stores/route-store.ts';
 import { createDestinationInput, type DestinationInputInstance } from './destination-input.ts';
@@ -1138,6 +1140,15 @@ function openTripForm(opts: {
         await switchTrip(id);
         opts.onCreated(id);
       } catch (e) {
+        // Safety net: if the quota gate fired (e.g. a slot was used in another
+        // tab after this form opened), close the form and show the paywall
+        // instead of a dead-end error inside the create dialog.
+        if (e instanceof TripQuotaError) {
+          destPicker?.destroy();
+          backdrop.remove();
+          showTripQuotaPaywall();
+          return;
+        }
         btn.disabled = false;
         btn.textContent = 'Create trip';
         errorEl.textContent = e instanceof Error ? e.message : 'Could not create trip.';
@@ -1155,6 +1166,8 @@ function openTripForm(opts: {
 
 function openNewTripModal() {
   buildSidebar(); // close the menu first
+  // Pre-gate: out of owned-trip slots → show the paywall, not the form.
+  if (!requireTripSlot()) return;
   openTripForm({
     onCreated: () => { /* sidebar already rebuilt by switchTrip → onTripChange */ },
   });

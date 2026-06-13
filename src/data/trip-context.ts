@@ -13,9 +13,22 @@ import {
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
 import { setMyTripIdsResolver } from '../firebase/db.ts';
-import { SCHEMA_VERSION, TripSchema, type Trip, type TravelStyle, type TripRole } from './schema.ts';
+import { SCHEMA_VERSION, TripSchema, FREE_QUOTA, type Trip, type TravelStyle, type TripRole } from './schema.ts';
 
 export const DEFAULT_TRIP_ID = 'europe-2025'; // kept for migrate-retag reference only
+
+/** Thrown by createTrip when the user is out of owned-trip slots. The UI
+ *  catches this to show the trip-quota paywall instead of a generic error. */
+export class TripQuotaError extends Error {
+  readonly quota: number;
+  readonly used: number;
+  constructor(quota: number, used: number) {
+    super('Trip limit reached. Get a Trip Pass to create another trip.');
+    this.name = 'TripQuotaError';
+    this.quota = quota;
+    this.used = used;
+  }
+}
 
 export type StoredTrip = Trip;
 
@@ -221,10 +234,45 @@ export interface NewTripInput {
   returnCity?: string;
 }
 
-/** Create a blank trip (metadata only — no seeded checklist/route). Returns id. */
+/** Owned-trip slots the user is entitled to (from their profile; default 1). */
+export async function readTripQuota(): Promise<number> {
+  const u = currentUser();
+  if (!u) return FREE_QUOTA;
+  try {
+    const snap = await getDoc(fbDoc(firestore, `users/${u.uid}`));
+    const q = snap.exists() ? (snap.data() as { tripQuota?: number }).tripQuota : undefined;
+    return typeof q === 'number' ? q : FREE_QUOTA;
+  } catch { return FREE_QUOTA; }
+}
+
+/** How many trips the signed-in user currently OWNS (shared-in trips excluded). */
+export async function ownedTripCount(): Promise<number> {
+  const u = currentUser();
+  if (!u) return 0;
+  const trips = await listTrips();
+  return trips.filter((t) => {
+    const members = (t as { members?: Record<string, string> }).members;
+    return !members || members[u.uid] === 'owner'; // legacy no-members trip = owned
+  }).length;
+}
+
+/** Whether the user has a free owned-trip slot available right now. */
+export async function canCreateTrip(): Promise<boolean> {
+  const [quota, used] = await Promise.all([readTripQuota(), ownedTripCount()]);
+  return used < quota;
+}
+
+/** Create a blank trip (metadata only — no seeded checklist/route). Returns id.
+ *  Throws TripQuotaError if the user is out of owned-trip slots. */
 export async function createTrip(input: NewTripInput): Promise<string> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
+
+  // Quota gate: count owned trips against the user's entitled slots. Both reads
+  // are fresh (not from the store) so a rapid double-create can't slip past.
+  const [quota, used] = await Promise.all([readTripQuota(), ownedTripCount()]);
+  if (used >= quota) throw new TripQuotaError(quota, used);
+
   const id = slugId(input.name);
   const now = Date.now();
   const trip = TripSchema.parse({

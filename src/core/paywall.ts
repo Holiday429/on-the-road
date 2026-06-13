@@ -2,25 +2,21 @@
    On the Road · Paywall
    --------------------------------------------------------------------------
    Central place to show the upgrade prompt and kick off a Lemon Squeezy
-   checkout. Two entry points:
+   checkout. At launch the paywall gates *trip creation* (a free account owns
+   1 trip; more need a Trip Pass or Lifetime), not AI.
 
-     showPaywall()         — show the upgrade modal (e.g. from a 402 catch)
-     requireEntitlement()  — gate a feature, show paywall if missing, return bool
-
-   Usage in AI call sites:
-     try {
-       await someAiCall();
-     } catch (e) {
-       if (e instanceof QuotaError) { showPaywall(); return; }
-       throw e;
-     }
+   Entry points:
+     showTripQuotaPaywall() — "you're out of trip slots", shown by the New-trip
+                              flow when canCreateTrip() is false.
+     showPaywall()          — generic upgrade modal (kept for AI 402 catches that
+                              stay dormant until AI ships).
+     requireTripSlot()      — gate trip creation; shows paywall + returns false.
    ========================================================================== */
 
 import { openModal } from './modal.ts';
 import { QuotaError, AuthError } from './api.ts';
 import { currentUser } from '../firebase/auth.ts';
-import { entitlementsStore } from '../data/entitlements-store.ts';
-import type { Entitlement } from '../data/schema.ts';
+import { quotaStore } from '../data/quota-store.ts';
 
 // ── Checkout ──────────────────────────────────────────────────────────────────
 
@@ -76,21 +72,21 @@ async function openCheckout(plan: CheckoutPlan, errEl: HTMLElement): Promise<voi
 
 // ── Paywall modal ─────────────────────────────────────────────────────────────
 
-export function showPaywall(opts: { feature?: string } = {}): void {
-  const feature = opts.feature ?? 'AI features';
+/** Render the two-plan upgrade modal and wire its checkout buttons. */
+function renderPlansModal(desc: string): void {
   openModal({
-    title: 'Upgrade to unlock',
+    title: 'Plan your next trip',
     body: `
       <div class="paywall-body">
-        <p class="paywall-desc">${feature} require a Trip Pass.</p>
+        <p class="paywall-desc">${desc}</p>
         <div class="paywall-plans">
           <div class="paywall-plan paywall-plan--featured">
             <div class="paywall-plan-name">Trip Pass</div>
             <div class="paywall-plan-price">$9<span class="paywall-plan-period"> once</span></div>
             <ul class="paywall-plan-perks">
-              <li>✓ All AI features for this trip</li>
-              <li>✓ City guide, safety, story &amp; checklist AI</li>
-              <li>✓ Unlimited use during your trip</li>
+              <li>✓ One more trip, yours to keep</li>
+              <li>✓ Every feature — itinerary, expenses, packing, map &amp; more</li>
+              <li>✓ Share it with travel companions</li>
             </ul>
             <button class="btn btn-primary paywall-btn" data-plan="trip_pass" data-label="Get Trip Pass">
               Get Trip Pass
@@ -100,8 +96,8 @@ export function showPaywall(opts: { feature?: string } = {}): void {
             <div class="paywall-plan-name">Lifetime</div>
             <div class="paywall-plan-price">$29<span class="paywall-plan-period"> once</span></div>
             <ul class="paywall-plan-perks">
-              <li>✓ All AI features, all trips, forever</li>
-              <li>✓ PDF export + future features</li>
+              <li>✓ Unlimited trips, forever</li>
+              <li>✓ Every current &amp; future feature</li>
               <li>✓ Support indie development</li>
             </ul>
             <button class="btn btn-secondary paywall-btn" data-plan="lifetime" data-label="Get Lifetime">
@@ -128,16 +124,29 @@ export function showPaywall(opts: { feature?: string } = {}): void {
   });
 }
 
-// ── Convenience: gate a feature ───────────────────────────────────────────────
+/** Shown when a free user hits their owned-trip limit on "+ New trip". */
+export function showTripQuotaPaywall(): void {
+  renderPlansModal("You've used your free trip. Get a Trip Pass for one more, or go Lifetime for unlimited trips.");
+}
+
+/** Generic upgrade modal. Dormant until AI features ship. */
+export function showPaywall(opts: { feature?: string } = {}): void {
+  const desc = opts.feature
+    ? `${opts.feature} need a Trip Pass or Lifetime.`
+    : 'Unlock more with a Trip Pass or go Lifetime.';
+  renderPlansModal(desc);
+}
+
+// ── Convenience: gate trip creation ───────────────────────────────────────────
 
 /**
- * Returns true if the user has the given entitlement.
- * If not, shows the upgrade modal and returns false.
- * Use this to short-circuit AI button click handlers.
+ * Returns true if the user can create another owned trip.
+ * If not, shows the trip-quota paywall and returns false.
+ * Use this to short-circuit "+ New trip" handlers.
  */
-export function requireEntitlement(id: Entitlement, featureLabel?: string): boolean {
-  if (entitlementsStore.has(id)) return true;
-  showPaywall({ feature: featureLabel });
+export function requireTripSlot(): boolean {
+  if (quotaStore.canCreateTrip()) return true;
+  showTripQuotaPaywall();
   return false;
 }
 
