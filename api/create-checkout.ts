@@ -20,7 +20,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 // bundler include `jose` instead of emitting a runtime require() of it — that
 // require() is what threw ERR_REQUIRE_ESM (jose is ESM-only) when this file
 // verified tokens on its own.
-import { verifyFirebaseToken } from './_guard.ts';
+import { verifyFirebaseToken } from './_guard';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined>; method?: string };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse; setHeader(k: string, v: string): void; end(): void };
