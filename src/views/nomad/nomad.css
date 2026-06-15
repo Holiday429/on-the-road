@@ -401,7 +401,6 @@
   font-weight: 700;
   color: var(--ink-faint);
   letter-spacing: 0.09em;
-  text-transform: uppercase;
   margin-bottom: var(--sp-3);
 }
 
@@ -417,7 +416,6 @@
   font-weight: 700;
   color: var(--ink-muted);
   letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .nomad-form-row {
@@ -840,7 +838,6 @@ input[type="range"].nomad-slider::-webkit-slider-thumb:hover {
   font-weight: 700;
   color: var(--ink-faint);
   letter-spacing: 0.09em;
-  text-transform: uppercase;
   margin-bottom: var(--sp-3);
 }
 

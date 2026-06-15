@@ -748,7 +748,6 @@
   font-weight: 700;
   color: var(--ink-muted);
   margin-bottom: var(--sp-3);
-  text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 

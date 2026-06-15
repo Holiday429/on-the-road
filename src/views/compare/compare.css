@@ -231,7 +231,7 @@
 }
 .cmp-verdict-label {
   font-size: var(--fs-xs); font-weight: 700; color: var(--ink-muted);
-  letter-spacing: .06em; text-transform: uppercase; margin-bottom: var(--sp-2);
+  letter-spacing: .06em; margin-bottom: var(--sp-2);
 }
 .cmp-verdict-pick { font-family: var(--font-ui); font-size: var(--fs-2xl); font-weight: 800; color: var(--ink); }
 .cmp-verdict-gap { font-size: var(--fs-sm); color: var(--ink-soft); margin-top: 2px; }

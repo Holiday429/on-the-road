@@ -365,7 +365,7 @@ body.otr-modal-open { overflow: hidden; }
   padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2);
 }
 .paywall-plan--featured { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
-.paywall-plan-name { font-weight: 600; font-size: .85rem; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; }
+.paywall-plan-name { font-weight: 600; font-size: .85rem; color: var(--ink-2); letter-spacing: .05em; }
 .paywall-plan-price { font-size: 1.6rem; font-weight: 700; line-height: 1; }
 .paywall-plan-period { font-size: .8rem; font-weight: 400; color: var(--ink-2); }
 .paywall-plan-perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); flex: 1; }

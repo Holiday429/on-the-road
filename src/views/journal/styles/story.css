@@ -165,7 +165,6 @@
   font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--ink-faint);
 }
 .journal-story-question-prompt {
@@ -188,7 +187,6 @@
   font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--ink-faint);
 }
 .journal-story-answer {

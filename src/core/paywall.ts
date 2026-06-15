@@ -14,7 +14,7 @@
    ========================================================================== */
 
 import { openModal } from './modal.ts';
-import { QuotaError, AuthError } from './api.ts';
+import { QuotaError, AuthError, apiUrl } from './api.ts';
 import { currentUser } from '../firebase/auth.ts';
 import { quotaStore } from '../data/quota-store.ts';
 
@@ -46,7 +46,7 @@ async function openCheckout(plan: CheckoutPlan, errEl: HTMLElement): Promise<voi
   if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
 
   try {
-    const res = await fetch('/api/create-checkout', {
+    const res = await fetch(apiUrl('/api/create-checkout'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -100,7 +100,7 @@ function renderPlansModal(desc: string): void {
               <li>✓ Every current &amp; future feature</li>
               <li>✓ Support indie development</li>
             </ul>
-            <button class="btn btn-secondary paywall-btn" data-plan="lifetime" data-label="Get Lifetime">
+            <button class="btn btn-primary paywall-btn" data-plan="lifetime" data-label="Get Lifetime">
               Get Lifetime
             </button>
           </div>

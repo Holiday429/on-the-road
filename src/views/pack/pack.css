@@ -20,7 +20,7 @@
   margin-bottom: var(--sp-5);
 }
 .pack-trip-bar-label {
-  font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase;
+  font-size: var(--fs-xs); font-weight: 700;
   letter-spacing: 0.05em; color: var(--ink-muted); white-space: nowrap;
 }
 .pack-trip-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); flex: 1; }
@@ -307,7 +307,7 @@
   padding: var(--sp-4) var(--sp-5); box-shadow: var(--shadow-sm); margin-bottom: var(--sp-4);
 }
 .pk-wb-left { display: flex; flex-direction: column; gap: 3px; }
-.pk-wb-label { font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); }
+.pk-wb-label { font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.05em; color: var(--ink-muted); }
 .pk-wb-weight { font-size: var(--fs-xl); font-weight: 800; color: var(--ink); }
 .pk-wb-weight.is-over { color: var(--coral-500); }
 .pk-wb-remain { font-size: var(--fs-sm); color: #16a34a; font-weight: 600; }

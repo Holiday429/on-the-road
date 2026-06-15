@@ -36,7 +36,7 @@
   transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast);
 }
 .sos-num:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
-.sos-num-label { font-size: 10px; color: var(--ink-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.sos-num-label { font-size: 10px; color: var(--ink-muted); font-weight: 600; letter-spacing: 0.04em; }
 .sos-num-value { font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700; }
 .sos-hint { font-size: var(--fs-sm); color: var(--ink-muted); flex: 1; }
 
@@ -235,7 +235,7 @@
 .sfyp-block { }
 .sfyp-block-label {
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.04em;
+ letter-spacing: 0.04em;
   color: var(--ink-muted); margin-bottom: var(--sp-2);
 }
 .sfyp-nat { font-size: var(--fs-md); font-weight: 600; }
@@ -261,7 +261,7 @@
 .sfyp-form-col { display: flex; flex-direction: column; gap: 0; }
 .sfyp-col-head {
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.04em;
+ letter-spacing: 0.04em;
   color: var(--ink-muted); margin-bottom: var(--sp-3);
   padding-bottom: var(--sp-2); border-bottom: 1px solid var(--rule-soft);
 }
@@ -341,7 +341,7 @@
 .sfym-section { }
 .sfym-section-title {
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.04em;
+ letter-spacing: 0.04em;
   color: var(--ink-muted); margin-bottom: var(--sp-3);
 }
 .sfym-numgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--sp-2); }
@@ -352,7 +352,7 @@
   transition: transform var(--dur-fast), box-shadow var(--dur-fast);
 }
 .sfym-numchip:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
-.sfym-numchip-label { font-size: 10px; color: var(--ink-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.sfym-numchip-label { font-size: 10px; color: var(--ink-muted); letter-spacing: 0.04em; }
 .sfym-numchip-num { font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 700; }
 
 .sfym-place-card {

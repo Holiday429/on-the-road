@@ -22,7 +22,6 @@
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ink-faint);
   margin-right: 2px;
@@ -479,7 +478,6 @@
   font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--ink-muted);
-  text-transform: uppercase;
   letter-spacing: 0.06em;
   border-bottom: 1px solid var(--rule);
   margin-bottom: 2px;

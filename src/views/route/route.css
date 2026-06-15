@@ -703,7 +703,7 @@ a.rd-clip-card-title:hover { color: #0369a1; text-decoration: underline; }
   display: block;
   font-family: var(--font-ui); font-size: var(--fs-xs);
   font-weight: 700; color: var(--ink-muted);
-  letter-spacing: 0.05em; text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 .rd-plan-day-date {
   display: block;
@@ -780,7 +780,7 @@ a.rd-clip-card-title:hover { color: #0369a1; text-decoration: underline; }
 .rd-feed-day--active .rd-feed-day-dot { box-shadow: 0 0 0 3px rgba(34,197,94,0.25); }
 .rd-feed-day-label {
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
-  letter-spacing: 0.05em; text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--ink-soft);
 }
 .rd-feed-day--active .rd-feed-day-label { color: #15803d; }
@@ -1205,7 +1205,7 @@ a.rd-clip-title:hover { color: #0369a1; text-decoration: underline; }
 }
 .rd-pmap-day-label {
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
-  color: var(--ink); text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--ink); letter-spacing: 0.05em;
 }
 .rd-pmap-day-date { font-size: var(--fs-xs); color: var(--ink-faint); }
 

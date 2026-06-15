@@ -548,7 +548,6 @@
   font-weight: 700;
   color: var(--ink-muted);
   letter-spacing: 0.06em;
-  text-transform: uppercase;
   margin-bottom: 4px;
 }
 .tcc-grid {
@@ -666,7 +665,6 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--ink-faint);
-  text-transform: uppercase;
 }
 
 .trip-menu-row {
@@ -1389,7 +1387,7 @@
 .account-upgrade { margin-top: var(--sp-2); align-self: flex-start; }
 .account-section-head {
   margin-top: var(--sp-4); font-size: var(--fs-xs); font-weight: 700;
-  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint);
+  letter-spacing: 0.08em; color: var(--ink-faint);
 }
 .account-purchases { display: flex; flex-direction: column; gap: var(--sp-2); }
 .account-purchase-row {

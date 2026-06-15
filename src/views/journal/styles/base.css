@@ -667,7 +667,7 @@
 .journal-empty { padding: var(--sp-10) var(--sp-6); text-align: center; }
 .journal-empty-mark {
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint);
+  letter-spacing: 0.1em; color: var(--ink-faint);
 }
 .journal-empty-title { margin-top: 8px; font-family: var(--font-ui); font-size: var(--fs-xl); font-weight: 700; color: var(--ink); }
 .journal-empty-copy { margin: 6px auto 0; max-width: 36ch; color: var(--ink-muted); }

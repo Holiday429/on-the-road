@@ -52,7 +52,6 @@
   font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--ink-faint);
-  text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 8px 14px 4px;
 }
@@ -860,7 +859,6 @@ a.guide-icon-btn { text-decoration: none; }
   font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.05em;
-  text-transform: uppercase;
   color: var(--accent-deep);
   display: flex;
   align-items: center;
@@ -903,7 +901,6 @@ a.guide-icon-btn { text-decoration: none; }
   font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--ink-faint);
   margin-bottom: var(--sp-2);
 }
@@ -1043,7 +1040,6 @@ a.guide-icon-btn { text-decoration: none; }
   font-weight: 600;
   color: var(--ink-muted);
   font-family: var(--font-ui);
-  text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-top: var(--sp-1);
 }

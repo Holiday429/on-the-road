@@ -61,8 +61,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let uid: string;
   try {
     uid = await verifyFirebaseToken(token);
-  } catch {
-    res.status(401).json({ error: 'unauthenticated', message: 'Session expired.' });
+  } catch (e) {
+    // Log the real reason so Vercel function logs reveal whether this is an
+    // expired/clock-skewed token, a JWKS fetch failure, a bad service-account
+    // JSON, or a project_id mismatch — all of which otherwise look identical.
+    console.error('[create-checkout] Token verification failed:', e);
+    res.status(401).json({ error: 'unauthenticated', message: 'Session expired. Please sign in again.' });
     return;
   }
 

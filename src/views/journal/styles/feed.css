@@ -31,7 +31,6 @@
   font-size: var(--fs-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--ink-faint);
   white-space: nowrap;
 }
@@ -279,7 +278,7 @@
 }
 .journal-ticket-stub-label {
   font-family: var(--font-ui); font-size: 10px; font-weight: 700;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft);
+  letter-spacing: 0.1em; color: var(--ink-soft);
   writing-mode: vertical-rl; transform: rotate(180deg);
 }
 .journal-ticket-stub-date { font-family: var(--font-ui); font-size: 10px; font-weight: 700; color: var(--ink-muted); }

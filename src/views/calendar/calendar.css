@@ -261,7 +261,6 @@
   font-size: var(--fs-xs);
   font-weight: 700;
   color: var(--ink-faint);
-  text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: var(--sp-2) 0 var(--sp-1);
 }
@@ -370,7 +369,7 @@
 }
 .cal-todos-section-label {
   font-size: 10px; font-weight: 700; color: var(--ink-faint);
-  text-transform: uppercase; letter-spacing: 0.05em;
+ letter-spacing: 0.05em;
   padding: var(--sp-2) 0 var(--sp-1);
 }
 .cal-todo-row {
