@@ -54,7 +54,7 @@ async function getAccessToken(): Promise<string> {
 
 const JWKS_URL = 'https://www.googleapis.com/robot/v1/metadata/jwks/securetoken@system.gserviceaccount.com';
 
-async function verifyFirebaseToken(token: string): Promise<string> {
+export async function verifyFirebaseToken(token: string): Promise<string> {
   const { createRemoteJWKSet, jwtVerify } = await import('jose');
   const sa = getServiceAccount();
   const JWKS = createRemoteJWKSet(new URL(JWKS_URL));

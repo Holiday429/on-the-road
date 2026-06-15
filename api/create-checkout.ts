@@ -15,6 +15,12 @@
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
+// Reuse the AI guard's token verifier. Importing it statically also pulls in
+// _guard's `import { GoogleAuth } from 'google-auth-library'`, which makes the
+// bundler include `jose` instead of emitting a runtime require() of it — that
+// require() is what threw ERR_REQUIRE_ESM (jose is ESM-only) when this file
+// verified tokens on its own.
+import { verifyFirebaseToken } from './_guard.ts';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined>; method?: string };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse; setHeader(k: string, v: string): void; end(): void };
@@ -25,23 +31,6 @@ const VARIANT_ENV: Record<Plan, string> = {
   trip_pass: 'LEMON_SQUEEZY_VARIANT_TRIP',
   lifetime:  'LEMON_SQUEEZY_VARIANT_LIFETIME',
 };
-
-// ── Firebase token verification (same pattern as _guard.ts) ──────────────────
-
-async function verifyFirebaseToken(token: string): Promise<string> {
-  const { createRemoteJWKSet, jwtVerify } = await import('jose');
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT not set');
-  const sa = JSON.parse(raw) as { project_id: string };
-  const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/robot/v1/metadata/jwks/securetoken@system.gserviceaccount.com'));
-  const { payload } = await jwtVerify(token, JWKS, {
-    issuer: `https://securetoken.google.com/${sa.project_id}`,
-    audience: sa.project_id,
-  });
-  const uid = payload.sub ?? (payload as Record<string, unknown>).user_id;
-  if (!uid || typeof uid !== 'string') throw new Error('No uid in token');
-  return uid;
-}
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
