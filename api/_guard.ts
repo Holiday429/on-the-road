@@ -54,8 +54,22 @@ async function getAccessToken(): Promise<string> {
 
 const JWKS_URL = 'https://www.googleapis.com/robot/v1/metadata/jwks/securetoken@system.gserviceaccount.com';
 
+// jose is ESM-only. When this file is bundled into a CJS serverless function,
+// `await import('jose')` can get lowered to `require('jose')`, which throws
+// ERR_REQUIRE_ESM at runtime. Hiding the import() inside a Function constructor
+// keeps the specifier opaque to the compiler/bundler, so it stays a real
+// dynamic import() and loads the ESM module correctly. (The bundling was
+// inconsistent across endpoints — same _guard, fine from /api/check, crashing
+// from /api/create-checkout — so we make the load robust regardless.)
+const dynamicImport = new Function('m', 'return import(m)') as (m: string) => Promise<unknown>;
+
+type JoseModule = {
+  createRemoteJWKSet: typeof import('jose').createRemoteJWKSet;
+  jwtVerify: typeof import('jose').jwtVerify;
+};
+
 export async function verifyFirebaseToken(token: string): Promise<string> {
-  const { createRemoteJWKSet, jwtVerify } = await import('jose');
+  const { createRemoteJWKSet, jwtVerify } = await dynamicImport('jose') as JoseModule;
   const sa = getServiceAccount();
   const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
   const { payload } = await jwtVerify(token, JWKS, {
