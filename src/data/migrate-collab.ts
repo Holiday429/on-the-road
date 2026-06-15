@@ -28,6 +28,18 @@ import { currentUser } from '../firebase/auth.ts';
 // that already ran v1 re-run once to move their todos to trips/{tripId}/todos.
 const FLAG = 'otr:migrated:collab:v2';
 
+/**
+ * True once this device has run the collab migration. Pure localStorage read
+ * (no network), so boot can cheaply decide whether the trips/** layout is
+ * already populated. When false, the trip-bootstrap reads (listTrips →
+ * ensureDefaultTrip) MUST wait for migrateCollab first, or they'd read an empty
+ * trips/** and wrongly trigger onboarding for a legacy account whose data still
+ * lives under users/{uid}/**.
+ */
+export function isCollabMigrated(): boolean {
+  return localStorage.getItem(FLAG) === '1';
+}
+
 // Sub-collections that lived under each trip.
 const TRIP_SUBCOLLECTIONS = [
   'cityIntel', 'citySafety', 'compares', 'expenseCategories', 'expenses',

@@ -13,7 +13,7 @@ import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
-import { migrateCollab } from './data/migrate-collab.ts';
+import { migrateCollab, isCollabMigrated } from './data/migrate-collab.ts';
 import { migratePublicView } from './data/migrate-publicview.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
 import { initDashboard } from './views/today/dashboard.ts';
@@ -212,8 +212,6 @@ let guestShellReady = false;
 // a confirmation toast is shown once the shell is up.
 let accessRequestToastPending = false;
 
-const AUTH_ENTRY_TIMEOUT_MS = 1500;
-
 function setAuthStatus(message: string, isError = false) {
   if (!authStatus) return;
   authStatus.textContent = message;
@@ -311,20 +309,6 @@ async function bootViewerShell() {
   guestShellReady = true;
 }
 
-async function entryUser(): Promise<User | null> {
-  try {
-    return await Promise.race([
-      authReady(),
-      new Promise<User | null>((resolve) => {
-        window.setTimeout(() => resolve(currentUser()), AUTH_ENTRY_TIMEOUT_MS);
-      }),
-    ]);
-  } catch (error) {
-    console.warn('Auth readiness skipped:', error);
-    return currentUser();
-  }
-}
-
 async function bootAuthenticatedShell(user: User) {
   if (preparedUserId === user.uid) return;
   if (bootPromise) {
@@ -335,62 +319,22 @@ async function bootAuthenticatedShell(user: User) {
   prepareAppFrame();
 
   bootPromise = (async () => {
+    // FAST PATH: this device already ran the collab migration, so the trips/**
+    // layout is populated. We can read the active trip and enter immediately,
+    // then run the remaining (idempotent) migrations in the background. This is
+    // the common case — keeps Enter near-instant for returning users.
+    //
+    // SLOW PATH (legacy account's first sign-in): the collab migration hasn't
+    // run, so trips/** is still empty. We MUST migrate before reading the active
+    // trip, or ensureDefaultTrip would see no trips and wrongly trigger
+    // onboarding. This blocks entry once; subsequent boots take the fast path.
+    const tookSlowPath = !isCollabMigrated();
+    if (tookSlowPath) {
+      await runPreTripMigrations();
+    }
+
+    // Minimal set needed to know WHICH trip to show — always awaited before entry.
     let needsOnboarding = false;
-
-    // Legacy localStorage→cloud migrations first. These read localStorage and,
-    // for older accounts, seed the OLD users/{uid}/** layout. They early-return
-    // via their own done-flags for accounts already on the cloud. migrateMultiTrip
-    // operates entirely on users/{uid}/** (always permitted).
-    try {
-      const n = await migrateMultiTrip();
-      if (n > 0) console.info(`Flattened ${n} legs/journal entries for multi-trip.`);
-    } catch (e) { console.warn('Multi-trip migration skipped:', e); }
-
-    // Collaboration migration: copy users/{uid}/trips/** and the flat tagged
-    // collections into the new top-level trips/**. Copy-only, non-destructive.
-    // MUST run before anything reads/subscribes the new trips/** paths
-    // (ensureDefaultTrip, the route/expense legacy migrations, view stores).
-    try {
-      const r = await migrateCollab();
-      if (r.trips > 0 || r.docs > 0) console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs copied to trips/**.`);
-    } catch (e) { console.warn('Collab migration skipped:', e); }
-
-    // Convert owned trips from the coarse hasPublicView flag to page-level
-    // publicView. Owner-only; other members' trips migrate when their owner
-    // logs in (dual-read rules keep legacy share links working meanwhile).
-    try {
-      const n = await migratePublicView();
-      if (n > 0) console.info(`Converted ${n} trip(s) to page-level public view.`);
-    } catch (e) { console.warn('publicView migration skipped:', e); }
-
-    // These now target trips/** (via the repathed stores). They early-return
-    // for accounts already migrated; run after collab so the trip docs exist.
-    try {
-      const n = await migrateRouteToCloud();
-      if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
-    } catch (e) { console.warn('Route migration skipped:', e); }
-
-    try {
-      const n = await migrateExpensesToCloud();
-      if (n > 0) console.info(`Migrated ${n} expenses to the cloud.`);
-    } catch (e) { console.warn('Expense migration skipped:', e); }
-
-    try {
-      const n = await migrateStaysToCompares();
-      if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
-    } catch (e) { console.warn('Stay→compare migration skipped:', e); }
-
-    // If an editor link was opened before this sign-in, create the access
-    // request now (the owner must approve before the requester gets in). This
-    // does NOT grant access — it just records the request, then continues the
-    // normal boot (the user sees their own trips, plus a confirmation toast).
-    // Viewer links are handled entirely in resolveInviteLink() (public read).
-    try {
-      const { consumePendingAccessRequest } = await import('./core/trip-share.ts');
-      const requested = await consumePendingAccessRequest();
-      if (requested) accessRequestToastPending = true;
-    } catch (e) { console.warn('Access-request handling skipped:', e); }
-
     try {
       const trip = await ensureDefaultTrip();
       needsOnboarding = trip === null;
@@ -398,19 +342,6 @@ async function bootAuthenticatedShell(user: User) {
 
     try { await restoreActiveTrip(); }
     catch (e) { console.warn('Restore active trip skipped:', e); }
-
-    // Check for email-based editor invites and auto-accept them.
-    try {
-      const joined = await checkAndAcceptEmailInvites();
-      if (joined > 0) console.info(`Auto-accepted ${joined} email invite(s).`);
-    } catch (e) { console.warn('Email invite check skipped:', e); }
-
-    // Adopt the saved UI/AI language from the profile (only if this device has
-    // no explicit local choice yet), so the shell below builds in that language.
-    try {
-      const { loadLocaleFromProfile } = await import('./core/i18n.ts');
-      await loadLocaleFromProfile();
-    } catch (e) { console.warn('Locale load skipped:', e); }
 
     // Apply any page restriction for this member (editor limited to some pages).
     // null = full access. Owners are always unrestricted.
@@ -428,24 +359,131 @@ async function bootAuthenticatedShell(user: User) {
       openOnboarding();
     }
 
-    if (accessRequestToastPending) {
-      accessRequestToastPending = false;
-      showAccessRequestToast();
-    }
-
-    // If we just came back from a successful checkout, confirm + refresh quota.
-    try {
-      const { handlePaymentReturn } = await import('./core/payment-return.ts');
-      handlePaymentReturn();
-    } catch (e) { console.warn('Payment-return handling skipped:', e); }
-
     await nextFrame();
+
+    // Everything below is non-blocking: it runs AFTER the user is already in the
+    // app. On the fast path these migrations + side-effects no longer gate entry.
+    // (On the slow path the migrations already ran inline above, so skip them.)
+    void runPostEntryTasks(user, needsOnboarding, tookSlowPath);
   })();
 
   try {
     await bootPromise;
   } finally {
     bootPromise = null;
+  }
+}
+
+/**
+ * Data migrations that MUST complete before the active trip can be read.
+ * Order matters: migrateCollab copies users/{uid}/** into trips/**, and the
+ * route/expense/stay/publicView migrations all target trips/**, so they run
+ * after it. Each is idempotent and early-returns once its own done-flag is set.
+ * Run inline (blocking entry) only on a legacy account's first sign-in; on the
+ * fast path the same set runs in the background via runPostEntryTasks.
+ */
+async function runPreTripMigrations(): Promise<void> {
+  // Legacy localStorage→cloud; operates entirely on users/{uid}/** (always permitted).
+  try {
+    const n = await migrateMultiTrip();
+    if (n > 0) console.info(`Flattened ${n} legs/journal entries for multi-trip.`);
+  } catch (e) { console.warn('Multi-trip migration skipped:', e); }
+
+  // Collaboration migration: copy users/{uid}/** into top-level trips/**.
+  // Copy-only, non-destructive. MUST precede any read of trips/**.
+  try {
+    const r = await migrateCollab();
+    if (r.trips > 0 || r.docs > 0) console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs copied to trips/**.`);
+  } catch (e) { console.warn('Collab migration skipped:', e); }
+
+  // Convert owned trips from the coarse hasPublicView flag to page-level
+  // publicView. Owner-only; other members' trips migrate when their owner logs in.
+  try {
+    const n = await migratePublicView();
+    if (n > 0) console.info(`Converted ${n} trip(s) to page-level public view.`);
+  } catch (e) { console.warn('publicView migration skipped:', e); }
+
+  // These target trips/** via the repathed stores; run after collab.
+  try {
+    const n = await migrateRouteToCloud();
+    if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
+  } catch (e) { console.warn('Route migration skipped:', e); }
+
+  try {
+    const n = await migrateExpensesToCloud();
+    if (n > 0) console.info(`Migrated ${n} expenses to the cloud.`);
+  } catch (e) { console.warn('Expense migration skipped:', e); }
+
+  try {
+    const n = await migrateStaysToCompares();
+    if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
+  } catch (e) { console.warn('Stay→compare migration skipped:', e); }
+}
+
+/**
+ * Side-effects that run AFTER the user is already in the app — so they never
+ * gate entry on the fast path. Runs the (idempotent) data migrations in the
+ * background, then the access-request / email-invite / locale / payment-return
+ * follow-ups. If the background migrations actually moved data, or an email
+ * invite joined a new trip, the active view is refreshed so the new data shows.
+ */
+async function runPostEntryTasks(user: User, alreadyOnboarding: boolean, migrationsAlreadyRan: boolean): Promise<void> {
+  let dataChanged = false;
+
+  // Fast path only: the migrations didn't run before entry, so run them now in
+  // the background and capture whether anything actually moved. (The slow path
+  // already ran them inline before entry, so we skip the redundant re-run.)
+  if (!migrationsAlreadyRan) {
+    try {
+      const r = await migrateCollab();
+      if (r.trips > 0 || r.docs > 0) { dataChanged = true; console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs.`); }
+    } catch (e) { console.warn('Collab migration (bg) skipped:', e); }
+    try { if (await migratePublicView() > 0) dataChanged = true; } catch (e) { console.warn('publicView migration (bg) skipped:', e); }
+    try { if (await migrateRouteToCloud() > 0) dataChanged = true; } catch (e) { console.warn('Route migration (bg) skipped:', e); }
+    try { if (await migrateExpensesToCloud() > 0) dataChanged = true; } catch (e) { console.warn('Expense migration (bg) skipped:', e); }
+    try { if (await migrateStaysToCompares() > 0) dataChanged = true; } catch (e) { console.warn('Stay→compare migration (bg) skipped:', e); }
+    try { await migrateMultiTrip(); } catch (e) { console.warn('Multi-trip migration (bg) skipped:', e); }
+  }
+
+  // If an editor link was opened before this sign-in, record the access request
+  // (the owner must approve before access is granted). Viewer links are handled
+  // entirely in resolveInviteLink() (public read).
+  try {
+    const { consumePendingAccessRequest } = await import('./core/trip-share.ts');
+    if (await consumePendingAccessRequest()) accessRequestToastPending = true;
+  } catch (e) { console.warn('Access-request handling skipped:', e); }
+
+  // Email-based editor invites matching this user → auto-accept (may add a trip).
+  try {
+    const joined = await checkAndAcceptEmailInvites();
+    if (joined > 0) { dataChanged = true; console.info(`Auto-accepted ${joined} email invite(s).`); }
+  } catch (e) { console.warn('Email invite check skipped:', e); }
+
+  // Adopt the saved UI/AI language from the profile (only if this device has no
+  // explicit local choice yet). It notifies its own i18n listeners on change,
+  // so no extra repaint is needed here.
+  try {
+    const { loadLocaleFromProfile } = await import('./core/i18n.ts');
+    await loadLocaleFromProfile();
+  } catch (e) { console.warn('Locale load skipped:', e); }
+
+  if (accessRequestToastPending) {
+    accessRequestToastPending = false;
+    showAccessRequestToast();
+  }
+
+  // If we just came back from a successful checkout, confirm + refresh quota.
+  try {
+    const { handlePaymentReturn } = await import('./core/payment-return.ts');
+    handlePaymentReturn();
+  } catch (e) { console.warn('Payment-return handling skipped:', e); }
+
+  // Repaint only when background migrations / invites actually moved data the
+  // user can see, and we're still in this same authenticated session (not
+  // onboarding, not switched out).
+  if (dataChanged && !alreadyOnboarding && preparedUserId === user.uid) {
+    renderSession(user, handleSidebarAuth);
+    navigateTo(currentViewOrDefault());
   }
 }
 
@@ -462,9 +500,16 @@ authButton?.addEventListener('click', async () => {
       enterApp();
       return;
     }
-    // Wait for any pending iOS PWA redirect result before reading auth state.
-    await redirectResultPromise;
-    const user = await entryUser();
+    // Only block on the redirect result when one is actually pending (iOS PWA
+    // returning from a Google sign-in redirect) — otherwise the user could be
+    // lost to a race. On a normal load it's already consumed, so this is a no-op.
+    if (!_redirectConsumed) await redirectResultPromise;
+
+    // Enter immediately using whatever auth state we already know. We do NOT
+    // wait for Firebase to finish resolving auth: if a user is already known we
+    // boot the authenticated shell; otherwise we boot as guest, and onAuth's
+    // appEntered branch seamlessly upgrades us the moment auth resolves a user.
+    const user = currentUser();
     if (user) {
       await bootAuthenticatedShell(user);
     } else {
