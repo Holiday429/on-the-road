@@ -15,11 +15,8 @@
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
-// Reuse the AI guard's token verifier. Importing it statically also pulls in
-// _guard's `import { GoogleAuth } from 'google-auth-library'`, which makes the
-// bundler include `jose` instead of emitting a runtime require() of it — that
-// require() is what threw ERR_REQUIRE_ESM (jose is ESM-only) when this file
-// verified tokens on its own.
+// Reuse the AI guard's google-auth-library-based token verifier rather than
+// duplicating verification logic here.
 import { verifyFirebaseToken } from './_guard';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined>; method?: string };

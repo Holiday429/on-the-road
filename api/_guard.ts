@@ -1,15 +1,16 @@
 /* ==========================================================================
    On the Road · AI endpoint guard
    --------------------------------------------------------------------------
-   Verifies Firebase ID tokens via jose (dynamic import, ESM-safe in CJS)
-   and reads Firestore via REST API to avoid firebase-admin's CJS/ESM conflict
-   (firebase-admin → jwks-rsa → jose ESM-only → ERR_REQUIRE_ESM).
+   Verifies Firebase ID tokens with google-auth-library (CJS-safe) and reads
+   Firestore via REST API to avoid firebase-admin's CJS/ESM conflict. We avoid
+   jose entirely — it is ESM-only and Vercel's per-endpoint CJS bundling kept
+   breaking on it (ERR_REQUIRE_ESM / ERR_MODULE_NOT_FOUND).
 
    FREE_MONTHLY_QUOTA = 0 → all free users blocked. Raise to grant free calls.
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
-import { GoogleAuth } from 'google-auth-library';
+import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse };
@@ -50,33 +51,48 @@ async function getAccessToken(): Promise<string> {
   return tokenResp.token;
 }
 
-// ── Firebase ID token verification via jose ───────────────────────────────────
+// ── Firebase ID token verification via google-auth-library ─────────────────────
+//
+// We verify Firebase ID tokens with google-auth-library (already a declared,
+// bundled dependency) instead of jose. jose is ESM-only and Vercel's
+// per-endpoint CJS bundling kept lowering its dynamic import to require()
+// (ERR_REQUIRE_ESM) or losing the package entirely (ERR_MODULE_NOT_FOUND).
+//
+// Firebase ID tokens are RS256-signed by securetoken@system.gserviceaccount.com.
+// Its public X.509 certs (keyed by `kid`) live at the URL below; we fetch and
+// cache them, then let OAuth2Client check signature, audience, issuer and expiry.
 
-const JWKS_URL = 'https://www.googleapis.com/robot/v1/metadata/jwks/securetoken@system.gserviceaccount.com';
+const FIREBASE_CERTS_URL =
+  'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
 
-// jose is ESM-only. When this file is bundled into a CJS serverless function,
-// `await import('jose')` can get lowered to `require('jose')`, which throws
-// ERR_REQUIRE_ESM at runtime. Hiding the import() inside a Function constructor
-// keeps the specifier opaque to the compiler/bundler, so it stays a real
-// dynamic import() and loads the ESM module correctly. (The bundling was
-// inconsistent across endpoints — same _guard, fine from /api/check, crashing
-// from /api/create-checkout — so we make the load robust regardless.)
-const dynamicImport = new Function('m', 'return import(m)') as (m: string) => Promise<unknown>;
+let _certs: { certs: Record<string, string>; expires: number } | null = null;
 
-type JoseModule = {
-  createRemoteJWKSet: typeof import('jose').createRemoteJWKSet;
-  jwtVerify: typeof import('jose').jwtVerify;
-};
+async function getFirebaseCerts(): Promise<Record<string, string>> {
+  if (_certs && _certs.expires > Date.now()) return _certs.certs;
+  const res = await fetch(FIREBASE_CERTS_URL);
+  if (!res.ok) throw new Error(`Firebase certs fetch failed: ${res.status}`);
+  const certs = await res.json() as Record<string, string>;
+  // Honour Cache-Control max-age so we don't refetch on every request.
+  const cc = res.headers.get('cache-control') ?? '';
+  const maxAge = Number(/max-age=(\d+)/.exec(cc)?.[1] ?? 3600);
+  _certs = { certs, expires: Date.now() + maxAge * 1000 };
+  return certs;
+}
+
+const _oauth = new OAuth2Client();
 
 export async function verifyFirebaseToken(token: string): Promise<string> {
-  const { createRemoteJWKSet, jwtVerify } = await dynamicImport('jose') as JoseModule;
   const sa = getServiceAccount();
-  const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
-  const { payload } = await jwtVerify(token, JWKS, {
-    issuer: `https://securetoken.google.com/${sa.project_id}`,
-    audience: sa.project_id,
-  });
-  const uid = payload.sub ?? payload.user_id;
+  const certs = await getFirebaseCerts();
+  // Verifies signature against the certs, plus audience, issuer and expiry.
+  const login = await _oauth.verifySignedJwtWithCertsAsync(
+    token,
+    certs,
+    sa.project_id,                                      // required audience
+    [`https://securetoken.google.com/${sa.project_id}`], // allowed issuers
+  );
+  const payload = login.getPayload() as { sub?: string; user_id?: string } | undefined;
+  const uid = payload?.sub ?? payload?.user_id;
   if (!uid || typeof uid !== 'string') throw new Error('No uid in token');
   return uid;
 }
