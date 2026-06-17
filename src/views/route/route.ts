@@ -1890,8 +1890,15 @@ function openTransportEditor(timeline: HTMLElement, leg: Leg) {
       // Preserve the expense link across edits so re-syncing updates, not duplicates.
       expenseId: t?.expenseId,
     };
+    const priceNewlyAdded = priceAmount != null && t?.priceAmount == null && !t?.expenseId;
     patchLeg(leg.id, { arrivalTransport: clean(next) });
     close();
+    // If price was just entered for the first time (no prior priceAmount, no linked expense),
+    // auto-open the sync dialog so the spend lands in Expenses without a separate click.
+    if (priceNewlyAdded) {
+      const syntheticLeg = { ...leg, arrivalTransport: next };
+      openTransportSyncDialog(timeline, syntheticLeg as Leg);
+    }
   });
 }
 
