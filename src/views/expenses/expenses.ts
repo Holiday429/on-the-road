@@ -40,13 +40,13 @@ import {
 interface Category { id: string; label: string; icon: string; color: string; builtin: boolean; }
 
 const BUILTIN_CATEGORIES: Category[] = [
-  { id: 'accommodation', label: 'Stay',      icon: '🏠', color: '#fde68a', builtin: true },
-  { id: 'food',          label: 'Food',      icon: '🍜', color: '#bbf7d0', builtin: true },
-  { id: 'transport',     label: 'Transport', icon: '🚆', color: '#bae6fd', builtin: true },
-  { id: 'activities',    label: 'Activities',icon: '🎭', color: '#e9d5ff', builtin: true },
-  { id: 'shopping',      label: 'Shopping',  icon: '🛍️', color: '#fecaca', builtin: true },
-  { id: 'health',        label: 'Health',    icon: '💊', color: '#d1fae5', builtin: true },
-  { id: 'misc',          label: 'Misc',      icon: '📌', color: '#f3f4f6', builtin: true },
+  { id: 'accommodation', label: 'Stay',      icon: '🏠', color: '#f3ede2', builtin: true }, // sand
+  { id: 'food',          label: 'Food',      icon: '🍜', color: '#f3f0e2', builtin: true }, // cream
+  { id: 'transport',     label: 'Transport', icon: '🚆', color: '#e2edf3', builtin: true }, // blue-grey
+  { id: 'activities',    label: 'Activities',icon: '🎭', color: '#ece2f3', builtin: true }, // lavender
+  { id: 'shopping',      label: 'Shopping',  icon: '🛍️', color: '#f3e2e8', builtin: true }, // rose
+  { id: 'health',        label: 'Health',    icon: '💊', color: '#f3e6e6', builtin: true }, // blush
+  { id: 'misc',          label: 'Misc',      icon: '📌', color: '#ebebeb', builtin: true }, // neutral
 ];
 
 /** Built-ins followed by the user's custom categories (sorted). */
