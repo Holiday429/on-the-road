@@ -481,9 +481,8 @@ function renderClipsSection(leg: Leg): string {
     const cat = c.category ? categoryById(leg, c.category) : undefined;
     const color = cat?.color ?? '#ebebeb';
     const imgs = clipImages(c);
-    const hasDetail = !!(imgs.length || (c.body && c.body.length > 80));
     return `
-    <div class="rd-clip-card${hasDetail ? ' rd-clip-card--expandable' : ''}" data-clip="${esc(c.id)}" data-clip-cat="${esc(c.category ?? '')}"${hasDetail ? ` data-act="preview-clip" data-clip-preview="${esc(c.id)}"` : ''}>
+    <div class="rd-clip-card rd-clip-card--expandable" data-clip="${esc(c.id)}" data-clip-cat="${esc(c.category ?? '')}" data-act="preview-clip" data-clip-preview="${esc(c.id)}">
       <div class="rd-clip-card-color" style="background:${esc(color)}"></div>
       <div class="rd-clip-card-body">
         ${imgs.length ? `<div class="rd-clip-card-imgs">${imgs.slice(0, 3).map((u, i) => `<div class="rd-clip-card-img-wrap">${i === 2 && imgs.length > 3 ? `<img class="rd-clip-card-img" src="${esc(u)}" alt=""><div class="rd-clip-card-img-more">+${imgs.length - 2}</div>` : `<img class="rd-clip-card-img" src="${esc(u)}" alt="">`}</div>`).join('')}</div>` : ''}
