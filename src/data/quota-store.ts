@@ -15,16 +15,19 @@
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config.ts';
 import { onAuth, currentUser } from '../firebase/auth.ts';
-import { FREE_QUOTA } from './schema.ts';
+import { FREE_QUOTA, LIFETIME_QUOTA, PER_TRIP_AI_CREDITS } from './schema.ts';
 import { listTrips, onTripChange } from './trip-context.ts';
 
 interface QuotaState {
   tripQuota: number;   // total owned-trip slots the user is entitled to
   usedSlots: number;   // trips the user currently owns
+  aiCreditsPool: number; // account-wide booster pool (server-written)
+  freeAiUsed: boolean;   // whether the one free AI trial has been used
+  plan: 'free' | 'trip_pass' | 'lifetime';
   ready: boolean;
 }
 
-const state: QuotaState = { tripQuota: FREE_QUOTA, usedSlots: 0, ready: false };
+const state: QuotaState = { tripQuota: FREE_QUOTA, usedSlots: 0, aiCreditsPool: 0, freeAiUsed: false, plan: 'free', ready: false };
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -54,8 +57,11 @@ function subscribeForUser(uid: string) {
   _unsubSnapshot = onSnapshot(
     ref,
     (snap) => {
-      const data = snap.data() as { tripQuota?: number } | undefined;
+      const data = snap.data() as { tripQuota?: number; aiCreditsPool?: number; freeAiUsed?: boolean; plan?: string } | undefined;
       state.tripQuota = typeof data?.tripQuota === 'number' ? data.tripQuota : FREE_QUOTA;
+      state.aiCreditsPool = typeof data?.aiCreditsPool === 'number' ? data.aiCreditsPool : 0;
+      state.freeAiUsed = data?.freeAiUsed === true;
+      state.plan = (data?.plan === 'trip_pass' || data?.plan === 'lifetime') ? data.plan : 'free';
       state.ready = true;
       emit();
     },
@@ -69,6 +75,9 @@ function reset() {
   _unsubSnapshot = null;
   state.tripQuota = FREE_QUOTA;
   state.usedSlots = 0;
+  state.aiCreditsPool = 0;
+  state.freeAiUsed = false;
+  state.plan = 'free';
   state.ready = false;
   emit();
 }
@@ -86,6 +95,9 @@ onTripChange(() => { void refreshUsedSlots(); });
 export const quotaStore = {
   get tripQuota(): number { return state.tripQuota; },
   get usedSlots(): number { return state.usedSlots; },
+  get aiCreditsPool(): number { return state.aiCreditsPool; },
+  get freeAiUsed(): boolean { return state.freeAiUsed; },
+  get plan(): 'free' | 'trip_pass' | 'lifetime' { return state.plan; },
   get ready(): boolean { return state.ready; },
 
   /** Slots left to create new owned trips (never negative). */
@@ -93,6 +105,20 @@ export const quotaStore = {
 
   /** Whether the user may create another owned trip right now. */
   canCreateTrip(): boolean { return this.remaining > 0; },
+
+  /**
+   * Estimated AI credits remaining for this trip.
+   * Returns null when the user is lifetime (unlimited).
+   * For paid trips: per-trip bundle (server-tracked) + pool + free trial.
+   * We approximate the trip bundle as PER_TRIP_AI_CREDITS since we don't
+   * read trips/{id}/usage/ai on the client — the server is authoritative.
+   */
+  estimatedAiCredits(): number | null {
+    if (state.tripQuota >= LIFETIME_QUOTA) return null; // unlimited
+    if (state.plan === 'free') return state.freeAiUsed ? 0 : 1;
+    // paid: bundle + pool (trip usage not tracked client-side, show pool + 1 bundle approx)
+    return PER_TRIP_AI_CREDITS + state.aiCreditsPool;
+  },
 
   /** Force a recount of owned trips (e.g. right after createTrip succeeds). */
   refresh(): Promise<void> { return refreshUsedSlots(); },

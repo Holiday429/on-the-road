@@ -82,28 +82,30 @@ function renderPlansModal(desc: string): void {
         <p class="paywall-desc">${desc}</p>
         <div class="paywall-plans">
           <div class="paywall-plan paywall-plan--featured">
+            <div class="paywall-plan-badge">${t('paywall.badgePopular')}</div>
             <div class="paywall-plan-name">${t('paywall.planTrip')}</div>
-            <div class="paywall-plan-price">$8.8<span class="paywall-plan-period"> ${t('paywall.planTripPeriod')}</span></div>
+            <div class="paywall-plan-price">$8.8<span class="paywall-plan-period"> / ${t('paywall.planTripPeriod')}</span></div>
             <ul class="paywall-plan-perks">
-              <li>${t('paywall.perkOneTrip')}</li>
-              <li>${t('paywall.perkAiGuides')}</li>
-              <li>${t('paywall.perkAllFeatures')}</li>
-              <li>${t('paywall.perkShare')}</li>
+              <li>🗺️ ${t('paywall.perkOneTrip')}</li>
+              <li>✨ ${t('paywall.perkAiGuides')}</li>
+              <li>📦 ${t('paywall.perkAllFeatures')}</li>
+              <li>🤝 ${t('paywall.perkShare')}</li>
             </ul>
             <button class="btn btn-primary paywall-btn" data-plan="trip_pass" data-label="${t('paywall.btnTripPass')}">
               ${t('paywall.btnTripPass')}
             </button>
           </div>
           <div class="paywall-plan">
+            <div class="paywall-plan-badge paywall-plan-badge--alt">${t('paywall.badgeBestValue')}</div>
             <div class="paywall-plan-name">${t('paywall.planLifetime')}</div>
             <div class="paywall-plan-price">$68.8<span class="paywall-plan-period"> ${t('paywall.planLifetimePeriod')}</span></div>
             <ul class="paywall-plan-perks">
-              <li>${t('paywall.perkUnlimited')}</li>
-              <li>${t('paywall.perkGuidesEvery')}</li>
-              <li>${t('paywall.perkFuture')}</li>
-              <li>${t('paywall.perkSupport')}</li>
+              <li>♾️ ${t('paywall.perkUnlimited')}</li>
+              <li>✨ ${t('paywall.perkGuidesEvery')}</li>
+              <li>🚀 ${t('paywall.perkFuture')}</li>
+              <li>💛 ${t('paywall.perkSupport')}</li>
             </ul>
-            <button class="btn btn-primary paywall-btn" data-plan="lifetime" data-label="${t('paywall.btnLifetime')}">
+            <button class="btn btn-secondary paywall-btn" data-plan="lifetime" data-label="${t('paywall.btnLifetime')}">
               ${t('paywall.btnLifetime')}
             </button>
           </div>
@@ -149,14 +151,15 @@ export function showAiTopupPaywall(desc?: string): void {
     body: `
       <div class="paywall-body">
         <p class="paywall-desc">${desc ?? t('paywall.aiDefaultMsg')}</p>
-        <div class="paywall-plans">
-          <div class="paywall-plan paywall-plan--featured">
+        <div class="paywall-plans paywall-plans--single">
+          <div class="paywall-plan paywall-plan--featured paywall-plan--topup">
+            <div class="paywall-topup-icon">✨</div>
             <div class="paywall-plan-name">${t('paywall.planAiTopup')}</div>
             <div class="paywall-plan-price">$2.9<span class="paywall-plan-period"> ${t('paywall.planAiTopupPeriod')}</span></div>
             <ul class="paywall-plan-perks">
-              <li>${t('paywall.perkMoreGuides')}</li>
-              <li>${t('paywall.perkAcrossTrips')}</li>
-              <li>${t('paywall.perkNeverExpires')}</li>
+              <li>✨ ${t('paywall.perkMoreGuides')}</li>
+              <li>🌍 ${t('paywall.perkAcrossTrips')}</li>
+              <li>♾️ ${t('paywall.perkNeverExpires')}</li>
             </ul>
             <button class="btn btn-primary paywall-btn" data-plan="ai_topup" data-label="${t('paywall.btnAiTopup')}">
               ${t('paywall.btnAiTopup')}
@@ -188,6 +191,41 @@ export function requireTripSlot(): boolean {
   if (quotaStore.canCreateTrip()) return true;
   showTripQuotaPaywall();
   return false;
+}
+
+// ── AI credit pill ────────────────────────────────────────────────────────────
+
+/**
+ * Render an AI credit indicator pill HTML string.
+ * Unlimited (lifetime) → subtle "∞ AI" label.
+ * Paid with credits left → "✦ N left", amber when ≤ 3.
+ * Empty → red clickable "No AI credits — top up".
+ */
+export function renderAiCreditPill(): string {
+  const credits = quotaStore.estimatedAiCredits();
+  if (credits === null) {
+    return `<span class="ai-credit-pill ai-credit-pill--unlimited">∞ AI</span>`;
+  }
+  if (credits === 0) {
+    return `<button class="ai-credit-pill ai-credit-pill--empty" data-paywall="topup">
+      <span class="ai-credit-dot"></span>${t('paywall.aiCreditsNone')}
+    </button>`;
+  }
+  const low = credits <= 3;
+  const label = credits === 1
+    ? (quotaStore.plan === 'free' ? t('paywall.aiCreditsFree') : t('paywall.aiCreditLow'))
+    : t('paywall.aiCreditsLeft', { n: String(credits) });
+  return `<span class="ai-credit-pill ${low ? 'ai-credit-pill--low' : ''}">
+    <span class="ai-credit-dot"></span>${label}
+  </span>`;
+}
+
+/** Wire data-paywall="topup" click on a container to open the topup modal. */
+export function wireAiCreditPill(container: HTMLElement): void {
+  container.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-paywall="topup"]');
+    if (btn) showAiTopupPaywall();
+  });
 }
 
 // ── Handle QuotaError / AuthError from postJson ───────────────────────────────

@@ -18,7 +18,8 @@ import { slugId } from '../../core/utils.ts';
 import { currentTripId } from '../../data/trip-context.ts';
 import { openModal } from '../../core/modal.ts';
 import { apiUrl, authHeaders } from '../../core/api.ts';
-import { handleAiError } from '../../core/paywall.ts';
+import { handleAiError, renderAiCreditPill, wireAiCreditPill } from '../../core/paywall.ts';
+import { quotaStore } from '../../data/quota-store.ts';
 import { emptyState } from '../../core/empty-state.ts';
 import { prefetchSafetyForCity } from '../safety/safety.ts';
 import { nomadStore } from '../../data/stores/nomad-store.ts';
@@ -1283,6 +1284,15 @@ export function initCities() {
   });
 
   _unsubLegs = routeStore.subscribe((legs) => { _legs = legs; });
+
+  // AI credit pill — update whenever quota changes
+  const creditPillEl = document.getElementById('guide-ai-credit-pill');
+  if (creditPillEl) {
+    const updatePill = () => { creditPillEl.innerHTML = renderAiCreditPill(); };
+    updatePill();
+    quotaStore.subscribe(updatePill);
+    wireAiCreditPill(creditPillEl);
+  }
 
   if (_wired) return;
   _wired = true;
