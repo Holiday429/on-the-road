@@ -723,32 +723,34 @@ a.rd-clip-preview-title:hover { color: #0369a1; text-decoration: underline; }
 .rd-plan-layout {
   display: grid;
   grid-template-columns: 1fr 200px;
-  gap: 0;
+  gap: var(--sp-3);
   align-items: stretch;
   min-height: 380px;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
 }
 .rd-plan-main {
-  padding: var(--sp-4) var(--sp-5);
   overflow: hidden;
-  border-right: 1px solid var(--rule-soft);
   min-width: 0;
 }
 .rd-plan-sidebar {
   display: flex; flex-direction: column;
   background: #fffbf0;
+  border: 2px dashed #d97706;
+  border-radius: var(--r-lg);
   overflow: hidden;
 }
 
 /* ── Unassigned panel (sidebar) ──────────────────────────────────────────── */
 .rd-plan-unassigned-head {
   display: flex; align-items: center; gap: var(--sp-2);
-  padding: 7px var(--sp-3);
+  padding: 8px var(--sp-3);
   background: #fef3c7;
   border-bottom: 1px dashed #f59e0b;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   flex-shrink: 0;
 }
 .rd-plan-unassigned-title {
-  font-family: var(--font-ui); font-size: var(--fs-xs);
+  font-family: var(--font-ui); font-size: var(--fs-sm);
   font-weight: 700; color: #92400e; flex: 1;
 }
 .rd-plan-unassigned-badge {
@@ -1469,7 +1471,7 @@ a.rd-clip-title:hover { color: #0369a1; text-decoration: underline; }
 
   /* Plan layout: stack sidebar below main */
   .rd-plan-layout { grid-template-columns: 1fr; }
-  .rd-plan-main { border-right: none; border-bottom: 1px solid var(--rule-soft); }
+  .rd-plan-main { border-right: none; }
   .rd-plan-add-bar { flex-wrap: wrap; }
   .rd-plan-cat-sel { flex: none; width: 100%; }
   .rd-plan-unassigned-items { max-height: 160px; }

@@ -2,7 +2,7 @@
    On the Road · Prep Checklist (v2 — Firestore-backed)
    ========================================================================== */
 
-import './prep.css';
+import './checklist.css';
 import {
   checklistStore,
   templateStore,

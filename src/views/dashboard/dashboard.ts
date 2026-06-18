@@ -21,7 +21,7 @@ import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashb
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
-import { BUILTIN_CATEGORIES } from '../route/route.ts';
+import { BUILTIN_CATEGORIES } from '../itinerary/itinerary.ts';
 import { openModal } from '../../core/modal.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { createLanguagePicker, type LanguagePickerInstance } from '../../core/language-picker.ts';
@@ -598,13 +598,13 @@ function renderUpcomingWidget(): string {
           <div class="td-upcoming-empty">No itinerary yet — add stops in the Route view.</div>
         </div>`;
     }
-    return renderPlanFeed(next, false);
+    return renderPlanFeed(next);
   }
 
-  return renderPlanFeed(leg, true);
+  return renderPlanFeed(leg);
 }
 
-function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
+function renderPlanFeed(leg: StoredLeg): string {
   const today = todayIso();
   const plans = (leg.plans ?? []) as PlanItem[];
   const days  = ensurePlanDaysLocal(leg);
@@ -661,8 +661,6 @@ function renderPlanFeed(leg: StoredLeg, isCurrent: boolean): string {
         <div class="td-feed-items">${items.map(p => feedItem(p, status)).join('')}</div>
       </div>`;
   }).join('');
-
-  void isCurrent;
 
   return `
     <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
