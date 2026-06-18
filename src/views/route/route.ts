@@ -11,6 +11,7 @@
 import './route.css';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { t as tr } from '../../core/i18n.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
 import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts';
@@ -209,7 +210,7 @@ function legSummary(leg: Leg): string {
   });
 
   if (!leftChips.length && !rightChips.length) {
-    return `<div class="route-leg-summary"><span class="route-sum-chip route-sum-empty">Tap to add transport and stays</span></div>`;
+    return `<div class="route-leg-summary"><span class="route-sum-chip route-sum-empty">${tr('route.emptyLegTip')}</span></div>`;
   }
 
   return `
@@ -232,7 +233,7 @@ function renderLegCard(leg: Leg): string {
             <div class="route-leg-city">${esc(leg.city)}</div>
             <div class="route-leg-status-row">
               <span class="route-status-dot"></span>
-              <span class="route-status-label">${status === 'active' ? 'Here now' : status === 'past' ? 'Visited' : 'Upcoming'}</span>
+              <span class="route-status-label">${status === 'active' ? tr('route.statusActive') : status === 'past' ? tr('route.statusPast') : tr('route.statusUpcoming')}</span>
             </div>
           </div>
           <div class="route-leg-dates">
@@ -254,11 +255,11 @@ function renderTimeline(): string {
       ${addFormOpen ? '' : `
       <div class="route-empty">
         <div class="route-empty-icon">🗺️</div>
-        <div class="route-empty-title">No stops yet</div>
-        <div class="route-empty-text">Link an existing trip to pull in its stops, or add cities manually to start building your route.</div>
+        <div class="route-empty-title">${tr('route.emptyTitle')}</div>
+        <div class="route-empty-text">${tr('route.emptyText')}</div>
         <div class="route-empty-actions">
-          <button class="btn btn-primary" id="route-add-toggle">＋ Add a stop</button>
-          <button class="btn btn-ghost" id="route-link-trip">Link a trip</button>
+          <button class="btn btn-primary" id="route-add-toggle">${tr('route.addStop')}</button>
+          <button class="btn btn-ghost" id="route-link-trip">${tr('route.linkTrip')}</button>
         </div>
       </div>`}`;
   }
@@ -275,7 +276,7 @@ function renderTimeline(): string {
       <div class="route-country-head">
         <span class="route-country-flag">${g.flag}</span>
         <span class="route-country-name">${esc(g.country)}</span>
-        <span class="route-country-count">${g.legs.length} ${g.legs.length === 1 ? 'city' : 'cities'}</span>
+        <span class="route-country-count">${g.legs.length} ${g.legs.length === 1 ? tr('route.citySingular') : tr('route.citiesPlural')}</span>
       </div>
       ${g.legs.map(renderLegCard).join('')}
     </div>`).join('');
@@ -286,7 +287,7 @@ function renderTimeline(): string {
     <div class="route-add-wrap">
       <button class="route-add-btn" id="route-add-toggle">
         <span style="font-size:20px">＋</span>
-        Add a stop
+        ${tr('route.addStop')}
       </button>
     </div>`;
 }
@@ -299,7 +300,7 @@ function renderTripSelector(): string {
       <input type="radio" name="raf-trip" value="${esc(t.id)}" ${t.id === active ? 'checked' : ''}>
       <span class="pk-scope-label">
         <span class="pk-scope-title">${esc(t.name)}</span>
-        <span class="pk-scope-desc">${t.startDate ? `${t.startDate} → ${t.endDate ?? '…'}` : 'No dates set'}</span>
+        <span class="pk-scope-desc">${t.startDate ? `${t.startDate} → ${t.endDate ?? '…'}` : tr('route.noDatesSet')}</span>
       </span>
     </label>`
   ).join('');
@@ -313,29 +314,29 @@ function renderTripSelector(): string {
 function renderAddForm(): string {
   return `
     <div class="route-add-form ${addFormOpen ? 'open' : ''}" id="route-add-form">
-      <div class="route-add-form-title">Add a stop</div>
+      <div class="route-add-form-title">${tr('route.formAddStop')}</div>
       ${renderTripSelector()}
       <div class="route-add-form-grid">
         <div>
-          <label class="field-label">Country</label>
+          <label class="field-label">${tr('route.labelCountry')}</label>
           <div id="raf-country-mount"></div>
         </div>
         <div>
-          <label class="field-label">City</label>
+          <label class="field-label">${tr('route.labelCity')}</label>
           <div id="raf-city-mount"></div>
         </div>
         <div>
-          <label class="field-label">Arrival date</label>
+          <label class="field-label">${tr('route.labelArrivalDate')}</label>
           <input class="input" type="date" id="raf-from">
         </div>
         <div>
-          <label class="field-label">Departure date</label>
+          <label class="field-label">${tr('route.labelDepartureDate')}</label>
           <input class="input" type="date" id="raf-to">
         </div>
         <div>
-          <label class="field-label">Arrive by</label>
+          <label class="field-label">${tr('route.labelArriveBy')}</label>
           <select class="input select" id="raf-transport">
-            <option value="">Not set</option>
+            <option value="">${tr('route.notSet')}</option>
             <option value="train">🚆 Train</option>
             <option value="flight">✈️ Flight</option>
             <option value="bus">🚌 Bus</option>
@@ -343,13 +344,13 @@ function renderAddForm(): string {
           </select>
         </div>
         <div>
-          <label class="field-label">Coming from</label>
+          <label class="field-label">${tr('route.labelComingFrom')}</label>
           <div id="raf-from-mount"></div>
         </div>
       </div>
       <div class="route-add-form-btns">
         <button class="btn btn-ghost" id="raf-cancel">Cancel</button>
-        <button class="btn btn-primary" id="raf-save">Add stop</button>
+        <button class="btn btn-primary" id="raf-save">${tr('route.btnAddStop')}</button>
       </div>
     </div>`;
 }
@@ -388,7 +389,7 @@ function renderTransportSection(leg: Leg): string {
           ${t.service ? `<span>${esc(t.service)}</span>` : ''}
           ${t.time ? `<span>🕑 ${esc(t.time)}${t.arrivalTime ? `–${esc(t.arrivalTime)}` : ''}</span>` : ''}
           ${t.duration ? `<span>⏱ ${esc(t.duration)}</span>` : ''}
-          ${price ? `<span>💰 ${esc(price)}${synced ? ' · logged' : ''}</span>` : ''}
+          ${price ? `<span>💰 ${esc(price)}${synced ? ` · ${tr('route.loggedLabel')}` : ''}</span>` : ''}
         </div>
         ${(t.depPlace || t.arrPlace) ? `<div class="rd-transport-meta">${t.depPlace ? `<span>📍 ${esc(t.depPlace)}</span>` : ''}${t.arrPlace ? `<span>🏁 ${esc(t.arrPlace)}</span>` : ''}</div>` : ''}
         ${bags ? `<div class="rd-transport-meta"><span>🎒 ${esc(bags)}</span></div>` : ''}
@@ -404,13 +405,13 @@ function renderTransportSection(leg: Leg): string {
       <button class="btn btn-ghost rd-sm rd-danger" data-act="del-transport">Remove</button>
     </div>` : `
     <div class="rd-placeholder">
-      <span>No transport added yet.</span>
-      <button class="btn btn-primary rd-sm" data-act="edit-transport">＋ Add transport</button>
+      <span>${tr('route.noTransport')}</span>
+      <button class="btn btn-primary rd-sm" data-act="edit-transport">${tr('route.btnAddTransport')}</button>
     </div>`;
 
   return `
     <section class="rd-section">
-      <div class="rd-section-head"><h3>🚆 Transportation</h3></div>
+      <div class="rd-section-head"><h3>${tr('route.sectionTransport')}</h3></div>
       ${body}
     </section>`;
 }
@@ -428,7 +429,7 @@ function renderStaysSection(leg: Leg): string {
         <div class="rd-stay-name">${esc(a.name)}</div>
         <div class="rd-stay-meta">
           ${(a.checkIn || a.checkOut) ? `<span>📅 ${a.checkIn ? fmtDate(a.checkIn) : '?'} → ${a.checkOut ? fmtDate(a.checkOut) : '?'}</span>` : ''}
-          ${price ? `<span>💰 ${esc(price)}/night${synced ? ' · logged' : ''}</span>` : ''}
+          ${price ? `<span>💰 ${esc(price)}${tr('route.perNight')}${synced ? ` · ${tr('route.loggedLabel')}` : ''}</span>` : ''}
           ${a.platform ? `<span>🛎️ ${esc(a.platform)}</span>` : ''}
           ${a.phone ? `<span>📞 ${esc(a.phone)}</span>` : ''}
           <span class="badge ${a.confirmed ? 'badge-green' : 'badge-gray'}">${a.confirmed ? '✓ Confirmed' : 'Not confirmed'}</span>
@@ -447,11 +448,11 @@ function renderStaysSection(leg: Leg): string {
   return `
     <section class="rd-section">
       <div class="rd-section-head">
-        <h3>🏨 Stays</h3>
-        <button class="btn btn-ghost rd-sm" data-act="add-stay">＋ Add stay</button>
+        <h3>${tr('route.sectionStays')}</h3>
+        <button class="btn btn-ghost rd-sm" data-act="add-stay">${tr('route.btnAddStay')}</button>
       </div>
       ${stays.length ? `<div class="rd-stay-list">${rows}</div>`
-        : `<div class="rd-placeholder"><span>No stays added. One city can hold several — they'll list in order.</span></div>`}
+        : `<div class="rd-placeholder"><span>${tr('route.noStays')}</span></div>`}
     </section>`;
 }
 
@@ -459,7 +460,7 @@ function renderStaysSection(leg: Leg): string {
 
 
 function categorySelectOptions(leg: Leg, selected: string): string {
-  return `<option value="">— category —</option>` +
+  return `<option value="">${tr('route.categorySelect')}</option>` +
     allCategories(leg).map(c =>
       `<option value="${esc(c.id)}" ${c.id === selected ? 'selected' : ''}>${esc(c.label)}</option>`
     ).join('');
@@ -499,23 +500,23 @@ function renderClipsSection(leg: Leg): string {
 
   const filterBar = `
     <div class="rd-filter-bar" id="rd-clip-filter-bar">
-      <button class="rd-filter-chip is-active" data-filter="">All</button>
+      <button class="rd-filter-chip is-active" data-filter="">${tr('route.filterAll')}</button>
       ${cats.filter(c => clips.some(cl => cl.category === c.id)).map(c =>
         `<button class="rd-filter-chip" data-filter="${esc(c.id)}" style="--chip-color:${esc(c.color)}">${esc(c.label)}</button>`
       ).join('')}
-      <button class="rd-filter-chip rd-filter-chip--add" data-act="add-clip-category" title="New category">＋ Category</button>
+      <button class="rd-filter-chip rd-filter-chip--add" data-act="add-clip-category" title="New category">${tr('route.btnAddCategory')}</button>
     </div>`;
 
   return `
     <section class="rd-section" id="rd-clips-section" ${filterAttr}>
       <div class="rd-section-head">
-        <h3>📎 Collection</h3>
-        <button class="btn btn-ghost rd-sm" data-act="open-add-clip">＋ Add clip</button>
+        <h3>${tr('route.sectionClips')}</h3>
+        <button class="btn btn-ghost rd-sm" data-act="open-add-clip">${tr('route.btnAddClip')}</button>
       </div>
       ${filterBar}
       ${clips.length
         ? `<div class="rd-clip-grid">${clips.map(card).join('')}</div>`
-        : `<div class="rd-placeholder rd-placeholder-soft"><span>Collect links and notes from travel sources — organised by category.</span></div>`}
+        : `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.clipsEmpty')}</span></div>`}
     </section>`;
 }
 
@@ -558,12 +559,12 @@ function renderNotesSection(leg: Leg): string {
   return `
     <section class="rd-section rd-section-notes">
       <div class="rd-section-head">
-        <h3>📝 Notes</h3>
-        <button class="btn btn-ghost rd-sm" data-act="add-note">＋ Add note</button>
+        <h3>${tr('route.sectionNotes')}</h3>
+        <button class="btn btn-ghost rd-sm" data-act="add-note">${tr('route.btnAddNote')}</button>
       </div>
       ${cards.length
         ? `<div class="rd-note-grid">${cardHtml}</div>`
-        : `<div class="rd-placeholder rd-placeholder-soft"><span>Add notes for things to remember — precautions, nearby trips, local tips…</span></div>`}
+        : `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.notesEmpty')}</span></div>`}
     </section>`;
 }
 
@@ -613,13 +614,13 @@ function renderPlanBoardView(leg: Leg): string {
     return `
       <div class="rd-plan-day-col">
         <div class="rd-plan-day-head">
-          <span class="rd-plan-day-num">Day ${idx + 1}</span>
+          <span class="rd-plan-day-num">${tr('route.dayPrefix', { n: idx + 1 })}</span>
           <span class="rd-plan-day-date">${dateLabel}</span>
           ${day.label ? `<span class="rd-plan-day-label">${esc(day.label)}</span>` : ''}
         </div>
         <div class="rd-plan-drop-zone pk-drop-zone" data-day-id="${esc(day.id)}">
           ${items.map(p => renderPlanItem(p, leg)).join('')}
-          ${items.length === 0 ? `<div class="rd-plan-drop-hint">Drop here</div>` : ''}
+          ${items.length === 0 ? `<div class="rd-plan-drop-hint">${tr('route.dropHint')}</div>` : ''}
         </div>
       </div>`;
   };
@@ -630,12 +631,12 @@ function renderPlanBoardView(leg: Leg): string {
         ${days.map((d, i) => dayCol(d, i)).join('')}
         <div class="rd-plan-day-col rd-plan-unassigned">
           <div class="rd-plan-day-head">
-            <span class="rd-plan-day-num">Unassigned</span>
-            <span class="rd-plan-day-date">To be scheduled</span>
+            <span class="rd-plan-day-num">${tr('route.unassigned')}</span>
+            <span class="rd-plan-day-date">${tr('route.toBeScheduled')}</span>
           </div>
           <div class="rd-plan-drop-zone pk-drop-zone" data-day-id="">
             ${unassigned.map(p => renderPlanItem(p, leg)).join('')}
-            ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">New items land here</div>` : ''}
+            ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">${tr('route.newItemsHint')}</div>` : ''}
           </div>
         </div>
       </div>
@@ -645,13 +646,13 @@ function renderPlanBoardView(leg: Leg): string {
 
 function renderPlanCategoryView(leg: Leg): string {
   const plans = leg.plans ?? [];
-  if (!plans.length) return `<div class="rd-placeholder rd-placeholder-soft"><span>Add plan items to view them by category.</span></div>`;
+  if (!plans.length) return `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.planCategoryEmpty')}</span></div>`;
 
   const days = ensurePlanDays(leg);
   const dayLabel = (dayId: string | null | undefined) => {
-    if (!dayId) return 'Unassigned';
+    if (!dayId) return tr('route.unassigned');
     const idx = days.findIndex(d => d.id === dayId);
-    return idx >= 0 ? `Day ${idx + 1}` : 'Unassigned';
+    return idx >= 0 ? tr('route.dayPrefix', { n: idx + 1 }) : tr('route.unassigned');
   };
 
   const cats = allCategories(leg);
@@ -676,7 +677,7 @@ function renderPlanCategoryView(leg: Leg): string {
       </div>`;
   }).join('');
 
-  return `<div class="rd-plan-cat-list">${groups || '<div class="rd-placeholder rd-placeholder-soft"><span>No items yet.</span></div>'}</div>`;
+  return `<div class="rd-plan-cat-list">${groups || `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.noItemsYet')}</span></div>`}</div>`;
 }
 
 function renderPlanFeedView(leg: Leg): string {
@@ -685,7 +686,7 @@ function renderPlanFeedView(leg: Leg): string {
   const today = new Date().toISOString().slice(0, 10);
 
   if (!plans.length) {
-    return `<div class="rd-placeholder rd-placeholder-soft"><span>No plan items yet — add some and assign them to days.</span></div>`;
+    return `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.feedEmpty')}</span></div>`;
   }
 
   // Group by day in chronological order; unassigned appended at end
@@ -727,7 +728,7 @@ function renderPlanFeedView(leg: Leg): string {
       <div class="rd-feed-day-group rd-feed-day--${status}">
         <div class="rd-feed-day-head">
           <span class="rd-feed-day-dot" style="background:${status === 'active' ? 'var(--route-active)' : status === 'past' ? 'var(--route-past)' : 'var(--route-upcoming)'}"></span>
-          <span class="rd-feed-day-label">Day ${dayIdx + 1}${status === 'active' ? ' · Today' : ''}</span>
+          <span class="rd-feed-day-label">${tr('route.dayPrefix', { n: dayIdx + 1 })}${status === 'active' ? ' · Today' : ''}</span>
           <span class="rd-feed-day-date">${dateLabel}</span>
           ${day.label ? `<span class="rd-plan-day-label">${esc(day.label)}</span>` : ''}
         </div>
@@ -741,8 +742,8 @@ function renderPlanFeedView(leg: Leg): string {
     <div class="rd-feed-day-group rd-feed-day--unassigned">
       <div class="rd-feed-day-head">
         <span class="rd-feed-day-dot" style="background:var(--ink-faint)"></span>
-        <span class="rd-feed-day-label">Unassigned</span>
-        <span class="rd-feed-day-date">Not yet scheduled</span>
+        <span class="rd-feed-day-label">${tr('route.unassigned')}</span>
+        <span class="rd-feed-day-date">${tr('route.notYetScheduled')}</span>
       </div>
       <div class="rd-feed-items">
         ${unassigned.map(p => feedItem(p, 'upcoming')).join('')}
@@ -835,7 +836,7 @@ function renderPlanMapView(leg: Leg): string {
         <span class="rd-pmap-item-dot" style="background:${hasCoords ? colour : 'var(--ink-faint)'}"></span>
         <span class="rd-pmap-item-name">${esc(p.title)}</span>
         ${p.address ? `<span class="rd-pmap-item-addr">${esc(p.address)}</span>` : ''}
-        ${!hasCoords ? `<span class="rd-pmap-item-locating">locating…</span>` : ''}
+        ${!hasCoords ? `<span class="rd-pmap-item-locating">${tr('route.locating')}</span>` : ''}
       </div>`;
   };
 
@@ -849,7 +850,7 @@ function renderPlanMapView(leg: Leg): string {
       <div class="rd-pmap-day-group">
         <div class="rd-pmap-day-head">
           <span class="rd-pmap-day-dot" style="background:${colour}"></span>
-          <span class="rd-pmap-day-label">Day ${i + 1}</span>
+          <span class="rd-pmap-day-label">${tr('route.dayPrefix', { n: i + 1 })}</span>
           <span class="rd-pmap-day-date">${dateLabel}</span>
         </div>
         ${items.map(p => itemRow(p, colour)).join('')}
@@ -861,14 +862,14 @@ function renderPlanMapView(leg: Leg): string {
     <div class="rd-pmap-day-group">
       <div class="rd-pmap-day-head">
         <span class="rd-pmap-day-dot" style="background:var(--ink-faint)"></span>
-        <span class="rd-pmap-day-label">Unassigned</span>
+        <span class="rd-pmap-day-label">${tr('route.unassigned')}</span>
       </div>
       ${unassigned.map(p => itemRow(p, 'var(--ink-faint)')).join('')}
     </div>` : '';
 
   const hasAny = plans.length > 0;
   const hint = !hasAny
-    ? `<div class="rd-placeholder rd-placeholder-soft" style="margin-top:var(--sp-3)"><span>Add plan items — place names are automatically located on the map.</span></div>`
+    ? `<div class="rd-placeholder rd-placeholder-soft" style="margin-top:var(--sp-3)"><span>${tr('route.planMapEmpty')}</span></div>`
     : '';
 
   return `
@@ -1031,7 +1032,7 @@ function renderPlansSection(leg: Leg): string {
   ];
 
   const cats = allCategories(leg);
-  const catOptions = `<option value="">— category —</option>` +
+  const catOptions = `<option value="">${tr('route.categorySelect')}</option>` +
     cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
 
   let body = '';
@@ -1044,7 +1045,7 @@ function renderPlansSection(leg: Leg): string {
   const showOnboard = !localStorage.getItem(PLANS_ONBOARDED_KEY) && !(leg.plans?.length);
   const onboardBanner = showOnboard ? `
     <div class="rd-plans-onboard" id="rd-plans-onboard">
-      <span>👆 Start with <strong>📋 Board</strong> — add plan items below, then assign them to days.</span>
+      <span>${tr('route.planOnboard')}</span>
       <button class="rd-plans-onboard-close" data-act="dismiss-onboard" title="Dismiss">✕</button>
     </div>
   ` : '';
@@ -1061,15 +1062,15 @@ function renderPlansSection(leg: Leg): string {
       ${body}
       <div class="rd-plan-add-form" id="rd-plan-add-form">
         <div class="rd-plan-add-row">
-          <input class="input rd-add-input" id="rd-plan-input" placeholder="Add a plan item…">
+          <input class="input rd-add-input" id="rd-plan-input" placeholder="${tr('route.planPlaceholder')}">
           <select class="input select" id="rd-plan-cat">${catOptions}</select>
           <button class="btn btn-primary rd-sm" data-act="add-plan">Add</button>
         </div>
         <div class="rd-plan-add-details" id="rd-plan-add-details" hidden>
           <div class="rd-plan-add-details-row">
-            <input class="input" id="rd-plan-note" placeholder="Notes (optional)">
-            <input class="input" id="rd-plan-duration" placeholder="Duration e.g. 2h" style="flex:0 0 120px">
-            <input class="input" id="rd-plan-cost" placeholder="Cost e.g. €15" style="flex:0 0 100px">
+            <input class="input" id="rd-plan-note" placeholder="${tr('route.planNoteLabel')}">
+            <input class="input" id="rd-plan-duration" placeholder="${tr('route.planDurationPh')}" style="flex:0 0 120px">
+            <input class="input" id="rd-plan-cost" placeholder="${tr('route.planCostPh')}" style="flex:0 0 100px">
           </div>
         </div>
       </div>
@@ -1082,17 +1083,17 @@ function renderDetail(leg: Leg): string {
   return `
     <div class="rd-shell status-${status}">
       <div class="rd-topbar">
-        <button class="btn btn-ghost rd-back" data-act="back">← All stops</button>
+        <button class="btn btn-ghost rd-back" data-act="back">${tr('route.btnBackAllStops')}</button>
         <div class="rd-title">
           <span class="rd-title-flag">${leg.flag || '🗺️'}</span>
           <span class="rd-title-city">${esc(leg.city)}</span>
           <span class="rd-title-country">${esc(leg.country)}</span>
         </div>
-        <button class="btn btn-ghost rd-sm rd-guide-link" data-act="open-guide">${leg.flag || ''} City guide ↗</button>
-        <button class="btn btn-ghost rd-sm" data-act="open-compare">⚖ Compare</button>
+        <button class="btn btn-ghost rd-sm rd-guide-link" data-act="open-guide">${leg.flag || ''} ${tr('route.btnCityGuide')}</button>
+        <button class="btn btn-ghost rd-sm" data-act="open-compare">${tr('route.btnCompare')}</button>
       </div>
       <div class="rd-datebar">
-        <span class="rd-status-pill status-${status}">${status === 'active' ? 'Here now' : status === 'past' ? 'Visited' : 'Upcoming'}</span>
+        <span class="rd-status-pill status-${status}">${status === 'active' ? tr('route.statusActive') : status === 'past' ? tr('route.statusPast') : tr('route.statusUpcoming')}</span>
         <div class="rd-datebar-dates" id="rd-datebar-dates">
           <span class="rd-datebar-label">${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)} · ${days} night${days !== 1 ? 's' : ''}</span>
           <button class="rd-datebar-edit-btn" data-act="edit-dates" title="Edit dates">✎</button>
@@ -1181,7 +1182,7 @@ function mountAddFormPickers(timeline: HTMLElement) {
 function wireList(timeline: HTMLElement) {
   timeline.querySelector('#route-add-toggle')?.addEventListener('click', () => openAddForm(timeline));
   timeline.querySelector('#route-link-trip')?.addEventListener('click', () => {
-    openTripChooser({ title: 'Link a trip', subtitle: 'Linking a trip pulls in its stops so you can build your route.' });
+    openTripChooser({ title: tr('route.linkTripTitle'), subtitle: tr('route.linkTripSubtitle') });
   });
 
   timeline.querySelector('#raf-cancel')?.addEventListener('click', () => {

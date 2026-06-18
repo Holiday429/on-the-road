@@ -18,6 +18,7 @@
    ========================================================================== */
 
 import './expenses.css';
+import { t } from '../../core/i18n.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import {
@@ -87,10 +88,10 @@ let unsubTripChange: (() => void) | null = null;
 
 type AnalysisDim = 'category' | 'place' | 'time';
 type BudgetTab = 'total' | 'country' | 'category';
-const ANALYSIS_DIMS: { id: AnalysisDim; label: string }[] = [
-  { id: 'category', label: 'Category' },
-  { id: 'place',    label: 'Place' },
-  { id: 'time',     label: 'Time' },
+const ANALYSIS_DIMS: { id: AnalysisDim }[] = [
+  { id: 'category' },
+  { id: 'place' },
+  { id: 'time' },
 ];
 
 /* ── Leg-aware helpers ───────────────────────────────────────────────────── */
@@ -184,7 +185,7 @@ function renderSummary(el: HTMLElement) {
             <div class="exp-hero-bar-fill" style="width:${pct}%;background:${barColor}"></div>
           </div>
           <div class="exp-hero-label ${over ? 'exp-hero-label-over' : ''}">
-            ${over ? `▲ ${fmt(sum - budget)} over` : `${fmt(budget - sum)} remaining ›`}
+            ${over ? `▲ ${fmt(sum - budget)} ${t('expenses.over')}` : `${fmt(budget - sum)} ${t('expenses.remaining')} ›`}
           </div>`;
       })()
     : `<div class="exp-hero-eyebrow">Budget</div>
@@ -195,7 +196,7 @@ function renderSummary(el: HTMLElement) {
     <button class="exp-hero-btn exp-hero-spend" id="exp-open-records">
       <div class="exp-hero-eyebrow">Total spent ${toSortChip ? '· ' + unclassified + ' to sort' : ''}</div>
       <div class="exp-hero-num">${fmt(sum)}</div>
-      <div class="exp-hero-label">View all records ›</div>
+      <div class="exp-hero-label">${t('expenses.viewAllRecords')}</div>
     </button>
     <button class="exp-hero-btn exp-hero-budget" id="exp-open-budget">
       ${budgetRight}
@@ -265,7 +266,7 @@ function countryReminderHtml(): string {
       <span class="exp-country-reminder-place">📍 ${formCountry}</span>
       <span class="exp-country-reminder-figs">
         ${fmt(spent)} / ${fmt(cap)} ·
-        <strong>${over ? `${fmt(-remaining)} over` : `${fmt(remaining)} left`}</strong>
+        <strong>${over ? `${fmt(-remaining)} ${t('expenses.over')}` : `${fmt(remaining)} ${t('expenses.left')}`}</strong>
       </span>
     </div>`;
 }
@@ -289,9 +290,9 @@ function renderForm(el: HTMLElement) {
   el.innerHTML = `
     <div class="exp-form">
       <div class="exp-form-head">
-        <div class="exp-form-title">Add expense</div>
+        <div class="exp-form-title">${t('expenses.formTitle')}</div>
         <label class="exp-base-picker">
-          <span>Show totals in</span>
+          <span>${t('expenses.showTotalsIn')}</span>
           <select class="input select" id="exp-base">
             ${currencyOptions(base)}
           </select>
@@ -319,7 +320,7 @@ function renderForm(el: HTMLElement) {
         </div>
         <div>
           <label class="field-label">What for?</label>
-          <input class="input" id="exp-desc" placeholder="e.g. Dinner at Boqueria market">
+          <input class="input" id="exp-desc" placeholder="${t('expenses.descPh')}">
         </div>
         <div>
           <label class="field-label">Date</label>
@@ -335,7 +336,7 @@ function renderForm(el: HTMLElement) {
           <select class="input select" id="exp-city">${cityOpts}</select>
         </div>` : '<div></div>'}
       </div>
-      <button class="btn btn-primary" id="exp-add-btn" style="width:100%;justify-content:center">Add expense</button>
+      <button class="btn btn-primary" id="exp-add-btn" style="width:100%;justify-content:center">${t('expenses.btnAdd')}</button>
     </div>
   `;
 
@@ -410,7 +411,7 @@ function openCategoryManager(formEl: HTMLElement) {
   const panel = document.createElement('div');
   panel.className = 'exp-cat-manager';
   panel.innerHTML = `
-    <div class="exp-cat-manager-title">Your categories</div>
+    <div class="exp-cat-manager-title">${t('expenses.managerTitle')}</div>
     <div class="exp-cat-manager-list">
       ${categories().map((c) => `
         <span class="exp-cat-manager-item ${c.builtin ? 'builtin' : ''}">
@@ -521,26 +522,26 @@ function renderRecordsScrollContent(scroll: HTMLElement) {
   scroll.innerHTML = `
     ${unsortedCount > 0 && filterCategory !== UNCLASSIFIED ? `
       <button class="exp-sort-banner" id="exp-sort-banner">
-        🗂️ <strong>${unsortedCount}</strong> ${unsortedCount === 1 ? 'expense needs' : 'expenses need'} a category — sort them now
+        🗂️ <strong>${unsortedCount}</strong> ${unsortedCount === 1 ? t('expenses.expenseNeedsCategory') : t('expenses.expensesNeedCategory')}
       </button>` : ''}
     ${cities.length > 1 ? `
     <div class="exp-city-pills">
-      <div class="exp-city-pill ${filterCity === 'all' ? 'active' : ''}" data-city="all">All cities</div>
+      <div class="exp-city-pill ${filterCity === 'all' ? 'active' : ''}" data-city="all">${t('expenses.filterAllCities')}</div>
       ${cities.map((c) => `<div class="exp-city-pill ${filterCity === c ? 'active' : ''}" data-city="${c}">${c}</div>`).join('')}
     </div>` : ''}
     <div class="exp-filter-row">
-      <button class="exp-filter-btn ${filterCategory === 'all' ? 'active' : ''}" data-filter="all">All</button>
+      <button class="exp-filter-btn ${filterCategory === 'all' ? 'active' : ''}" data-filter="all">${t('expenses.filterAll')}</button>
       ${categories().map((c) => {
         const isActive = filterCategory === c.id;
         const style = isActive ? `style="${filterBtnStyle(c.id)}"` : '';
         return `<button class="exp-filter-btn ${isActive ? 'active' : ''}" data-filter="${c.id}" ${style}>${c.icon} ${c.label}</button>`;
       }).join('')}
-      <button class="exp-filter-btn ${filterCategory === UNCLASSIFIED ? 'active' : ''}" data-filter="">🗂️ To sort</button>
+      <button class="exp-filter-btn ${filterCategory === UNCLASSIFIED ? 'active' : ''}" data-filter="">${t('expenses.filterToSort')}</button>
     </div>
     ${list.length === 0 ? `
       <div class="empty-state">
         <div class="empty-icon">💸</div>
-        <p>No expenses here yet.</p>
+        <p>${t('expenses.emptyRecords')}</p>
       </div>
     ` : grouped.map(([date, items]) => `
       <div class="exp-day-group">
@@ -609,11 +610,11 @@ function renderRecordsPanel() {
   panel.innerHTML = `
     <div class="exp-records-overlay">
       <div class="exp-records-bar">
-        <button class="exp-records-back" id="exp-records-back">‹ Back</button>
-        <div class="exp-records-bar-title">All records</div>
+        <button class="exp-records-back" id="exp-records-back">${t('expenses.btnBack')}</button>
+        <div class="exp-records-bar-title">${t('expenses.recordsTitle')}</div>
         <div class="exp-records-bar-stats">
           <span class="exp-records-count">${list.length} items · ${fmt(shownTotal)}</span>
-          <span class="exp-records-avg">avg ${fmt(dailyAvg)}/day</span>
+          <span class="exp-records-avg">${t('expenses.avgLabel')}${fmt(dailyAvg)}${t('expenses.perDay')}</span>
         </div>
       </div>
       <div class="exp-records-scroll"></div>
@@ -920,10 +921,15 @@ function renderExpenseCalendar(): string {
 
 function renderBreakdown(el: HTMLElement) {
   const rows = analysisRows();
+  const dimLabels: Record<AnalysisDim, string> = {
+    category: t('expenses.dimCategory'),
+    place:    t('expenses.dimPlace'),
+    time:     t('expenses.dimTime'),
+  };
   const tabs = ANALYSIS_DIMS.map((d) => `
-    <button class="exp-analysis-tab ${d.id === analysisDim ? 'active' : ''}" data-dim="${d.id}">${d.label}</button>
+    <button class="exp-analysis-tab ${d.id === analysisDim ? 'active' : ''}" data-dim="${d.id}">${dimLabels[d.id]}</button>
   `).join('');
-  const empty = '<p class="exp-breakdown-empty">Add expenses to see breakdown</p>';
+  const empty = `<p class="exp-breakdown-empty">${t('expenses.breakdownEmpty')}</p>`;
 
   let content = '';
 
@@ -937,7 +943,7 @@ function renderBreakdown(el: HTMLElement) {
         const hasBudget = (r.budget ?? 0) > 0;
         const pct = Math.round((r.sum / Math.max(totalSum2, 1)) * 100);
         const budgetStr = hasBudget
-          ? `<span class="exp-legend-budget">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' over' : ''}</span>`
+          ? `<span class="exp-legend-budget">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' ' + t('expenses.over') : ''}</span>`
           : '';
         const setBtn = r.catId
           ? `<button class="exp-cat-budget-btn" data-budget-key="cat:${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
@@ -1000,7 +1006,7 @@ function renderBreakdown(el: HTMLElement) {
           <svg class="exp-barchart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax meet">
             ${budgetLine}${bars}
           </svg>
-          ${dailyBudget ? `<div class="exp-bar-legend"><span class="exp-daily-budget-swatch"></span>Budget target ${fmt(dailyBudget)}/day</div>` : ''}
+          ${dailyBudget ? `<div class="exp-bar-legend"><span class="exp-daily-budget-swatch"></span>${t('expenses.budgetTarget')} ${fmt(dailyBudget)}${t('expenses.perDay')}</div>` : ''}
         </div>
         ${renderExpenseCalendar()}`;
     }
@@ -1020,7 +1026,7 @@ function renderBreakdown(el: HTMLElement) {
           ? (usage >= 1 ? 'var(--coral-500)' : usage >= 0.8 ? '#f59e0b' : 'var(--sage-500)')
           : 'var(--amber-300)';
         const budgetStr = hasBudget
-          ? `${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' · over' : ''}`
+          ? `${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' · ' + t('expenses.over') : ''}`
           : (r.sub ?? '');
 
         // City breakdown nested under country
@@ -1057,7 +1063,7 @@ function renderBreakdown(el: HTMLElement) {
 
   el.innerHTML = `
     <div class="exp-breakdown">
-      <div class="exp-form-title" style="margin-bottom:var(--sp-4)">Expense Analysis</div>
+      <div class="exp-form-title" style="margin-bottom:var(--sp-4)">${t('expenses.analysisTitle')}</div>
       <div class="exp-analysis-tabs">${tabs}</div>
       ${content}
     </div>`;
@@ -1125,8 +1131,8 @@ function renderBudgetPage() {
   panel.innerHTML = `
     <div class="exp-records-overlay exp-budget-overlay">
       <div class="exp-records-bar">
-        <button class="exp-records-back" id="exp-budget-back">‹ Back</button>
-        <div class="exp-records-bar-title">Budget</div>
+        <button class="exp-records-back" id="exp-budget-back">${t('expenses.btnBack')}</button>
+        <div class="exp-records-bar-title">${t('expenses.budgetTitle')}</div>
       </div>
       <div class="exp-records-scroll">
         <!-- Compare section -->
@@ -1134,11 +1140,11 @@ function renderBudgetPage() {
           <div class="exp-budget-compare-total">
             ${tripTotal ? `
               <div class="exp-budget-compare-row">
-                <span class="exp-bcp-label">Total budget</span>
+                <span class="exp-bcp-label">${t('expenses.totalBudget')}</span>
                 <span class="exp-bcp-val">${sym}${Math.round(tripTotal).toLocaleString()}</span>
               </div>
               <div class="exp-budget-compare-row">
-                <span class="exp-bcp-label">Spent so far</span>
+                <span class="exp-bcp-label">${t('expenses.spentSoFar')}</span>
                 <span class="exp-bcp-val">${fmt(sum)}</span>
               </div>
               <div class="exp-budget-bar-track exp-budget-compare-bar">
@@ -1150,10 +1156,10 @@ function renderBudgetPage() {
               </div>
               <div class="exp-budget-compare-foot">
                 ${sum > tripTotal
-                  ? `<span class="exp-budget-over">▲ ${fmt(sum - tripTotal)} over budget</span>`
-                  : `<span class="exp-budget-remain">${fmt(tripTotal - sum)} remaining (${Math.round((sum / tripTotal) * 100)}%)</span>`}
+                  ? `<span class="exp-budget-over">▲ ${fmt(sum - tripTotal)} ${t('expenses.overBudget')}</span>`
+                  : `<span class="exp-budget-remain">${fmt(tripTotal - sum)} ${t('expenses.remaining')} (${Math.round((sum / tripTotal) * 100)}%)</span>`}
               </div>` : `
-              <p class="exp-modal-hint">No total budget set yet. Set one below.</p>`}
+              <p class="exp-modal-hint">${t('expenses.noBudgetHint')}</p>`}
           </div>
 
           <!-- Per-country compare rows -->
@@ -1164,7 +1170,7 @@ function renderBudgetPage() {
             const hasCaps = countriesList.some((c) => caps[c]);
             if (!hasCaps) return '';
             return `
-              <div class="exp-budget-section-title">By Country</div>
+              <div class="exp-budget-section-title">${t('expenses.byCountry')}</div>
               ${countriesList.filter((c) => caps[c]).map((c) => {
                 const spent = countrySpend(c);
                 const cap = caps[c];
@@ -1184,7 +1190,7 @@ function renderBudgetPage() {
                       <span>${fmt(spent)}</span>
                       <span class="exp-budget-cmp-sep">/</span>
                       <span>${sym}${Math.round(cap).toLocaleString()}</span>
-                      ${over ? `<span class="exp-budget-over">over</span>` : ''}
+                      ${over ? `<span class="exp-budget-over">${t('expenses.over')}</span>` : ''}
                     </div>
                   </div>`;
               }).join('')}`;
@@ -1196,7 +1202,7 @@ function renderBudgetPage() {
             const hasCaps = categories().some((c) => caps[c.id]);
             if (!hasCaps) return '';
             return `
-              <div class="exp-budget-section-title">By Category</div>
+              <div class="exp-budget-section-title">${t('expenses.byCategory')}</div>
               ${categories().filter((cat) => caps[cat.id]).map((cat) => {
                 const spent = expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0);
                 const cap = caps[cat.id];
@@ -1215,7 +1221,7 @@ function renderBudgetPage() {
                       <span>${fmt(spent)}</span>
                       <span class="exp-budget-cmp-sep">/</span>
                       <span>${sym}${Math.round(cap).toLocaleString()}</span>
-                      ${over ? `<span class="exp-budget-over">over</span>` : ''}
+                      ${over ? `<span class="exp-budget-over">${t('expenses.over')}</span>` : ''}
                     </div>
                   </div>`;
               }).join('')}`;
@@ -1223,11 +1229,11 @@ function renderBudgetPage() {
         </div>
 
         <!-- Settings section -->
-        <div class="exp-budget-section-title exp-budget-settings-title">Set Budgets</div>
+        <div class="exp-budget-section-title exp-budget-settings-title">${t('expenses.settingsTitle')}</div>
         <div class="exp-budget-tabs">
-          <button class="exp-budget-tab ${budgetTab === 'total' ? 'active' : ''}" data-tab="total">Total</button>
-          <button class="exp-budget-tab ${budgetTab === 'country' ? 'active' : ''}" data-tab="country">By country</button>
-          <button class="exp-budget-tab ${budgetTab === 'category' ? 'active' : ''}" data-tab="category">By category</button>
+          <button class="exp-budget-tab ${budgetTab === 'total' ? 'active' : ''}" data-tab="total">${t('expenses.budgetTabTotal')}</button>
+          <button class="exp-budget-tab ${budgetTab === 'country' ? 'active' : ''}" data-tab="country">${t('expenses.budgetTabCountry')}</button>
+          <button class="exp-budget-tab ${budgetTab === 'category' ? 'active' : ''}" data-tab="category">${t('expenses.budgetTabCategory')}</button>
         </div>
         <div class="exp-budget-settings-pane" id="exp-budget-settings-pane"></div>
       </div>
@@ -1245,7 +1251,7 @@ function renderBudgetPage() {
       settingsPane.innerHTML = `
         <label class="field-label">Total trip budget (${sym}, ${baseCurrency()})</label>
         <input class="input" type="number" id="bm-total" min="0" step="1" placeholder="e.g. 5000" value="${budget ?? ''}">
-        <p class="exp-modal-hint">Sets your overall ceiling — shown on summary and dashboard.</p>`;
+        <p class="exp-modal-hint">${t('expenses.budgetTotalHint')}</p>`;
       const input = settingsPane.querySelector('#bm-total') as HTMLInputElement;
       const save = async () => {
         const val = parseFloat(input.value);
@@ -1275,7 +1281,7 @@ function renderBudgetPage() {
       }
 
       settingsPane.innerHTML = `
-        ${countriesList.length === 0 ? '<p class="exp-modal-hint">No countries on the itinerary yet.</p>' : `
+        ${countriesList.length === 0 ? `<p class="exp-modal-hint">${t('expenses.noCountriesHint')}</p>` : `
           <div class="exp-budget-auto-row">
             <div class="exp-budget-auto-hint">Auto-estimate by itinerary days ×</div>
             <input class="input exp-budget-daily-rate" type="number" id="bm-daily-rate" min="0" step="1" placeholder="daily rate" value="">
@@ -1289,12 +1295,12 @@ function renderBudgetPage() {
             const daysLabel = countryDays[c] ? ` · ${countryDays[c]}d` : '';
             return `
               <div class="exp-budget-row">
-                <div class="exp-budget-row-name">${flag} ${c}<span class="exp-budget-row-spent">${fmt(spent)} spent${daysLabel}</span></div>
+                <div class="exp-budget-row-name">${flag} ${c}<span class="exp-budget-row-spent">${fmt(spent)} ${t('expenses.spentLabel')}${daysLabel}</span></div>
                 <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${c}" data-days="${countryDays[c] ?? 0}" placeholder="no cap" value="${caps[c] ?? ''}">
               </div>`;
           }).join('')}
         </div>
-        ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total` : `${fmt(flex)} unallocated`}</p>` : ''}`;
+        ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">${t('expenses.allocatedLabel')} ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} ${t('expenses.overTotal')}` : `${fmt(flex)} ${t('expenses.unallocated')}`}</p>` : ''}`;
 
       // Auto-estimate: fill all inputs with days × daily rate
       settingsPane.querySelector('#bm-apply-daily')?.addEventListener('click', async () => {
@@ -1337,12 +1343,12 @@ function renderBudgetPage() {
           const spent = expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0);
           return `
             <div class="exp-budget-row">
-              <div class="exp-budget-row-name">${cat.icon} ${cat.label}<span class="exp-budget-row-spent">${fmt(spent)} spent</span></div>
+              <div class="exp-budget-row-name">${cat.icon} ${cat.label}<span class="exp-budget-row-spent">${fmt(spent)} ${t('expenses.spentLabel')}</span></div>
               <input class="input exp-budget-row-input" type="number" min="0" step="1" data-cat="${cat.id}" placeholder="no cap" value="${caps[cat.id] ?? ''}">
             </div>`;
         }).join('')}
       </div>
-      ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">Allocated ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} over total` : `${fmt(flex)} unallocated`}</p>` : ''}`;
+      ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">${t('expenses.allocatedLabel')} ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} ${t('expenses.overTotal')}` : `${fmt(flex)} ${t('expenses.unallocated')}`}</p>` : ''}`;
     settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
       input.addEventListener('change', async () => {
         const val = parseFloat(input.value);

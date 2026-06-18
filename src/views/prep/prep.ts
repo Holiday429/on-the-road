@@ -15,7 +15,7 @@ import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/sch
 import { noteColor } from '../../data/palette.ts';
 import { escHtml } from '../../core/utils.ts';
 import { postJson } from '../../core/api.ts';
-import { aiLanguage } from '../../core/i18n.ts';
+import { aiLanguage, t } from '../../core/i18n.ts';
 import { handleAiError } from '../../core/paywall.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
@@ -102,16 +102,16 @@ function renderListScreen(container: HTMLElement) {
     <div class="prep-list-screen">
       <!-- Action bar -->
       <div class="prep-action-bar">
-        <button class="btn btn-primary" id="create-blank-btn">+ New Checklist</button>
-        <button class="btn btn-ghost" id="open-template-picker-btn">📋 From Template</button>
+        <button class="btn btn-primary" id="create-blank-btn">${t('prep.btnNewChecklist')}</button>
+        <button class="btn btn-ghost" id="open-template-picker-btn">${t('prep.btnFromTemplate')}</button>
       </div>
 
       <!-- Checklists -->
       ${checklists.length === 0 ? `
         <div class="empty-state">
           <div class="empty-icon">📋</div>
-          <p>No checklists yet.</p>
-          <p style="font-size:var(--fs-sm);color:var(--ink-faint)">Create one from scratch or pick a template to get started.</p>
+          <p>${t('prep.emptyTitle')}</p>
+          <p style="font-size:var(--fs-sm);color:var(--ink-faint)">${t('prep.emptyText')}</p>
         </div>
       ` : `
         <div class="checklist-grid">
@@ -122,8 +122,8 @@ function renderListScreen(container: HTMLElement) {
       <!-- Templates section -->
       <div class="prep-templates-section">
         <div class="prep-section-header" style="margin-bottom:var(--sp-4)">
-          <div class="prep-section-title" style="font-size:var(--fs-lg)">Templates</div>
-          <button class="btn btn-ghost" id="new-template-btn" style="font-size:var(--fs-sm);padding:6px 14px">+ New</button>
+          <div class="prep-section-title" style="font-size:var(--fs-lg)">${t('prep.templatesSection')}</div>
+          <button class="btn btn-ghost" id="new-template-btn" style="font-size:var(--fs-sm);padding:6px 14px">${t('prep.btnNewTemplate')}</button>
         </div>
         <div class="templates-grid">
           ${templates.map(t => renderTemplateCard(t)).join('')}
@@ -134,7 +134,7 @@ function renderListScreen(container: HTMLElement) {
       <div class="modal-overlay" id="template-picker-modal" hidden>
         <div class="modal-box">
           <div class="modal-header">
-            <div class="modal-title">Choose a Template</div>
+            <div class="modal-title">${t('prep.pickerTitle')}</div>
             <button class="modal-close" id="close-template-picker">✕</button>
           </div>
           <div class="modal-body">
@@ -209,24 +209,24 @@ function renderChecklistCard(cl: StoredChecklist): string {
   `;
 }
 
-function renderTemplateCard(t: StoredTemplate): string {
-  const groupCount = t.groups.length;
-  const itemCount = t.groups.reduce((n, g) => n + g.items.length, 0);
+function renderTemplateCard(tpl: StoredTemplate): string {
+  const groupCount = tpl.groups.length;
+  const itemCount = tpl.groups.reduce((n, g) => n + g.items.length, 0);
   return `
     <div class="template-card">
       <div class="template-card-top">
-        <div class="template-card-name">${escHtml(t.name)}</div>
-        <button class="icon-btn delete-tpl-btn" data-id="${t.id}" title="Delete template">✕</button>
+        <div class="template-card-name">${escHtml(tpl.name)}</div>
+        <button class="icon-btn delete-tpl-btn" data-id="${tpl.id}" title="Delete template">✕</button>
       </div>
       <div class="template-card-body">
-        ${t.description ? `<div class="template-card-desc">${escHtml(t.description)}</div>` : ''}
+        ${tpl.description ? `<div class="template-card-desc">${escHtml(tpl.description)}</div>` : ''}
         <div class="template-card-meta">${groupCount} groups · ${itemCount} items</div>
         <div class="template-card-tags">
-          ${t.tags.map(tag => `<span class="tag-chip">${tagLabel(tag)}</span>`).join('')}
+          ${tpl.tags.map(tag => `<span class="tag-chip">${tagLabel(tag)}</span>`).join('')}
         </div>
       </div>
-      <button class="btn btn-ghost use-template-btn" data-id="${t.id}" style="width:100%;justify-content:center">
-        Use template
+      <button class="btn btn-ghost use-template-btn" data-id="${tpl.id}" style="width:100%;justify-content:center">
+        ${t('prep.btnUseTemplate')}
       </button>
     </div>
   `;
@@ -241,19 +241,19 @@ function renderTagFilters(templates: StoredTemplate[]): string {
   }));
   if (tags.length === 0) return '';
   return `
-    <span class="tag-filter active" data-tag="all">All</span>
+    <span class="tag-filter active" data-tag="all">${t('prep.filterAll')}</span>
     ${tags.map(t => `<span class="tag-filter" data-tag="${escHtml(t.type + ':' + t.value)}">${tagLabel(t)}</span>`).join('')}
   `;
 }
 
-function renderTemplatePickerItem(t: StoredTemplate): string {
-  const tagKeys = t.tags.map(t => `${t.type}:${t.value}`).join(' ');
+function renderTemplatePickerItem(tpl: StoredTemplate): string {
+  const tagKeys = tpl.tags.map(tag => `${tag.type}:${tag.value}`).join(' ');
   return `
-    <div class="template-picker-item" data-id="${t.id}" data-tags="${escHtml(tagKeys)}">
-      <div class="template-picker-name">${escHtml(t.name)}</div>
-      ${t.description ? `<div class="template-picker-desc">${escHtml(t.description)}</div>` : ''}
+    <div class="template-picker-item" data-id="${tpl.id}" data-tags="${escHtml(tagKeys)}">
+      <div class="template-picker-name">${escHtml(tpl.name)}</div>
+      ${tpl.description ? `<div class="template-picker-desc">${escHtml(tpl.description)}</div>` : ''}
       <div class="template-picker-meta">
-        ${t.groups.length} groups · ${t.groups.reduce((n, g) => n + g.items.length, 0)} items
+        ${tpl.groups.length} groups · ${tpl.groups.reduce((n, g) => n + g.items.length, 0)} items
       </div>
     </div>
   `;
@@ -274,7 +274,7 @@ function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
   container.querySelectorAll<HTMLElement>('.delete-cl-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (confirm('Delete this checklist?')) {
+      if (confirm(t('prep.confirmDelete'))) {
         await checklistStore.remove(btn.dataset.id!);
       }
     });
@@ -285,7 +285,7 @@ function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
     btn.addEventListener('click', async () => {
       const tpl = templates.find(t => t.id === btn.dataset.id!);
       if (!tpl) return;
-      const name = prompt('Checklist name:', tpl.name);
+      const name = prompt(t('prep.namePrompt'), tpl.name);
       if (!name?.trim()) return;
       const id = await checklistStore.create({ name: name.trim(), templateId: tpl.id, tags: tpl.tags, groups: tpl.groups });
       activeChecklistId = id;
@@ -298,7 +298,7 @@ function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
   container.querySelectorAll<HTMLElement>('.delete-tpl-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (confirm('Delete this template?')) {
+      if (confirm(t('prep.confirmDelete'))) {
         await templateStore.remove(btn.dataset.id!);
       }
     });
@@ -315,8 +315,8 @@ function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
       ? `<label class="pk-scope-option">
           <input type="radio" name="cl-scope" value="trip" checked>
           <span class="pk-scope-label">
-            <span class="pk-scope-title">Under <em>${trip.name}</em></span>
-            <span class="pk-scope-desc">Shows up in this trip's checklist</span>
+            <span class="pk-scope-title">${t('prep.scopeTripPrefix')}<em>${trip.name}</em></span>
+            <span class="pk-scope-desc">${t('prep.scopeTripDesc')}</span>
           </span>
         </label>` : '';
     if (newModalBody) {
@@ -328,8 +328,8 @@ function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
           <label class="pk-scope-option">
             <input type="radio" name="cl-scope" value="standalone">
             <span class="pk-scope-label">
-              <span class="pk-scope-title">Standalone</span>
-              <span class="pk-scope-desc">Not linked to any trip</span>
+              <span class="pk-scope-title">${t('prep.scopeStandalone')}</span>
+              <span class="pk-scope-desc">${t('prep.scopeStandaloneDesc')}</span>
             </span>
           </label>
         </div>` : ''}
@@ -386,7 +386,7 @@ function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
       const tpl = templates.find(t => t.id === item.dataset.id!);
       if (!tpl) return;
       pickerModal?.setAttribute('hidden', '');
-      const name = prompt('Checklist name:', tpl.name);
+      const name = prompt(t('prep.namePrompt'), tpl.name);
       if (!name?.trim()) return;
       const id = await checklistStore.create({ name: name.trim(), templateId: tpl.id, tags: tpl.tags, groups: tpl.groups });
       activeChecklistId = id;
@@ -482,11 +482,11 @@ function renderDetailScreen(container: HTMLElement) {
       <!-- AI panel -->
       <div class="ai-panel" id="ai-panel" hidden>
         <div class="ai-panel-header">
-          <div class="ai-panel-title">✨ AI Checklist Review</div>
+          <div class="ai-panel-title">${t('prep.aiCheckTitle')}</div>
           <button class="icon-btn" id="close-ai-panel">✕</button>
         </div>
         <div class="ai-panel-body" id="ai-panel-body">
-          <div class="ai-loading" id="ai-loading">Analyzing your checklist…</div>
+          <div class="ai-loading" id="ai-loading">${t('prep.aiAnalyzing')}</div>
           <div id="ai-result" hidden></div>
         </div>
       </div>
@@ -807,21 +807,21 @@ async function runAiCheck(container: HTMLElement, cl: StoredChecklist) {
     result.removeAttribute('hidden');
 
     if (suggestions.length === 0) {
-      result.innerHTML = '<div class="ai-no-suggestions">Looks good! No major items seem to be missing.</div>';
+      result.innerHTML = `<div class="ai-no-suggestions">${t('prep.aiNoSuggestions')}</div>`;
     } else {
       result.innerHTML = `
-        <div class="ai-suggestions-label">Possible missing items:</div>
+        <div class="ai-suggestions-label">${t('prep.aiSuggestionsLabel')}</div>
         <ul class="ai-suggestions-list">
           ${suggestions.map(s => `<li class="ai-suggestion-item">${escHtml(s)}</li>`).join('')}
         </ul>
-        <div class="ai-disclaimer">Suggestions are AI-generated — verify before acting.</div>
+        <div class="ai-disclaimer">${t('prep.aiDisclaimer')}</div>
       `;
     }
   } catch (err) {
     loading.setAttribute('hidden', '');
     result.removeAttribute('hidden');
     if (handleAiError(err)) { result.textContent = ''; return; }
-    result.innerHTML = `<div class="ai-error">Could not reach AI. Check your network and try again.<br><small>${escHtml(String(err))}</small></div>`;
+    result.innerHTML = `<div class="ai-error">${t('prep.aiError')}<br><small>${escHtml(String(err))}</small></div>`;
   }
 }
 
@@ -836,11 +836,10 @@ function renderCelebrate(container: HTMLElement) {
       <div class="celebrate-confetti" id="celebrate-confetti"></div>
       <div class="celebrate-content">
         <div class="celebrate-emoji">🎉</div>
-        <h2 class="celebrate-title">You're ready to go!</h2>
-        <p class="celebrate-sub">Everything in <strong>${escHtml(name)}</strong> is checked off.</p>
-        <p class="celebrate-msg">Pack your bags, it's time to explore.</p>
+        <h2 class="celebrate-title">${t('prep.celebrateTitle')}</h2>
+        <p class="celebrate-sub">${t('prep.celebrateMsg', { name: escHtml(name) })}</p>
         <button class="btn btn-primary celebrate-back-btn" id="celebrate-back-btn" style="margin-top:var(--sp-8);font-size:var(--fs-md);padding:14px 28px">
-          Back to Checklists
+          ${t('prep.btnBackChecklists')}
         </button>
       </div>
     </div>

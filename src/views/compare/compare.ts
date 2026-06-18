@@ -20,17 +20,20 @@ import {
 import type { CompareCandidate, CompareDimension, CompareType } from '../../data/schema.ts';
 import { COMPARE_TYPES } from '../../data/schema.ts';
 import { escHtml as esc } from '../../core/utils.ts';
+import { t } from '../../core/i18n.ts';
 import { consumeNavIntent } from '../../core/app.ts';
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
-const TYPE_META: Record<CompareType, { icon: string; label: string; hint: string }> = {
-  accommodation: { icon: '🏨', label: 'Accommodation', hint: 'Hotels, Airbnbs, hostels' },
-  flight:        { icon: '✈️', label: 'Flight',        hint: 'Compare routes & airlines' },
-  train:         { icon: '🚄', label: 'Train',         hint: 'Rail & intercity coaches' },
-  shopping:      { icon: '🛍️', label: 'Shopping',      hint: 'Products & souvenirs' },
-  other:         { icon: '⚖️', label: 'Other',         hint: 'Anything else to decide' },
-};
+function getTypeMeta(): Record<CompareType, { icon: string; label: string; hint: string }> {
+  return {
+    accommodation: { icon: '🏨', label: t('compare.typeAccommodation'), hint: t('compare.hintAccommodation') },
+    flight:        { icon: '✈️', label: t('compare.typeFlight'),        hint: t('compare.hintFlight') },
+    train:         { icon: '🚄', label: t('compare.typeTrain'),         hint: t('compare.hintTrain') },
+    shopping:      { icon: '🛍️', label: t('compare.typeShopping'),      hint: t('compare.hintShopping') },
+    other:         { icon: '⚖️', label: t('compare.typeOther'),         hint: t('compare.hintOther') },
+  };
+}
 
 // Type-specific field definitions for the add-candidate form and column headers.
 // `key` must match keys used in candidate.fields.
@@ -125,11 +128,12 @@ function renderGroupList(): string {
     ? groups
     : groups.filter((g) => g.compareType === filterType);
 
-  const typeTabs = ['all', ...COMPARE_TYPES].map((t) => {
-    const isAll = t === 'all';
-    const active = filterType === t;
-    const label = isAll ? 'All' : TYPE_META[t as CompareType].label;
-    return `<button class="cmp-tab ${active ? 'active' : ''}" data-tab="${t}">${label}</button>`;
+  const TYPE_META = getTypeMeta();
+  const typeTabs = ['all', ...COMPARE_TYPES].map((typ) => {
+    const isAll = typ === 'all';
+    const active = filterType === typ;
+    const label = isAll ? t('compare.filterAll') : TYPE_META[typ as CompareType].label;
+    return `<button class="cmp-tab ${active ? 'active' : ''}" data-tab="${typ}">${label}</button>`;
   }).join('');
 
   const cards = visible.map((g) => {
@@ -143,7 +147,7 @@ function renderGroupList(): string {
           <div class="cmp-group-meta">${m.label} · ${count} option${count !== 1 ? 's' : ''}</div>
         </div>
         <div class="cmp-group-actions">
-          <button class="cmp-group-del" data-act="del-group" data-group="${g.id}">Delete</button>
+          <button class="cmp-group-del" data-act="del-group" data-group="${g.id}">${t('compare.btnDelete')}</button>
           <div class="cmp-group-arrow">›</div>
         </div>
       </div>`;
@@ -152,24 +156,25 @@ function renderGroupList(): string {
   const emptyState = visible.length === 0 && !newGroupForm ? `
     <div class="cmp-empty">
       <div class="cmp-empty-icon">⚖️</div>
-      <div class="cmp-empty-title">Nothing to compare yet</div>
-      <div class="cmp-empty-text">Create a comparison group to start weighing your options — flights, accommodation, shopping, or anything else.</div>
+      <div class="cmp-empty-title">${t('compare.emptyTitle')}</div>
+      <div class="cmp-empty-text">${t('compare.emptyText')}</div>
     </div>` : '';
 
   return `
     <div class="cmp-list-header">
       <div class="cmp-tabs">${typeTabs}</div>
-      <button class="btn btn-primary cmp-new-btn" data-act="new-group">＋ New comparison</button>
+      <button class="btn btn-primary cmp-new-btn" data-act="new-group">${t('compare.btnNew')}</button>
     </div>
     ${newGroupForm ? renderNewGroupForm() : ''}
     <div class="cmp-group-list">${cards}${emptyState}</div>`;
 }
 
 function renderNewGroupForm(): string {
-  const typePills = COMPARE_TYPES.map((t) => {
-    const m = TYPE_META[t];
+  const TYPE_META = getTypeMeta();
+  const typePills = COMPARE_TYPES.map((typ) => {
+    const m = TYPE_META[typ];
     return `
-      <button class="cmp-type-pill" data-type="${t}">
+      <button class="cmp-type-pill" data-type="${typ}">
         <span class="cmp-type-pill-icon">${m.icon}</span>
         <span class="cmp-type-pill-label">${m.label}</span>
         <span class="cmp-type-pill-hint">${m.hint}</span>
@@ -178,18 +183,18 @@ function renderNewGroupForm(): string {
 
   return `
     <div class="cmp-new-form">
-      <div class="cmp-new-form-title">New comparison</div>
+      <div class="cmp-new-form-title">${t('compare.formTitle')}</div>
       <div class="cmp-field">
-        <label>What are you comparing?</label>
+        <label>${t('compare.formLabel')}</label>
         <div class="cmp-type-grid" id="ng-type-grid">${typePills}</div>
       </div>
       <div class="cmp-field">
-        <label>Label <span class="cmp-opt">(optional)</span></label>
+        <label>${t('compare.labelOptional')}</label>
         <input class="input" id="ng-title" placeholder="e.g. Flights to Rome, May 3">
       </div>
       <div class="cmp-new-form-btns">
-        <button class="btn btn-ghost" data-act="ng-cancel">Cancel</button>
-        <button class="btn btn-primary" data-act="ng-save">Create</button>
+        <button class="btn btn-ghost" data-act="ng-cancel">${t('compare.btnCancel')}</button>
+        <button class="btn btn-primary" data-act="ng-save">${t('compare.btnCreate')}</button>
       </div>
     </div>`;
 }
@@ -245,13 +250,14 @@ function priceCell(groupId: string, group: StoredGroup, c: CompareCandidate, isW
 }
 
 function renderMatrix(group: StoredGroup): string {
+  const TYPE_META = getTypeMeta();
   const result = scoreGroup(group);
   const cands = group.candidates;
   const m = TYPE_META[group.compareType];
 
   const toolbar = `
     <div class="cmp-toolbar">
-      <button class="btn btn-ghost cmp-back" data-act="back">← All comparisons</button>
+      <button class="btn btn-ghost cmp-back" data-act="back">${t('compare.btnBack')}</button>
       <div class="cmp-toolbar-title">${m.icon} <span contenteditable="true" id="group-title-edit" data-group="${group.id}">${esc(group.title || m.label)}</span></div>
     </div>`;
 
@@ -261,9 +267,9 @@ function renderMatrix(group: StoredGroup): string {
     return toolbar + (formOpen ? renderAddForm(group) : `
       <div class="cmp-empty">
         <div class="cmp-empty-icon">${m.icon}</div>
-        <div class="cmp-empty-title">Add options to compare</div>
-        <div class="cmp-empty-text">Enter two or more ${m.label.toLowerCase()} options, score each dimension, and the best pick surfaces automatically.</div>
-        <button class="btn btn-primary" data-act="open-form" data-group="${group.id}">＋ Add first option</button>
+        <div class="cmp-empty-title">${t('compare.emptyCardTitle')}</div>
+        <div class="cmp-empty-text">${t('compare.emptyCardText')}</div>
+        <button class="btn btn-primary" data-act="open-form" data-group="${group.id}">${t('compare.btnAddFirst')}</button>
       </div>`);
   }
 
@@ -274,12 +280,12 @@ function renderMatrix(group: StoredGroup): string {
     return `
       <th class="cmp-col ${rank === 1 ? 'is-top' : ''}">
         <div class="cmp-col-head">
-          ${rank === 1 ? '<div class="cmp-rank-badge">🏆 Best</div>' : ''}
+          ${rank === 1 ? `<div class="cmp-rank-badge">${t('compare.rankBest')}</div>` : ''}
           <input class="cmp-name-input" value="${esc(c.name)}"
             data-act="name" data-group="${group.id}" data-cand="${c.id}">
           ${sub ? `<div class="cmp-col-sub">${sub}</div>` : ''}
           ${c.link ? `<a class="cmp-col-link" href="${esc(c.link)}" target="_blank" rel="noopener">↗ link</a>` : ''}
-          <div class="cmp-col-score">${total}<span>/100</span></div>
+          <div class="cmp-col-score">${total}<span>${t('compare.scoreUnit')}</span></div>
           <button class="cmp-col-del" data-act="del-cand" data-group="${group.id}" data-cand="${c.id}" title="Remove">✕</button>
         </div>
       </th>`;
@@ -307,7 +313,7 @@ function renderMatrix(group: StoredGroup): string {
           <div class="cmp-weight">
             <input type="range" min="0" max="5" step="1" value="${dim.weight}"
               data-act="weight" data-group="${group.id}" data-dim="${dim.id}">
-            <span class="cmp-weight-val">${dim.weight === 0 ? 'off' : '×' + dim.weight}</span>
+            <span class="cmp-weight-val">${dim.weight === 0 ? t('compare.weightOff') : '×' + dim.weight}</span>
           </div>
         </th>
         ${cells}
@@ -317,14 +323,14 @@ function renderMatrix(group: StoredGroup): string {
   return toolbar + `
     <div class="cmp-matrix-wrap">
       <table class="cmp-matrix">
-        <thead><tr><th class="cmp-corner">Dimension</th>${colHeads}</tr></thead>
+        <thead><tr><th class="cmp-corner">${t('compare.cornerDimension')}</th>${colHeads}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
     ${formOpen ? renderAddForm(group) : `
     <div class="cmp-actions">
-      <button class="btn btn-ghost" data-act="open-form" data-group="${group.id}">＋ Add option</button>
-      <button class="btn btn-ghost" data-act="add-dim" data-group="${group.id}">＋ Add dimension</button>
+      <button class="btn btn-ghost" data-act="open-form" data-group="${group.id}">${t('compare.btnAddOption')}</button>
+      <button class="btn btn-ghost" data-act="add-dim" data-group="${group.id}">${t('compare.btnAddDimension')}</button>
     </div>`}
     ${renderVerdict(group, result)}`;
 }
@@ -340,11 +346,11 @@ function renderAddForm(group: StoredGroup): string {
 
   return `
     <div class="cmp-add-form" data-group="${group.id}">
-      <div class="cmp-add-form-title">Add an option</div>
+      <div class="cmp-add-form-title">${t('compare.formAddTitle')}</div>
       <div class="cmp-form-grid">
         <div class="cmp-field cmp-field-wide">
           <label>Name</label>
-          <input class="input" id="af-name" placeholder="${esc(TYPE_META[group.compareType].hint)}" autofocus>
+          <input class="input" id="af-name" placeholder="${esc(getTypeMeta()[group.compareType].hint)}" autofocus>
         </div>
         <div class="cmp-field cmp-field-wide">
           <label>Link <span class="cmp-opt">(optional)</span></label>
@@ -353,8 +359,8 @@ function renderAddForm(group: StoredGroup): string {
         ${fieldHtml}
       </div>
       <div class="cmp-form-btns">
-        <button class="btn btn-ghost" data-act="form-cancel">Cancel</button>
-        <button class="btn btn-primary" data-act="form-save" data-group="${group.id}">Add option</button>
+        <button class="btn btn-ghost" data-act="form-cancel">${t('compare.btnCancel')}</button>
+        <button class="btn btn-primary" data-act="form-save" data-group="${group.id}">${t('compare.btnAddOption')}</button>
       </div>
     </div>`;
 }
@@ -378,16 +384,16 @@ function renderVerdict(group: StoredGroup, result: ReturnType<typeof scoreGroup>
   return `
     <div class="cmp-verdict">
       <div class="cmp-verdict-main">
-        <div class="cmp-verdict-label">By your current weights</div>
+        <div class="cmp-verdict-label">${t('compare.verdictLabel')}</div>
         <div class="cmp-verdict-pick">🏆 ${top ? esc(top.name) : '—'}</div>
-        ${gap != null ? `<div class="cmp-verdict-gap">${gap === 0 ? 'Tied with' : `${gap} pts ahead of`} ${esc(runnerUp!.name)}</div>` : ''}
+        ${gap != null ? `<div class="cmp-verdict-gap">${gap === 0 ? t('compare.tiedWith') : `${gap} ${t('compare.ptsAheadOf')}`} ${esc(runnerUp!.name)}</div>` : ''}
       </div>
       ${champions ? `
         <div class="cmp-verdict-champs">
-          <div class="cmp-verdict-label">Best on each dimension</div>
+          <div class="cmp-verdict-label">${t('compare.bestOnDimension')}</div>
           <ul>${champions}</ul>
         </div>` : ''}
-      <div class="cmp-verdict-hint">Drag the weight sliders to reprioritize — the ranking updates live.</div>
+      <div class="cmp-verdict-hint">${t('compare.verdictHint')}</div>
     </div>`;
 }
 
@@ -454,7 +460,7 @@ function wire(root: HTMLElement) {
       el.addEventListener('input', () => {
         const label = el.parentElement?.querySelector('.cmp-weight-val');
         const w = Number(el.value);
-        if (label) label.textContent = w === 0 ? 'off' : '×' + w;
+        if (label) label.textContent = w === 0 ? t('compare.weightOff') : '×' + w;
       });
       el.addEventListener('change', () =>
         compareStore.setWeight(el.dataset.group!, el.dataset.dim!, Number(el.value)));

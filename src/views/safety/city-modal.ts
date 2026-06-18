@@ -3,6 +3,7 @@
    ========================================================================== */
 
 import type { StoredCitySafety } from '../../data/stores/safety-store.ts';
+import { t } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 
 function telHref(number: string): string {
@@ -26,7 +27,7 @@ function renderModal(card: StoredCitySafety): string {
   const numbers = card.emergencyNumbers.filter((n) => n.number || n.label);
   const numbersHtml = numbers.length ? `
     <div class="sfym-section">
-      <div class="sfym-section-title">🚨 Emergency numbers</div>
+      <div class="sfym-section-title">${t('safety.emergencyNumbers')}</div>
       <div class="sfym-numgrid">
         ${numbers.map((n) => `
           <a class="sfym-numchip" href="${telHref(n.number || '112')}">
@@ -40,7 +41,7 @@ function renderModal(card: StoredCitySafety): string {
   const hasEmbassy = e && (e.name || e.address || e.phone);
   const embassyHtml = hasEmbassy ? `
     <div class="sfym-section">
-      <div class="sfym-section-title">🏛 ${esc(e.nationality || 'Your')} embassy</div>
+      <div class="sfym-section-title">${t('safety.yourEmbassy', { nationality: esc(e.nationality || t('safety.destinationDefault')) })}</div>
       <div class="sfym-place-card">
         ${e.name ? `<div class="sfym-place-name">${esc(e.name)}</div>` : ''}
         ${e.address ? `<div class="sfym-place-line">${esc(e.address)}</div>` : ''}
@@ -53,10 +54,10 @@ function renderModal(card: StoredCitySafety): string {
   const hospitals = card.hospitals.filter((h) => h.name);
   const hospitalsHtml = hospitals.length ? `
     <div class="sfym-section">
-      <div class="sfym-section-title">🏥 Hospitals &amp; pharmacies</div>
+      <div class="sfym-section-title">${t('safety.hospitalsTitle')}</div>
       ${hospitals.map((h) => `
         <div class="sfym-place-card">
-          <div class="sfym-place-name">${esc(h.name)}${h.is24h ? ' <span class="sfym-tag-24h">24h</span>' : ''}</div>
+          <div class="sfym-place-name">${esc(h.name)}${h.is24h ? ` <span class="sfym-tag-24h">${t('safety.badge24h')}</span>` : ''}</div>
           ${h.address ? `<div class="sfym-place-line">${esc(h.address)}</div>` : ''}
           ${h.phone ? `<a class="sfym-place-line sfym-link" href="${telHref(h.phone)}">${esc(h.phone)}</a>` : ''}
           <a class="sfym-maps-btn" href="${mapSearchUrl(h.name, card.city)}" target="_blank" rel="noopener">📍 View on map</a>
@@ -66,7 +67,7 @@ function renderModal(card: StoredCitySafety): string {
   const phrases = card.phrases.filter((p) => p.en);
   const phrasesHtml = phrases.length ? `
     <div class="sfym-section">
-      <div class="sfym-section-title">💬 Emergency phrases</div>
+      <div class="sfym-section-title">${t('safety.phrasesTitle')}</div>
       ${phrases.map((p) => `
         <div class="sfym-phrase">
           <div class="sfym-phrase-en">${esc(p.en)}</div>
@@ -86,7 +87,7 @@ function renderModal(card: StoredCitySafety): string {
             </div>
           </div>
           <div class="sfym-header-actions">
-            <button class="btn btn-ghost sfy-sm sfym-regen" id="sfym-regen">Regenerate</button>
+            <button class="btn btn-ghost sfy-sm sfym-regen" id="sfym-regen">${t('safety.btnRegen')}</button>
             <button class="sfym-close" id="sfym-close" aria-label="Close">×</button>
           </div>
         </div>
@@ -94,7 +95,7 @@ function renderModal(card: StoredCitySafety): string {
         <div class="sfym-body">
           <div class="sfym-sos-row">
             <a class="sfym-sos-btn" href="${telHref(card.generalEmergency || '112')}">
-              <span>☎</span> ${esc(card.generalEmergency || '112')} <span class="sfym-sos-label">General emergency</span>
+              <span>☎</span> ${esc(card.generalEmergency || '112')} <span class="sfym-sos-label">${t('safety.generalEmergency')}</span>
             </a>
           </div>
 
@@ -109,8 +110,8 @@ function renderModal(card: StoredCitySafety): string {
         </div>
 
         <div class="sfym-footer">
-          Updated ${new Date(card.updatedAt ?? Date.now()).toLocaleDateString()}
-          ${card.source === 'edited' ? ' · edited' : ''}
+          ${t('safety.updatedLabel')}${new Date(card.updatedAt ?? Date.now()).toLocaleDateString()}
+          ${card.source === 'edited' ? t('safety.editedLabel') : ''}
         </div>
       </div>
     </div>`;

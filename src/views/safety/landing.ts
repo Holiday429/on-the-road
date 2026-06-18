@@ -4,6 +4,7 @@
 
 import type { StoredCitySafety } from '../../data/stores/safety-store.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
+import { t } from '../../core/i18n.ts';
 import { escHtml as esc, slugId } from '../../core/utils.ts';
 
 export interface LandingCallbacks {
@@ -32,16 +33,16 @@ function renderEntryRow(hasProfile: boolean): string {
       <button class="sfy-entry-btn" id="sfy-profile-open">
         <div class="sfy-entry-icon">🆘</div>
         <div class="sfy-entry-text">
-          <div class="sfy-entry-title">My emergency card</div>
-          <div class="sfy-entry-sub">${hasProfile ? 'Tap to view or edit' : 'Not set up yet'}</div>
+          <div class="sfy-entry-title">${t('safety.profileTitle')}</div>
+          <div class="sfy-entry-sub">${hasProfile ? t('safety.profileEdit') : t('safety.profileNotSet')}</div>
         </div>
         <span class="sfy-entry-arrow">›</span>
       </button>
       <button class="sfy-entry-btn" id="sfy-essentials-open">
         <div class="sfy-entry-icon">🧳</div>
         <div class="sfy-entry-text">
-          <div class="sfy-entry-title">Before you go</div>
-          <div class="sfy-entry-sub">Solo travel checklist</div>
+          <div class="sfy-entry-title">${t('safety.essentialsTitle')}</div>
+          <div class="sfy-entry-sub">${t('safety.essentialsSubtitle')}</div>
         </div>
         <span class="sfy-entry-arrow">›</span>
       </button>
@@ -99,7 +100,7 @@ function renderCityGrid(cards: StoredCitySafety[], legs: StoredLeg[]): string {
   if (!cardTiles && !pendingTiles) {
     return `<div class="sfy-grid-empty">
       <div class="empty-icon">🛡️</div>
-      <p>Add cities to your itinerary, or search below, to build safety cards.</p>
+      <p>${t('safety.emptyText')}</p>
     </div>`;
   }
   return cardTiles + pendingTiles;
@@ -118,11 +119,11 @@ export function renderLanding(
       ${renderEntryRow(hasProfile)}
 
       <div class="sfy-section-head sfy-section-head-row">
-        <h2>City safety cards</h2>
+        <h2>${t('safety.sectionTitle')}</h2>
         <div class="sfy-search-row">
-          <input class="input sfy-search-input" id="sfy-search-input" placeholder="Search a city…" autocomplete="off">
+          <input class="input sfy-search-input" id="sfy-search-input" placeholder="${t('safety.searchPh')}" autocomplete="off">
           <button class="btn btn-primary sfy-sm" id="sfy-search-btn">
-            ${generating ? '<span class="sfy-spinner sfy-spinner-sm"></span>' : 'Generate'}
+            ${generating ? '<span class="sfy-spinner sfy-spinner-sm"></span>' : t('safety.btnGenerate')}
           </button>
         </div>
       </div>

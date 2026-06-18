@@ -18,6 +18,7 @@ import { openCityModal } from './city-modal.ts';
 import { openProfileSheet } from './profile-sheet.ts';
 import { openEssentialsSheet } from './essentials-sheet.ts';
 import { fetchCitySafety } from './generate.ts';
+import { t } from '../../core/i18n.ts';
 import { escHtml as esc, slugId } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
 import { apiBase } from '../../core/api.ts';
@@ -136,7 +137,7 @@ function renderSos(): string {
           <span class="sos-num-label">${esc(n.label)}</span>
           <span class="sos-num-value">${esc(n.number)}</span>
         </a>`).join('')
-    : `<div class="sos-hint">Tap a city card to generate local emergency numbers.</div>`;
+    : `<div class="sos-hint">${t('safety.emptyEmergencyHint')}</div>`;
 
   return `
     <div class="sos-bar">
@@ -154,11 +155,11 @@ function renderSos(): string {
         <a class="sos-dial" href="${telHref(general)}">
           <span class="sos-dial-icon">☎</span>
           <span class="sos-dial-num">${esc(general)}</span>
-          <span class="sos-dial-sub">tap to call</span>
+          <span class="sos-dial-sub">${t('safety.tapToCall')}</span>
         </a>
       </div>
       <div class="sos-nums">${numChips}</div>
-      <button class="btn sos-share" id="sos-share">📍 Share location</button>
+      <button class="btn sos-share" id="sos-share">${t('safety.btnShareLocation')}</button>
     </div>`;
 }
 
@@ -166,7 +167,7 @@ function renderSos(): string {
 async function generateForCity(city: string, country: string): Promise<void> {
   if (_generating || !city.trim()) return;
   _generating = true;
-  _genStatus = `Building safety card for ${city}…`;
+  _genStatus = t('safety.buildingCard', { city });
   renderAll();
 
   const data = await fetchCitySafety(
@@ -176,7 +177,7 @@ async function generateForCity(city: string, country: string): Promise<void> {
   );
 
   if (!data) {
-    _genStatus = 'Could not generate card — check API key or connection.';
+    _genStatus = t('safety.generateError');
     _generating = false;
     renderAll();
     return;
@@ -255,7 +256,7 @@ function openCityPicker(): void {
   ).join('');
 
   const m = openModal({
-    title: 'Select city for SOS',
+    title: t('safety.pickerTitle'),
     body: `<div class="sos-picker-list">${items}</div>`,
     variant: 'sheet',
   });
@@ -277,19 +278,19 @@ async function shareLocation(): Promise<void> {
   const btn = document.getElementById('sos-share') as HTMLButtonElement | null;
   if (!btn) return;
   if (!navigator.geolocation) { alert('Location not available on this device.'); return; }
-  btn.textContent = 'Locating…';
+  btn.textContent = t('safety.locating');
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       const { latitude, longitude } = pos.coords;
       const url = `https://maps.google.com/?q=${latitude},${longitude}`;
-      const text = `📍 My location right now: ${url}`;
+      const text = `${t('safety.locationPrefix')}${url}`;
       try {
         if (navigator.share) await navigator.share({ title: 'My location', text, url });
         else { await navigator.clipboard.writeText(text); btn.textContent = '✓ Copied'; }
       } catch { /* dismissed */ }
-      setTimeout(() => { btn.textContent = '📍 Share location'; }, 2500);
+      setTimeout(() => { btn.textContent = t('safety.btnShareLocation'); }, 2500);
     },
-    () => { btn.textContent = 'Location blocked'; setTimeout(() => { btn.textContent = '📍 Share location'; }, 2500); },
+    () => { btn.textContent = t('safety.locationBlocked'); setTimeout(() => { btn.textContent = t('safety.btnShareLocation'); }, 2500); },
     { enableHighAccuracy: true, timeout: 10000 },
   );
 }

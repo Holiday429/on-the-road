@@ -7,6 +7,7 @@ import { safetyProfileStore, type StoredSafetyProfile } from '../../data/stores/
 import { uploadSafetyDoc } from '../../firebase/storage.ts';
 import { NATIONALITIES, DIAL_CODES, nationalityFlag, nationalityLabel } from '../../data/nationalities.ts';
 import type { SafetyProfile } from '../../data/schema.ts';
+import { t } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 
 function telHref(dialCode: string, local: string): string {
@@ -75,9 +76,8 @@ function renderView(p: StoredSafetyProfile | null): string {
     return `
       <div class="sfyp-empty">
         <div class="sfyp-empty-icon">🆘</div>
-        <p>Add your nationality, emergency contact, blood type and insurance.<br>
-        Kept private on your account — ready to show a medic or consulate.</p>
-        <button class="btn btn-primary" id="sfyp-edit">Set up my card</button>
+        <p>${t('safety.emptyHint')}<br>${t('safety.emptyHint2')}</p>
+        <button class="btn btn-primary" id="sfyp-edit">${t('safety.btnSetup')}</button>
       </div>`;
   }
 
@@ -117,19 +117,19 @@ function renderView(p: StoredSafetyProfile | null): string {
     <div class="sfyp-view">
       <div class="sfyp-grid">
         ${p!.nationality ? `<div class="sfyp-block">
-          <div class="sfyp-block-label">Nationality</div>
+          <div class="sfyp-block-label">${t('safety.labelNationality')}</div>
           <div class="sfyp-nat">${nationalityFlag(p!.nationality)} ${esc(nationalityLabel(p!.nationality))}</div>
         </div>` : ''}
         ${contacts ? `<div class="sfyp-block">
-          <div class="sfyp-block-label">Emergency contacts</div>
+          <div class="sfyp-block-label">${t('safety.labelEmergency')}</div>
           ${contacts}
         </div>` : ''}
         ${medRows.length ? `<div class="sfyp-block">
-          <div class="sfyp-block-label">Medical</div>
+          <div class="sfyp-block-label">${t('safety.labelMedical')}</div>
           ${facts(medRows)}
         </div>` : ''}
         ${(insRows.length || docs) ? `<div class="sfyp-block">
-          <div class="sfyp-block-label">Insurance &amp; documents</div>
+          <div class="sfyp-block-label">${t('safety.labelInsurance')}</div>
           ${facts(insRows)}
           ${docs}
         </div>` : ''}
@@ -152,9 +152,9 @@ function renderForm(p: StoredSafetyProfile | null): string {
       <div class="sfyp-form-grid">
 
         <div class="sfyp-form-col">
-          <div class="sfyp-col-head">Personal</div>
+          <div class="sfyp-col-head">${t('safety.formPersonal')}</div>
           <div class="sfy-field">
-            <label class="field-label" for="pfn-nat">Nationality <span class="sfy-muted">(picks your embassy)</span></label>
+            <label class="field-label" for="pfn-nat">${t('safety.labelNationality')} <span class="sfy-muted">${t('safety.nationalityHint')}</span></label>
             <select class="input select" id="pfn-nat">${natOptions(p?.nationality ?? '')}</select>
           </div>
           ${field('pfn-blood', p?.bloodType ?? '', 'e.g. O+', 'Blood type')}
@@ -164,14 +164,14 @@ function renderForm(p: StoredSafetyProfile | null): string {
         </div>
 
         <div class="sfyp-form-col">
-          <div class="sfyp-col-head">Emergency contact 1 ⭐</div>
+          <div class="sfyp-col-head">${t('safety.contact1Label')}</div>
           ${field('pfn-c0-name', c0.name, 'Name', 'Name')}
           ${field('pfn-c0-rel', c0.relation, 'mum / partner / friend', 'Relation')}
           <div class="sfy-field">
             <label class="field-label">Phone</label>
             ${phoneRow('pfn-c0-dial', 'pfn-c0-phone', c0.dialCode, c0.phone)}
           </div>
-          <div class="sfyp-col-head" style="margin-top:var(--sp-4)">Emergency contact 2</div>
+          <div class="sfyp-col-head" style="margin-top:var(--sp-4)">${t('safety.contact2Label')}</div>
           ${field('pfn-c1-name', c1.name, 'Name', 'Name')}
           <div class="sfy-field">
             <label class="field-label">Phone</label>
@@ -180,19 +180,19 @@ function renderForm(p: StoredSafetyProfile | null): string {
         </div>
 
         <div class="sfyp-form-col">
-          <div class="sfyp-col-head">Insurance</div>
+          <div class="sfyp-col-head">${t('safety.insuranceSection')}</div>
           ${field('pfn-ins-prov', p?.insuranceProvider ?? '', 'insurer name', 'Travel insurer')}
           ${field('pfn-ins-pol', p?.insurancePolicy ?? '', 'policy number', 'Policy number')}
           ${field('pfn-ins-hot', p?.insuranceHotline ?? '', '24h assistance line', 'Insurance hotline')}
           ${docUploadRow('pfn-ins-file', 'pfn-ins-label', 'pfn-ins-status',
             p?.insurancePdfUrl ?? '', p?.insurancePdfName ?? '', 'Insurance policy PDF')}
 
-          <div class="sfyp-col-head" style="margin-top:var(--sp-4)">Medical card / documents</div>
+          <div class="sfyp-col-head" style="margin-top:var(--sp-4)">${t('safety.medicalDocSection')}</div>
           ${docUploadRow('pfn-med-file', 'pfn-med-label', 'pfn-med-status',
             p?.medicalDocUrl ?? '', p?.medicalDocName ?? '', 'Medical card or summary')}
 
           <div class="sfy-field">
-            <label class="field-label" for="pfn-notes">Notes for medics</label>
+            <label class="field-label" for="pfn-notes">${t('safety.notesForMedics')}</label>
             <textarea class="input" id="pfn-notes" rows="3" placeholder="anything a first responder should know">${esc(p?.notes ?? '')}</textarea>
           </div>
         </div>
@@ -214,7 +214,7 @@ function createSheetDOM(): HTMLElement {
   el.innerHTML = `
     <div class="sfy-sheet" role="dialog" aria-modal="true">
       <div class="sfy-sheet-header">
-        <div class="sfy-sheet-title">🆘 My emergency card</div>
+        <div class="sfy-sheet-title">${t('safety.profileHeader')}</div>
         <button class="sfy-sheet-close" id="sfyp-close" aria-label="Close">×</button>
       </div>
       <div class="sfy-sheet-body" id="sfyp-body"></div>
@@ -306,7 +306,7 @@ async function saveProfile() {
         insurancePdfName = r.name;
         if (insStatus) insStatus.textContent = '✓ Uploaded';
       }).catch(() => {
-        if (insStatus) insStatus.textContent = '✗ Upload failed';
+        if (insStatus) insStatus.textContent = t('safety.uploadFailed');
       }),
     );
   }
@@ -319,7 +319,7 @@ async function saveProfile() {
         medicalDocName = r.name;
         if (medStatus) medStatus.textContent = '✓ Uploaded';
       }).catch(() => {
-        if (medStatus) medStatus.textContent = '✗ Upload failed';
+        if (medStatus) medStatus.textContent = t('safety.uploadFailed');
       }),
     );
   }

@@ -17,6 +17,7 @@ import { openModal } from './modal.ts';
 import { QuotaError, AuthError, apiUrl } from './api.ts';
 import { currentUser } from '../firebase/auth.ts';
 import { quotaStore } from '../data/quota-store.ts';
+import { t } from './i18n.ts';
 
 // ── Checkout ──────────────────────────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ type CheckoutPlan = 'trip_pass' | 'lifetime' | 'ai_topup';
 async function openCheckout(plan: CheckoutPlan, errEl: HTMLElement): Promise<void> {
   const user = currentUser();
   if (!user) {
-    errEl.textContent = 'Please sign in first.';
+    errEl.textContent = t('paywall.errorSignIn');
     errEl.hidden = false;
     return;
   }
@@ -37,13 +38,13 @@ async function openCheckout(plan: CheckoutPlan, errEl: HTMLElement): Promise<voi
   try {
     token = await user.getIdToken();
   } catch {
-    errEl.textContent = 'Session expired. Please sign in again.';
+    errEl.textContent = t('paywall.errorSession');
     errEl.hidden = false;
     return;
   }
 
   const btn = errEl.closest('.otr-modal')?.querySelector<HTMLButtonElement>(`[data-plan="${plan}"]`);
-  if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('common.loading'); }
 
   try {
     const res = await fetch(apiUrl('/api/create-checkout'), {
@@ -64,7 +65,7 @@ async function openCheckout(plan: CheckoutPlan, errEl: HTMLElement): Promise<voi
     if (!url) throw new Error('No checkout URL returned');
     window.open(url, '_blank', 'noopener,noreferrer');
   } catch (e) {
-    errEl.textContent = e instanceof Error ? e.message : 'Failed to open checkout. Try again.';
+    errEl.textContent = e instanceof Error ? e.message : t('paywall.errorCheckout');
     errEl.hidden = false;
     if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label ?? 'Buy'; }
   }
@@ -75,35 +76,35 @@ async function openCheckout(plan: CheckoutPlan, errEl: HTMLElement): Promise<voi
 /** Render the two-plan upgrade modal and wire its checkout buttons. */
 function renderPlansModal(desc: string): void {
   openModal({
-    title: 'Plan your next trip',
+    title: t('paywall.title'),
     body: `
       <div class="paywall-body">
         <p class="paywall-desc">${desc}</p>
         <div class="paywall-plans">
           <div class="paywall-plan paywall-plan--featured">
-            <div class="paywall-plan-name">Trip Pass</div>
-            <div class="paywall-plan-price">$8.8<span class="paywall-plan-period"> per trip</span></div>
+            <div class="paywall-plan-name">${t('paywall.planTrip')}</div>
+            <div class="paywall-plan-price">$8.8<span class="paywall-plan-period"> ${t('paywall.planTripPeriod')}</span></div>
             <ul class="paywall-plan-perks">
-              <li>✓ One more trip, yours to keep</li>
-              <li>✓ 10 AI city guides included</li>
-              <li>✓ Every feature — itinerary, expenses, packing, map &amp; more</li>
-              <li>✓ Share it with travel companions</li>
+              <li>${t('paywall.perkOneTrip')}</li>
+              <li>${t('paywall.perkAiGuides')}</li>
+              <li>${t('paywall.perkAllFeatures')}</li>
+              <li>${t('paywall.perkShare')}</li>
             </ul>
-            <button class="btn btn-primary paywall-btn" data-plan="trip_pass" data-label="Get Trip Pass">
-              Get Trip Pass
+            <button class="btn btn-primary paywall-btn" data-plan="trip_pass" data-label="${t('paywall.btnTripPass')}">
+              ${t('paywall.btnTripPass')}
             </button>
           </div>
           <div class="paywall-plan">
-            <div class="paywall-plan-name">Lifetime</div>
-            <div class="paywall-plan-price">$68.8<span class="paywall-plan-period"> once</span></div>
+            <div class="paywall-plan-name">${t('paywall.planLifetime')}</div>
+            <div class="paywall-plan-price">$68.8<span class="paywall-plan-period"> ${t('paywall.planLifetimePeriod')}</span></div>
             <ul class="paywall-plan-perks">
-              <li>✓ Unlimited trips, forever</li>
-              <li>✓ 10 AI city guides on every trip</li>
-              <li>✓ Every current &amp; future feature</li>
-              <li>✓ Support indie development</li>
+              <li>${t('paywall.perkUnlimited')}</li>
+              <li>${t('paywall.perkGuidesEvery')}</li>
+              <li>${t('paywall.perkFuture')}</li>
+              <li>${t('paywall.perkSupport')}</li>
             </ul>
-            <button class="btn btn-primary paywall-btn" data-plan="lifetime" data-label="Get Lifetime">
-              Get Lifetime
+            <button class="btn btn-primary paywall-btn" data-plan="lifetime" data-label="${t('paywall.btnLifetime')}">
+              ${t('paywall.btnLifetime')}
             </button>
           </div>
         </div>
@@ -128,15 +129,15 @@ function renderPlansModal(desc: string): void {
 
 /** Shown when a free user hits their owned-trip limit on "+ New trip". */
 export function showTripQuotaPaywall(): void {
-  renderPlansModal("You've used your free trip. Get a Trip Pass for one more, or go Lifetime for unlimited trips.");
+  renderPlansModal(t('paywall.quotaMsg'));
 }
 
 /** Generic upgrade modal — for users who haven't paid (e.g. free user out of
  *  their one trial AI generation). Surfaces the plan options. */
 export function showPaywall(opts: { feature?: string } = {}): void {
   const desc = opts.feature
-    ? `${opts.feature} need a Trip Pass or Lifetime.`
-    : 'Unlock 10 AI city guides per trip — plus every feature — with a Trip Pass, or go Lifetime.';
+    ? `${opts.feature} ${t('paywall.featureSuffix')}`
+    : t('paywall.defaultMsg');
   renderPlansModal(desc);
 }
 
@@ -144,21 +145,21 @@ export function showPaywall(opts: { feature?: string } = {}): void {
  *  (no plan change, just more credits) with the plan options as a fallback. */
 export function showAiTopupPaywall(desc?: string): void {
   openModal({
-    title: 'Out of AI credits',
+    title: t('paywall.aiTitle'),
     body: `
       <div class="paywall-body">
-        <p class="paywall-desc">${desc ?? 'You’ve used the AI credits for this trip. Grab a top-up to keep generating city guides.'}</p>
+        <p class="paywall-desc">${desc ?? t('paywall.aiDefaultMsg')}</p>
         <div class="paywall-plans">
           <div class="paywall-plan paywall-plan--featured">
-            <div class="paywall-plan-name">AI Top-up</div>
-            <div class="paywall-plan-price">$2.9<span class="paywall-plan-period"> · 10 guides</span></div>
+            <div class="paywall-plan-name">${t('paywall.planAiTopup')}</div>
+            <div class="paywall-plan-price">$2.9<span class="paywall-plan-period"> ${t('paywall.planAiTopupPeriod')}</span></div>
             <ul class="paywall-plan-perks">
-              <li>✓ 10 more AI city guides</li>
-              <li>✓ Works across all your trips</li>
-              <li>✓ Never expires</li>
+              <li>${t('paywall.perkMoreGuides')}</li>
+              <li>${t('paywall.perkAcrossTrips')}</li>
+              <li>${t('paywall.perkNeverExpires')}</li>
             </ul>
-            <button class="btn btn-primary paywall-btn" data-plan="ai_topup" data-label="Get AI Top-up">
-              Get AI Top-up
+            <button class="btn btn-primary paywall-btn" data-plan="ai_topup" data-label="${t('paywall.btnAiTopup')}">
+              ${t('paywall.btnAiTopup')}
             </button>
           </div>
         </div>

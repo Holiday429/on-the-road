@@ -9,6 +9,7 @@ import { currentUser } from '../../firebase/auth.ts';
 import { type NomadSpot, composite, scoreClass } from './nomad-types.ts';
 import { openAddModal, openDetailModal } from './nomad-modal.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
+import { t } from '../../core/i18n.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -47,15 +48,15 @@ function renderCardPhoto(spot: NomadSpot): string {
   const src = spot.photos[0] ?? spot.placePhotoUrl ?? '';
   if (src) return `<img src="${src}" alt="${spot.name}" loading="lazy">`;
   const emoji = spot.type === 'Café' ? '☕' : spot.type === 'Co-working' ? '💻' : spot.type === 'Library' ? '📚' : '🏨';
-  return `<div class="nomad-card-photo-placeholder">${emoji}<span>No photo yet</span></div>`;
+  return `<div class="nomad-card-photo-placeholder">${emoji}<span>${t('nomad.noPhoto')}</span></div>`;
 }
 
 function renderAmenities(r: NomadSpot['ratings']): string {
   const items: string[] = [];
-  if (r.wifi >= 4) items.push('📶 Fast WiFi');
-  else if (r.wifi <= 2) items.push('📶 Weak WiFi');
-  if (r.power >= 4) items.push('🔌 Outlets');
-  if (r.coffee >= 4) items.push('☕ Good coffee');
+  if (r.wifi >= 4) items.push(t('nomad.amenityFastWifi'));
+  else if (r.wifi <= 2) items.push(t('nomad.amenityWeakWifi'));
+  if (r.power >= 4) items.push(t('nomad.amenityOutlets'));
+  if (r.coffee >= 4) items.push(t('nomad.amenityGoodCoffee'));
   return items.map(i => `<span class="nomad-amenity-dot">${i}</span>`).join('');
 }
 
@@ -86,8 +87,8 @@ function renderGallery(container: HTMLElement) {
     container.innerHTML = `
       <div class="nomad-empty">
         <div class="nomad-empty-icon">💻</div>
-        <div class="nomad-empty-title">${isFiltered ? 'No spots match your filter' : 'No spots yet'}</div>
-        <div class="nomad-empty-text">${isFiltered ? 'Try a different country or search term.' : 'Hit "+ Add spot" to log the first work-friendly place you find.'}</div>
+        <div class="nomad-empty-title">${isFiltered ? t('nomad.emptyFiltered') : t('nomad.emptyTitle')}</div>
+        <div class="nomad-empty-text">${isFiltered ? t('nomad.emptyFilteredHint') : t('nomad.emptyHint')}</div>
       </div>
     `;
     return;
@@ -99,7 +100,7 @@ function renderGallery(container: HTMLElement) {
 
 function renderChips(container: HTMLElement) {
   const countries = getCountries();
-  const allChip = `<div class="nomad-chip${!activeCountry ? ' active' : ''}" data-country="">All <span class="nomad-chip-count">${spots.length}</span></div>`;
+  const allChip = `<div class="nomad-chip${!activeCountry ? ' active' : ''}" data-country="">${t('nomad.filterAll')} <span class="nomad-chip-count">${spots.length}</span></div>`;
   const chips = countries.map(({ country, count }) =>
     `<div class="nomad-chip${activeCountry === country ? ' active' : ''}" data-country="${country}">${country} <span class="nomad-chip-count">${count}</span></div>`
   ).join('');
@@ -124,15 +125,15 @@ export function initNomad() {
   body.innerHTML = `
     <div class="nomad-toolbar">
       <div class="nomad-scope">
-        <button class="nomad-scope-btn${scope === 'trip' ? ' active' : ''}" data-scope="trip">This trip</button>
-        <button class="nomad-scope-btn${scope === 'all' ? ' active' : ''}" data-scope="all">All trips</button>
+        <button class="nomad-scope-btn${scope === 'trip' ? ' active' : ''}" data-scope="trip">${t('nomad.scopeTrip')}</button>
+        <button class="nomad-scope-btn${scope === 'all' ? ' active' : ''}" data-scope="all">${t('nomad.scopeAll')}</button>
       </div>
       <div class="nomad-search-wrap">
         <span class="nomad-search-icon">🔍</span>
-        <input class="input" id="nomad-search" placeholder="Search spots or cities…">
+        <input class="input" id="nomad-search" placeholder="${t('nomad.searchPh')}">
       </div>
       <div class="nomad-filter-chips" id="nomad-chips"></div>
-      <button class="btn btn-primary" id="nomad-add-btn" style="white-space:nowrap;flex-shrink:0">+ Add spot</button>
+      <button class="btn btn-primary" id="nomad-add-btn" style="white-space:nowrap;flex-shrink:0">${t('nomad.btnAddSpot')}</button>
     </div>
     <div class="nomad-gallery" id="nomad-gallery"></div>
   `;

@@ -8,6 +8,7 @@ import { retagLegacyData } from '../../data/migrate-retag.ts';
 import { createDestinationInput } from '../../core/destination-input.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../../data/schema.ts';
 import logoGif from '../../../assets/logo.gif';
+import { t } from '../../core/i18n.ts';
 
 const STYLE_META: Record<TravelStyle, { icon: string; label: string }> = {
   solo:    { icon: '🧍', label: 'Solo'    },
@@ -33,7 +34,7 @@ export function showOnboarding(onDone: () => void): void {
     <div class="ob-card">
 
       <div class="ob-header">
-        <h1 class="ob-title">Plan your first trip</h1>
+        <h1 class="ob-title">${t('onboarding.title')}</h1>
         <button type="button" class="ob-close" id="ob-close" aria-label="Skip for now">✕</button>
       </div>
 
@@ -41,7 +42,7 @@ export function showOnboarding(onDone: () => void): void {
 
         <div class="ob-col-left">
           <div class="ob-field">
-            <label class="ob-label" for="ob-name">Trip name</label>
+            <label class="ob-label" for="ob-name">${t('onboarding.namePh')}</label>
             <input id="ob-name" class="input" placeholder="e.g. Europe Summer 2026" autocomplete="off">
           </div>
 
@@ -49,23 +50,23 @@ export function showOnboarding(onDone: () => void): void {
             <label class="ob-label">Travel dates</label>
             <div class="ob-row">
               <div class="ob-subfield">
-                <label class="ob-sublabel" for="ob-start">Start date</label>
+                <label class="ob-sublabel" for="ob-start">${t('onboarding.labelStartDate')}</label>
                 <input id="ob-start" class="input" type="date">
               </div>
               <div class="ob-subfield">
-                <label class="ob-sublabel" for="ob-end">End date</label>
+                <label class="ob-sublabel" for="ob-end">${t('onboarding.labelEndDate')}</label>
                 <input id="ob-end" class="input" type="date">
               </div>
             </div>
           </div>
 
           <div class="ob-field">
-            <label class="ob-label">Destinations <span class="ob-label-opt">(optional)</span></label>
+            <label class="ob-label">${t('onboarding.labelDests')}</label>
             <div id="ob-dest-mount" class="ob-dest-wrap"></div>
           </div>
 
           <div class="ob-field">
-            <label class="ob-label">Travelling as <span class="ob-label-opt">(optional)</span></label>
+            <label class="ob-label">${t('onboarding.labelStyle')}</label>
             <div class="ob-style-group" id="ob-style-group">
               ${TRAVEL_STYLES.map(s => `
                 <button type="button" class="ob-style-btn" data-style="${s}">
@@ -84,22 +85,22 @@ export function showOnboarding(onDone: () => void): void {
           </div>
 
           <div class="ob-field">
-            <label class="ob-label">Home city <span class="ob-label-opt">(optional)</span></label>
+            <label class="ob-label">${t('onboarding.labelHomeCity')}</label>
             <div class="ob-row">
               <div class="ob-subfield">
-                <label class="ob-sublabel" for="ob-home">Flying from</label>
-                <input id="ob-home" class="input" placeholder="e.g. Harbin" autocomplete="off">
+                <label class="ob-sublabel" for="ob-home">${t('onboarding.labelHomeCity')}</label>
+                <input id="ob-home" class="input" placeholder="${t('onboarding.homeCityPh')}" autocomplete="off">
               </div>
               <div class="ob-subfield">
-                <label class="ob-sublabel" for="ob-return">Flying back to</label>
-                <input id="ob-return" class="input" placeholder="same as home" autocomplete="off">
+                <label class="ob-sublabel" for="ob-return">${t('onboarding.labelReturnCity')}</label>
+                <input id="ob-return" class="input" placeholder="${t('onboarding.returnCityPh')}" autocomplete="off">
               </div>
             </div>
-            <span class="ob-field-hint">Used to draw your outbound &amp; return flights on the map.</span>
+            <span class="ob-field-hint">${t('onboarding.homeHint')}</span>
           </div>
 
           <div class="ob-field">
-            <label class="ob-label">Cover colour</label>
+            <label class="ob-label">${t('onboarding.labelCoverColor')}</label>
             <div class="ob-color-frame">
               <div class="ob-colors" id="ob-colors">
                 ${COVER_COLORS.map(c => `
@@ -111,8 +112,8 @@ export function showOnboarding(onDone: () => void): void {
           </div>
 
           <div class="ob-field">
-            <label class="ob-label" for="ob-notes">Notes <span class="ob-label-opt">(optional)</span></label>
-            <textarea id="ob-notes" class="input ob-notes-area" placeholder="What's the vibe? Any goals for this trip?" rows="4"></textarea>
+            <label class="ob-label" for="ob-notes">Notes</label>
+            <textarea id="ob-notes" class="input ob-notes-area" placeholder="${t('onboarding.notesPh')}" rows="4"></textarea>
           </div>
         </div>
 
@@ -128,7 +129,7 @@ export function showOnboarding(onDone: () => void): void {
       <div class="ob-footer">
         <span class="ob-error" id="ob-error"></span>
         <button class="btn btn-primary ob-submit-btn" id="ob-submit">
-          Let's go →
+          ${t('onboarding.btnSubmit')}
         </button>
       </div>
 
@@ -188,12 +189,12 @@ export function showOnboarding(onDone: () => void): void {
 
     errorEl.textContent = '';
 
-    if (!name) { errorEl.textContent = 'Trip name is required.'; return; }
-    if (!startDate || !endDate) { errorEl.textContent = 'Start and end dates are required.'; return; }
-    if (endDate < startDate) { errorEl.textContent = 'End date must be after start date.'; return; }
+    if (!name) { errorEl.textContent = t('onboarding.errorName'); return; }
+    if (!startDate || !endDate) { errorEl.textContent = t('onboarding.errorDates'); return; }
+    if (endDate < startDate) { errorEl.textContent = t('onboarding.errorEndDate'); return; }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Creating…';
+    submitBtn.textContent = t('onboarding.creating');
 
     const input: NewTripInput = {
       name, startDate, endDate, baseCurrency,
@@ -219,7 +220,7 @@ export function showOnboarding(onDone: () => void): void {
       onDone();
     } catch (e) {
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Let\'s go →';
+      submitBtn.textContent = t('onboarding.btnSubmit');
       errorEl.textContent = e instanceof Error ? e.message : 'Could not create trip.';
     }
   });

@@ -9,6 +9,7 @@ import {
   checklistStateStore,
   type StoredEssentialGroup,
 } from '../../data/stores/safety-content-store.ts';
+import { t } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 
 function renderGroup(group: StoredEssentialGroup, checks: Record<string, boolean>): string {
@@ -40,7 +41,7 @@ function renderGroup(group: StoredEssentialGroup, checks: Record<string, boolean
 }
 
 function renderBody(groups: StoredEssentialGroup[], checks: Record<string, boolean>): string {
-  if (!groups.length) return '<div class="sfye-loading"><span class="sfy-spinner"></span> Loading…</div>';
+  if (!groups.length) return `<div class="sfye-loading"><span class="sfy-spinner"></span> Loading…</div>`;
 
   const totalItems = groups.reduce((n, g) => n + g.items.length, 0);
   const doneItems = groups.reduce((n, g) => n + g.items.filter((i) => checks[i.id]).length, 0);
@@ -50,11 +51,11 @@ function renderBody(groups: StoredEssentialGroup[], checks: Record<string, boole
     <div class="sfye-progress-bar-wrap">
       <div class="sfye-progress-bar" style="width:${pct}%"></div>
     </div>
-    <div class="sfye-progress-label">${doneItems} of ${totalItems} checked</div>
+    <div class="sfye-progress-label">${t('safety.essentialsProgress', { done: doneItems, total: totalItems })}</div>
     <div class="sfye-groups">
       ${groups.map((g) => renderGroup(g, checks)).join('')}
     </div>
-    <button class="btn btn-ghost sfye-clear" id="sfye-clear">Clear all checks</button>`;
+    <button class="btn btn-ghost sfye-clear" id="sfye-clear">${t('safety.btnClearAll')}</button>`;
 }
 
 /* ── Sheet shell ──────────────────────────────────────────────────────────── */
@@ -104,7 +105,7 @@ function wireSheet() {
       const bar = body.querySelector<HTMLElement>('.sfye-progress-bar');
       if (bar) bar.style.width = `${pct}%`;
       const label = body.querySelector('.sfye-progress-label');
-      if (label) label.textContent = `${doneItems} of ${totalItems} checked`;
+      if (label) label.textContent = t('safety.essentialsProgress', { done: doneItems, total: totalItems });
     });
   });
 
@@ -122,7 +123,7 @@ function createSheetDOM(): HTMLElement {
   el.innerHTML = `
     <div class="sfy-sheet" role="dialog" aria-modal="true">
       <div class="sfy-sheet-header">
-        <div class="sfy-sheet-title">🧳 Before you go · solo &amp; safe</div>
+        <div class="sfy-sheet-title">${t('safety.essentialsHeader')}</div>
         <button class="sfy-sheet-close" id="sfye-close" aria-label="Close">×</button>
       </div>
       <div class="sfy-sheet-body" id="sfye-body"></div>

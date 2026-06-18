@@ -176,9 +176,9 @@ function openTripPopover() {
   }).join('');
 
   panel.innerHTML = `
-    <div class="trip-popover-header">My Trip</div>
-    ${rows || '<div class="trip-menu-empty">No trips yet</div>'}
-    <button class="trip-menu-new" id="trip-menu-new">+ New trip</button>
+    <div class="trip-popover-header">${t('app.title')}</div>
+    ${rows || `<div class="trip-menu-empty">${t('app.tripMenuEmpty')}</div>`}
+    <button class="trip-menu-new" id="trip-menu-new">${t('common.newTrip')}</button>
   `;
 
   document.body.appendChild(backdrop);
@@ -303,8 +303,8 @@ function buildSidebarHeader(): string {
   // anonymous account in place (data preserved). See signInWithGoogle in auth.ts.
   if (!user || user.isAnonymous) {
     const subtitle = user?.isAnonymous
-      ? 'Sign in to sync &amp; save'
-      : 'Sign in with Google';
+      ? t('app.signInSync')
+      : t('app.signInSubtitle');
     return `
       <div class="sidebar-header">
         <button type="button" class="sidebar-header-profile sidebar-auth-trigger" id="sidebar-auth-trigger">
@@ -312,7 +312,7 @@ function buildSidebarHeader(): string {
             <img src="${profileIcon}" class="sidebar-profile-avatar-image" alt="" aria-hidden="true">
           </div>
           <div class="sidebar-profile-meta">
-            <div class="sidebar-profile-title">On the Road</div>
+            <div class="sidebar-profile-title">${t('app.title')}</div>
             <div class="sidebar-profile-subtitle">${subtitle}</div>
           </div>
         </button>
@@ -328,11 +328,11 @@ function buildSidebarHeader(): string {
 
   return `
     <div class="sidebar-header">
-      <button type="button" class="sidebar-header-profile sidebar-account-trigger" id="sidebar-account-trigger" title="Account & billing">
+      <button type="button" class="sidebar-header-profile sidebar-account-trigger" id="sidebar-account-trigger" title="${t('app.accountSubtitle')}">
         <div class="sidebar-profile-avatar is-user">${avatar}</div>
         <div class="sidebar-profile-meta">
           <div class="sidebar-profile-title">${displayName}</div>
-          <div class="sidebar-profile-subtitle">Account &amp; billing</div>
+          <div class="sidebar-profile-subtitle">${t('app.accountSubtitle')}</div>
         </div>
       </button>
     </div>
@@ -487,27 +487,27 @@ function buildTripPill(): string {
   const daysText = days === null
     ? ''
     : days > 0
-    ? `Departing in <strong>${days} days</strong>`
+    ? t('app.departingIn', { n: days })
     : days === 0
-    ? `Departing <strong>today!</strong> 🎉`
-    : `Trip started <strong>${Math.abs(days)} days</strong> ago`;
+    ? t('app.departingToday')
+    : t('app.tripStarted', { n: Math.abs(days) });
 
   const role = currentRole();
   const roleBadge = role === 'viewer'
-    ? `<div class="trip-pill-role trip-pill-role--viewer">👁 View only</div>`
+    ? `<div class="trip-pill-role trip-pill-role--viewer">${t('app.roleBadgeViewer')}</div>`
     : role === 'editor'
-    ? `<div class="trip-pill-role trip-pill-role--editor">✎ Shared with you</div>`
+    ? `<div class="trip-pill-role trip-pill-role--editor">${t('app.roleBadgeEditor')}</div>`
     : '';
 
   // Owner-only: a pending-edit-request indicator. Count is filled live by the
   // access-request subscription (updateRequestBadge); hidden when zero.
   const reqBadge = role === 'owner'
-    ? `<button class="trip-pill-reqbadge" id="trip-pill-reqbadge" hidden title="Pending edit requests">0 requests</button>`
+    ? `<button class="trip-pill-reqbadge" id="trip-pill-reqbadge" hidden title="${t('app.requestBadge')}">0 requests</button>`
     : '';
 
   return `
     <div class="trip-pill${tripMenuOpen ? ' is-open' : ''}" id="trip-pill" role="button" tabindex="0" aria-haspopup="true" aria-expanded="${tripMenuOpen}">
-      <div class="trip-pill-label">Current Trip <span class="trip-pill-caret">▾</span></div>
+      <div class="trip-pill-label">${t('app.currentTripPill')} <span class="trip-pill-caret">▾</span></div>
       <div class="trip-pill-name">${escapeHtml(name)}</div>
       <div class="trip-pill-date ${compactClass}">${compactBadge}</div>
       <div class="trip-pill-days">${daysText}</div>
@@ -779,7 +779,7 @@ function buildMobileAccountItem(): string {
   if (!user || user.isAnonymous) {
     return `<div class="mobile-nav-item mobile-nav-account" id="mobile-account-item" role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true"><img src="${profileIcon}" class="nav-icon-image" alt=""></span>
-      <span class="nav-label">Sign in</span>
+      <span class="nav-label">${t('common.signIn').split(' ')[0]}</span>
     </div>`;
   }
   const photo = user.photoURL?.trim();
@@ -834,28 +834,28 @@ export function renderSession(user: User | null, onPrimaryAction: () => void) {
 
 function openRenameTripModal(trip: StoredTrip) {
   const m = openModal({
-    title: 'Edit trip',
+    title: t('app.editTripTitle'),
     className: 'trip-edit-modal',
     body: `
       <label class="trip-modal-field">
-        <span>Trip name</span>
+        <span>${t('app.labelTripName')}</span>
         <input id="rt-name" class="input" value="${escapeHtml(trip.name)}" autocomplete="off">
       </label>
       <div class="trip-modal-row">
         <label class="trip-modal-field">
-          <span>Home city <span class="trip-modal-opt">(flying from)</span></span>
-          <input id="rt-home" class="input" value="${escapeHtml(trip.homeCity ?? '')}" placeholder="e.g. Harbin" autocomplete="off">
+          <span>${t('app.labelHomeCity')} <span class="trip-modal-opt">(flying from)</span></span>
+          <input id="rt-home" class="input" value="${escapeHtml(trip.homeCity ?? '')}" placeholder="${t('onboarding.homeCityPh')}" autocomplete="off">
         </label>
         <label class="trip-modal-field">
-          <span>Return city <span class="trip-modal-opt">(flying back to)</span></span>
-          <input id="rt-return" class="input" value="${escapeHtml(trip.returnCity ?? '')}" placeholder="same as home" autocomplete="off">
+          <span>${t('app.labelReturnCity')} <span class="trip-modal-opt">(flying back to)</span></span>
+          <input id="rt-return" class="input" value="${escapeHtml(trip.returnCity ?? '')}" placeholder="${t('onboarding.returnCityPh')}" autocomplete="off">
         </label>
       </div>
-      <span class="trip-modal-hint">Home &amp; return draw your outbound and return flights on the map.</span>
+      <span class="trip-modal-hint">${t('app.homeReturnHint')}</span>
       <div class="trip-modal-error" id="rt-error"></div>`,
     footer: `
-      <button class="btn" data-otr-close>Cancel</button>
-      <button class="btn btn-primary" id="rt-save">Save</button>`,
+      <button class="btn" data-otr-close>${t('common.cancel')}</button>
+      <button class="btn btn-primary" id="rt-save">${t('common.save')}</button>`,
   });
 
   const nameInput = m.root.querySelector<HTMLInputElement>('#rt-name')!;
@@ -870,20 +870,20 @@ function openRenameTripModal(trip: StoredTrip) {
 
   async function save() {
     const name = nameInput.value.trim();
-    if (!name) { errorEl.textContent = 'Name cannot be empty.'; return; }
+    if (!name) { errorEl.textContent = t('app.errorNameEmpty'); return; }
     // Empty string (not undefined) so clearing a field overwrites the stored
     // value — stripUndefined would otherwise drop the key and keep the old one.
     const homeCity = homeInput.value.trim();
     const returnCity = returnInput.value.trim();
     const btn = m.root.querySelector<HTMLButtonElement>('#rt-save')!;
-    btn.disabled = true; btn.textContent = 'Saving…';
+    btn.disabled = true; btn.textContent = t('common.saving');
     try {
       await updateTrip(trip.id, { name, homeCity, returnCity });
       tripList = await listTrips();
       m.close();
       buildSidebar();
     } catch (e) {
-      btn.disabled = false; btn.textContent = 'Save';
+      btn.disabled = false; btn.textContent = t('common.save');
       errorEl.textContent = e instanceof Error ? e.message : 'Could not save trip.';
     }
   }
@@ -893,24 +893,22 @@ function openRenameTripModal(trip: StoredTrip) {
 
 function openDeleteTripModal(trip: StoredTrip) {
   const m = openModal({
-    title: 'Delete trip',
+    title: t('app.deleteTripTitle'),
     className: 'trip-edit-modal',
     body: `
       <p style="font-size:var(--fs-sm);color:var(--ink-muted);margin:0">
-        Delete <strong>${escapeHtml(trip.name)}</strong>? This permanently removes the
-        trip and <strong>all of its data</strong> — itinerary, expenses, packing,
-        journal, and everything else. This can't be undone.
+        ${t('app.deleteTripWarning', { name: escapeHtml(trip.name) })}
       </p>
       <div class="trip-modal-error" id="dt-error"></div>`,
     footer: `
-      <button class="btn" data-otr-close>Cancel</button>
-      <button class="btn btn-danger" id="dt-confirm">Delete</button>`,
+      <button class="btn" data-otr-close>${t('common.cancel')}</button>
+      <button class="btn btn-danger" id="dt-confirm">${t('common.delete')}</button>`,
   });
 
   m.root.querySelector('#dt-confirm')!.addEventListener('click', async () => {
     const btn = m.root.querySelector<HTMLButtonElement>('#dt-confirm')!;
     const errorEl = m.root.querySelector<HTMLElement>('#dt-error')!;
-    btn.disabled = true; btn.textContent = 'Deleting…';
+    btn.disabled = true; btn.textContent = t('app.deleting');
     try {
       await removeTrip(trip.id);
       tripList = await listTrips();
@@ -928,7 +926,7 @@ function openDeleteTripModal(trip: StoredTrip) {
         buildSidebar();
       }
     } catch (e) {
-      btn.disabled = false; btn.textContent = 'Delete';
+      btn.disabled = false; btn.textContent = t('common.delete');
       errorEl.textContent = e instanceof Error ? e.message : 'Could not delete trip.';
     }
   });
@@ -936,23 +934,22 @@ function openDeleteTripModal(trip: StoredTrip) {
 
 function leaveTrip(trip: StoredTrip) {
   const m = openModal({
-    title: 'Leave trip',
+    title: t('app.leaveTripTitle'),
     className: 'trip-edit-modal',
     body: `
       <p style="font-size:var(--fs-sm);color:var(--ink-muted);margin:0">
-        Leave <strong>${escapeHtml(trip.name)}</strong>? You'll lose access to it
-        until the owner invites you again. The trip itself isn't deleted.
+        ${t('app.leaveTripWarning', { name: escapeHtml(trip.name) })}
       </p>
       <div class="trip-modal-error" id="lt-error"></div>`,
     footer: `
-      <button class="btn" data-otr-close>Cancel</button>
-      <button class="btn btn-danger" id="lt-confirm">Leave</button>`,
+      <button class="btn" data-otr-close>${t('common.cancel')}</button>
+      <button class="btn btn-danger" id="lt-confirm">${t('app.btnLeave')}</button>`,
   });
 
   m.root.querySelector('#lt-confirm')!.addEventListener('click', async () => {
     const btn = m.root.querySelector<HTMLButtonElement>('#lt-confirm')!;
     const errorEl = m.root.querySelector<HTMLElement>('#lt-error')!;
-    btn.disabled = true; btn.textContent = 'Leaving…';
+    btn.disabled = true; btn.textContent = t('app.leaving');
     try {
       const wasActive = currentTripId() === trip.id;
       await leaveTripCtx(trip.id);
@@ -969,7 +966,7 @@ function leaveTrip(trip: StoredTrip) {
         buildSidebar();
       }
     } catch (e) {
-      btn.disabled = false; btn.textContent = 'Leave';
+      btn.disabled = false; btn.textContent = t('app.btnLeave');
       errorEl.textContent = e instanceof Error ? e.message : 'Could not leave trip.';
     }
   });
@@ -1025,32 +1022,32 @@ function openTripForm(opts: {
 
   function buildHtml(): string {
     return `
-      <div class="trip-modal" role="dialog" aria-modal="true" aria-label="New trip">
-        <h3 class="trip-modal-title">New trip</h3>
+      <div class="trip-modal" role="dialog" aria-modal="true" aria-label="${t('app.newTripTitle')}">
+        <h3 class="trip-modal-title">${t('app.newTripTitle')}</h3>
 
         <label class="trip-modal-field">
-          <span>Trip name</span>
-          <input id="nt-name" class="input" placeholder="e.g. Europe Summer 2026" autocomplete="off">
+          <span>${t('app.labelTripName')}</span>
+          <input id="nt-name" class="input" placeholder="${t('onboarding.namePh')}" autocomplete="off">
         </label>
 
         <div class="trip-modal-row">
           <label class="trip-modal-field">
-            <span>Start date</span>
+            <span>${t('onboarding.labelStartDate')}</span>
             <input id="nt-start" class="input" type="date">
           </label>
           <label class="trip-modal-field">
-            <span>End date</span>
+            <span>${t('onboarding.labelEndDate')}</span>
             <input id="nt-end" class="input" type="date">
           </label>
         </div>
 
         <label class="trip-modal-field">
-          <span>Destinations <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></span>
+          <span>${t('onboarding.labelDests')} <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></span>
           <div id="nt-dest-mount"></div>
         </label>
 
         <label class="trip-modal-field">
-          <span>Travelling as <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></span>
+          <span>${t('onboarding.labelStyle')} <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></span>
           <div class="trip-style-group" id="nt-style-group">
             ${renderStylePills()}
           </div>
@@ -1062,7 +1059,7 @@ function openTripForm(opts: {
             <input id="nt-currency" class="input" value="EUR" maxlength="3" style="text-transform:uppercase">
           </label>
           <label class="trip-modal-field">
-            <span>Cover colour</span>
+            <span>${t('onboarding.labelCoverColor')}</span>
             <div class="trip-color-swatches" id="nt-colors">
               ${renderColorSwatches()}
             </div>
@@ -1071,12 +1068,12 @@ function openTripForm(opts: {
 
         <label class="trip-modal-field">
           <span>Notes <span style="font-weight:400;color:var(--ink-faint)">(optional)</span></span>
-          <input id="nt-notes" class="input" placeholder="What's the vibe? Any goals for this trip?">
+          <input id="nt-notes" class="input" placeholder="${t('onboarding.notesPh')}">
         </label>
 
         <div class="trip-modal-actions">
-          <button class="btn" id="nt-cancel">Cancel</button>
-          <button class="btn btn-primary" id="nt-create">Create trip</button>
+          <button class="btn" id="nt-cancel">${t('common.cancel')}</button>
+          <button class="btn btn-primary" id="nt-create">${t('app.btnCreateTrip')}</button>
         </div>
         <div class="trip-modal-error" id="nt-error"></div>
       </div>
@@ -1135,11 +1132,11 @@ function openTripForm(opts: {
       const notes = backdrop.querySelector<HTMLInputElement>('#nt-notes')!.value.trim() || undefined;
 
       if (!name || !startDate || !endDate) {
-        errorEl.textContent = 'Trip name and dates are required.';
+        errorEl.textContent = t('onboarding.errorDates');
         return;
       }
       if (endDate < startDate) {
-        errorEl.textContent = 'End date must be after the start date.';
+        errorEl.textContent = t('onboarding.errorEndDate');
         return;
       }
 
@@ -1154,7 +1151,7 @@ function openTripForm(opts: {
 
       const btn = backdrop.querySelector<HTMLButtonElement>('#nt-create')!;
       btn.disabled = true;
-      btn.textContent = 'Creating…';
+      btn.textContent = t('onboarding.creating');
       try {
         const id = await createTrip(input);
         tripList = await listTrips();
@@ -1173,7 +1170,7 @@ function openTripForm(opts: {
           return;
         }
         btn.disabled = false;
-        btn.textContent = 'Create trip';
+        btn.textContent = t('app.btnCreateTrip');
         errorEl.textContent = e instanceof Error ? e.message : 'Could not create trip.';
       }
     });

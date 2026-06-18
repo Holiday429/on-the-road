@@ -12,7 +12,7 @@ import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';
 import { geocode } from '../map/geocode.ts';
-import { aiLanguage } from '../../core/i18n.ts';
+import { aiLanguage, t } from '../../core/i18n.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
 import { slugId } from '../../core/utils.ts';
 import { currentTripId } from '../../data/trip-context.ts';
@@ -58,6 +58,20 @@ const TABS: Tab[] = [
   { key: 'know',        label: 'Culture',     icon: '💡',  isDo: false },
   { key: 'moneyTips',   label: 'Budget',      icon: '💸',  isDo: false },
 ];
+
+function tabLabel(key: TabKey): string {
+  const map: Record<TabKey, string> = {
+    intro:       t('guide.tabIntro'),
+    attractions: t('guide.tabAttractions'),
+    cityWalks:   t('guide.tabCityWalks'),
+    restaurants: t('guide.tabRestaurants'),
+    cafes:       t('guide.tabCafes'),
+    experiences: t('guide.tabExperiences'),
+    know:        t('guide.tabKnow'),
+    moneyTips:   t('guide.tabMoneyTips'),
+  };
+  return map[key];
+}
 
 // ── API call + SSE streaming ──────────────────────────────────────────────────
 
@@ -282,7 +296,7 @@ function showSkeleton(_root: HTMLElement, city: string, _country: string) {
         <img class="guide-gen-gif" src="${logoGif}" alt="">
       </div>
       <div class="guide-gen-label">
-        Planning your <strong>${city}</strong> guide — this takes a moment…
+        ${t('guide.genSplash', { city })}
       </div>
     </div>
   `;
@@ -319,7 +333,7 @@ function renderHistoryBar(root: HTMLElement) {
     return;
   }
   toggle.style.display = '';
-  toggle.innerHTML = `🕘 History <span class="guide-history-count">${_cities.length}</span>`;
+  toggle.innerHTML = `${t('guide.historyLabel')} <span class="guide-history-count">${_cities.length}</span>`;
 
   drawer.classList.toggle('open', _historyOpen);
   overlay.classList.toggle('open', _historyOpen);
@@ -338,7 +352,7 @@ function renderHistoryBar(root: HTMLElement) {
       </div>
       <button class="guide-history-del" data-id="${c.id}" title="Remove">×</button>
     </div>
-  `).join('') : `<div class="guide-history-empty">No matching guides</div>`;
+  `).join('') : `<div class="guide-history-empty">${t('guide.historyEmpty')}</div>`;
 
   panel.querySelectorAll<HTMLElement>('.guide-history-row').forEach(el => {
     el.addEventListener('click', (e) => {
@@ -380,10 +394,10 @@ function renderCityDetail(_root: HTMLElement) {
   if (!intel) {
     detail.replaceChildren(emptyState({
       icon: '🗺️',
-      title: 'Build a city guide',
-      desc: 'Search any city above to generate attractions, food, culture and more — then bookmark anything or send it to your itinerary.',
+      title: t('guide.emptyTitle'),
+      desc: t('guide.emptyText'),
       cta: {
-        label: 'Search a city',
+        label: t('guide.emptyCta'),
         onClick: () => document.getElementById('guide-city-input')?.focus(),
       },
     }));
@@ -404,10 +418,10 @@ function renderCityDetail(_root: HTMLElement) {
     </div>
 
     <div class="guide-tabs" role="tablist">
-      ${TABS.map(t => `
-        <button class="guide-tab ${_activeTab === t.key ? 'active' : ''} ${t.isDo ? 'tab-do' : 'tab-know'}"
-          data-tab="${t.key}" role="tab">
-          <span>${t.icon}</span><span class="guide-tab-label">${t.label}</span>
+      ${TABS.map(tab => `
+        <button class="guide-tab ${_activeTab === tab.key ? 'active' : ''} ${tab.isDo ? 'tab-do' : 'tab-know'}"
+          data-tab="${tab.key}" role="tab">
+          <span>${tab.icon}</span><span class="guide-tab-label">${tabLabel(tab.key)}</span>
         </button>
       `).join('')}
     </div>
@@ -416,7 +430,7 @@ function renderCityDetail(_root: HTMLElement) {
       ${renderTabContent(intel)}
     </div>
 
-    <div class="guide-ai-notice">✦ AI-generated · verify details before travel</div>
+    <div class="guide-ai-notice">${t('guide.aiNotice')}</div>
   `;
 
   detail.querySelectorAll<HTMLElement>('.guide-tab').forEach(tab => {
@@ -454,7 +468,7 @@ function renderTabContent(intel: StoredCityIntel): string {
 }
 
 function renderIntroTab(intel: StoredCityIntel): string {
-  if (!intel.intro && !intel.funFacts?.length) return renderSectionLoading('Overview is being generated…');
+  if (!intel.intro && !intel.funFacts?.length) return renderSectionLoading(t('guide.loadingOverview'));
   const sections = intel.overviewSections ?? [];
   return `
     <div class="guide-intro">
@@ -476,7 +490,7 @@ function renderIntroTab(intel: StoredCityIntel): string {
 
       ${intel.funFacts?.length ? `
         <div class="guide-funfacts-block">
-          <div class="guide-funfacts-label">💡 Did you know?</div>
+          <div class="guide-funfacts-label">${t('guide.funFacts')}</div>
           <div class="guide-fun-facts">
             ${intel.funFacts.map(f => `<div class="guide-fun-fact">${f}</div>`).join('')}
           </div>
@@ -490,16 +504,16 @@ function renderIntroTab(intel: StoredCityIntel): string {
 function moreFooter(label: string): string {
   return `
     <div class="guide-more-footer">
-      <button class="btn btn-ghost guide-more-btn" data-more-section="${_activeTab}">✨ ${label}</button>
+      <button class="btn btn-ghost guide-more-btn" data-more-section="${_activeTab}">${label}</button>
     </div>
   `;
 }
 
 function renderCardGrid(cards: GuideCard[], city: string, type: string): string {
-  if (!cards.length) return renderSectionLoading(`Loading ${type} recommendations…`);
+  if (!cards.length) return renderSectionLoading(t('guide.loadingRecs', { tab: type }));
   return `
     <div class="guide-card-grid">${cards.map((c, i) => renderFlipCard(c, city, type, i)).join('')}</div>
-    ${moreFooter('Generate more')}
+    ${moreFooter(t('guide.btnGenerateMore'))}
   `;
 }
 
@@ -564,10 +578,10 @@ function renderFlipCard(card: GuideCard, city: string, type: string, idx: number
 }
 
 function renderWalkGrid(walks: CityWalk[], city: string): string {
-  if (!walks.length) return renderSectionLoading('City walk routes are being generated…');
+  if (!walks.length) return renderSectionLoading(t('guide.loadingWalks'));
   return `
     <div class="guide-card-grid">${walks.map((w, i) => renderWalkCard(w, city, i)).join('')}</div>
-    ${moreFooter('More routes')}
+    ${moreFooter(t('guide.btnMoreRoutes'))}
   `;
 }
 
@@ -605,12 +619,12 @@ function renderWalkCard(walk: CityWalk, _city: string, idx: number): string {
 const CARD_TINTS = ['#fef3c7', '#dbeafe', '#dcfce7', '#fae8ff', '#fee2e2', '#ffedd5', '#cffafe', '#fce7f3'];
 
 function renderKnowTab(intel: StoredCityIntel): string {
-  if (!intel.greetings?.length && !intel.customs?.length) return renderSectionLoading('Cultural notes are being generated…');
+  if (!intel.greetings?.length && !intel.customs?.length) return renderSectionLoading(t('guide.loadingCulture'));
   return `
     <div class="guide-know-grid">
       ${intel.greetings?.length ? `
         <div class="guide-know-section">
-          <div class="guide-know-title">🗣️ Greetings</div>
+          <div class="guide-know-title">${t('guide.knowGreetings')}</div>
           ${intel.greetings.map(g => `
             <div class="guide-know-item">
               <strong>${g.phrase}</strong>${g.pronunciation ? `<span class="muted"> · ${g.pronunciation}</span>` : ''}
@@ -621,19 +635,19 @@ function renderKnowTab(intel: StoredCityIntel): string {
       ` : ''}
       ${intel.customs?.length ? `
         <div class="guide-know-section">
-          <div class="guide-know-title">🤝 Customs</div>
+          <div class="guide-know-title">${t('guide.knowCustoms')}</div>
           <ul>${intel.customs.map(c => `<li>${c}</li>`).join('')}</ul>
         </div>
       ` : ''}
       ${intel.taboos?.length ? `
         <div class="guide-know-section">
-          <div class="guide-know-title">⚠️ Avoid</div>
+          <div class="guide-know-title">${t('guide.knowTaboos')}</div>
           <ul>${intel.taboos.map(t => `<li>${t}</li>`).join('')}</ul>
         </div>
       ` : ''}
       ${intel.neighborhoods?.length ? `
         <div class="guide-know-section">
-          <div class="guide-know-title">🏘️ Neighbourhoods</div>
+          <div class="guide-know-title">${t('guide.knowNeighbourhoods')}</div>
           ${intel.neighborhoods.map(n => `
             <div class="guide-know-item">
               <strong>${n.name}</strong>
@@ -644,13 +658,13 @@ function renderKnowTab(intel: StoredCityIntel): string {
       ` : ''}
       ${intel.safetyTips?.length ? `
         <div class="guide-know-section guide-safety-section">
-          <div class="guide-know-title">🛡️ Safety</div>
+          <div class="guide-know-title">${t('guide.knowSafety')}</div>
           <ul>${intel.safetyTips.map(t => `<li>${t}</li>`).join('')}</ul>
         </div>
       ` : ''}
       ${intel.transport?.length ? `
         <div class="guide-know-section">
-          <div class="guide-know-title">🚌 Getting Around</div>
+          <div class="guide-know-title">${t('guide.knowTransport')}</div>
           <ul>${intel.transport.map(t => `<li>${t}</li>`).join('')}</ul>
         </div>
       ` : ''}
@@ -659,7 +673,7 @@ function renderKnowTab(intel: StoredCityIntel): string {
 }
 
 function renderMoneyTab(tips: GuideTip[]): string {
-  if (!tips.length) return renderSectionLoading('Budget tips are being generated…');
+  if (!tips.length) return renderSectionLoading(t('guide.loadingMoney'));
   return `
     <div class="guide-money-list">
       ${tips.map(t => `
@@ -670,7 +684,7 @@ function renderMoneyTab(tips: GuideTip[]): string {
         </div>
       `).join('')}
     </div>
-    ${moreFooter('More tips')}
+    ${moreFooter(t('guide.btnMoreTips'))}
   `;
 }
 
@@ -747,7 +761,7 @@ function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
         visibility: 'private',
         ownerId: '',
       });
-      btn.textContent = '✓ Saved';
+      btn.textContent = t('guide.btnSaved');
       btn.classList.add('saved');
       showCommitToast(`${c.title} → Nomad`);
     });
@@ -827,7 +841,7 @@ async function loadMore(intel: StoredCityIntel, section: TabKey, btn: HTMLButton
         wireTabContent(content.closest('.guide-detail') as HTMLElement, intel);
       }
     } else {
-      btn.textContent = '✓ No new ones found';
+      btn.textContent = t('guide.noNewOnes');
       setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1800);
       return;
     }
@@ -917,7 +931,7 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
 
         ${isWalk && waypoints.length ? `
           <div class="guide-walk-section">
-            <div class="guide-detail-modal-block-label">Route · ${waypoints.length} stops</div>
+            <div class="guide-detail-modal-block-label">${t('guide.routeLabel')}${waypoints.length} stops</div>
             <div class="guide-walk-map" id="guide-walk-map"></div>
             <div class="guide-walk-stops">
               ${waypoints.map((wp, i) => `
@@ -935,9 +949,9 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
       </div>
       <div class="guide-detail-modal-footer">
         ${isWalk && waypoints.length
-          ? `<a class="btn btn-ghost guide-walk-route-link" href="${walkRouteUrlByName(waypoints, intel.city)}" target="_blank" rel="noopener">🗺️ Open route in Maps</a>`
+          ? `<a class="btn btn-ghost guide-walk-route-link" href="${walkRouteUrlByName(waypoints, intel.city)}" target="_blank" rel="noopener">${t('guide.btnOpenRoute')}</a>`
           : `<a class="btn btn-ghost" href="${card.searchUrl || maps}" target="_blank" rel="noopener">${googleIcon()} Search in Google</a>`}
-        <button class="btn btn-primary guide-detail-modal-commit">＋ Add to itinerary</button>
+        <button class="btn btn-primary guide-detail-modal-commit">${t('guide.btnAddItinerary')}</button>
       </div>
     </div>
   `;
@@ -1049,7 +1063,7 @@ function openCommitModal(intel: StoredCityIntel, cardId: string, cardType: strin
   const highlight = ('highlight' in card ? (card as GuideCard).highlight : '') || '';
 
   const m = openModal({
-    title: 'Add to itinerary',
+    title: t('guide.modalAddTitle'),
     variant: 'sheet',
     body: `
       <div class="guide-modal-card-preview">
@@ -1070,12 +1084,12 @@ function openCommitModal(intel: StoredCityIntel, cardId: string, cardType: strin
         ` : ''}
         ${!_legs.length ? `<option value="">No legs yet — add destinations in Itinerary first</option>` : ''}
       </select>
-      <label class="guide-modal-label" style="margin-top:var(--sp-4)">Note (optional)</label>
+      <label class="guide-modal-label" style="margin-top:var(--sp-4)">${t('guide.modalNoteLabel')}</label>
       <input class="input" id="gcm-note" placeholder="Your notes…" value="${highlight}">
     `,
     footer: `
-      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
-      <button class="btn btn-primary" data-act="confirm" ${!_legs.length ? 'disabled' : ''}>Add to itinerary</button>
+      <button class="btn btn-ghost" data-act="cancel">${t('guide.btnCancel')}</button>
+      <button class="btn btn-primary" data-act="confirm" ${!_legs.length ? 'disabled' : ''}>${t('guide.btnAddItinerary')}</button>
     `,
   });
 

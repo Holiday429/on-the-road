@@ -21,6 +21,7 @@ import { itemWeightG, formatKg, itemsPresentAtLeg } from '../../data/packing-for
 import { buildPackSuggestions } from '../../data/pack-suggestions.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
 import { escHtml } from '../../core/utils.ts';
+import { t } from '../../core/i18n.ts';
 import { consumeNavIntent } from '../../core/app.ts';
 
 /* ── Item categories ─────────────────────────────────────────────────────── */
@@ -223,7 +224,7 @@ function renderTripBar(): string {
   return `<div class="pack-trip-bar">
     <span class="pack-trip-bar-label">Upcoming</span>
     <div class="pack-trip-chips">${chips}</div>
-    <span class="pack-trip-bar-hint">Tap a city to check weather</span>
+    <span class="pack-trip-bar-hint">${t('pack.tripBarHint')}</span>
   </div>`;
 }
 
@@ -234,15 +235,15 @@ function renderList(c: HTMLElement) {
   c.innerHTML = `
     ${renderTripBar()}
     <div class="pack-action-bar">
-      <button class="btn btn-primary" id="pk-new">+ New Pack List</button>
-      ${_legs.length > 0 ? `<button class="btn btn-ghost" id="pk-formula">✨ Pack Formula</button>` : ''}
+      <button class="btn btn-primary" id="pk-new">${t('pack.btnNewList')}</button>
+      ${_legs.length > 0 ? `<button class="btn btn-ghost" id="pk-formula">${t('pack.btnFormula')}</button>` : ''}
     </div>
 
     ${_lists.length === 0 ? `
       <div class="empty-state">
         <div class="empty-icon">🎒</div>
-        <p>No pack lists yet.</p>
-        <p style="font-size:var(--fs-sm);color:var(--ink-faint)">Create one, add your bags with weight limits, then drop items in and keep each bag under budget.</p>
+        <p>${t('pack.emptyTitle')}</p>
+        <p style="font-size:var(--fs-sm);color:var(--ink-faint)">${t('pack.emptyText')}</p>
       </div>
     ` : `
       <div class="pack-grid">
@@ -252,18 +253,18 @@ function renderList(c: HTMLElement) {
 
     <div class="pack-kit-section">
       <div class="pack-section-header">
-        <div class="pack-section-title">Core Kit</div>
+        <div class="pack-section-title">${t('pack.coreKitSection')}</div>
         <div class="pack-kit-header-right">
-          ${_kit.length > 0 ? `<span class="pack-kit-total">${displayWeight(kitTotal, weightUnit)} total</span>` : ''}
+          ${_kit.length > 0 ? `<span class="pack-kit-total">${displayWeight(kitTotal, weightUnit)} ${t('pack.totalLabel')}</span>` : ''}
           <select class="pack-unit-sel" id="pk-unit-sel">
             ${WEIGHT_UNITS.map(u => `<option value="${u.value}" ${u.value === weightUnit ? 'selected' : ''}>${u.label}</option>`).join('')}
           </select>
         </div>
       </div>
-      <p class="pack-kit-hint">Your reusable must-bring gear. Maintain it once here; pull it into any new pack list with one click.</p>
+      <p class="pack-kit-hint">${t('pack.coreKitHint')}</p>
       <div class="pack-kit-table">
         <div class="pack-kit-thead">
-          <span>Item</span><span>Category</span><span>Weight (${weightUnit === 'jin' ? '斤' : weightUnit})</span><span></span>
+          <span>${t('pack.colItem')}</span><span>${t('pack.colCategory')}</span><span>${t('pack.colWeight', { unit: weightUnit === 'jin' ? '斤' : weightUnit })}</span><span></span>
         </div>
         ${_kit.map(renderKitRow).join('')}
         ${renderKitAddRow()}
@@ -284,7 +285,7 @@ function renderListCard(l: StoredPackList): string {
         <button class="pk-del-list" data-id="${l.id}" title="Delete">✕</button>
       </div>
       <div class="pack-card-meta">${l.containers.length} bags · ${l.items.length} items</div>
-      <div class="pack-card-weight ${over ? 'is-over' : ''}">${formatKg(total)}${over ? ' · over limit' : ''}</div>
+      <div class="pack-card-weight ${over ? 'is-over' : ''}">${formatKg(total)}${over ? ` · ${t('pack.overLimit')}` : ''}</div>
     </div>
   `;
 }
@@ -314,7 +315,7 @@ function renderKitRow(k: StoredCoreKitItem): string {
 function renderKitAddRow(): string {
   return `
     <div class="pack-kit-row pack-kit-add-row" id="pk-kit-add-row">
-      <input class="pack-kit-cell-input" id="pk-kit-name" placeholder="+ Add item… (Enter to save)">
+      <input class="pack-kit-cell-input" id="pk-kit-name" placeholder="${t('pack.kitAddPh')}">
       <select class="pack-kit-cell-input pk-cat-sel" id="pk-kit-cat">
         ${categoryOptions('electronics')}
       </select>
@@ -352,12 +353,12 @@ function renderDetail(c: HTMLElement, l: PackList) {
   c.innerHTML = `
     <div class="pack-detail">
       <div class="pack-detail-bar">
-        <button class="btn btn-ghost pk-sm" id="pk-back">← All lists</button>
+        <button class="btn btn-ghost pk-sm" id="pk-back">${t('pack.btnBackAllLists')}</button>
         <div class="pack-detail-title">${escHtml(l.name)}</div>
         <div class="pack-detail-actions">
-          ${hasLegs ? `<button class="btn btn-ghost pk-sm" id="pk-record-change">↕ Record change</button>` : ''}
-          <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">+ Add bag</button>
-          <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> Pack-check</label>
+          ${hasLegs ? `<button class="btn btn-ghost pk-sm" id="pk-record-change">${t('pack.btnRecordChange')}</button>` : ''}
+          <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">${t('pack.btnAddBag')}</button>
+          <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> ${t('pack.packCheck')}</label>
         </div>
       </div>
 
@@ -429,7 +430,7 @@ function renderContainerCard(l: PackList, c: PackContainer): string {
 
       <div class="pack-c-items pk-drop-zone" data-container-id="${c.id}">
         ${items.length === 0
-          ? `<div class="pack-c-empty">Empty — drag items here.</div>`
+          ? `<div class="pack-c-empty">${t('pack.emptyBagHint')}</div>`
           : items.map(i => renderItemTag(i, dropCandidate.has(i.id))).join('')}
       </div>
     </div>
@@ -439,18 +440,18 @@ function renderContainerCard(l: PackList, c: PackContainer): string {
 function renderUnassigned(_l: PackList, items: PackItem[]): string {
   const w = items.reduce((s, i) => s + itemWeightG(i), 0);
   const sorted = [...items].sort((a, b) => priRank(a.priority) - priRank(b.priority) || a.order - b.order);
-  const note = items.length > 0 ? `${displayWeight(w, weightUnit)} waiting` : 'Drop items here to decide later';
+  const note = items.length > 0 ? t('pack.waitingLabel', { n: displayWeight(w, weightUnit) }) : 'Drop items here to decide later';
   return `
     <div class="pack-container-card pack-unassigned-card">
       <div class="pack-c-head">
         <div class="pack-c-titlewrap">
-          <span class="pack-c-name">Unassigned</span>
+          <span class="pack-c-name">${t('pack.unassigned')}</span>
           <span class="pack-c-kind">${note}</span>
         </div>
       </div>
       <div class="pack-c-items pk-drop-zone" data-container-id="">
         ${items.length === 0
-          ? `<div class="pack-c-empty">Not in any bag — weight not counted.</div>`
+          ? `<div class="pack-c-empty">${t('pack.unassignedHint')}</div>`
           : sorted.map(i => renderItemTag(i, false)).join('')}
       </div>
     </div>
@@ -495,8 +496,8 @@ function renderPackCheck(l: PackList): string {
       <div class="pack-check-done">
         <div class="pack-check-done-emoji">🎉</div>
         <div class="pack-check-done-text">
-          <strong>All packed — ready to go.</strong>
-          <span>${total} items · ${formatKg(listTotalWeight(l))} total</span>
+          <strong>${t('pack.allPacked')}</strong>
+          <span>${total} items · ${formatKg(listTotalWeight(l))} ${t('pack.totalLabel')}</span>
         </div>
       </div>
     `;
@@ -504,7 +505,7 @@ function renderPackCheck(l: PackList): string {
   return `
     <div class="pack-check-bar">
       <div class="pack-check-head">
-        <span>Packed ${packed} / ${total}</span>
+        <span>${t('pack.packedLabel', { packed, total })}</span>
         <span>${pct}%</span>
       </div>
       <div class="pack-check-track"><span style="width:${pct}%"></span></div>
@@ -533,27 +534,27 @@ function openBagChangeModal(list: StoredPackList, defaultAction?: 'acquired' | '
   ).join('');
 
   const m = openModal({
-    title: 'Record bag change',
+    title: t('pack.modalTitle'),
     variant: 'sheet',
     body: `
-      <label class="field-label">City / stop</label>
+      <label class="field-label">${t('pack.labelCity')}</label>
       <select class="input" id="pk-bc-leg">${legOptions}</select>
 
       <div class="pk-bc-tabs" style="display:flex;gap:0;margin-top:var(--sp-4);border:1.5px solid var(--rule-soft);border-radius:var(--r-md);overflow:hidden">
         <button class="pk-bc-tab ${defaultAction !== 'left' ? 'is-active' : ''}" data-tab="acquired"
           style="flex:1;border:none;padding:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;background:${defaultAction !== 'left' ? 'var(--ink)' : 'var(--surface)'};color:${defaultAction !== 'left' ? '#fff' : 'var(--ink-soft)'}">
-          + Acquired
+          ${t('pack.tabAcquired')}
         </button>
         <button class="pk-bc-tab ${defaultAction === 'left' ? 'is-active' : ''}" data-tab="left"
           style="flex:1;border:none;border-left:1.5px solid var(--rule-soft);padding:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;background:${defaultAction === 'left' ? 'var(--ink)' : 'var(--surface)'};color:${defaultAction === 'left' ? '#fff' : 'var(--ink-soft)'}">
-          − Left behind
+          ${t('pack.tabLeftBehind')}
         </button>
       </div>
 
       <div id="pk-bc-acquired-panel" ${defaultAction === 'left' ? 'hidden' : ''}>
         <div style="margin-top:var(--sp-4)">
           <label class="field-label">New item name</label>
-          <input class="input" id="pk-ac-name" placeholder="e.g. Souvenir scarf">
+          <input class="input" id="pk-ac-name" placeholder="${t('pack.newItemPh')}">
           <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-3)">
             <div style="flex:1">
               <label class="field-label">Category</label>
@@ -571,7 +572,7 @@ function openBagChangeModal(list: StoredPackList, defaultAction?: 'acquired' | '
         </div>
         ${list.items.filter(it => !it.acquiredLegId && !it.droppedLegId).length ? `
           <div style="margin-top:var(--sp-4)">
-            <label class="field-label">Or tag an existing item as acquired here</label>
+            <label class="field-label">${t('pack.tagExisting')}</label>
             <select class="input" id="pk-ac-existing">
               <option value="">— select item —</option>
               ${list.items.filter(it => !it.acquiredLegId && !it.droppedLegId).map(it =>
@@ -583,10 +584,10 @@ function openBagChangeModal(list: StoredPackList, defaultAction?: 'acquired' | '
 
       <div id="pk-bc-left-panel" ${defaultAction !== 'left' ? 'hidden' : ''}>
         <div style="margin-top:var(--sp-4)">
-          <label class="field-label">Items left behind</label>
+          <label class="field-label">${t('pack.leftBehind')}</label>
           <div class="pk-drop-checklist" id="pk-bc-drop-list">
             <div class="pk-drop-empty" style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-3)">
-              Select a city above to see items present there.
+              ${t('pack.selectCityHint')}
             </div>
           </div>
         </div>
@@ -613,7 +614,7 @@ function openBagChangeModal(list: StoredPackList, defaultAction?: 'acquired' | '
             <span>${escHtml(it.name)}</span>
             <span class="pk-drop-weight">${displayWeight(itemWeightG(it), weightUnit)}</span>
           </label>`).join('')
-      : `<div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-3)">No items present at this stop.</div>`;
+      : `<div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-3)">${t('pack.noItemsPresent')}</div>`;
   }
 
   function switchTab(tab: 'acquired' | 'left') {
@@ -688,11 +689,11 @@ function openNewListModal() {
     : '';
 
   const m = openModal({
-    title: 'New Pack List',
+    title: t('pack.newListTitle'),
     variant: 'sheet',
     body: `
       <label class="field-label">Name</label>
-      <input class="input" id="pk-new-name" placeholder="e.g. Europe Summer — Carry-on">
+      <input class="input" id="pk-new-name" placeholder="${t('pack.listNamePh')}">
       ${trip ? `<div class="pk-scope-group">
         ${tripOption}
         <label class="pk-scope-option">
@@ -705,7 +706,7 @@ function openNewListModal() {
       </div>` : ''}
       ${_kit.length > 0 ? `<label class="pk-kit-bring">
         <input type="checkbox" id="pk-bring-kit" checked>
-        <span>Bring in my Core Kit (${_kit.length} items · ${formatKg(_kit.reduce((s, k) => s + k.weightG, 0))})</span>
+        <span>${t('pack.bringKit', { count: _kit.length, weight: formatKg(_kit.reduce((s, k) => s + k.weightG, 0)) })}</span>
       </label>` : ''}
     `,
     footer: `
@@ -809,7 +810,7 @@ function openFormulaModal() {
   `;
 
   const m = openModal({
-    title: '✨ Pack Formula',
+    title: t('pack.formulaTitle'),
     variant: 'sheet',
     body,
     footer: `
@@ -833,7 +834,7 @@ function openFormulaModal() {
 
     let targetId = (m.root.querySelector<HTMLSelectElement>('#formula-target-list')?.value ?? '');
     if (targetId === '__new__') {
-      targetId = await packStore.create({ name: 'Formula Pack' });
+      targetId = await packStore.create({ name: t('pack.formulaListName') });
     }
 
     await Promise.all(checked.map(cb => packStore.addItem(targetId, {
