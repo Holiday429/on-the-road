@@ -45,3 +45,16 @@ export async function deleteSafetyDoc(url: string): Promise<void> {
 
 /** @deprecated Use deleteSafetyDoc instead. */
 export const deleteInsurancePdf = deleteSafetyDoc;
+
+/** Upload a clip image — stored under the same safety prefix the rules already allow. */
+export async function uploadClipImage(file: File): Promise<UploadResult> {
+  const user = currentUser();
+  if (!user) throw new Error('Not signed in.');
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  // Use safety/ prefix so existing storage rules cover this path
+  const path = `users/${user.uid}/safety/clips/${Date.now()}_${safeName}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file, { contentType: file.type });
+  const url = await getDownloadURL(storageRef);
+  return { url, name: file.name };
+}

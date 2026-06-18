@@ -475,6 +475,8 @@ const ClipSchema = z.object({
   title: z.string().optional(),
   url: z.string().optional(),
   body: z.string().optional(),
+  imageUrl: z.string().optional(),   // legacy single — kept for migration reads
+  imageUrls: z.array(z.string()).optional(),
   category: z.string().default(''),   // ClipCategory id
   order: z.number().default(0),
 });

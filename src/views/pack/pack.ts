@@ -27,17 +27,17 @@ import { consumeNavIntent } from '../../core/app.ts';
 /* ── Item categories ─────────────────────────────────────────────────────── */
 // Colors: NOTE_PALETTE tones extended with a few extra muted hues.
 // Each category gets a fixed pastel background so tags are instantly readable.
-export const PACK_CATEGORIES: { label: string; value: string; color: string }[] = [
-  { value: 'electronics', label: 'Electronics',  color: '#e2edf3' }, // blue-grey
-  { value: 'clothing',    label: 'Clothing',      color: '#ece2f3' }, // lavender
-  { value: 'toiletries',  label: 'Toiletries',    color: '#e2f3ec' }, // mint
-  { value: 'documents',   label: 'Documents',     color: '#f3ede2' }, // sand
-  { value: 'health',      label: 'Health & Med',  color: '#f3e6e6' }, // blush
-  { value: 'feminine',    label: 'Feminine',      color: '#f0e2f3' }, // lilac
-  { value: 'consumables', label: 'Consumables',   color: '#e6f3e6' }, // sage
-  { value: 'food',        label: 'Food',          color: '#f3f0e2' }, // cream
-  { value: 'gifts',       label: 'Gifts',         color: '#f3e2e8' }, // rose
-  { value: 'other',       label: 'Other',         color: '#ebebeb' }, // neutral
+export const PACK_CATEGORIES: { label: string; value: string; color: string; icon: string }[] = [
+  { value: 'electronics', label: 'Electronics',  color: '#e2edf3', icon: '💻' },
+  { value: 'clothing',    label: 'Clothing',      color: '#ece2f3', icon: '👕' },
+  { value: 'toiletries',  label: 'Toiletries',    color: '#e2f3ec', icon: '🧴' },
+  { value: 'documents',   label: 'Documents',     color: '#f3ede2', icon: '📄' },
+  { value: 'health',      label: 'Health & Med',  color: '#f3e6e6', icon: '💊' },
+  { value: 'feminine',    label: 'Feminine',      color: '#f0e2f3', icon: '🌸' },
+  { value: 'consumables', label: 'Consumables',   color: '#e6f3e6', icon: '🧹' },
+  { value: 'food',        label: 'Food',          color: '#f3f0e2', icon: '🍜' },
+  { value: 'gifts',       label: 'Gifts',         color: '#f3e2e8', icon: '🎁' },
+  { value: 'other',       label: 'Other',         color: '#ebebeb', icon: '📦' },
 ];
 
 const DEFAULT_CATEGORY = 'other';
@@ -52,7 +52,7 @@ function categoryLabel(value: string): string {
 
 function categoryOptions(selected = DEFAULT_CATEGORY): string {
   return PACK_CATEGORIES.map(c =>
-    `<option value="${c.value}" ${c.value === selected ? 'selected' : ''}>${c.label}</option>`
+    `<option value="${c.value}" ${c.value === selected ? 'selected' : ''}>${c.icon} ${c.label}</option>`
   ).join('');
 }
 

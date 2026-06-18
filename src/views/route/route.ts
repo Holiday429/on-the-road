@@ -32,6 +32,7 @@ import { baseCurrency } from '../../data/trip-context.ts';
 import type {
   Leg as SchemaLeg, PlanItem, Clip, PlanDay, ClipCategory, NoteCard,
 } from '../../data/schema.ts';
+import { uploadClipImage } from '../../firebase/storage.ts';
 
 type Transport = NonNullable<SchemaLeg['arrivalTransport']>;
 type Accommodation = NonNullable<SchemaLeg['accommodations']>[number];
@@ -80,6 +81,13 @@ function stayCurrencyOptions(selected: string): string {
   return CURRENCIES.map((c) =>
     `<option value="${c.code}" ${c.code === selected ? 'selected' : ''}>${c.flag} ${c.code} ${c.symbol}</option>`,
   ).join('') + (known ? '' : `<option value="${esc(selected)}" selected>${esc(selected)}</option>`);
+}
+
+/** Returns the canonical image URL list for a clip, migrating legacy imageUrl. */
+function clipImages(c: Clip): string[] {
+  if (c.imageUrls?.length) return c.imageUrls;
+  if (c.imageUrl) return [c.imageUrl];
+  return [];
 }
 
 function allCategories(leg: Leg): ClipCategory[] {
@@ -478,10 +486,13 @@ function renderClipsSection(leg: Leg): string {
   const card = (c: Clip) => {
     const cat = c.category ? categoryById(leg, c.category) : undefined;
     const color = cat?.color ?? '#ebebeb';
+    const imgs = clipImages(c);
+    const hasDetail = !!(imgs.length || (c.body && c.body.length > 80));
     return `
-    <div class="rd-clip-card" data-clip="${esc(c.id)}" data-clip-cat="${esc(c.category ?? '')}">
+    <div class="rd-clip-card${hasDetail ? ' rd-clip-card--expandable' : ''}" data-clip="${esc(c.id)}" data-clip-cat="${esc(c.category ?? '')}"${hasDetail ? ` data-act="preview-clip" data-clip-preview="${esc(c.id)}"` : ''}>
       <div class="rd-clip-card-color" style="background:${esc(color)}"></div>
       <div class="rd-clip-card-body">
+        ${imgs.length ? `<div class="rd-clip-card-imgs">${imgs.slice(0, 3).map((u, i) => `<div class="rd-clip-card-img-wrap">${i === 2 && imgs.length > 3 ? `<img class="rd-clip-card-img" src="${esc(u)}" alt=""><div class="rd-clip-card-img-more">+${imgs.length - 2}</div>` : `<img class="rd-clip-card-img" src="${esc(u)}" alt="">`}</div>`).join('')}</div>` : ''}
         <div class="rd-clip-card-top">
           ${cat ? `<span class="rd-cat-badge rd-cat-badge--sm" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
           <div class="rd-clip-card-actions">
@@ -552,7 +563,10 @@ function renderNotesSection(leg: Leg): string {
           <button class="rd-note-del" data-act="del-note" data-note-id="${esc(c.id)}" title="Delete note">✕</button>
         </div>
       </div>
-      <textarea class="rd-note-body" data-note-id="${esc(c.id)}" placeholder="Write anything…">${esc(c.body)}</textarea>
+      <div class="rd-note-body-wrap">
+        <textarea class="rd-note-body" data-note-id="${esc(c.id)}" placeholder="Write anything…">${esc(c.body)}</textarea>
+        <button class="rd-note-expand" data-act="expand-note" data-note-id="${esc(c.id)}" title="Expand">↗</button>
+      </div>
     </div>`;
   }).join('');
 
@@ -606,7 +620,6 @@ function renderPlanItem(p: PlanItem, leg: Leg): string {
 function renderPlanBoardView(leg: Leg): string {
   const days = ensurePlanDays(leg);
   const plans = leg.plans ?? [];
-  const unassigned = plans.filter(p => !p.dayId).sort((a, b) => a.order - b.order);
 
   const dayCol = (day: PlanDay, idx: number) => {
     const items = plans.filter(p => p.dayId === day.id).sort((a, b) => a.order - b.order);
@@ -629,16 +642,6 @@ function renderPlanBoardView(leg: Leg): string {
     <div class="rd-plan-board-wrap">
       <div class="rd-plan-columns">
         ${days.map((d, i) => dayCol(d, i)).join('')}
-        <div class="rd-plan-day-col rd-plan-unassigned">
-          <div class="rd-plan-day-head">
-            <span class="rd-plan-day-num">${tr('route.unassigned')}</span>
-            <span class="rd-plan-day-date">${tr('route.toBeScheduled')}</span>
-          </div>
-          <div class="rd-plan-drop-zone pk-drop-zone" data-day-id="">
-            ${unassigned.map(p => renderPlanItem(p, leg)).join('')}
-            ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">${tr('route.newItemsHint')}</div>` : ''}
-          </div>
-        </div>
       </div>
     </div>
     <div id="rd-plan-drag-ghost" class="rd-plan-drag-ghost" hidden></div>`;
@@ -1036,43 +1039,60 @@ function renderPlansSection(leg: Leg): string {
     cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
 
   let body = '';
-  if (_planView === 'board')       body = renderPlanBoardView(leg);
-  else if (_planView === 'feed')   body = renderPlanFeedView(leg);
+  if (_planView === 'board')         body = renderPlanBoardView(leg);
+  else if (_planView === 'feed')     body = renderPlanFeedView(leg);
   else if (_planView === 'category') body = renderPlanCategoryView(leg);
   else if (_planView === 'calendar') body = renderPlanCalendarView(leg);
-  else body = renderPlanMapView(leg);
+  else                               body = renderPlanMapView(leg);
 
-  const showOnboard = !localStorage.getItem(PLANS_ONBOARDED_KEY) && !(leg.plans?.length);
+  const plans = leg.plans ?? [];
+  const unassigned = plans.filter(p => !p.dayId).sort((a, b) => a.order - b.order);
+
+  const showOnboard = !localStorage.getItem(PLANS_ONBOARDED_KEY) && !plans.length;
   const onboardBanner = showOnboard ? `
     <div class="rd-plans-onboard" id="rd-plans-onboard">
       <span>${tr('route.planOnboard')}</span>
       <button class="rd-plans-onboard-close" data-act="dismiss-onboard" title="Dismiss">✕</button>
-    </div>
-  ` : '';
+    </div>` : '';
+
+  const sidebar = `
+    <div class="rd-plan-sidebar">
+      <div class="rd-plan-unassigned-head">
+        <span class="rd-plan-unassigned-title">${tr('route.unassigned')}</span>
+        ${unassigned.length ? `<span class="rd-plan-unassigned-badge">${unassigned.length}</span>` : ''}
+      </div>
+      <div class="rd-plan-drop-zone pk-drop-zone rd-plan-unassigned-items" data-day-id="">
+        ${unassigned.map(p => renderPlanItem(p, leg)).join('')}
+        ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">${tr('route.newItemsHint')}</div>` : ''}
+      </div>
+    </div>`;
 
   return `
-    <section class="rd-section" id="rd-plan-section">
-      <div class="rd-section-head">
-        <h3>✨ Plan</h3>
-        <div class="rd-view-tabs">
-          ${views.map(v => `<button class="rd-view-tab ${_planView === v.id ? 'is-active' : ''}" data-act="plan-view" data-view="${v.id}">${v.label}</button>`).join('')}
+    <section class="rd-section rd-section--plans" id="rd-plan-section">
+      <div class="rd-plan-header">
+        <div class="rd-plan-header-top">
+          <h3>✨ Plan</h3>
+          <div class="rd-view-tabs">
+            ${views.map(v => `<button class="rd-view-tab ${_planView === v.id ? 'is-active' : ''}" data-act="plan-view" data-view="${v.id}">${v.label}</button>`).join('')}
+          </div>
+        </div>
+        <div class="rd-plan-add-bar">
+          <input class="input rd-add-input" id="rd-plan-input" placeholder="${tr('route.planPlaceholder')}">
+          <select class="input select rd-plan-cat-sel" id="rd-plan-cat">${catOptions}</select>
+          <input class="input rd-plan-dur-input" id="rd-plan-duration" placeholder="${tr('route.planDurationPh')}">
+          <input class="input rd-plan-cost-input" id="rd-plan-cost" placeholder="${tr('route.planCostPh')}">
+          <button class="btn btn-primary rd-sm" data-act="add-plan">+ Add</button>
+        </div>
+        <div id="rd-plan-add-details" class="rd-plan-add-details" hidden>
+          <input class="input" id="rd-plan-note" placeholder="${tr('route.planNoteLabel')}">
         </div>
       </div>
       ${onboardBanner}
-      ${body}
-      <div class="rd-plan-add-form" id="rd-plan-add-form">
-        <div class="rd-plan-add-row">
-          <input class="input rd-add-input" id="rd-plan-input" placeholder="${tr('route.planPlaceholder')}">
-          <select class="input select" id="rd-plan-cat">${catOptions}</select>
-          <button class="btn btn-primary rd-sm" data-act="add-plan">Add</button>
+      <div class="rd-plan-layout">
+        <div class="rd-plan-main">
+          ${body}
         </div>
-        <div class="rd-plan-add-details" id="rd-plan-add-details" hidden>
-          <div class="rd-plan-add-details-row">
-            <input class="input" id="rd-plan-note" placeholder="${tr('route.planNoteLabel')}">
-            <input class="input" id="rd-plan-duration" placeholder="${tr('route.planDurationPh')}" style="flex:0 0 120px">
-            <input class="input" id="rd-plan-cost" placeholder="${tr('route.planCostPh')}" style="flex:0 0 100px">
-          </div>
-        </div>
+        ${sidebar}
       </div>
     </section>`;
 }
@@ -1313,9 +1333,14 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   // Per-card textarea & title — debounced, no re-render
   let _noteTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
+  const MAX_NOTE_H = 150;
+
   function autoHeight(ta: HTMLTextAreaElement) {
-    ta.style.height = 'auto';
-    ta.style.height = ta.scrollHeight + 'px';
+    ta.style.height = '0';
+    const natural = ta.scrollHeight;
+    ta.style.height = Math.min(natural, MAX_NOTE_H) + 'px';
+    const wrap = ta.closest<HTMLElement>('.rd-note-body-wrap');
+    if (wrap) wrap.classList.toggle('is-overflow', natural > MAX_NOTE_H);
   }
 
   timeline.querySelectorAll<HTMLTextAreaElement>('.rd-note-body').forEach(ta => {
@@ -1378,6 +1403,65 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     patchLeg(leg.id, { plans: [...plans, next] });
   });
   on('add-clip-category', () => openCategoryEditor(timeline, leg));
+
+  on('preview-clip', (el, e) => {
+    if ((e.target as HTMLElement).closest('[data-act]:not([data-act="preview-clip"])')) return;
+    const id = el.dataset.clipPreview ?? el.closest<HTMLElement>('[data-clip-preview]')?.dataset.clipPreview;
+    if (!id) return;
+    const clip = (leg.clips ?? []).find(c => c.id === id);
+    if (!clip) return;
+    const cat = clip.category ? categoryById(leg, clip.category) : undefined;
+    const color = cat?.color ?? '#ebebeb';
+    const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
+    const dlg = document.createElement('div');
+    dlg.className = 'rd-editor-overlay';
+    dlg.innerHTML = `
+      <div class="rd-editor rd-clip-preview-modal">
+        <div class="rd-clip-preview-top">
+          ${cat ? `<span class="rd-cat-badge" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
+          <button class="rd-note-del rd-clip-preview-close" data-ed="close">✕</button>
+        </div>
+        ${clipImages(clip).map(u => `<img class="rd-clip-preview-img" src="${esc(u)}" alt="">`).join('')}
+        ${clip.url
+          ? `<a class="rd-clip-preview-title" href="${esc(/^https?:\/\//i.test(clip.url) ? clip.url : 'https://' + clip.url)}" target="_blank" rel="noopener">${esc(clip.title || clip.url)}</a>`
+          : (clip.title ? `<div class="rd-clip-preview-title">${esc(clip.title)}</div>` : '')}
+        ${clip.body ? `<div class="rd-clip-preview-body">${esc(clip.body)}</div>` : ''}
+        <div class="rd-editor-btns" style="margin-top:var(--sp-4)">
+          <button class="btn btn-ghost" data-ed="close">Close</button>
+          <button class="btn btn-ghost" data-act="edit-clip" data-clip="${esc(id)}">Edit</button>
+        </div>
+      </div>`;
+    host.appendChild(dlg);
+    const close = () => dlg.remove();
+    dlg.querySelectorAll('[data-ed="close"]').forEach(b => b.addEventListener('click', close));
+    dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
+    dlg.querySelector<HTMLElement>('[data-act="edit-clip"]')?.addEventListener('click', () => {
+      close();
+      openClipEditor(timeline, leg, id);
+    });
+  });
+
+  on('expand-note', (el) => {
+    const id = el.dataset.noteId!;
+    const card = legNoteCards(leg).find(c => c.id === id);
+    if (!card) return;
+    const color = card.color ?? NOTE_COLORS[0];
+    const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
+    const dlg = document.createElement('div');
+    dlg.className = 'rd-editor-overlay';
+    dlg.innerHTML = `
+      <div class="rd-editor rd-note-expand-modal" style="background:${esc(color)}">
+        <div class="rd-note-card-head">
+          <div class="rd-note-expand-title">${esc(card.title || 'Note')}</div>
+          <button class="rd-note-del" data-ed="close" style="opacity:1">✕</button>
+        </div>
+        <div class="rd-note-expand-body">${esc(card.body)}</div>
+      </div>`;
+    host.appendChild(dlg);
+    const close = () => dlg.remove();
+    dlg.querySelector('[data-ed="close"]')!.addEventListener('click', close);
+    dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
+  });
 
   // Clip filter chips
   const clipFilterBar = timeline.querySelector<HTMLElement>('#rd-clip-filter-bar');
@@ -1630,11 +1714,18 @@ function openClipEditor(timeline: HTMLElement, leg: Leg, clipId: string | null) 
       <div class="rd-editor-grid">
         <div class="field-full">
           <label class="field-label">Title</label>
-          <input class="input" id="ce-title" value="${esc(existing?.title)}" placeholder="e.g. Must-visit museums in Copenhagen">
+          <div class="rd-clip-title-row">
+            <input class="input" id="ce-title" value="${esc(existing?.title ?? '')}" placeholder="e.g. Must-visit museums in Copenhagen">
+            <label class="rd-clip-img-btn" id="ce-img-label" title="Add photo">
+              🖼
+              <input type="file" id="ce-image" accept="image/*" multiple style="display:none">
+            </label>
+          </div>
         </div>
+        <div class="field-full" id="ce-img-previews"></div>
         <div class="field-full">
           <label class="field-label">Link (optional)</label>
-          <input class="input" id="ce-url" value="${esc(existing?.url)}" placeholder="https://…">
+          <input class="input" id="ce-url" value="${esc(existing?.url ?? '')}" placeholder="https://…">
         </div>
         <div class="field-full">
           <label class="field-label">Notes</label>
@@ -1652,31 +1743,105 @@ function openClipEditor(timeline: HTMLElement, leg: Leg, clipId: string | null) 
     </div>`;
   host.appendChild(dlg);
 
-  const close = () => dlg.remove();
+  const MAX_IMAGES = 9;
+  // Each entry: { localUrl: object-url for preview, file: File for upload, remoteUrl?: string already uploaded }
+  type PendingImg = { localUrl: string; file?: File; remoteUrl?: string };
+  const pending: PendingImg[] = clipImages(existing ?? {} as Clip).map(u => ({ localUrl: u, remoteUrl: u }));
+
+  const previewsEl = dlg.querySelector<HTMLElement>('#ce-img-previews')!;
+  const imgLabel = dlg.querySelector<HTMLElement>('#ce-img-label')!;
+  const saveBtn = dlg.querySelector<HTMLButtonElement>('[data-ed="save"]')!;
+
+  function refreshPreviews() {
+    previewsEl.style.display = pending.length ? '' : 'none';
+    previewsEl.className = 'rd-clip-img-previews';
+    previewsEl.innerHTML = pending.map((p, i) => `
+      <div class="rd-clip-img-thumb">
+        <img src="${esc(p.localUrl)}" alt="">
+        ${p.file && !p.remoteUrl ? '<div class="rd-clip-img-uploading">↑</div>' : ''}
+        <button class="rd-clip-img-remove" data-idx="${i}" title="Remove">✕</button>
+      </div>`).join('');
+    imgLabel.style.display = pending.length >= MAX_IMAGES ? 'none' : '';
+    previewsEl.querySelectorAll<HTMLButtonElement>('.rd-clip-img-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.idx);
+        const removed = pending.splice(idx, 1)[0];
+        if (removed.file && removed.localUrl.startsWith('blob:')) URL.revokeObjectURL(removed.localUrl);
+        refreshPreviews();
+      });
+    });
+  }
+  refreshPreviews();
+
+  const imgInput = dlg.querySelector<HTMLInputElement>('#ce-image')!;
+  imgInput.addEventListener('change', () => {
+    const files = Array.from(imgInput.files ?? []).slice(0, MAX_IMAGES - pending.length);
+    imgInput.value = '';
+    if (!files.length) return;
+    files.forEach(file => {
+      const localUrl = URL.createObjectURL(file);
+      const entry: PendingImg = { localUrl, file };
+      pending.push(entry);
+      // Upload in background — update entry when done
+      uploadClipImage(file).then(result => {
+        entry.remoteUrl = result.url;
+        refreshPreviews();
+      }).catch(err => {
+        console.error('Clip upload failed:', err);
+        const idx = pending.indexOf(entry);
+        if (idx >= 0) pending.splice(idx, 1);
+        URL.revokeObjectURL(localUrl);
+        refreshPreviews();
+        alert(`Upload failed: ${err instanceof Error ? err.message : 'check connection'}`);
+      });
+    });
+    refreshPreviews();
+  });
+
+  const close = () => {
+    // Revoke any remaining object URLs
+    pending.forEach(p => { if (p.file && p.localUrl.startsWith('blob:')) URL.revokeObjectURL(p.localUrl); });
+    dlg.remove();
+  };
   dlg.querySelector('[data-ed="cancel"]')!.addEventListener('click', close);
   dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
-  dlg.querySelector('[data-ed="save"]')!.addEventListener('click', () => {
+  saveBtn.addEventListener('click', async () => {
     const title = fieldVal(dlg, 'ce-title');
     const rawUrl = fieldVal(dlg, 'ce-url');
     const url = rawUrl && !/^https?:\/\//i.test(rawUrl) ? 'https://' + rawUrl : rawUrl;
     const body = fieldVal(dlg, 'ce-body');
     const category = (dlg.querySelector('#ce-cat') as HTMLSelectElement).value;
-    if (!title && !url && !body) { alert('Add at least a title or link.'); return; }
+    if (!title && !url && !body && !pending.length) { alert('Add at least a title, link, or image.'); return; }
+
+    // Wait for any still-uploading images (those with a file but no remoteUrl yet)
+    const uploading = pending.filter(p => p.file && !p.remoteUrl);
+    if (uploading.length) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Uploading…';
+      await Promise.allSettled(uploading.map(p =>
+        uploadClipImage(p.file!).then(r => { p.remoteUrl = r.url; }).catch(() => {})
+      ));
+      saveBtn.disabled = false;
+      saveBtn.textContent = existing ? 'Save' : 'Add clip';
+    }
+
+    const imageUrls = pending.map(p => p.remoteUrl ?? p.localUrl).filter(u => u.startsWith('http'));
     const clips = leg.clips ?? [];
     if (existing) {
       const next = clips.map(c => c.id === clipId
-        ? { ...c, title: title || undefined, url: url || undefined, body: body || undefined, category }
+        ? { ...c, title: title || undefined, url: url || undefined, body: body || undefined, imageUrls: imageUrls.length ? imageUrls : undefined, imageUrl: undefined, category }
         : c);
       patchLeg(leg.id, { clips: clean(next) });
     } else {
       const next: Clip = {
-        id: uid(), kind: url ? 'link' : 'note',
+        id: uid(), kind: imageUrls.length ? 'image' : url ? 'link' : 'note',
         title: title || undefined, url: url || undefined,
-        body: body || undefined, category, order: clips.length,
+        body: body || undefined, imageUrls: imageUrls.length ? imageUrls : undefined,
+        category, order: clips.length,
       };
       patchLeg(leg.id, { clips: clean([...clips, next]) });
     }
-    close();
+    dlg.remove(); // don't use close() to avoid revoking URLs we just saved
   });
 }
 
