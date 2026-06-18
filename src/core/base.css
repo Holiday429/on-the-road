@@ -388,6 +388,17 @@ body.otr-modal-open { overflow: hidden; }
 .paywall-btn { width: 100%; margin-top: auto; font-weight: 600; }
 .paywall-error { color: var(--danger, #e53e3e); font-size: .82rem; margin: var(--sp-2) 0 0; }
 
+/* Post-payment success toast */
+.otr-pay-toast {
+  position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+  background: #16a34a; color: #fff;
+  padding: .7rem 1.4rem; border-radius: var(--r-full);
+  font-size: .9rem; font-weight: 600;
+  z-index: 10000; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+  white-space: nowrap;
+  animation: fadeUp var(--dur-mid) var(--ease-out);
+}
+
 /* AI credit pill in guide / prep headers */
 .ai-credit-pill {
   display: inline-flex; align-items: center; gap: 5px;

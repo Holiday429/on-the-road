@@ -491,6 +491,7 @@ const en: StringTable = {
   'paywall.aiCreditLow':    '1 AI guide left',
   'paywall.aiCreditsNone':  'No AI credits — top up',
   'paywall.aiCreditsFree':  '1 free AI guide',
+  'paywall.payThanks':      '🎉 Payment received — thank you! Your new trip is unlocked.',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -962,6 +963,7 @@ const zh: StringTable = {
   'paywall.aiCreditLow':    '仅剩 1 次 AI 攻略',
   'paywall.aiCreditsNone':  'AI 额度耗尽 — 去充值',
   'paywall.aiCreditsFree':  '1 次免费 AI 攻略',
+  'paywall.payThanks':      '🎉 支付成功，感谢支持！新行程已解锁。',
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

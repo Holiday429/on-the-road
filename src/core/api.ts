@@ -14,7 +14,7 @@
 
 import { currentUser } from '../firebase/auth.ts';
 
-const VERCEL_ORIGIN = 'https://easy-on-the-road.vercel.app';
+const VERCEL_ORIGIN = 'https://www.easy-on-the-road.app';
 
 /** Base URL for /api/* calls. Empty string = same-origin relative fetch. */
 export function apiBase(): string {

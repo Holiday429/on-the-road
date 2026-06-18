@@ -92,7 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             product_options: {
               // The app lives at /app (the marketing page owns /), so return the
               // buyer to the app — not the landing page — after checkout.
-              redirect_url: `${process.env.APP_URL ?? 'https://easy-on-the-road.vercel.app'}/app?payment=success`,
+              redirect_url: `${process.env.APP_URL ?? 'https://www.easy-on-the-road.app'}/app?payment=success`,
             },
           },
           relationships: {
