@@ -366,11 +366,6 @@ function renderDetail(c: HTMLElement, l: PackList) {
 
       ${renderBagChangeSummary(l as StoredPackList)}
 
-      <div class="pack-containers-grid">
-        ${l.containers.map(ct => renderContainerCard(l, ct)).join('')}
-        ${renderUnassigned(l, unassigned)}
-      </div>
-
       <div class="pack-add-panel">
         <span class="pack-add-label">New item</span>
         <input class="input pack-add-name" id="pk-add-name" placeholder="Name…">
@@ -381,7 +376,14 @@ function renderDetail(c: HTMLElement, l: PackList) {
         <select class="input pack-add-pri" id="pk-add-pri">
           ${PRIORITIES.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
         </select>
-        <button class="btn btn-primary pk-sm" id="pk-add-item">Add ↵</button>
+        <button class="btn btn-primary pk-sm pack-add-btn" id="pk-add-item">Add ↵</button>
+      </div>
+
+      <div class="pack-detail-layout">
+        <div class="pack-containers-grid">
+          ${l.containers.map(ct => renderContainerCard(l, ct)).join('')}
+        </div>
+        ${renderUnassigned(l, unassigned)}
       </div>
     </div>
 
@@ -440,16 +442,15 @@ function renderContainerCard(l: PackList, c: PackContainer): string {
 function renderUnassigned(_l: PackList, items: PackItem[]): string {
   const w = items.reduce((s, i) => s + itemWeightG(i), 0);
   const sorted = [...items].sort((a, b) => priRank(a.priority) - priRank(b.priority) || a.order - b.order);
-  const note = items.length > 0 ? t('pack.waitingLabel', { n: displayWeight(w, weightUnit) }) : 'Drop items here to decide later';
+  const weightNote = items.length > 0 ? `${displayWeight(w, weightUnit)} waiting` : '';
   return `
-    <div class="pack-container-card pack-unassigned-card">
-      <div class="pack-c-head">
-        <div class="pack-c-titlewrap">
-          <span class="pack-c-name">${t('pack.unassigned')}</span>
-          <span class="pack-c-kind">${note}</span>
-        </div>
+    <div class="pack-unassigned-panel">
+      <div class="pack-unassigned-head">
+        <span class="pack-unassigned-title">${t('pack.unassigned')}</span>
+        ${weightNote ? `<span class="pack-unassigned-note">${weightNote}</span>` : ''}
+        <span class="pack-unassigned-badge">Temp</span>
       </div>
-      <div class="pack-c-items pk-drop-zone" data-container-id="">
+      <div class="pack-c-items pk-drop-zone pack-unassigned-items" data-container-id="">
         ${items.length === 0
           ? `<div class="pack-c-empty">${t('pack.unassignedHint')}</div>`
           : sorted.map(i => renderItemTag(i, false)).join('')}
@@ -491,6 +492,30 @@ function renderPackCheck(l: PackList): string {
   const packed = l.items.filter(i => i.packed).length;
   const pct = total > 0 ? Math.round((packed / total) * 100) : 0;
   const done = total > 0 && packed === total;
+
+  const allItems = [...l.items].sort((a, b) => {
+    // Packed items go to bottom
+    if (a.packed !== b.packed) return a.packed ? 1 : -1;
+    // Group by container: named bags first, then unassigned
+    const aHas = a.containerId ? 1 : 0;
+    const bHas = b.containerId ? 1 : 0;
+    if (aHas !== bHas) return bHas - aHas;
+    // Within same container, sort by priority then order
+    return priRank(a.priority) - priRank(b.priority) || a.order - b.order;
+  });
+
+  const flatItems = allItems.map(i => {
+    const container = l.containers.find(c => c.id === i.containerId);
+    const bagLabel = container ? escHtml(container.label) : t('pack.unassigned');
+    return `
+      <label class="pk-check-flat-row ${i.packed ? 'is-packed' : ''}" style="background:${categoryColor(i.category)}">
+        <input type="checkbox" class="pk-packed" data-id="${i.id}" ${i.packed ? 'checked' : ''}>
+        <span class="pk-check-flat-name">${escHtml(i.name)}${i.qty > 1 ? ` ×${i.qty}` : ''}</span>
+        <span class="pk-check-flat-bag">${bagLabel}</span>
+      </label>
+    `;
+  }).join('');
+
   if (done) {
     return `
       <div class="pack-check-done">
@@ -500,6 +525,7 @@ function renderPackCheck(l: PackList): string {
           <span>${total} items · ${formatKg(listTotalWeight(l))} ${t('pack.totalLabel')}</span>
         </div>
       </div>
+      <div class="pk-check-flat">${flatItems}</div>
     `;
   }
   return `
@@ -510,6 +536,7 @@ function renderPackCheck(l: PackList): string {
       </div>
       <div class="pack-check-track"><span style="width:${pct}%"></span></div>
     </div>
+    <div class="pk-check-flat">${flatItems}</div>
   `;
 }
 
@@ -1155,12 +1182,16 @@ function bindDetail(c: HTMLElement, l: PackList) {
   let dragging = false;
 
   function findDropZone(x: number, y: number): { el: HTMLElement; containerId: string | null } | null {
-    const zones = c.querySelectorAll<HTMLElement>('.pk-drop-zone');
-    for (const zone of zones) {
-      const r = zone.getBoundingClientRect();
+    // Check full container card first (wider hit area), then fall back to drop zone
+    const cards = c.querySelectorAll<HTMLElement>('.pack-container-card, .pack-unassigned-panel');
+    for (const card of cards) {
+      const r = card.getBoundingClientRect();
       if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
-        const cid = zone.dataset.containerId;
-        return { el: zone, containerId: cid === '' ? null : (cid ?? null) };
+        const zone = card.querySelector<HTMLElement>('.pk-drop-zone');
+        if (zone) {
+          const cid = zone.dataset.containerId;
+          return { el: zone, containerId: cid === '' ? null : (cid ?? null) };
+        }
       }
     }
     return null;

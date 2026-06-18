@@ -130,14 +130,24 @@
 .pack-detail-actions { display: flex; gap: var(--sp-4); }
 .pk-toggle { font-size: var(--fs-sm); color: var(--ink-soft); display: flex; align-items: center; gap: 6px; cursor: pointer; }
 
+/* ── Detail layout: bags grid left + unassigned right ───────────────────── */
+.pack-detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: var(--sp-4);
+  align-items: start;
+}
+
 /* ── Container cards ──────────────────────────────────────────────────────── */
 .pack-containers-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--sp-4); margin-bottom: var(--sp-5);
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp-4);
 }
 .pack-container-card {
   background: var(--surface); border: 1.5px solid var(--rule-soft); border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm); display: flex; flex-direction: column;
+  /* Fixed height with scrollable items */
+  height: clamp(280px, 38vh, 460px);
 }
 .pack-container-card.is-over { border-color: var(--coral-500); }
 
@@ -169,17 +179,45 @@
 .pack-bar span.is-over { background: var(--coral-500); }
 .pack-c-warn { font-size: var(--fs-xs); color: var(--coral-500); margin-top: 6px; }
 
-.pack-c-items { display: flex; flex-direction: column; }
 .pack-c-empty { font-size: var(--fs-sm); color: var(--ink-faint); padding: var(--sp-4); text-align: center; width: 100%; }
 
-/* ── Unassigned card (same grid as containers, dashed border) ────────────── */
-.pack-unassigned-card {
-  border-style: dashed;
+/* ── Unassigned panel (fixed right column, distinct from bags) ───────────── */
+.pack-unassigned-panel {
   background: var(--surface-2);
+  border: 2px dashed var(--rule-soft);
+  border-radius: var(--r-lg);
+  display: flex; flex-direction: column;
+  /* Match card height so the full right column is a drop target */
+  min-height: clamp(280px, 38vh, 460px);
+  position: sticky; top: var(--sp-4);
+}
+.pack-unassigned-head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4); border-bottom: 1px dashed var(--rule-soft);
+  background: var(--surface-3);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+.pack-unassigned-title {
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink-soft); flex: 1;
+}
+.pack-unassigned-note { font-size: var(--fs-xs); color: var(--ink-muted); }
+.pack-unassigned-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  background: var(--amber-50); color: var(--amber-600);
+  border: 1px solid var(--amber-200); border-radius: var(--r-full);
+  padding: 2px 7px;
+}
+.pack-unassigned-items {
+  flex: 1; overflow-y: auto;
 }
 
 /* ── Item tags (draggable, inside containers and Unassigned) ─────────────── */
-.pack-c-items { display: flex; flex-wrap: wrap; gap: 6px; padding: var(--sp-3) var(--sp-4); min-height: 52px; }
+/* Scrollable items area that fills the fixed-height container card */
+.pack-c-items {
+  display: flex; flex-wrap: wrap; align-content: flex-start;
+  gap: 6px; padding: var(--sp-3) var(--sp-4);
+  flex: 1; overflow-y: auto; min-height: 0;
+}
 
 .pack-item-tag {
   position: relative;
@@ -263,16 +301,17 @@
 /* ── Add item panel ──────────────────────────────────────────────────────── */
 
 .pack-add-panel {
-  display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap;
-  margin-top: var(--sp-4);
+  display: flex; gap: var(--sp-2); align-items: center; flex-wrap: nowrap;
+  margin-bottom: var(--sp-4);
   background: var(--surface); border: 1.5px solid var(--rule-soft); border-radius: var(--r-lg);
-  padding: var(--sp-3) var(--sp-4); box-shadow: var(--shadow-sm);
+  padding: var(--sp-2) var(--sp-3); box-shadow: var(--shadow-sm);
 }
-.pack-add-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-muted); white-space: nowrap; margin-right: 2px; }
-.pack-add-name { flex: 1; min-width: 120px; }
-.pack-add-cat { width: 120px; }
-.pack-add-weight { width: 72px; }
-.pack-add-pri { width: 96px; }
+.pack-add-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-muted); white-space: nowrap; margin-right: 2px; flex-shrink: 0; }
+.pack-add-name { flex: 1; min-width: 80px; max-width: 200px; }
+.pack-add-cat { width: 110px; flex-shrink: 0; }
+.pack-add-weight { width: 64px; flex-shrink: 0; }
+.pack-add-pri { width: 88px; flex-shrink: 0; }
+.pack-add-btn { flex-shrink: 0; white-space: nowrap; min-width: 72px; }
 
 .pack-items-empty {
   text-align: center; padding: var(--sp-8); color: var(--ink-muted); font-size: var(--fs-sm);
@@ -347,10 +386,38 @@
 .pk-drop-check-row span:nth-child(2) { flex: 1; }
 .pk-drop-weight { font-size: var(--fs-xs); color: var(--ink-muted); }
 
+/* ── Pack-check flat list ─────────────────────────────────────────────────── */
+.pk-check-flat {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-bottom: var(--sp-4);
+  max-height: 55vh; overflow-y: auto;
+  border: 1.5px solid var(--rule-soft); border-radius: var(--r-lg);
+  background: var(--surface);
+}
+.pk-check-flat-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 9px var(--sp-4); cursor: pointer; border-bottom: 1px solid var(--rule-soft);
+  transition: opacity 0.15s;
+}
+.pk-check-flat-row:last-child { border-bottom: none; }
+.pk-check-flat-row input[type=checkbox] { flex-shrink: 0; accent-color: var(--amber-500); }
+.pk-check-flat-name { flex: 1; font-size: var(--fs-sm); color: var(--ink); }
+.pk-check-flat-bag {
+  font-size: var(--fs-xs); color: var(--ink-muted);
+  background: var(--surface-3); border-radius: var(--r-full);
+  padding: 2px 8px; white-space: nowrap; flex-shrink: 0;
+}
+.pk-check-flat-row.is-packed { opacity: 0.5; }
+.pk-check-flat-row.is-packed .pk-check-flat-name { text-decoration: line-through; }
+
+@media (max-width: 900px) {
+  .pack-detail-layout { grid-template-columns: 1fr; }
+  .pack-unassigned-panel { position: static; min-height: 200px; }
+}
 @media (max-width: 640px) {
   .pack-containers-grid { grid-template-columns: 1fr; }
-  .pack-add-panel { gap: var(--sp-2); }
-  .pack-add-name { min-width: 120px; }
+  .pack-add-panel { flex-wrap: wrap; }
+  .pack-add-name { max-width: none; }
   .pk-weight-bar { flex-direction: column; align-items: flex-start; }
   .pk-wb-right { max-width: 100%; width: 100%; }
 }
