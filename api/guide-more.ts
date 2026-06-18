@@ -63,6 +63,9 @@ function langInstruction(): string {
   return `\nWrite ALL human-readable text values in ${OUTPUT_LANGUAGE}. Keep every JSON key in English and keep emoji unchanged.`;
 }
 
+// "Load more" is a follow-up to an already-generated guide, so it runs on the
+// lighter/cheaper model (DEEPSEEK_MODEL_LIGHT) to keep per-tap cost minimal.
+// Defaults to 'deepseek-chat'. Read inline to keep this function self-contained.
 async function deepseek(prompt: string, maxTokens = 700): Promise<unknown> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
@@ -70,7 +73,7 @@ async function deepseek(prompt: string, maxTokens = 700): Promise<unknown> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: process.env.DEEPSEEK_MODEL_LIGHT || 'deepseek-chat',
       messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.9,   // a touch higher for variety on "more"
@@ -200,7 +203,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const uid = await verifyAndMeter(req as Parameters<typeof verifyAndMeter>[0], res as Parameters<typeof verifyAndMeter>[1]);
+  // "Load more" refines an already-paid guide, so it verifies the session but
+  // does NOT debit another credit.
+  const uid = await verifyAndMeter(
+    req as Parameters<typeof verifyAndMeter>[0],
+    res as Parameters<typeof verifyAndMeter>[1],
+    { chargeable: false },
+  );
   if (!uid) return;
 
   const { city, section, existingTitles = [], query = '', lang } = req.body as {

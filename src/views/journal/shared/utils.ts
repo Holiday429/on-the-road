@@ -66,7 +66,10 @@ export function slugifyEntry(entry: StoredJournalEntry): string {
 }
 
 export function shareUrl(slug: string): string {
-  return `${location.origin}${location.pathname}#/s/${slug}`;
+  // The app is served at /app; pin shared-entry links there explicitly so they
+  // resolve regardless of the current pathname (and so the marketing landing
+  // page at / never intercepts them).
+  return `${location.origin}/app#/s/${slug}`;
 }
 
 export function currentCity(legs: StoredLeg[]): string {

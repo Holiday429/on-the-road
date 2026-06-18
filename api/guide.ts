@@ -111,12 +111,13 @@ async function addPhotos<T extends { title: string }>(items: T[], city: string):
 
 // ── Tavily search ─────────────────────────────────────────────────────────────
 
-// Web search is the single biggest input-token cost: every snippet gets
-// injected verbatim into a DeepSeek prompt. DeepSeek's own knowledge is more
-// than enough for a travel guide, so this is OFF unless GUIDE_USE_TAVILY=1.
-// When enabled, the context is trimmed hard to keep prompt tokens bounded.
+// Web search grounds the guide in real, current facts (the single biggest lever
+// against "generic" AI copy). It is the main input-token cost — every snippet is
+// injected into the prompt — so the context is trimmed hard to keep tokens
+// bounded. ON by default for the full guide (premium, paid feature); set
+// GUIDE_USE_TAVILY=0 to disable (e.g. to cut cost during load testing).
 async function tavilySearch(query: string): Promise<string> {
-  if (process.env.GUIDE_USE_TAVILY !== '1') return '';
+  if (process.env.GUIDE_USE_TAVILY === '0') return '';
   const key = process.env.TAVILY_API_KEY;
   if (!key) return '';
 
@@ -162,6 +163,17 @@ function langInstruction(): string {
   return `\nWrite ALL human-readable text values in ${OUTPUT_LANGUAGE}. Keep every JSON key in English and keep emoji unchanged.`;
 }
 
+// Model is env-driven so it can be tuned per environment without a redeploy.
+// DEEPSEEK_MODEL is the premium model used for the full guide (best quality —
+// this is the paid feature); defaults to 'deepseek-chat' (DeepSeek aliases this
+// to its current flagship). Set to e.g. 'deepseek-reasoner' / a v4-pro id to
+// upgrade quality. Read inline (not a shared module) to keep each serverless
+// function self-contained — the codebase avoids cross-endpoint imports that
+// trip Vercel's per-endpoint CJS/ESM bundling.
+function guideModel(): string {
+  return process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+}
+
 async function deepseek(prompt: string, maxTokens = 900): Promise<unknown> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
@@ -173,7 +185,7 @@ async function deepseek(prompt: string, maxTokens = 900): Promise<unknown> {
       'Authorization': `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: guideModel(),
       messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.7,
@@ -282,18 +294,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const uid = await verifyAndMeter(req as Parameters<typeof verifyAndMeter>[0], res as Parameters<typeof verifyAndMeter>[1]);
-  if (!uid) return;
-
-  const { city, country, query = '', lang } = req.body as {
-    city: string; country: string; query?: string; lang?: string;
+  const { city, country, query = '', lang, tripId } = req.body as {
+    city: string; country: string; query?: string; lang?: string; tripId?: string;
   };
-  setOutputLanguage(lang);
 
   if (!city || !country) {
     res.status(400).json({ error: 'city and country required' });
     return;
   }
+
+  // Charge one AI credit against this trip (a full guide always generates).
+  const uid = await verifyAndMeter(
+    req as Parameters<typeof verifyAndMeter>[0],
+    res as Parameters<typeof verifyAndMeter>[1],
+    { tripId, chargeable: true },
+  );
+  if (!uid) return;
+
+  setOutputLanguage(lang);
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');

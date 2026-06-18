@@ -15,6 +15,7 @@ import { geocode } from '../map/geocode.ts';
 import { aiLanguage } from '../../core/i18n.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
 import { slugId } from '../../core/utils.ts';
+import { currentTripId } from '../../data/trip-context.ts';
 import { openModal } from '../../core/modal.ts';
 import { apiUrl, authHeaders } from '../../core/api.ts';
 import { handleAiError } from '../../core/paywall.ts';
@@ -74,14 +75,14 @@ async function generateGuide(city: string, country: string, query: string): Prom
     const res = await fetch(apiUrl('/api/guide'), {
       method: 'POST',
       headers: await authHeaders(),
-      body: JSON.stringify({ city, country, query, lang: aiLanguage() }),
+      body: JSON.stringify({ city, country, query, lang: aiLanguage(), tripId: currentTripId() }),
     });
 
     if (res.status === 401 || res.status === 402) {
-      const data = await res.json().catch(() => ({})) as { error?: string; plan?: string; upgrade?: boolean; message?: string };
+      const data = await res.json().catch(() => ({})) as { error?: string; plan?: string; upgrade?: boolean; message?: string; needTopup?: boolean };
       const { QuotaError, AuthError } = await import('../../core/api.ts');
       const err = res.status === 402
-        ? new QuotaError(data.plan ?? 'free', data.upgrade ?? true, data.message ?? 'AI features require a Trip Pass.')
+        ? new QuotaError(data.plan ?? 'free', data.upgrade ?? true, data.message ?? 'AI features require a Trip Pass.', data.needTopup ?? false)
         : new AuthError(data.message ?? 'Sign in to use AI features.');
       throw err;
     }

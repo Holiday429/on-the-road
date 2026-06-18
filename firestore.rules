@@ -117,9 +117,27 @@ service cloud.firestore {
         && inviteFor(after.joinToken).role == after.members[me];
     }
 
-    /* ── User profiles — private to each user ─────────────────────────── */
+    /* ── User profiles — private to each user ─────────────────────────────
+       The owner may read everything and write their own profile, EXCEPT the
+       billing/credit fields, which are server-authoritative (written only by
+       the Vercel functions via the Admin service account, which bypasses these
+       rules). Blocking them here stops a user from granting themselves a plan,
+       trip slots, or AI credits by writing their own doc from the client. */
+    function billingFieldsUnchanged() {
+      let protectedKeys = ['plan', 'tripQuota', 'entitlements', 'aiCreditsPool', 'freeAiUsed'];
+      // On create the doc must not seed any protected field; on update none of
+      // them may change. (resource == null on create.)
+      return resource == null
+        ? !request.resource.data.keys().hasAny(protectedKeys)
+        : !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedKeys);
+    }
     match /users/{userId} {
-      allow read, write: if signedIn() && uid() == userId;
+      allow read:   if signedIn() && uid() == userId;
+      allow write:  if signedIn() && uid() == userId && billingFieldsUnchanged();
+      // User sub-collections (coreKit, safetyProfile, checklistTemplates,
+      // safetyChecks, legacy trips). Credit/usage state is NOT stored here — it
+      // lives on the user doc (server-only fields above) and on
+      // trips/{tripId}/usage (server-only, see the trips block).
       match /{document=**} {
         allow read, write: if signedIn() && uid() == userId;
       }
@@ -164,13 +182,19 @@ service cloud.firestore {
       // Sub-collections: read for members, or when public view is enabled AND
       // this sub-collection's name is in the published allow-list. Dual-read:
       // also honour the legacy coarse hasPublicView flag during migration.
+      //
+      // WRITE is denied for the 'usage' sub-collection: it holds the
+      // server-authoritative AI-credit counter (trips/{tripId}/usage/ai),
+      // written only by the Vercel guard via the Admin service account (which
+      // bypasses these rules). A client must never be able to reset its own
+      // AI usage. All other sub-collections follow the normal editor gate.
       match /{sub}/{docId} {
         allow read: if subIsMember(tripId)
           || (tripData(tripId).publicView != null
               && tripData(tripId).publicView.enabled == true
               && (sub in tripData(tripId).publicView.collections))
           || tripData(tripId).hasPublicView == true;
-        allow write: if subCanEditCollection(tripId, sub);
+        allow write: if sub != 'usage' && subCanEditCollection(tripId, sub);
       }
     }
 

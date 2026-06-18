@@ -62,6 +62,11 @@ function subscribeForUser(uid: string) {
       const entitlements = PLAN_ENTITLEMENTS[plan];
 
       // Backfill plan + entitlements on first sign-in or missing fields.
+      // ⚠️ plan/entitlements are now SERVER-ONLY (firestore.rules blocks client
+      // writes to them — see billingFieldsUnchanged). This client write will be
+      // REJECTED. Before re-enabling this store, move any seeding server-side
+      // (the guard/billing already default absent docs to 'free', so seeding is
+      // usually unnecessary). Left intact only because the store is dormant.
       if (!data?.plan || !data?.entitlements) {
         await setDoc(ref, { plan, entitlements }, { merge: true });
       }

@@ -10,7 +10,7 @@ import {
   type StoredChecklist,
   type StoredTemplate,
 } from '../../data/stores/checklist-store.ts';
-import { currentTrip } from '../../data/trip-context.ts';
+import { currentTrip, currentTripId } from '../../data/trip-context.ts';
 import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/schema.ts';
 import { noteColor } from '../../data/palette.ts';
 import { escHtml } from '../../core/utils.ts';
@@ -801,7 +801,7 @@ async function runAiCheck(container: HTMLElement, cl: StoredChecklist) {
   }).join('\n\n');
 
   try {
-    const { suggestions } = await postJson<{ suggestions: string[] }>('/api/check', { summary, lang: aiLanguage() });
+    const { suggestions } = await postJson<{ suggestions: string[] }>('/api/check', { summary, lang: aiLanguage(), tripId: currentTripId() });
 
     loading.setAttribute('hidden', '');
     result.removeAttribute('hidden');

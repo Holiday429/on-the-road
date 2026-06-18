@@ -67,7 +67,7 @@ async function deepseek(prompt: string): Promise<unknown> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
       messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.4,
@@ -217,7 +217,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // ── Generate mode ─────────────────────────────────────────────────────────
-  const guardUid = await verifyAndMeter(req as Parameters<typeof verifyAndMeter>[0], res as Parameters<typeof verifyAndMeter>[1]);
+  const guardUid = await verifyAndMeter(
+    req as Parameters<typeof verifyAndMeter>[0],
+    res as Parameters<typeof verifyAndMeter>[1],
+    { tripId: body.tripId as string | undefined, chargeable: true },
+  );
   if (!guardUid) return;
 
   const city = (body.city as string ?? '').trim();

@@ -6,7 +6,7 @@ import './core/base.css';
 import './core/app.css';
 
 import { initApp, registerView, renderSession, openOnboarding, navigateTo, setAllowedViews, firstAllowedView, type ViewId } from './core/app.ts';
-import { onAuth, authReady, currentUser, signInWithGoogle, consumeRedirectResult, type User } from './firebase/auth.ts';
+import { onAuth, authReady, currentUser, signInWithGoogle, signInAnonymously, consumeRedirectResult, type User } from './firebase/auth.ts';
 import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites, currentMemberPages } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
@@ -208,6 +208,10 @@ let bootPromise: Promise<void> | null = null;
 let appPrepared = false;
 let preparedUserId: string | null = null;
 let guestShellReady = false;
+// Tracks whether the last authenticated render was for an anonymous (guest)
+// account, so onAuth can detect an in-place anon→Google upgrade (same uid) and
+// re-render the sidebar avatar.
+let lastRenderedAnonymous = false;
 // Set when a pending editor-link access request was just submitted on sign-in;
 // a confirmation toast is shown once the shell is up.
 let accessRequestToastPending = false;
@@ -351,6 +355,7 @@ async function bootAuthenticatedShell(user: User) {
     renderSession(user, handleSidebarAuth);
     navigateTo(currentViewOrDefault());
     preparedUserId = user.uid;
+    lastRenderedAnonymous = !!user.isAnonymous;
     guestShellReady = false;
 
     initNotificationScheduler();
@@ -505,11 +510,18 @@ authButton?.addEventListener('click', async () => {
     // lost to a race. On a normal load it's already consumed, so this is a no-op.
     if (!_redirectConsumed) await redirectResultPromise;
 
-    // Enter immediately using whatever auth state we already know. We do NOT
-    // wait for Firebase to finish resolving auth: if a user is already known we
-    // boot the authenticated shell; otherwise we boot as guest, and onAuth's
-    // appEntered branch seamlessly upgrades us the moment auth resolves a user.
-    const user = currentUser();
+    // Enter immediately using whatever auth state we already know. If a user is
+    // already known (returning Google user, or a redirect just resolved) boot
+    // the authenticated shell. Otherwise sign in anonymously so the guest gets a
+    // real uid and the data layer works fully — they can create & save trips
+    // without an account, then upgrade to Google later (linkWithPopup preserves
+    // their data). Anonymous sign-in failing (e.g. provider disabled) degrades
+    // to the old read-only guest shell rather than blocking entry.
+    let user = currentUser();
+    if (!user) {
+      try { user = await signInAnonymously(); }
+      catch (e) { console.warn('Anonymous sign-in failed; entering as read-only guest:', e); }
+    }
     if (user) {
       await bootAuthenticatedShell(user);
     } else {
@@ -569,7 +581,17 @@ onAuth(async ({ user, ready }) => {
         appRoot?.removeAttribute('data-viewer');
         setAllowedViews(null); // restore full nav for the now-authenticated member
       }
+      // Anonymous guest just upgraded to Google (linkWithPopup keeps the same
+      // uid, so bootAuthenticatedShell early-returns and won't rebuild). Force a
+      // session re-render so the sidebar avatar swaps from "Sign in to sync" to
+      // the real account. Detected via the isAnonymous flag flipping false while
+      // the uid is unchanged.
+      const wasAnon = lastRenderedAnonymous && preparedUserId === user.uid && !user.isAnonymous;
       await bootAuthenticatedShell(user);
+      if (wasAnon) {
+        renderSession(user, handleSidebarAuth);
+      }
+      lastRenderedAnonymous = !!user.isAnonymous;
     } else {
       preparedUserId = null;
       renderSession(null, handleSidebarAuth);

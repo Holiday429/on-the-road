@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>On the Road — Plan every trip in one place</title>
+  <meta name="description" content="On the Road is a travel planner that brings your itinerary, budget, packing list, AI city guides, maps, safety info and journal into one beautiful place. Start free — no account needed.">
+
+  <link rel="icon" href="/art/logo.png">
+  <link rel="canonical" href="https://on-the-road-ten.vercel.app/">
+
+  <!-- Open Graph / social -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="On the Road — Plan every trip in one place">
+  <meta property="og:description" content="Itinerary, budget, packing, AI city guides, maps, safety & journal — one travel planner. Start free.">
+  <meta property="og:image" content="https://on-the-road-ten.vercel.app/art/logo.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/landing.css">
+</head>
+<body>
+
+<!-- Legacy share/invite links pointed at /#/join/… and /#/s/… (root). The app
+     now lives at /app, so forward any such hash there before anything renders. -->
+<script>
+  (function () {
+    var h = window.location.hash;
+    if (h.indexOf('#/join/') === 0 || h.indexOf('#/s/') === 0) {
+      window.location.replace('/app' + h);
+    }
+  })();
+</script>
+
+<!-- ── Nav ─────────────────────────────────────────────────────────────────── -->
+<header class="lp-nav">
+  <a class="lp-brand" href="/">
+    <img src="/art/logo.png" alt="" class="lp-brand-mark">
+    <span class="lp-brand-name">On the Road</span>
+  </a>
+  <nav class="lp-nav-links">
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
+    <a class="lp-btn lp-btn-sm" href="/app">Open app</a>
+  </nav>
+</header>
+
+<!-- ── Hero ────────────────────────────────────────────────────────────────── -->
+<section class="lp-hero">
+  <div class="lp-hero-copy">
+    <div class="lp-eyebrow">Your whole trip, one place</div>
+    <h1>Plan every trip<br>without the chaos.</h1>
+    <p class="lp-sub">
+      Itinerary, budget, packing, AI city guides, maps, safety and a travel
+      journal — finally together in one beautiful planner. Built for real trips,
+      not spreadsheets.
+    </p>
+    <div class="lp-hero-cta">
+      <a class="lp-btn lp-btn-lg" href="/app">Start free — no account needed</a>
+      <a class="lp-link" href="#pricing">See pricing →</a>
+    </div>
+    <div class="lp-hero-note">Free to start · works on every device · share with travel companions</div>
+  </div>
+  <div class="lp-hero-art">
+    <img src="/art/plane.png" alt="Illustration of a plane and travel route" loading="eager">
+  </div>
+</section>
+
+<!-- ── Trust strip ─────────────────────────────────────────────────────────── -->
+<section class="lp-strip">
+  <span>✈️ Multi-country itineraries</span>
+  <span>💶 Live currency conversion</span>
+  <span>🤖 AI city guides</span>
+  <span>🗺️ Auto-lighting world map</span>
+  <span>👥 Real-time collaboration</span>
+</section>
+
+<!-- ── Features ────────────────────────────────────────────────────────────── -->
+<section class="lp-section" id="features">
+  <div class="lp-section-head">
+    <h2>Everything a trip needs — before, during &amp; after</h2>
+    <p>One planner that follows the whole journey, from the first idea to the last memory.</p>
+  </div>
+
+  <div class="lp-features">
+    <article class="lp-feature">
+      <img src="/art/navigation_trans.png" alt="">
+      <h3>Itinerary &amp; route</h3>
+      <p>Build a day-by-day plan across cities and countries — transport, stays, places to see, all on a timeline.</p>
+    </article>
+    <article class="lp-feature">
+      <img src="/art/payment.png" alt="">
+      <h3>Budget &amp; expenses</h3>
+      <p>Log spending in any currency with live exchange rates. See totals by category, country and day.</p>
+    </article>
+    <article class="lp-feature">
+      <img src="/art/luggage.png" alt="">
+      <h3>Smart packing</h3>
+      <p>Weight-aware packing lists with reusable core kit and per-bag limits, so you never overpack again.</p>
+    </article>
+    <article class="lp-feature">
+      <img src="/art/favourites_trans.png" alt="">
+      <h3>AI city guides</h3>
+      <p>Generate a curated guide for any city — attractions, food, walks, tips — and drop them straight into your plan.</p>
+    </article>
+    <article class="lp-feature">
+      <img src="/art/earth_trans.png" alt="">
+      <h3>Living world map</h3>
+      <p>Your route lights up the map as you go, with flight arcs and country drill-downs.</p>
+    </article>
+    <article class="lp-feature">
+      <img src="/art/insurance.png" alt="">
+      <h3>Safety &amp; essentials</h3>
+      <p>Emergency numbers, embassy info, local scams and your personal medical card — ready when you need them.</p>
+    </article>
+    <article class="lp-feature">
+      <img src="/art/message_trans.png" alt="">
+      <h3>Travel journal</h3>
+      <p>Capture moments and places as you travel, then turn them into a shareable trip recap.</p>
+    </article>
+    <article class="lp-feature">
+      <img src="/art/personal_trans.png" alt="">
+      <h3>Work-friendly spots</h3>
+      <p>Save cafés and co-working spots with wifi, power and vibe ratings — built for digital nomads.</p>
+    </article>
+    <article class="lp-feature">
+      <img src="/art/female_trans.png" alt="">
+      <h3>Plan together</h3>
+      <p>Invite companions to view or edit, with page-level permissions. Everyone stays in sync, live.</p>
+    </article>
+  </div>
+</section>
+
+<!-- ── Pricing ─────────────────────────────────────────────────────────────── -->
+<section class="lp-section lp-pricing-section" id="pricing">
+  <div class="lp-section-head">
+    <h2>Simple pricing. Pay per trip, or once forever.</h2>
+    <p>Travel isn't a monthly habit — so we don't charge like it is. Start free, upgrade only when you need to.</p>
+  </div>
+
+  <div class="lp-pricing">
+    <article class="lp-plan">
+      <div class="lp-plan-name">Free</div>
+      <div class="lp-plan-price">$0</div>
+      <div class="lp-plan-period">to start</div>
+      <ul class="lp-plan-perks">
+        <li>✓ 1 trip</li>
+        <li>✓ Every core feature</li>
+        <li>✓ 1 free AI city guide</li>
+        <li>✓ Works on every device</li>
+      </ul>
+      <a class="lp-btn lp-btn-ghost" href="/app">Start free</a>
+    </article>
+
+    <article class="lp-plan lp-plan-featured">
+      <div class="lp-plan-badge">Most popular</div>
+      <div class="lp-plan-name">Trip Pass</div>
+      <div class="lp-plan-price">$8.8</div>
+      <div class="lp-plan-period">per trip</div>
+      <ul class="lp-plan-perks">
+        <li>✓ One more trip, yours to keep</li>
+        <li>✓ 10 AI city guides included</li>
+        <li>✓ Every feature unlocked</li>
+        <li>✓ Share with travel companions</li>
+      </ul>
+      <a class="lp-btn" href="/app">Start free</a>
+    </article>
+
+    <article class="lp-plan">
+      <div class="lp-plan-name">Lifetime</div>
+      <div class="lp-plan-price">$68.8</div>
+      <div class="lp-plan-period">once, forever</div>
+      <ul class="lp-plan-perks">
+        <li>✓ Unlimited trips</li>
+        <li>✓ 10 AI guides on every trip</li>
+        <li>✓ Every current &amp; future feature</li>
+        <li>✓ Support indie development</li>
+      </ul>
+      <a class="lp-btn lp-btn-ghost" href="/app">Start free</a>
+    </article>
+  </div>
+  <p class="lp-pricing-note">
+    Need more AI guides? Grab a top-up booster ($2.9 for 10) anytime, on any plan.
+    Payments handled securely by Lemon Squeezy.
+  </p>
+</section>
+
+<!-- ── How it works ────────────────────────────────────────────────────────── -->
+<section class="lp-section lp-steps-section">
+  <div class="lp-section-head">
+    <h2>From idea to itinerary in minutes</h2>
+  </div>
+  <div class="lp-steps">
+    <div class="lp-step"><span class="lp-step-n">1</span><h3>Create a trip</h3><p>Name it, set the dates and destinations. No account needed to begin.</p></div>
+    <div class="lp-step"><span class="lp-step-n">2</span><h3>Build the plan</h3><p>Add cities, stays and transport. Generate AI guides and save places to your days.</p></div>
+    <div class="lp-step"><span class="lp-step-n">3</span><h3>Travel &amp; track</h3><p>Log expenses, follow your map, stay safe, and journal the trip as it happens.</p></div>
+  </div>
+</section>
+
+<!-- ── FAQ ─────────────────────────────────────────────────────────────────── -->
+<section class="lp-section" id="faq">
+  <div class="lp-section-head"><h2>Questions, answered</h2></div>
+  <div class="lp-faq">
+    <details>
+      <summary>Do I need an account to start?</summary>
+      <p>No. Tap “Start free” and you’re in — you can build a full trip right away. Sign in with Google later to sync across devices and share; your data carries over.</p>
+    </details>
+    <details>
+      <summary>Is my data saved across devices?</summary>
+      <p>Yes. Everything lives in the cloud, so your trips, expenses and journal are available on any device once you sign in.</p>
+    </details>
+    <details>
+      <summary>What does the Trip Pass include?</summary>
+      <p>One additional trip you keep forever, 10 AI city guides for it, every feature unlocked, and the ability to share and collaborate. It’s a one-time $8.8 — no subscription.</p>
+    </details>
+    <details>
+      <summary>What are AI credits?</summary>
+      <p>Each AI city guide generation uses one credit. Paid trips include 10. Need more? A $2.9 top-up adds 10 credits that work across all your trips.</p>
+    </details>
+    <details>
+      <summary>Can I get a refund?</summary>
+      <p>Unused purchases are refundable. See our <a href="/refund.html">Refund Policy</a> for details.</p>
+    </details>
+    <details>
+      <summary>Can I plan a trip with friends?</summary>
+      <p>Yes. Invite companions to view or edit, with page-level permissions, and everyone stays in sync in real time.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ── Final CTA ───────────────────────────────────────────────────────────── -->
+<section class="lp-final">
+  <h2>Your next trip starts here.</h2>
+  <p>Free to start. No account needed. Upgrade only when you’re ready.</p>
+  <a class="lp-btn lp-btn-lg" href="/app">Start planning free</a>
+</section>
+
+<!-- ── Footer ──────────────────────────────────────────────────────────────── -->
+<footer class="lp-footer">
+  <div class="lp-footer-brand">
+    <img src="/art/logo.png" alt="" class="lp-brand-mark">
+    <span>On the Road</span>
+  </div>
+  <nav class="lp-footer-links">
+    <a href="/app">Open app</a>
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="/terms.html">Terms</a>
+    <a href="/privacy.html">Privacy</a>
+    <a href="/refund.html">Refunds</a>
+  </nav>
+  <div class="lp-footer-copy">© <span id="lp-year"></span> On the Road</div>
+</footer>
+
+<script>document.getElementById('lp-year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

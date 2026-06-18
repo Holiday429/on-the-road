@@ -296,7 +296,15 @@ function renderNavIcon(item: NavItem): string {
 
 function buildSidebarHeader(): string {
   const { user } = sessionState;
-  if (!user) {
+  // No user, OR an anonymous guest: both show the "Sign in with Google" prompt.
+  // A guest is signed in for data purposes (real uid, trips persist) but is
+  // nudged to sign in so their trips sync across devices and survive. Clicking
+  // routes to sessionPrimaryAction → signInWithGoogle, which LINKS Google to the
+  // anonymous account in place (data preserved). See signInWithGoogle in auth.ts.
+  if (!user || user.isAnonymous) {
+    const subtitle = user?.isAnonymous
+      ? 'Sign in to sync &amp; save'
+      : 'Sign in with Google';
     return `
       <div class="sidebar-header">
         <button type="button" class="sidebar-header-profile sidebar-auth-trigger" id="sidebar-auth-trigger">
@@ -305,7 +313,7 @@ function buildSidebarHeader(): string {
           </div>
           <div class="sidebar-profile-meta">
             <div class="sidebar-profile-title">On the Road</div>
-            <div class="sidebar-profile-subtitle">Sign in with Google</div>
+            <div class="sidebar-profile-subtitle">${subtitle}</div>
           </div>
         </button>
       </div>
@@ -751,8 +759,9 @@ function buildMobileNav() {
   });
 
   mobileNav.querySelector<HTMLElement>('#mobile-account-item')?.addEventListener('click', () => {
-    // Signed in → account & billing; signed out → the sign-in flow.
-    if (sessionState.user) {
+    // Real signed-in user → account & billing; guest (anonymous) or no user →
+    // the sign-in flow (which upgrades a guest in place).
+    if (sessionState.user && !sessionState.user.isAnonymous) {
       import('./account.ts').then(({ openAccountModal }) => openAccountModal());
     } else {
       sessionPrimaryAction?.();
@@ -765,7 +774,9 @@ function buildMobileNav() {
    the only way to reach login / account on mobile. */
 function buildMobileAccountItem(): string {
   const { user } = sessionState;
-  if (!user) {
+  // No user OR anonymous guest → "Sign in" (a guest is data-signed-in but should
+  // still be prompted to sign in with Google to sync; see buildSidebarHeader).
+  if (!user || user.isAnonymous) {
     return `<div class="mobile-nav-item mobile-nav-account" id="mobile-account-item" role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true"><img src="${profileIcon}" class="nav-icon-image" alt=""></span>
       <span class="nav-label">Sign in</span>

@@ -42,7 +42,7 @@ async function deepseek(prompt: string): Promise<{ suggestions: string[] }> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model: 'deepseek-chat',
+      model: process.env.DEEPSEEK_MODEL_LIGHT || 'deepseek-chat',
       messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.4,
@@ -66,7 +66,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const uid = await verifyAndMeter(req as Parameters<typeof verifyAndMeter>[0], res as Parameters<typeof verifyAndMeter>[1]);
+  const uid = await verifyAndMeter(
+    req as Parameters<typeof verifyAndMeter>[0],
+    res as Parameters<typeof verifyAndMeter>[1],
+    { tripId: req.body.tripId as string | undefined, chargeable: true },
+  );
   if (!uid) return;
 
   const summary = (req.body.summary as string ?? '').trim();

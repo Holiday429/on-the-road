@@ -10,7 +10,12 @@
    path will set the same field.
 
    Supported events:
-     order_created  → grant trip_pass or lifetime (per custom_data.plan)
+     order_created   → grant trip_pass / lifetime / ai_topup (per custom_data.plan)
+     order_refunded  → reverse that grant (revokeGrant; idempotent per order)
+
+   Refund policy: only UNUSED purchases are refunded (enforced manually when
+   approving the refund in the Lemon Squeezy dashboard), so the reversal is a
+   clean full revoke. See revokeGrant in _billing.ts.
 
    Keys in .env (server-side only, no VITE_ prefix):
      FIREBASE_SERVICE_ACCOUNT
@@ -19,7 +24,7 @@
 
 import * as crypto from 'crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { grantQuota, type Plan } from './_billing';
+import { grantQuota, revokeGrant, type Sku } from './_billing';
 
 type VercelRequest  = IncomingMessage & { body: Buffer | string; headers: Record<string, string | string[] | undefined>; method?: string };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse };
@@ -92,19 +97,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const event = payload.meta.event_name;
-  // Only purchases grant quota. Everything else is acked so LS stops retrying.
-  if (event !== 'order_created') {
+  // We act on purchases (order_created) and refunds (order_refunded). Every
+  // other event is acked so LS stops retrying.
+  if (event !== 'order_created' && event !== 'order_refunded') {
     res.status(200).json({ ok: true, skipped: true, reason: `event ${event}` });
     return;
   }
 
+  // Refunds carry the same custom_data + order identifier as the original order,
+  // so uid / plan / orderId resolve identically for grant and revoke.
   const { uid, plan } = customData(payload);
   if (!uid) {
     console.warn('[billing-webhook] No uid in custom_data for event', event);
     res.status(200).json({ ok: true, skipped: true, reason: 'no uid' });
     return;
   }
-  if (plan !== 'trip_pass' && plan !== 'lifetime') {
+  if (plan !== 'trip_pass' && plan !== 'lifetime' && plan !== 'ai_topup') {
     console.warn('[billing-webhook] Unexpected plan in custom_data:', plan);
     res.status(200).json({ ok: true, skipped: true, reason: 'unknown plan' });
     return;
@@ -118,10 +126,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const applied = await grantQuota(uid, plan as Plan, orderId, payload.data.attributes.total ?? null);
-    res.status(200).json({ ok: true, applied });
+    if (event === 'order_refunded') {
+      const revoked = await revokeGrant(uid, plan as Sku, orderId);
+      res.status(200).json({ ok: true, revoked });
+    } else {
+      const applied = await grantQuota(uid, plan as Sku, orderId, payload.data.attributes.total ?? null);
+      res.status(200).json({ ok: true, applied });
+    }
   } catch (e) {
-    console.error('[billing-webhook] grant failed:', e);
-    res.status(500).json({ error: 'Grant failed' });
+    console.error('[billing-webhook] %s failed:', event, e);
+    res.status(500).json({ error: `${event} failed` });
   }
 }

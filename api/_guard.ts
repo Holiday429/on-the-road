@@ -6,7 +6,8 @@
    jose entirely — it is ESM-only and Vercel's per-endpoint CJS bundling kept
    breaking on it (ERR_REQUIRE_ESM / ERR_MODULE_NOT_FOUND).
 
-   FREE_MONTHLY_QUOTA = 0 → all free users blocked. Raise to grant free calls.
+   AI credits are metered per generation (see debitAiCredit): a trip's bundled
+   allowance, then the account booster pool, then a one-time free trial.
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
@@ -14,8 +15,6 @@ import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse };
-
-const FREE_MONTHLY_QUOTA = 0;
 
 // ── Service account singleton ─────────────────────────────────────────────────
 
@@ -103,6 +102,8 @@ type Plan = 'free' | 'trip_pass' | 'lifetime';
 
 interface UserDoc {
   plan?: Plan;
+  aiCreditsPool?: number;   // account-wide booster pool (server-written)
+  freeAiUsed?: boolean;     // whether the one free-trial AI call was used
   tripPassExpiresAt?: number | null;
 }
 
@@ -142,54 +143,123 @@ function parseFirestoreFields(fields: Record<string, unknown>): Record<string, u
   return out;
 }
 
-// ── Firestore REST write (usage counter) ─────────────────────────────────────
+// ── AI credit model (must match src/data/schema.ts) ──────────────────────────
+//
+// One chargeable AI generation is debited in this fixed order:
+//   1. the trip's bundled allowance  — trips/{tripId}/usage/ai.count vs
+//      PER_TRIP_AI_CREDITS (paid trips only: trip_pass / lifetime users)
+//   2. the account booster pool       — users/{uid}.aiCreditsPool
+//   3. the one free-trial call        — users/{uid}.freeAiUsed (once, ever)
+// All three counters are written ONLY here. The client can read them to show
+// "credits left" but can never grant itself credits (rules forbid the writes).
 
-async function incrementUsage(uid: string, period: string): Promise<boolean> {
-  const sa = getServiceAccount();
-  const token = await getAccessToken();
-  const base = `https://firestore.googleapis.com/v1/projects/${sa.project_id}/databases/(default)/documents`;
+const PER_TRIP_AI_CREDITS = 10;
 
-  // Read current usage
-  const url = `${base}/users/${uid}/usage/ai`;
-  const readRes = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+const FS_DOCS = () =>
+  `https://firestore.googleapis.com/v1/projects/${getServiceAccount().project_id}/databases/(default)/documents`;
 
-  let count = 0;
-  if (readRes.ok) {
-    const doc = await readRes.json() as { fields?: Record<string, unknown> };
-    const fields = parseFirestoreFields(doc.fields ?? {}) as { period?: string; count?: number };
-    if (fields.period === period) count = fields.count ?? 0;
-  }
-
-  if (count >= FREE_MONTHLY_QUOTA) return false;
-
-  // Write incremented value
-  const writeUrl = `${url}?updateMask.fieldPaths=period&updateMask.fieldPaths=count&updateMask.fieldPaths=updatedAt`;
-  await fetch(writeUrl, {
-    method: 'PATCH',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fields: {
-        period:    { stringValue: period },
-        count:     { integerValue: String(count + 1) },
-        updatedAt: { integerValue: String(Date.now()) },
-      },
-    }),
-  });
-  return true;
+/** Read trips/{tripId}/usage/ai.count (0 if the doc/field is absent). */
+async function readTripAiCount(token: string, tripId: string): Promise<number> {
+  const url = `${FS_DOCS()}/trips/${tripId}/usage/ai`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 404) return 0;
+  if (!res.ok) throw new Error(`readTripAiCount ${res.status}: ${await res.text()}`);
+  const doc = await res.json() as { fields?: Record<string, unknown> };
+  const f = parseFirestoreFields(doc.fields ?? {}) as { count?: number };
+  return f.count ?? 0;
 }
 
-// ── Period key ────────────────────────────────────────────────────────────────
+/** Atomically +1 trips/{tripId}/usage/ai.count via a commit field-transform. */
+async function bumpTripAiCount(token: string, tripId: string): Promise<void> {
+  const name = `projects/${getServiceAccount().project_id}/databases/(default)/documents/trips/${tripId}/usage/ai`;
+  const res = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${getServiceAccount().project_id}/databases/(default)/documents:commit`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        writes: [
+          { transform: { document: name, fieldTransforms: [
+            { fieldPath: 'count', increment: { integerValue: '1' } },
+          ] } },
+          { update: { name, fields: { updatedAt: { integerValue: String(Date.now()) } } },
+            updateMask: { fieldPaths: ['updatedAt'] } },
+        ],
+      }),
+    },
+  );
+  if (!res.ok) throw new Error(`bumpTripAiCount ${res.status}: ${await res.text()}`);
+}
 
-function currentPeriod(): string {
-  const d = new Date();
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+/** Decrement users/{uid}.aiCreditsPool by 1 (caller guarantees it's > 0). */
+async function spendPool(token: string, uid: string, current: number): Promise<void> {
+  const url = `${FS_DOCS()}/users/${uid}?updateMask.fieldPaths=aiCreditsPool&updateMask.fieldPaths=_updatedAt`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: {
+      aiCreditsPool: { integerValue: String(Math.max(0, current - 1)) },
+      _updatedAt:    { integerValue: String(Date.now()) },
+    } }),
+  });
+  if (!res.ok) throw new Error(`spendPool ${res.status}: ${await res.text()}`);
+}
+
+/** Mark the one free-trial AI call as used. */
+async function markFreeUsed(token: string, uid: string): Promise<void> {
+  const url = `${FS_DOCS()}/users/${uid}?updateMask.fieldPaths=freeAiUsed&updateMask.fieldPaths=_updatedAt`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: {
+      freeAiUsed: { booleanValue: true },
+      _updatedAt: { integerValue: String(Date.now()) },
+    } }),
+  });
+  if (!res.ok) throw new Error(`markFreeUsed ${res.status}: ${await res.text()}`);
+}
+
+/**
+ * Try to debit one AI credit for `uid` generating against `tripId`.
+ * Returns true if a credit was charged (caller may proceed), false if the user
+ * is out of credits (caller returns 402). A paid plan means the trip carries a
+ * PER_TRIP_AI_CREDITS allowance; free users have none and fall straight to the
+ * pool / free-trial.
+ */
+async function debitAiCredit(uid: string, plan: Plan, user: UserDoc, tripId: string): Promise<boolean> {
+  const token = await getAccessToken();
+
+  // 1. Trip's own bundled allowance (paid trips only).
+  const tripAllowance = plan === 'free' ? 0 : PER_TRIP_AI_CREDITS;
+  if (tripAllowance > 0 && tripId) {
+    const used = await readTripAiCount(token, tripId);
+    if (used < tripAllowance) { await bumpTripAiCount(token, tripId); return true; }
+  }
+
+  // 2. Account booster pool.
+  const pool = user.aiCreditsPool ?? 0;
+  if (pool > 0) { await spendPool(token, uid, pool); return true; }
+
+  // 3. One-time free trial (any plan, but in practice only free users reach here).
+  if (!user.freeAiUsed) { await markFreeUsed(token, uid); return true; }
+
+  return false;
 }
 
 // ── Guard entry point ─────────────────────────────────────────────────────────
 
+export interface MeterOptions {
+  /** Trip the generation is for. Required to charge the trip's own allowance. */
+  tripId?: string;
+  /** When false, only auth is verified and NO credit is debited. Use for cache
+   *  hits (already-generated content) and non-AI helper calls (e.g. geocode). */
+  chargeable?: boolean;
+}
+
 export async function verifyAndMeter(
   req: VercelRequest,
   res: VercelResponse,
+  opts: MeterOptions = {},
 ): Promise<string | null> {
 
   // 1. Extract + verify ID token
@@ -224,41 +294,27 @@ export async function verifyAndMeter(
 
   const plan: Plan = (userDoc.plan as Plan) ?? 'free';
 
-  // 3. Plan gate
-  if (plan === 'lifetime') return uid;
+  // 3. Non-chargeable calls (cache hits, geocode helpers) only need a valid
+  //    session — they consume no credit.
+  if (opts.chargeable === false) return uid;
 
-  if (plan === 'trip_pass') {
-    const exp = userDoc.tripPassExpiresAt as number | null | undefined;
-    if (exp == null || exp > Date.now()) return uid;
-  }
-
-  // 4. Quota check (free / expired trip_pass)
-  if (FREE_MONTHLY_QUOTA === 0) {
-    res.status(402).json({
-      error: 'quota_exceeded',
-      plan,
-      upgrade: true,
-      message: 'AI features require a Trip Pass. Upgrade to unlock.',
-    });
-    return null;
-  }
-
-  const period = currentPeriod();
+  // 4. Debit one AI credit in order: trip allowance → booster pool → free trial.
   try {
-    const allowed = await incrementUsage(uid, period);
-    if (!allowed) {
+    const charged = await debitAiCredit(uid, plan, userDoc, opts.tripId ?? '');
+    if (!charged) {
       res.status(402).json({
         error: 'quota_exceeded',
         plan,
         upgrade: true,
-        used: FREE_MONTHLY_QUOTA,
-        limit: FREE_MONTHLY_QUOTA,
-        message: `You've used all ${FREE_MONTHLY_QUOTA} free AI calls this month. Upgrade for more.`,
+        needTopup: true,
+        message: plan === 'free'
+          ? 'You’ve used your free AI generation. Get a Trip Pass or an AI top-up to continue.'
+          : 'You’re out of AI credits for this trip. Add an AI top-up to keep generating.',
       });
       return null;
     }
   } catch (e) {
-    console.error('[guard] Usage write failed for uid=%s:', uid, e);
+    console.error('[guard] Credit debit failed for uid=%s trip=%s:', uid, opts.tripId, e);
     res.status(503).json({ error: 'service_unavailable', message: 'Usage tracking temporarily unavailable.' });
     return null;
   }

@@ -14,10 +14,15 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  signInAnonymously as fbSignInAnonymously,
+  linkWithPopup,
+  linkWithRedirect,
+  signInWithCredential,
   getRedirectResult,
   signOut as fbSignOut,
   onAuthStateChanged,
   type User,
+  type UserCredential,
 } from 'firebase/auth';
 import { auth } from './config.ts';
 
@@ -76,6 +81,28 @@ export function currentUser(): User | null {
   return _user;
 }
 
+/** True when the current session is an anonymous (guest) account. */
+export function isAnonymous(): boolean {
+  return !!_user?.isAnonymous;
+}
+
+/** True when signed in with a real (non-anonymous) provider. */
+export function isSignedInReal(): boolean {
+  return !!_user && !_user.isAnonymous;
+}
+
+/**
+ * Sign in anonymously so a guest gets a real uid and the (uid-keyed) data layer
+ * works fully — trips, expenses, etc. all persist to Firestore. The account can
+ * later be upgraded to Google in place via signInWithGoogle(), preserving data.
+ * No-op if a user is already signed in.
+ */
+export async function signInAnonymously(): Promise<User> {
+  if (_user) return _user;
+  const result = await fbSignInAnonymously(auth);
+  return result.user;
+}
+
 /**
  * Call once on app boot to resolve any pending Google redirect sign-in.
  * On iOS PWA, signInWithGoogle() uses redirect; the result arrives here
@@ -86,19 +113,62 @@ export async function consumeRedirectResult(): Promise<User | null> {
     const result = await getRedirectResult(auth);
     return result?.user ?? null;
   } catch (e) {
+    // On iOS PWA, a linkWithRedirect upgrade of a guest whose Google account
+    // already exists fails here with credential-already-in-use. Fall back to
+    // signing into that existing account (the guest's data is abandoned — the
+    // standard linking tradeoff, mirroring the popup path in signInWithGoogle).
+    const code = (e as { code?: string }).code;
+    if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
+      const cred = GoogleAuthProvider.credentialFromError(e as Parameters<typeof GoogleAuthProvider.credentialFromError>[0]);
+      if (cred) {
+        try {
+          const result = await signInWithCredential(auth, cred);
+          return result.user;
+        } catch (e2) {
+          console.warn('Redirect credential sign-in fallback failed:', e2);
+        }
+      }
+    }
     console.warn('getRedirectResult error (safe to ignore if no redirect was pending):', e);
     return null;
   }
 }
 
 export async function signInWithGoogle(): Promise<User> {
+  // Upgrade path: an anonymous guest links Google to their existing account, so
+  // the uid (and therefore all their trips/data) is preserved. Falls back to a
+  // plain sign-in if no anonymous session is active.
+  const anon = _user?.isAnonymous ? _user : null;
+
   if (isIosPwa()) {
-    // Redirect flow — page reloads after Google auth; result consumed by consumeRedirectResult().
-    await signInWithRedirect(auth, provider);
-    // signInWithRedirect navigates away so this line is never reached,
-    // but TypeScript needs a return value.
+    // Redirect flow — page reloads after Google auth; result consumed by
+    // consumeRedirectResult(). linkWithRedirect upgrades the anon account.
+    if (anon) await linkWithRedirect(anon, provider);
+    else await signInWithRedirect(auth, provider);
+    // Navigates away — never reached, but TypeScript needs a return value.
     return new Promise(() => {/* resolved after redirect */});
   }
+
+  if (anon) {
+    try {
+      const result = await linkWithPopup(anon, provider);
+      return result.user;
+    } catch (e) {
+      // The Google account already exists (returning user). We can't merge two
+      // accounts client-side, so switch to the existing one — the guest's local
+      // data is abandoned. This is the standard linking tradeoff.
+      const code = (e as { code?: string }).code;
+      if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
+        const cred = GoogleAuthProvider.credentialFromError(e as Parameters<typeof GoogleAuthProvider.credentialFromError>[0]);
+        if (cred) {
+          const result: UserCredential = await signInWithCredential(auth, cred);
+          return result.user;
+        }
+      }
+      throw e;
+    }
+  }
+
   const result = await signInWithPopup(auth, provider);
   return result.user;
 }

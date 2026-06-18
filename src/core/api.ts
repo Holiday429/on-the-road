@@ -30,11 +30,15 @@ export function apiUrl(path: string): string {
 export class QuotaError extends Error {
   readonly plan: string;
   readonly upgrade: boolean;
-  constructor(plan: string, upgrade: boolean, message: string) {
+  /** True when the user is out of AI credits and should buy an AI top-up (vs a
+   *  free user who hasn't paid at all and should see the plan options). */
+  readonly needTopup: boolean;
+  constructor(plan: string, upgrade: boolean, message: string, needTopup = false) {
     super(message);
     this.name = 'QuotaError';
     this.plan = plan;
     this.upgrade = upgrade;
+    this.needTopup = needTopup;
   }
 }
 
@@ -92,11 +96,12 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
   }
 
   if (res.status === 402) {
-    const data = await res.json().catch(() => ({})) as { plan?: string; upgrade?: boolean; message?: string };
+    const data = await res.json().catch(() => ({})) as { plan?: string; upgrade?: boolean; message?: string; needTopup?: boolean };
     throw new QuotaError(
       data.plan ?? 'free',
       data.upgrade ?? true,
       data.message ?? 'AI features require a Trip Pass.',
+      data.needTopup ?? false,
     );
   }
 

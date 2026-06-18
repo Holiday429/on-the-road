@@ -20,7 +20,7 @@ import { quotaStore } from '../data/quota-store.ts';
 
 // ── Checkout ──────────────────────────────────────────────────────────────────
 
-type CheckoutPlan = 'trip_pass' | 'lifetime';
+type CheckoutPlan = 'trip_pass' | 'lifetime' | 'ai_topup';
 
 async function openCheckout(plan: CheckoutPlan, errEl: HTMLElement): Promise<void> {
   const user = currentUser();
@@ -82,9 +82,10 @@ function renderPlansModal(desc: string): void {
         <div class="paywall-plans">
           <div class="paywall-plan paywall-plan--featured">
             <div class="paywall-plan-name">Trip Pass</div>
-            <div class="paywall-plan-price">$9<span class="paywall-plan-period"> once</span></div>
+            <div class="paywall-plan-price">$8.8<span class="paywall-plan-period"> per trip</span></div>
             <ul class="paywall-plan-perks">
               <li>✓ One more trip, yours to keep</li>
+              <li>✓ 10 AI city guides included</li>
               <li>✓ Every feature — itinerary, expenses, packing, map &amp; more</li>
               <li>✓ Share it with travel companions</li>
             </ul>
@@ -94,9 +95,10 @@ function renderPlansModal(desc: string): void {
           </div>
           <div class="paywall-plan">
             <div class="paywall-plan-name">Lifetime</div>
-            <div class="paywall-plan-price">$29<span class="paywall-plan-period"> once</span></div>
+            <div class="paywall-plan-price">$68.8<span class="paywall-plan-period"> once</span></div>
             <ul class="paywall-plan-perks">
               <li>✓ Unlimited trips, forever</li>
+              <li>✓ 10 AI city guides on every trip</li>
               <li>✓ Every current &amp; future feature</li>
               <li>✓ Support indie development</li>
             </ul>
@@ -129,12 +131,49 @@ export function showTripQuotaPaywall(): void {
   renderPlansModal("You've used your free trip. Get a Trip Pass for one more, or go Lifetime for unlimited trips.");
 }
 
-/** Generic upgrade modal. Dormant until AI features ship. */
+/** Generic upgrade modal — for users who haven't paid (e.g. free user out of
+ *  their one trial AI generation). Surfaces the plan options. */
 export function showPaywall(opts: { feature?: string } = {}): void {
   const desc = opts.feature
     ? `${opts.feature} need a Trip Pass or Lifetime.`
-    : 'Unlock more with a Trip Pass or go Lifetime.';
+    : 'Unlock 10 AI city guides per trip — plus every feature — with a Trip Pass, or go Lifetime.';
   renderPlansModal(desc);
+}
+
+/** Shown when a PAID user runs out of AI credits — offers the AI top-up booster
+ *  (no plan change, just more credits) with the plan options as a fallback. */
+export function showAiTopupPaywall(desc?: string): void {
+  openModal({
+    title: 'Out of AI credits',
+    body: `
+      <div class="paywall-body">
+        <p class="paywall-desc">${desc ?? 'You’ve used the AI credits for this trip. Grab a top-up to keep generating city guides.'}</p>
+        <div class="paywall-plans">
+          <div class="paywall-plan paywall-plan--featured">
+            <div class="paywall-plan-name">AI Top-up</div>
+            <div class="paywall-plan-price">$2.9<span class="paywall-plan-period"> · 10 guides</span></div>
+            <ul class="paywall-plan-perks">
+              <li>✓ 10 more AI city guides</li>
+              <li>✓ Works across all your trips</li>
+              <li>✓ Never expires</li>
+            </ul>
+            <button class="btn btn-primary paywall-btn" data-plan="ai_topup" data-label="Get AI Top-up">
+              Get AI Top-up
+            </button>
+          </div>
+        </div>
+        <p class="paywall-error" hidden></p>
+      </div>
+    `,
+    className: 'paywall-modal',
+  });
+
+  const backdrop = document.querySelector('.otr-modal-backdrop:last-child') as HTMLElement;
+  if (!backdrop) return;
+  const errEl = backdrop.querySelector<HTMLElement>('.paywall-error')!;
+  backdrop.querySelectorAll<HTMLButtonElement>('.paywall-btn').forEach((btn) => {
+    btn.addEventListener('click', () => openCheckout(btn.dataset.plan as CheckoutPlan, errEl));
+  });
 }
 
 // ── Convenience: gate trip creation ───────────────────────────────────────────
@@ -158,7 +197,10 @@ export function requireTripSlot(): boolean {
  */
 export function handleAiError(err: unknown): boolean {
   if (err instanceof QuotaError) {
-    showPaywall();
+    // Out-of-credits on a PAID account → offer a top-up booster. A free user
+    // who's used their trial (no payment yet) sees the full plan options.
+    if (err.needTopup && err.plan !== 'free') showAiTopupPaywall(err.message);
+    else showPaywall();
     return true;
   }
   if (err instanceof AuthError) {

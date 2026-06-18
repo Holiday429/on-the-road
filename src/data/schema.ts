@@ -58,6 +58,17 @@ export type Plan = 'free' | 'trip_pass' | 'lifetime';
 export const FREE_QUOTA = 1;
 export const LIFETIME_QUOTA = 9999;
 
+// AI-credit model (must match api/_guard.ts and api/_billing.ts).
+// Credits are spent server-side per AI guide generation in this order:
+//   1. the trip's own bundled allowance  (PER_TRIP_AI_CREDITS, paid trips only)
+//   2. the account-wide booster pool      (users/{uid}.aiCreditsPool)
+//   3. the one-time free trial            (users/{uid}.freeAiUsed)
+// All three counters are written ONLY by the server (guard + billing). The
+// client reads them to show "X left" but can never grant itself credits.
+export const PER_TRIP_AI_CREDITS = 10;   // bundled with each trip_pass / lifetime trip
+export const AI_TOPUP_CREDITS = 10;      // credits one booster ("AI 加油包") adds to the pool
+export const FREE_TRIAL_AI_CREDITS = 1;  // one free AI guide per account, ever
+
 // Entitlements are kept in the data model for when AI ships, but no plan grants
 // the ai.* set at launch (those endpoints aren't surfaced in any UI). lifetime
 // pre-grants the future paid features so lifetime buyers are covered when they
@@ -97,6 +108,13 @@ export const UserProfileSchema = doc({
   tripQuota: z.number().default(FREE_QUOTA),
   tripPassExpiresAt: z.number().nullable().optional(), // legacy AI-era field; unused by quota model
   defaultTripId: z.string().nullable().default(null),
+  // ── AI credits (all server-written; client read-only) ───────────────────
+  // Account-wide booster pool, spent after a trip's own allowance runs out.
+  // Each "AI 加油包" purchase adds AI_TOPUP_CREDITS via grantQuota.
+  aiCreditsPool: z.number().default(0),
+  // Whether this account has used its one free trial AI generation. Flipped by
+  // the guard on the first non-cached AI call a free user makes.
+  freeAiUsed: z.boolean().default(false),
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;
 
@@ -212,6 +230,17 @@ export const TripAccessRequestSchema = doc({
   pages: z.array(z.string()).default([]),
 });
 export type TripAccessRequest = z.infer<typeof TripAccessRequestSchema>;
+
+/* ── AI usage (per-trip, server-written) ─────────────────────────────────────
+   One doc per trip at trips/{tripId}/usage/ai. The guard increments `count`
+   each time a chargeable (non-cached) AI generation runs against this trip, and
+   compares it to the plan-derived allowance (PER_TRIP_AI_CREDITS for paid
+   trips). Written ONLY by the server (api/_guard.ts via Firestore REST). The
+   client may read it to display remaining credits but never writes it. */
+export const TripAiUsageSchema = doc({
+  count: z.number().default(0),   // chargeable AI generations run on this trip
+});
+export type TripAiUsage = z.infer<typeof TripAiUsageSchema>;
 
 /* ── Prep (legacy — kept for migration) ──────────────────────────────────── */
 export const PrepTaskSchema = doc({

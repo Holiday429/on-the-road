@@ -144,9 +144,11 @@ export async function acceptInvite(tok: string): Promise<string | null> {
   return invite.tripId;
 }
 
-/** Build a shareable join URL for a token. */
+/** Build a shareable join URL for a token. The app lives at /app (the marketing
+ *  landing page owns /); the landing page also redirects legacy /#/join links to
+ *  /app, so old links keep working. */
 export function inviteUrl(tok: string): string {
-  return `${window.location.origin}/#/join/${tok}`;
+  return `${window.location.origin}/app#/join/${tok}`;
 }
 
 /* ── Email whitelist invites ─────────────────────────────────────────────── */

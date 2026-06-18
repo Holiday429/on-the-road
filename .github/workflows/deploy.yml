@@ -1,9 +1,13 @@
 name: Deploy to GitHub Pages
 
+# DISABLED for automatic runs. Production is Vercel (deployed via the Vercel CLI),
+# where the marketing landing page owns / and the app lives at /app. GitHub Pages
+# served the app at /on-the-road/ expecting index.html to be the app — but the
+# index.html/app.html swap (see vite.config.ts) made index.html the landing page,
+# which would break the app + CTAs on Pages. Auto-deploy on push is removed; the
+# job remains manually runnable via "Run workflow" if Pages is ever revived
+# (CTAs would need to be made base-aware first).
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:

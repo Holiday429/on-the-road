@@ -12,6 +12,7 @@
      LEMON_SQUEEZY_STORE_ID
      LEMON_SQUEEZY_VARIANT_TRIP
      LEMON_SQUEEZY_VARIANT_LIFETIME
+     LEMON_SQUEEZY_VARIANT_AI_TOPUP
    ========================================================================== */
 
 import type { IncomingMessage, ServerResponse } from 'http';
@@ -22,11 +23,12 @@ import { verifyFirebaseToken } from './_guard';
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined>; method?: string };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse; setHeader(k: string, v: string): void; end(): void };
 
-type Plan = 'trip_pass' | 'lifetime';
+type Plan = 'trip_pass' | 'lifetime' | 'ai_topup';
 
 const VARIANT_ENV: Record<Plan, string> = {
   trip_pass: 'LEMON_SQUEEZY_VARIANT_TRIP',
   lifetime:  'LEMON_SQUEEZY_VARIANT_LIFETIME',
+  ai_topup:  'LEMON_SQUEEZY_VARIANT_AI_TOPUP',
 };
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -57,8 +59,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const plan = req.body.plan as Plan;
-  if (plan !== 'trip_pass' && plan !== 'lifetime') {
-    res.status(400).json({ error: 'invalid plan — must be trip_pass or lifetime' });
+  if (plan !== 'trip_pass' && plan !== 'lifetime' && plan !== 'ai_topup') {
+    res.status(400).json({ error: 'invalid plan — must be trip_pass, lifetime or ai_topup' });
     return;
   }
 
@@ -88,7 +90,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             // variant id. _billing.grantQuota dedupes on the order id.
             checkout_data: { custom: { uid, plan } },
             product_options: {
-              redirect_url: `${process.env.APP_URL ?? 'https://easy-on-the-road.vercel.app'}/?payment=success`,
+              // The app lives at /app (the marketing page owns /), so return the
+              // buyer to the app — not the landing page — after checkout.
+              redirect_url: `${process.env.APP_URL ?? 'https://easy-on-the-road.vercel.app'}/app?payment=success`,
             },
           },
           relationships: {
