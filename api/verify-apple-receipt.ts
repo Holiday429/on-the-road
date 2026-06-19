@@ -17,13 +17,13 @@
         will fire with the updated plan.
 
    SKU → product ID mapping (define in App Store Connect):
-     app.easyontheroad.trip_pass   → 'trip_pass'
-     app.easyontheroad.lifetime    → 'lifetime'
-     app.easyontheroad.ai_topup    → 'ai_topup'
+     com.holiday.On-the-Road.trip_pass   → 'trip_pass'
+     com.holiday.On-the-Road.lifetime    → 'lifetime'
+     com.holiday.On-the-Road.ai_topup    → 'ai_topup'
 
    Environment variables needed (already in .env for other endpoints):
      FIREBASE_SERVICE_ACCOUNT   — existing (used by _guard.ts / _billing.ts)
-     APPLE_BUNDLE_ID            — com.easyontheroad.app (set in Vercel)
+     APPLE_BUNDLE_ID            — com.holiday.On-the-Road (set in Vercel)
      APPLE_ISSUER_ID            — App Store Connect → Keys → Issuer ID (optional;
                                   only needed if you use server-to-server API;
                                   for JWS self-verification it's read from the cert)
@@ -36,11 +36,13 @@ import { grantQuota, type Sku } from './_billing.ts';
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse };
 
-// Map App Store product IDs → billing SKUs
+// Map App Store product IDs → billing SKUs.
+// Product IDs use the app's reverse-domain bundle ID (com.holiday.On-the-Road),
+// matching App Store Connect + PaywallStore.productIDs on the client.
 const PRODUCT_TO_SKU: Record<string, Sku> = {
-  'app.easyontheroad.trip_pass': 'trip_pass',
-  'app.easyontheroad.lifetime':  'lifetime',
-  'app.easyontheroad.ai_topup':  'ai_topup',
+  'com.holiday.On-the-Road.trip_pass': 'trip_pass',
+  'com.holiday.On-the-Road.lifetime':  'lifetime',
+  'com.holiday.On-the-Road.ai_topup':  'ai_topup',
 };
 
 // ── Apple JWS verification ────────────────────────────────────────────────────
@@ -116,7 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   // Validate bundle ID matches
-  const bundleId = process.env.APPLE_BUNDLE_ID ?? 'com.easyontheroad.app';
+  const bundleId = process.env.APPLE_BUNDLE_ID ?? 'com.holiday.On-the-Road';
   if (payload.bundleId && payload.bundleId !== bundleId) {
     console.warn('[apple-receipt] bundle mismatch uid=%s got=%s', uid, payload.bundleId);
     return res.status(400).json({ error: 'bad_request', message: 'Bundle ID mismatch.' });
