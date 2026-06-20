@@ -10,8 +10,12 @@
     "api/check.ts":           { "maxDuration": 30 },
     "api/create-checkout.ts": { "maxDuration": 15 },
     "api/billing-webhook.ts": { "maxDuration": 15 },
-    "api/places.ts":          { "maxDuration": 10 }
+    "api/places.ts":          { "maxDuration": 10 },
+    "api/send-reminders.ts":  { "maxDuration": 60 }
   },
+  "crons": [
+    { "path": "/api/send-reminders", "schedule": "0 9 * * *" }
+  ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/app",      "destination": "/app.html" },
