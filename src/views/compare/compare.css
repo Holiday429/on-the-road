@@ -113,6 +113,13 @@
   .cmp-type-pill-hint { display: none; }
 }
 
+/* Foldable cover screen / very narrow phones (~344px) */
+@media (max-width: 360px) {
+  .cmp-form-grid { grid-template-columns: 1fr; }
+  .cmp-field-wide { grid-column: auto; }
+  .cmp-type-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* ── Toolbar ─────────────────────────────────────────────────────────────── */
 .cmp-toolbar {
   display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-5);
