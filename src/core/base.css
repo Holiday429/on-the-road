@@ -324,9 +324,15 @@ body.otr-modal-open { overflow: hidden; }
 .otr-modal--sheet {
   border-radius: var(--r-2xl) var(--r-2xl) 0 0;
   animation: otrSheetIn var(--dur-mid) var(--ease-out);
+  /* Clear the home indicator so the footer / last row isn't covered. */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 @media (min-width: 720px) {
-  .otr-modal--sheet { border-radius: var(--r-2xl); margin: var(--sp-4); }
+  .otr-modal--sheet {
+    border-radius: var(--r-2xl);
+    margin: var(--sp-4);
+    padding-bottom: 0;
+  }
 }
 @keyframes otrModalIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
 @keyframes otrSheetIn { from { transform: translateY(100%) } to { transform: none } }
