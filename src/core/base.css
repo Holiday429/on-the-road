@@ -473,4 +473,15 @@ body.otr-modal-open { overflow: hidden; }
   .pack-item-tag[data-tooltip][data-tooltip-open]::after {
     opacity: 1 !important;
   }
+
+  /* iOS Safari zooms the page when focusing an input whose font is < 16px.
+     Bump form controls to 16px on touch so the layout stays put on focus. */
+  .input,
+  textarea.input,
+  select.input,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
