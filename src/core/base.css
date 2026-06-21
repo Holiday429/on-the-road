@@ -105,9 +105,20 @@
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  /* Kill the grey flash on tap; interactive states are handled in CSS. */
+  -webkit-tap-highlight-color: transparent;
+}
 
-html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  /* Guard against accidental horizontal scroll on narrow / foldable screens. */
+  overflow-x: hidden;
+}
 
 body {
   font-family: var(--font-body);
@@ -116,6 +127,7 @@ body {
   background: var(--surface-2);
   line-height: 1.6;
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 a { color: inherit; text-decoration: none; }
@@ -314,6 +326,9 @@ body.otr-modal-open { overflow: hidden; }
   max-width: 420px;
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
+  /* Don't let an inner scroll bleed into the page behind the modal. */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-lg);
 }
 .otr-modal--modal {
