@@ -5,7 +5,24 @@
       "Bash(npx vite build *)",
       "Bash(open http://localhost*)",
       "Bash(npm run dev)",
-      "Bash(npm run dev *)"
+      "Bash(npm run dev *)",
+      "Bash(firebase *)",
+      "Bash(gsutil *)",
+      "Bash(gcloud *)",
+      "Bash(PROJ=\"/Users/Holiday_1/Desktop/Growth/On the Road/On the Road/On the Road.xcodeproj/project.pbxproj\" *)",
+      "Bash(rm -rf OnTheRoad Package.swift .gitignore)",
+      "Bash(rm -f GoogleService-Info.plist)",
+      "Bash(xcodebuild -project \"On the Road.xcodeproj\" -scheme \"On the Road\" -destination \"id=09D12CCF-8639-4FE2-8C23-5B3C3C119813\" build)"
+    ],
+    "additionalDirectories": [
+      "/Users/Holiday_1/Desktop/Growth/On the Road/OnTheRoad/App",
+      "/Users/Holiday_1/Desktop/Growth/On the Road/OnTheRoad/Core/Firebase",
+      "/Users/Holiday_1/Desktop/Growth/On the Road/OnTheRoad/Features/Pack",
+      "/Users/Holiday_1/Desktop/Growth/On the Road/OnTheRoad/Features/Paywall",
+      "/Users/Holiday_1/Desktop/Growth/On the Road/docs",
+      "/Users/Holiday_1/Desktop/Growth/On the Road/On the Road/On the Road",
+      "/Users/Holiday_1/Desktop/Growth/On the Road/On the Road/On the Road.xcodeproj",
+      "/Users/Holiday_1/Desktop/Growth/On the Road/On the Road"
     ]
   }
 }

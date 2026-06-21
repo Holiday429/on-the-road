@@ -16,6 +16,7 @@ import { migrateStaysToCompares } from './data/migrate-stays.ts';
 import { migrateCollab, isCollabMigrated } from './data/migrate-collab.ts';
 import { migratePublicView } from './data/migrate-publicview.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
+import { initTouchTooltips } from './core/touch.ts';
 import { initDashboard } from './views/dashboard/dashboard.ts';
 import { initCalendar } from './views/calendar/calendar.ts';
 import { initPrep }     from './views/checklist/checklist.ts';
@@ -279,6 +280,7 @@ function enterApp() {
 function bootShellOnce() {
   if (shellBooted) return;
   initApp();
+  initTouchTooltips();
   shellBooted = true;
 }
 

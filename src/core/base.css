@@ -417,3 +417,39 @@ body.otr-modal-open { overflow: hidden; }
 }
 
 @media (max-width: 400px) { .paywall-plans { grid-template-columns: 1fr; } }
+
+/* ==========================================================================
+   Touch parity — devices without hover (phones / tablets)
+   On touch there is no :hover, so any action button or tooltip that is only
+   revealed on hover becomes unreachable. Force these to their visible state.
+   Keyed on `hover: none` (actual input capability), not viewport width, so a
+   mouse-driven narrow window keeps the clean hover-reveal behaviour.
+   ========================================================================== */
+@media (hover: none) {
+  /* Reveal-on-hover action clusters — keep them permanently visible */
+  .rd-note-color-picker,
+  .rd-note-del,
+  .rd-clip-card-actions,
+  .rd-clip-img-remove,
+  .rd-plan-tag-del,
+  .exp-cat-budget-btn,
+  .exp-tag-del,
+  .exp-stat-cta,
+  .journal-timeline-actions,
+  .journal-card-actions,
+  .prep-item .item-actions,
+  .sos-city-edit-btn,
+  .pack-item-tag .tag-action,
+  .cal-todos-add-cal,
+  .td-todo-add-cal {
+    opacity: 1 !important;
+  }
+
+  /* Hover-only tooltips: tapping the element toggles a `data-tooltip-open`
+     attribute (see core/touch.ts); show the bubble when that flag is set. */
+  .rd-plan-tag[data-tooltip][data-tooltip-open]::after,
+  .exp-tag-item[data-tooltip][data-tooltip-open]::after,
+  .pack-item-tag[data-tooltip][data-tooltip-open]::after {
+    opacity: 1 !important;
+  }
+}
