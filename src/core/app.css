@@ -1248,7 +1248,16 @@
   }
 }
 
-@media (max-width: 768px) {
+/* ── Auth screen: stack only on true phone widths ──────────────────────────
+   Foldables / small tablets (e.g. Galaxy Fold unfolded, iPad portrait) are
+   wide enough for the web-style side-by-side map + card, which reads far
+   better than a giant stacked map. Keep the safe-area top padding so the
+   card/map clear the status bar on every device. */
+.auth-screen {
+  padding-top: max(clamp(4px, 1vw, 12px), env(safe-area-inset-top));
+}
+
+@media (max-width: 700px) {
   .auth-screen {
     padding: calc(14px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
   }
@@ -1257,16 +1266,13 @@
     grid-template-columns: 1fr;
     min-height: auto;
     gap: 20px;
+    transform: none;
   }
 
   .auth-stage {
     max-width: none;
     justify-self: stretch;
     margin-bottom: var(--sp-3);
-  }
-
-  .auth-shell {
-    transform: none;
   }
 
   .stage-canvas {
@@ -1283,7 +1289,19 @@
     top: auto;
     width: 100%;
   }
+}
 
+/* Tablet / unfolded foldable: keep side-by-side but let the card shrink so it
+   never overflows the narrower 700–960px range. */
+@media (min-width: 701px) and (max-width: 960px) {
+  .auth-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    gap: clamp(20px, 3vw, 40px);
+  }
+}
+
+/* ── App shell goes mobile (bottom nav + safe areas) below tablet width ──── */
+@media (max-width: 768px) {
   #sidebar { display: none; }
   #main {
     margin-left: 0;
