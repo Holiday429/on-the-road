@@ -1414,7 +1414,9 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
           ${cat ? `<span class="rd-cat-badge" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
           <button class="rd-note-del rd-clip-preview-close" data-ed="close">✕</button>
         </div>
-        ${clipImages(clip).map(u => `<img class="rd-clip-preview-img" src="${esc(u)}" alt="">`).join('')}
+        ${(() => { const imgs = clipImages(clip); return imgs.length
+          ? `<div class="rd-clip-preview-gallery">${imgs.map(u => `<img class="rd-clip-preview-img" src="${esc(u)}" alt="" loading="lazy">`).join('')}</div>`
+          : ''; })()}
         ${clip.url
           ? `<a class="rd-clip-preview-title" href="${esc(/^https?:\/\//i.test(clip.url) ? clip.url : 'https://' + clip.url)}" target="_blank" rel="noopener">${esc(clip.title || clip.url)}</a>`
           : (clip.title ? `<div class="rd-clip-preview-title">${esc(clip.title)}</div>` : '')}
@@ -1425,6 +1427,17 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
         </div>
       </div>`;
     host.appendChild(dlg);
+    // Tag each image with its natural orientation so the gallery can lay out
+    // portrait shots 2-up and give every image its true aspect ratio.
+    dlg.querySelectorAll<HTMLImageElement>('.rd-clip-preview-img').forEach(img => {
+      const tag = () => {
+        const w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) return;
+        img.style.aspectRatio = `${w} / ${h}`;
+        img.classList.add(h > w * 1.1 ? 'is-portrait' : 'is-landscape');
+      };
+      if (img.complete) tag(); else img.addEventListener('load', tag, { once: true });
+    });
     const close = () => dlg.remove();
     dlg.querySelectorAll('[data-ed="close"]').forEach(b => b.addEventListener('click', close));
     dlg.addEventListener('click', e => { if (e.target === dlg) close(); });

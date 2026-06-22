@@ -653,11 +653,23 @@ a.rd-clip-card-title:hover { color: #0369a1; text-decoration: underline; }
 .rd-clip-preview-close {
   margin-left: auto; opacity: 1 !important;
 }
+.rd-clip-preview-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-2);
+}
 .rd-clip-preview-img {
   width: 100%; border-radius: var(--r-md);
-  object-fit: cover; max-height: 220px;
-  display: block;
+  object-fit: contain; display: block;
+  background: var(--surface-2, #f1f1f1);
+  /* Cap very tall images so a single portrait shot can't dominate the modal. */
+  max-height: min(60vh, 460px);
 }
+/* Portrait images sit 2-per-row; landscape/square images span the full width. */
+.rd-clip-preview-img.is-portrait { grid-column: span 1; }
+.rd-clip-preview-img.is-landscape { grid-column: 1 / -1; }
+/* A lone image always spans full width regardless of orientation. */
+.rd-clip-preview-gallery > .rd-clip-preview-img:only-child { grid-column: 1 / -1; }
 .rd-clip-preview-title {
   font-size: var(--fs-base); font-weight: 700;
   color: var(--ink); text-decoration: none; display: block;
