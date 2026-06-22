@@ -962,33 +962,54 @@ function renderWhereToGoWidget(): string {
       </div>`;
   }
 
-  const CATEGORIES: Array<{ key: string; icon: string }> = [
-    { key: 'attractions', icon: '🏛️' },
-    { key: 'restaurants', icon: '🍽️' },
-    { key: 'experiences', icon: '✨' },
-    { key: 'cafes',       icon: '☕' },
+  const CATEGORIES: Array<{ key: string; icon: string; type: string }> = [
+    { key: 'attractions', icon: '🏛️', type: 'attraction'  },
+    { key: 'restaurants', icon: '🍽️', type: 'restaurant'  },
+    { key: 'experiences', icon: '✨', type: 'experience'  },
+    { key: 'cafes',       icon: '☕', type: 'cafe'        },
   ];
+  const WTG_TINTS = ['#fef3c7','#dbeafe','#dcfce7','#fae8ff','#fee2e2','#ffedd5'];
+  const WTG_TYPE_EMOJI: Record<string,string> = { attraction:'🏛️', restaurant:'🍽️', cafe:'☕', experience:'✨' };
 
-  const picks: Array<{ icon: string; title: string; highlight?: string; cost?: string }> = [];
+  const picks: Array<{ icon: string; type: string; title: string; highlight?: string; cost?: string; imageUrl?: string; photographer?: string; photographerUrl?: string }> = [];
   for (const cat of CATEGORIES) {
     const arr = ((intel as any)[cat.key] as any[] | undefined) ?? [];
     for (const item of arr) {
-      if (item.title) picks.push({ icon: cat.icon, title: item.title, highlight: item.highlight, cost: item.cost });
+      if (item.title) picks.push({
+        icon: cat.icon, type: cat.type, title: item.title,
+        highlight: item.highlight, cost: item.cost,
+        imageUrl: item.imageUrl || '',
+        photographer: item.photographer || '',
+        photographerUrl: item.photographerUrl || '',
+      });
       if (picks.length >= 6) break;
     }
     if (picks.length >= 6) break;
   }
 
-  const cards = picks.map(c => `
-    <div class="td-whereto-card">
-      <div class="td-whereto-card-top">
-        <span class="td-whereto-type-icon">${c.icon}</span>
-        <button class="td-whereto-add-btn" data-wtg-add="${esc(c.title)}" title="Add to itinerary">+</button>
+  const cards = picks.map((c, idx) => {
+    const hasImg = !!c.imageUrl;
+    const tint = WTG_TINTS[idx % WTG_TINTS.length];
+    const emoji = WTG_TYPE_EMOJI[c.type] ?? c.icon;
+    const media = hasImg
+      ? `<div class="td-whereto-photo" style="background-image:url('${esc(c.imageUrl!)}')">
+          ${c.photographer ? `<a class="td-whereto-photo-credit" href="${esc(c.photographerUrl || '#')}" target="_blank" rel="noopener">${esc(c.photographer)} / Unsplash</a>` : ''}
+         </div>`
+      : `<div class="td-whereto-tint" style="--wtg-tint:${tint}"><span class="td-whereto-tint-emoji">${emoji}</span></div>`;
+    return `
+    <div class="td-whereto-card has-photo">
+      ${media}
+      <div class="td-whereto-card-body">
+        <div class="td-whereto-card-top">
+          <span class="td-whereto-type-icon">${c.icon}</span>
+          <button class="td-whereto-add-btn" data-wtg-add="${esc(c.title)}" title="Add to itinerary">+</button>
+        </div>
+        <div class="td-whereto-name">${esc(c.title)}</div>
+        ${c.cost ? `<div class="td-whereto-cost">${esc(c.cost)}</div>` : ''}
+        ${c.highlight ? `<div class="td-whereto-highlight">${esc(c.highlight)}</div>` : ''}
       </div>
-      <div class="td-whereto-name">${esc(c.title)}</div>
-      ${c.cost ? `<div class="td-whereto-cost">${esc(c.cost)}</div>` : ''}
-      ${c.highlight ? `<div class="td-whereto-highlight">${esc(c.highlight)}</div>` : ''}
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   return `
     <div class="td-widget td-w-whereto">

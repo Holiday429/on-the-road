@@ -448,7 +448,6 @@ body.otr-modal-open { overflow: hidden; }
    ========================================================================== */
 @media (hover: none) {
   /* Reveal-on-hover action clusters — keep them permanently visible */
-  .rd-note-color-picker,
   .rd-note-del,
   .rd-clip-card-actions,
   .rd-clip-img-remove,

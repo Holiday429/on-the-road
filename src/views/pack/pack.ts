@@ -878,45 +878,50 @@ function openFormulaModal() {
   })();
 
   const countryCount = [...new Set(_legs.map(l => l.country))].length;
-  const body = `
-    <p class="formula-intro">Based on your <strong>${totalDays}-day</strong> itinerary across <strong>${countryCount}</strong> ${countryCount === 1 ? 'country' : 'countries'}. Pick the items to add to a pack list.</p>
-    <div class="formula-groups">
-      ${groups.map(g => `
-        <div class="formula-group">
-          <div class="formula-group-header">
-            <span class="formula-group-icon">${g.icon}</span>
-            <span class="formula-group-title">${escHtml(g.title)}</span>
-            <label class="formula-select-all">
-              <input type="checkbox" class="formula-group-check" data-group="${escHtml(g.title)}" checked>
-              <span>All</span>
-            </label>
-          </div>
-          <div class="formula-items">
-            ${g.items.map((item, i) => `
-              <label class="formula-item">
-                <input type="checkbox" class="formula-item-check" checked
-                  data-group="${escHtml(g.title)}"
-                  data-name="${escHtml(item.text)}"
-                  data-qty="${item.qty}"
-                  data-cat="${escHtml(item.category)}"
-                  id="fi-${escHtml(g.title)}-${i}">
-                <div class="formula-item-body">
-                  <span class="formula-item-name">${escHtml(item.text)}</span>
-                  ${item.qty > 1 ? `<span class="formula-item-qty">× ${item.qty}</span>` : ''}
-                  <span class="formula-item-why">${escHtml(item.rationale)}</span>
-                </div>
-              </label>
-            `).join('')}
-          </div>
-        </div>
-      `).join('')}
+  const groupsHtml = groups.map(g => `
+    <div class="formula-group">
+      <div class="formula-group-header">
+        <span class="formula-group-icon">${g.icon}</span>
+        <span class="formula-group-title">${escHtml(g.title)}</span>
+        <label class="formula-select-all">
+          <input type="checkbox" class="formula-group-check" data-group="${escHtml(g.title)}" checked>
+          <span>All</span>
+        </label>
+      </div>
+      <div class="formula-items">
+        ${g.items.map((item, i) => `
+          <label class="formula-item">
+            <input type="checkbox" class="formula-item-check" checked
+              data-group="${escHtml(g.title)}"
+              data-name="${escHtml(item.text)}"
+              data-qty="${item.qty}"
+              data-cat="${escHtml(item.category)}"
+              id="fi-${escHtml(g.title)}-${i}">
+            <div class="formula-item-body">
+              <span class="formula-item-name">${escHtml(item.text)}</span>
+              ${item.qty > 1 ? `<span class="formula-item-qty">× ${item.qty}</span>` : ''}
+              <span class="formula-item-why">${escHtml(item.rationale)}</span>
+            </div>
+          </label>
+        `).join('')}
+      </div>
     </div>
-    <div class="formula-footer-target">
-      <label class="field-label" for="formula-target-list">Add to list</label>
-      <select class="input" id="formula-target-list">
-        ${_lists.map(l => `<option value="${escHtml(l.id)}">${escHtml(l.name)}</option>`).join('')}
-        <option value="__new__">+ Create new list</option>
-      </select>
+  `).join('');
+
+  const body = `
+    <div class="pack-formula-left">
+      <p class="formula-intro">Based on your <strong>${totalDays}-day</strong> itinerary across <strong>${countryCount}</strong> ${countryCount === 1 ? 'country' : 'countries'}. Pick items to add to a pack list.</p>
+      <div class="formula-groups">${groupsHtml}</div>
+    </div>
+    <div class="pack-formula-right">
+      <div class="pack-formula-right-title">Add to list</div>
+      <div class="formula-footer-target">
+        <label class="field-label" for="formula-target-list">Target list</label>
+        <select class="input" id="formula-target-list">
+          ${_lists.map(l => `<option value="${escHtml(l.id)}">${escHtml(l.name)}</option>`).join('')}
+          <option value="__new__">+ Create new list</option>
+        </select>
+      </div>
     </div>
   `;
 

@@ -233,10 +233,6 @@ function renderLegCard(leg: Leg): string {
           <div class="route-leg-flag">${leg.flag || '🗺️'}</div>
           <div class="route-leg-info">
             <div class="route-leg-city">${esc(leg.city)}</div>
-            <div class="route-leg-status-row">
-              <span class="route-status-dot"></span>
-              <span class="route-status-label">${status === 'active' ? tr('route.statusActive') : status === 'past' ? tr('route.statusPast') : tr('route.statusUpcoming')}</span>
-            </div>
           </div>
           <div class="route-leg-dates">
             <div>${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)}</div>
@@ -550,15 +546,18 @@ function renderNotesSection(leg: Leg): string {
       <div class="rd-note-card-head">
         <input class="rd-note-title-input" data-note-id="${esc(c.id)}" value="${esc(c.title)}" placeholder="Title…">
         <div class="rd-note-card-actions">
-          <div class="rd-note-color-picker" data-note-id="${esc(c.id)}">
-            ${NOTE_COLORS.map(col => `<button class="rd-note-color-swatch${col === color ? ' is-active' : ''}" data-color="${col}" data-note-id="${esc(c.id)}" style="background:${col}"></button>`).join('')}
+          <button class="rd-note-expand-btn" data-act="expand-note" data-note-id="${esc(c.id)}" title="View full note">↗</button>
+          <div class="rd-note-color-wrap" data-note-id="${esc(c.id)}">
+            <button class="rd-note-color-trigger" data-act="toggle-color" data-note-id="${esc(c.id)}" title="Note colour" style="background:${esc(color)}"></button>
+            <div class="rd-note-color-popover" data-note-id="${esc(c.id)}" hidden>
+              ${NOTE_COLORS.map(col => `<button class="rd-note-color-swatch${col === color ? ' is-active' : ''}" data-color="${col}" data-note-id="${esc(c.id)}" style="background:${col}"></button>`).join('')}
+            </div>
           </div>
           <button class="rd-note-del" data-act="del-note" data-note-id="${esc(c.id)}" title="Delete note">✕</button>
         </div>
       </div>
       <div class="rd-note-body-wrap">
         <textarea class="rd-note-body" data-note-id="${esc(c.id)}" placeholder="Write anything…">${esc(c.body)}</textarea>
-        <button class="rd-note-expand" data-act="expand-note" data-note-id="${esc(c.id)}" title="Expand">↗</button>
       </div>
     </div>`;
   }).join('');
@@ -1334,6 +1333,8 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     ta.style.height = Math.min(natural, MAX_NOTE_H) + 'px';
     const wrap = ta.closest<HTMLElement>('.rd-note-body-wrap');
     if (wrap) wrap.classList.toggle('is-overflow', natural > MAX_NOTE_H);
+    // Surface the expand button (in the head) only when the note is clipped.
+    ta.closest<HTMLElement>('.rd-note-card')?.classList.toggle('is-overflow', natural > MAX_NOTE_H);
   }
 
   timeline.querySelectorAll<HTMLTextAreaElement>('.rd-note-body').forEach(ta => {
@@ -1360,9 +1361,26 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     });
   });
 
-  // Color swatch picker
+  // Color picker — popover toggle so swatches never push the title
+  const closeColorPopovers = () => timeline.querySelectorAll<HTMLElement>('.rd-note-color-popover').forEach(p => { p.hidden = true; });
+  on('toggle-color', (el, e) => {
+    e.stopPropagation();
+    const id = el.dataset.noteId!;
+    const pop = timeline.querySelector<HTMLElement>(`.rd-note-color-popover[data-note-id="${id}"]`);
+    if (!pop) return;
+    const willOpen = pop.hidden;
+    closeColorPopovers();
+    pop.hidden = !willOpen;
+  });
+  // Click anywhere else in the detail view closes an open palette. Scoped to
+  // `timeline` (not document) so the listener dies when the view re-renders.
+  timeline.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('.rd-note-color-wrap')) closeColorPopovers();
+  });
+
   timeline.querySelectorAll<HTMLButtonElement>('.rd-note-color-swatch').forEach(sw => {
-    sw.addEventListener('click', () => {
+    sw.addEventListener('click', (e) => {
+      e.stopPropagation();
       const id = sw.dataset.noteId!;
       const color = sw.dataset.color!;
       const cards = legNoteCards(leg).map(c => c.id === id ? { ...c, color } : c);
@@ -1370,8 +1388,11 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
       const card = timeline.querySelector<HTMLElement>(`.rd-note-card[data-note-id="${id}"]`);
       if (card) {
         card.style.background = color;
+        const trigger = card.querySelector<HTMLElement>('.rd-note-color-trigger');
+        if (trigger) trigger.style.background = color;
         card.querySelectorAll<HTMLButtonElement>('.rd-note-color-swatch').forEach(s => s.classList.toggle('is-active', s.dataset.color === color));
       }
+      closeColorPopovers();
       saveNoteCards(cards);
     });
   });

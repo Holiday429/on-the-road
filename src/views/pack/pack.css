@@ -14,7 +14,7 @@
 
 /* ── Top row: weather card (≈3/4) + action buttons (≈1/4) ─────────────────── */
 .pack-top-row {
-  display: flex; align-items: stretch; gap: var(--sp-4);
+  display: flex; align-items: center; gap: var(--sp-3);
   margin-bottom: var(--sp-6);
   width: 100%; min-width: 0; max-width: 100%;
 }
@@ -22,13 +22,13 @@
 .pack-top-row--no-weather { justify-content: flex-end; }
 
 .pack-top-actions {
-  flex: 0 0 clamp(150px, 24%, 220px);
-  display: flex; flex-direction: column; gap: var(--sp-3);
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; gap: var(--sp-2);
 }
-.pack-top-row--no-weather .pack-top-actions { flex: 0 0 auto; flex-direction: row; }
-/* Buttons share the card's full height — split it evenly between the two. */
-.pack-top-btn { width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; }
-.pack-top-row--no-weather .pack-top-btn { width: auto; flex: 0 0 auto; }
+.pack-top-row--no-weather .pack-top-actions { flex-direction: row; }
+/* Buttons: normal button height, full column width */
+.pack-top-btn { width: 160px; }
+.pack-top-row--no-weather .pack-top-btn { width: auto; }
 
 /* Weather card */
 .pack-weather-card {
@@ -534,14 +534,45 @@
 .formula-item-name { font-size: var(--fs-base); color: var(--ink); }
 .formula-item-qty { font-size: var(--fs-sm); color: var(--accent); font-weight: 600; }
 .formula-item-why { font-size: var(--fs-sm); color: var(--ink-muted); line-height: 1.4; }
-.formula-footer-target { margin-top: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); }
+.formula-footer-target { display: flex; flex-direction: column; gap: var(--sp-2); }
 
-/* Pack-formula modal — matches the create-new-trip card aesthetic. */
-.otr-modal.pack-formula-modal { max-width: 460px; }
+/* ── Pack-formula modal — wide landscape card, two-column layout ─────────── */
+.otr-modal.pack-formula-modal {
+  max-width: 820px;
+}
+
+/* The modal body becomes a horizontal split */
+.pack-formula-modal .otr-modal-body {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 0;
+  padding: 0;
+  align-items: stretch;
+}
+
+/* Left column: intro + scrollable groups */
+.pack-formula-left {
+  padding: var(--sp-5);
+  border-right: 1px solid var(--rule-soft);
+  overflow-y: auto;
+  max-height: calc(100dvh - 160px);
+}
+
+/* Right column: sticky "add to list" target */
+.pack-formula-right {
+  padding: var(--sp-5);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+}
+.pack-formula-right-title {
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink-muted);
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+
 .pack-formula-modal .formula-intro {
   margin: 0 0 var(--sp-4);
   padding-bottom: var(--sp-4);
   border-bottom: 1px solid var(--rule-soft);
+  font-size: var(--fs-sm); color: var(--ink-muted);
 }
 .pack-formula-modal .formula-group {
   border: 1.5px solid var(--rule-soft);
@@ -550,4 +581,9 @@
 .pack-formula-modal .formula-group-header { background: var(--surface-2); }
 .pack-formula-modal .formula-footer-target .field-label {
   font-weight: 600; color: var(--ink-muted); font-size: var(--fs-sm);
+}
+
+@media (max-width: 640px) {
+  .pack-formula-modal .otr-modal-body { grid-template-columns: 1fr; }
+  .pack-formula-left { border-right: none; border-bottom: 1px solid var(--rule-soft); max-height: 50dvh; }
 }
