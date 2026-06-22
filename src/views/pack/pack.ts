@@ -92,6 +92,11 @@ let activeId: string | null = null;
 let packCheckMode = false;
 let weightUnit: WeightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
 
+// Weather card: which upcoming leg is selected, plus a per-city fetch cache.
+let weatherLegId: string | null = null;
+type WeatherInfo = { icon: string; tempHigh: string; tempLow: string; desc: string };
+const _weatherCache = new Map<string, WeatherInfo | 'loading'>();
+
 let _lists: StoredPackList[] = [];
 let _kit: StoredCoreKitItem[] = [];
 let _legs: StoredLeg[] = [];
@@ -200,31 +205,106 @@ function render() {
   else { screen = 'list'; renderList(body); }
 }
 
-/* ── Trip itinerary bar ──────────────────────────────────────────────────── */
+/* ── Weather (wttr.in JSON, shared icon table with dashboard) ─────────────── */
 
-function renderTripBar(): string {
+const WEATHER_ICONS: Record<string, string> = {
+  '113': '☀️', '116': '⛅', '119': '☁️', '122': '☁️',
+  '143': '🌫️', '176': '🌦️', '179': '🌨️', '182': '🌧️',
+  '185': '🌧️', '200': '⛈️', '227': '🌨️', '230': '❄️',
+  '248': '🌫️', '260': '🌫️', '263': '🌦️', '266': '🌦️',
+  '281': '🌧️', '284': '🌧️', '293': '🌦️', '296': '🌦️',
+  '299': '🌧️', '302': '🌧️', '305': '🌧️', '308': '🌧️',
+  '311': '🌧️', '314': '🌧️', '317': '🌧️', '320': '🌨️',
+  '323': '🌨️', '326': '🌨️', '329': '❄️', '332': '❄️',
+  '335': '❄️', '338': '❄️', '350': '🌧️', '353': '🌦️',
+  '356': '🌧️', '359': '🌧️', '362': '🌧️', '365': '🌧️',
+  '368': '🌨️', '371': '❄️', '374': '🌧️', '377': '🌧️',
+  '386': '⛈️', '389': '⛈️', '392': '⛈️', '395': '⛈️',
+};
+
+async function fetchWeather(city: string): Promise<void> {
+  if (!city || _weatherCache.has(city)) return;
+  _weatherCache.set(city, 'loading');
+  try {
+    const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) { _weatherCache.delete(city); return; }
+    const data = await res.json();
+    const cur  = data?.current_condition?.[0];
+    if (!cur) { _weatherCache.delete(city); return; }
+    const code = String(cur.weatherCode ?? '113');
+    const icon = WEATHER_ICONS[code] ?? '🌡️';
+    const todayForecast = data?.weather?.[0];
+    const tempHigh = todayForecast?.maxtempC != null ? `${todayForecast.maxtempC}°` : `${cur.temp_C ?? '?'}°`;
+    const tempLow  = todayForecast?.mintempC != null ? `${todayForecast.mintempC}°` : '';
+    const desc = cur.weatherDesc?.[0]?.value ?? '';
+    _weatherCache.set(city, { icon, tempHigh, tempLow, desc });
+    render();
+  } catch { _weatherCache.delete(city); /* silent — weather is decorative */ }
+}
+
+/* ── Upcoming-weather card ───────────────────────────────────────────────── */
+
+/** Upcoming legs (today onward) for the weather card; falls back to every leg
+ *  if the trip is already over so the card still lists the whole itinerary. */
+function upcomingLegs(): StoredLeg[] {
   const tripId = currentTripId();
-  if (!tripId) return '';
+  if (!tripId) return [];
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = routeStore.peek()
-    .filter((l) => l.tripId === tripId && l.dateTo >= today)
-    .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom))
-    .slice(0, 6);
-  if (!upcoming.length) return '';
+  const all = routeStore.peek()
+    .filter((l) => l.tripId === tripId)
+    .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  const upcoming = all.filter((l) => l.dateTo >= today);
+  return upcoming.length ? upcoming : all;
+}
 
-  const chips = upcoming.map((l) => {
-    const weatherUrl = `https://www.google.com/search?q=weather+${encodeURIComponent(l.city)}`;
-    return `<a class="pack-trip-chip" href="${weatherUrl}" target="_blank" rel="noopener" title="Check weather in ${escHtml(l.city)}">
-      <span class="pack-trip-chip-flag">${escHtml(l.flag || '🗺️')}</span>
-      <span class="pack-trip-chip-city">${escHtml(l.city)}</span>
-      <span class="pack-trip-chip-date">${escHtml(l.dateFrom.slice(5))}</span>
-    </a>`;
-  }).join('');
+function renderWeatherCard(): string {
+  const legs = upcomingLegs();
+  if (!legs.length) return '';
 
-  return `<div class="pack-trip-bar">
-    <span class="pack-trip-bar-label">Upcoming</span>
-    <div class="pack-trip-chips">${chips}</div>
-    <span class="pack-trip-bar-hint">${t('pack.tripBarHint')}</span>
+  // Default to the first upcoming leg; keep selection valid if legs change.
+  if (!weatherLegId || !legs.some(l => l.id === weatherLegId)) {
+    weatherLegId = legs[0].id;
+  }
+  const active = legs.find(l => l.id === weatherLegId) ?? legs[0];
+
+  void fetchWeather(active.city);
+  const w = _weatherCache.get(active.city);
+
+  const main = w && w !== 'loading'
+    ? `<div class="pack-weather-icon">${w.icon}</div>
+       <div class="pack-weather-temps">
+         <span class="pack-weather-high">${escHtml(w.tempHigh)}</span>
+         ${w.tempLow ? `<span class="pack-weather-low">/ ${escHtml(w.tempLow)}</span>` : ''}
+       </div>
+       ${w.desc ? `<div class="pack-weather-desc">${escHtml(w.desc)}</div>` : ''}`
+    : `<div class="pack-weather-icon pack-weather-icon--loading">🌡️</div>
+       <div class="pack-weather-temps"><span class="pack-weather-high">…</span></div>`;
+
+  // Other upcoming cities collapse into a chip rail the user can tap to switch.
+  const others = legs.filter(l => l.id !== active.id);
+  const rail = others.length
+    ? `<div class="pack-weather-rail">
+        ${others.map(l => `
+          <button class="pack-weather-chip" data-weather-leg="${l.id}" title="Weather in ${escHtml(l.city)}">
+            <span class="pack-weather-chip-flag">${escHtml(l.flag || '🗺️')}</span>
+            <span class="pack-weather-chip-city">${escHtml(l.city)}</span>
+            <span class="pack-weather-chip-date">${escHtml(l.dateFrom.slice(5))}</span>
+          </button>`).join('')}
+      </div>`
+    : '';
+
+  return `<div class="pack-weather-card">
+    <div class="pack-weather-main">
+      <div class="pack-weather-place">
+        <span class="pack-weather-flag">${escHtml(active.flag || '🗺️')}</span>
+        <div class="pack-weather-place-text">
+          <span class="pack-weather-city">${escHtml(active.city)}</span>
+          <span class="pack-weather-date">${escHtml(active.dateFrom.slice(5))}${active.country ? ` · ${escHtml(active.country)}` : ''}</span>
+        </div>
+      </div>
+      <div class="pack-weather-readout">${main}</div>
+    </div>
+    ${rail}
   </div>`;
 }
 
@@ -232,11 +312,14 @@ function renderTripBar(): string {
 
 function renderList(c: HTMLElement) {
   const kitTotal = _kit.reduce((s, k) => s + k.weightG, 0);
+  const weatherCard = renderWeatherCard();
   c.innerHTML = `
-    ${renderTripBar()}
-    <div class="pack-action-bar">
-      <button class="btn btn-primary" id="pk-new">${t('pack.btnNewList')}</button>
-      ${_legs.length > 0 ? `<button class="btn btn-ghost" id="pk-formula">${t('pack.btnFormula')}</button>` : ''}
+    <div class="pack-top-row${weatherCard ? '' : ' pack-top-row--no-weather'}">
+      ${weatherCard}
+      <div class="pack-top-actions">
+        ${_legs.length > 0 ? `<button class="btn btn-ghost pack-top-btn" id="pk-formula">${t('pack.btnFormula')}</button>` : ''}
+        <button class="btn btn-primary pack-top-btn" id="pk-new">${t('pack.btnNewList')}</button>
+      </div>
     </div>
 
     ${_lists.length === 0 ? `
@@ -794,8 +877,9 @@ function openFormulaModal() {
     return Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
   })();
 
+  const countryCount = [...new Set(_legs.map(l => l.country))].length;
   const body = `
-    <p class="formula-intro">Based on your ${totalDays}-day itinerary across ${[...new Set(_legs.map(l => l.country))].length} countries. Select items to add to a pack list.</p>
+    <p class="formula-intro">Based on your <strong>${totalDays}-day</strong> itinerary across <strong>${countryCount}</strong> ${countryCount === 1 ? 'country' : 'countries'}. Pick the items to add to a pack list.</p>
     <div class="formula-groups">
       ${groups.map(g => `
         <div class="formula-group">
@@ -838,7 +922,8 @@ function openFormulaModal() {
 
   const m = openModal({
     title: t('pack.formulaTitle'),
-    variant: 'sheet',
+    variant: 'modal',
+    className: 'pack-formula-modal',
     body,
     footer: `
       <button class="btn btn-ghost" data-act="cancel">Cancel</button>
@@ -892,6 +977,14 @@ function openFormulaModal() {
 function bindList(c: HTMLElement) {
   c.querySelector('#pk-new')?.addEventListener('click', () => openNewListModal());
   c.querySelector('#pk-formula')?.addEventListener('click', () => openFormulaModal());
+
+  /* Weather card: tap a collapsed city chip to switch the shown forecast */
+  c.querySelectorAll<HTMLElement>('[data-weather-leg]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      weatherLegId = btn.dataset.weatherLeg!;
+      render();
+    });
+  });
 
   /* Unit selector */
   c.querySelector<HTMLSelectElement>('#pk-unit-sel')?.addEventListener('change', e => {
@@ -1255,6 +1348,7 @@ export function initPack() {
   screen = intent?.listId ? 'detail' : 'list';
   activeId = intent?.listId ?? null;
   packCheckMode = false;
+  weatherLegId = null;
   weightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
   startSubscriptions();
 }

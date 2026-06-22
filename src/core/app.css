@@ -1045,6 +1045,7 @@
 #main {
   margin-left: var(--sidebar-w);
   flex: 1;
+  min-width: 0; /* let flex children (e.g. scrollable rails) shrink instead of overflowing the viewport */
   min-height: 100dvh;
   transition: margin-left var(--dur-mid) var(--ease-out);
 }
