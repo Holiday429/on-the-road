@@ -732,6 +732,16 @@ a.rd-clip-preview-title:hover { color: #0369a1; text-decoration: underline; }
   overflow: hidden;
   min-width: 0;
 }
+
+/* Phones / narrow foldables: stack the unassigned panel below the board so it
+   doesn't steal width from the day-columns. */
+@media (max-width: 720px) {
+  .rd-plan-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .rd-plan-sidebar { min-height: 120px; }
+}
 .rd-plan-sidebar {
   display: flex; flex-direction: column;
   background: #fffbf0;
@@ -849,16 +859,30 @@ a.rd-clip-preview-title:hover { color: #0369a1; text-decoration: underline; }
 /* ── Plan Board view ─────────────────────────────────────────────────────── */
 .rd-plan-board-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
+/* Fit as many day-columns per row as can hold a readable width, instead of
+   forcing 4 equal columns that crush to one-letter-per-line on phones.
+   --rd-col-min sets the comfortable minimum and steps down with the viewport:
+   ~4-up on desktop, 2-up on tablets/foldables, 1-up on phones. */
 .rd-plan-columns {
+  --rd-col-min: 200px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--rd-col-min), 1fr));
   gap: var(--sp-3);
   align-items: start;
   width: 100%;
 }
 .rd-plan-day-col {
   min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .rd-plan-columns { --rd-col-min: 240px; }
+}
+@media (max-width: 560px) {
+  /* One column per row on phones — full width, no vertical-letter squeeze. */
+  .rd-plan-columns { --rd-col-min: 100%; }
 }
 .rd-plan-day-head {
   margin-bottom: var(--sp-2);
