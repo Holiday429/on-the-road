@@ -23,65 +23,15 @@ import type { PackList, PackItem, PackContainer, PackPriority } from '../../data
 import { escHtml } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 import { consumeNavIntent } from '../../core/app.ts';
+import {
+  PACK_CATEGORIES, DEFAULT_CATEGORY, categoryColor, categoryLabel, categoryOptions,
+  type WeightUnit, WEIGHT_UNITS, toGrams, displayWeight,
+  KINDS, PRIORITIES, priRank, kindLabel,
+  num, genLocalId, containerWeight, listTotalWeight, isOver,
+} from './pack-helpers.ts';
 
-/* ── Item categories ─────────────────────────────────────────────────────── */
-// Colors: NOTE_PALETTE tones extended with a few extra muted hues.
-// Each category gets a fixed pastel background so tags are instantly readable.
-export const PACK_CATEGORIES: { label: string; value: string; color: string; icon: string }[] = [
-  { value: 'electronics', label: 'Electronics',  color: '#e2edf3', icon: '💻' },
-  { value: 'clothing',    label: 'Clothing',      color: '#ece2f3', icon: '👕' },
-  { value: 'toiletries',  label: 'Toiletries',    color: '#e2f3ec', icon: '🧴' },
-  { value: 'documents',   label: 'Documents',     color: '#f3ede2', icon: '📄' },
-  { value: 'health',      label: 'Health & Med',  color: '#f3e6e6', icon: '💊' },
-  { value: 'feminine',    label: 'Feminine',      color: '#f0e2f3', icon: '🌸' },
-  { value: 'consumables', label: 'Consumables',   color: '#e6f3e6', icon: '🧹' },
-  { value: 'food',        label: 'Food',          color: '#f3f0e2', icon: '🍜' },
-  { value: 'gifts',       label: 'Gifts',         color: '#f3e2e8', icon: '🎁' },
-  { value: 'other',       label: 'Other',         color: '#ebebeb', icon: '📦' },
-];
-
-const DEFAULT_CATEGORY = 'other';
-
-function categoryColor(value: string): string {
-  return PACK_CATEGORIES.find(c => c.value === value)?.color ?? '#ebebeb';
-}
-
-function categoryLabel(value: string): string {
-  return PACK_CATEGORIES.find(c => c.value === value)?.label ?? value;
-}
-
-function categoryOptions(selected = DEFAULT_CATEGORY): string {
-  return PACK_CATEGORIES.map(c =>
-    `<option value="${c.value}" ${c.value === selected ? 'selected' : ''}>${c.icon} ${c.label}</option>`
-  ).join('');
-}
-
-/* ── Weight unit support ─────────────────────────────────────────────────── */
-
-type WeightUnit = 'kg' | 'g' | 'lb' | 'jin';
-
-const WEIGHT_UNITS: { value: WeightUnit; label: string }[] = [
-  { value: 'kg', label: 'kg' },
-  { value: 'g',  label: 'g' },
-  { value: 'lb', label: 'lb' },
-  { value: 'jin', label: '斤 (jin)' },
-];
-
-// Converts a value in the given unit to grams.
-function toGrams(val: number, unit: WeightUnit): number {
-  if (unit === 'g')   return val;
-  if (unit === 'lb')  return val * 453.592;
-  if (unit === 'jin') return val * 500;
-  return val * 1000; // kg
-}
-
-// Displays grams in the user's preferred unit.
-function displayWeight(g: number, unit: WeightUnit): string {
-  if (unit === 'g')   return `${Math.round(g)}g`;
-  if (unit === 'lb')  return `${(g / 453.592).toFixed(1)}lb`;
-  if (unit === 'jin') return `${(g / 500).toFixed(2)}斤`;
-  return `${(g / 1000).toFixed(g % 1000 === 0 ? 0 : 1)}kg`;
-}
+// Re-export the public helpers other views import from this module.
+export { PACK_CATEGORIES, listTotalWeight };
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -109,25 +59,6 @@ let _unsubLegs: (() => void) | null = null;
 let _tripLists: StoredPackList[] = [];
 let _standaloneLists: StoredPackList[] = [];
 
-const KINDS: { value: PackContainer['kind']; label: string }[] = [
-  { value: 'backpack', label: 'Backpack' },
-  { value: 'suitcase', label: 'Suitcase' },
-  { value: 'personal', label: 'Personal' },
-];
-
-const PRIORITIES: { value: PackPriority; label: string }[] = [
-  { value: 'essential', label: 'Essential' },
-  { value: 'nice', label: 'Nice' },
-  { value: 'optional', label: 'Optional' },
-];
-
-// Lower rank = drop first when over weight. Falls back gracefully for any
-// legacy/unknown priority value read off an old document.
-const PRIORITY_RANK: Record<PackPriority, number> = { optional: 0, nice: 1, essential: 2 };
-function priRank(p: PackItem['priority']): number {
-  return PRIORITY_RANK[p as PackPriority] ?? 1;
-}
-
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
 function getRoot(): HTMLElement | null {
@@ -136,38 +67,6 @@ function getRoot(): HTMLElement | null {
 
 function activeList(): StoredPackList | undefined {
   return activeId ? _lists.find(l => l.id === activeId) : undefined;
-}
-
-function num(v: string, fallback = 0): number {
-  const n = parseFloat(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function kindLabel(kind: PackContainer['kind']): string {
-  return KINDS.find(k => k.value === kind)?.label ?? kind;
-}
-
-/** Total weight inside a container = its items + the empty bag's own weight. */
-function containerWeight(list: PackList, c: PackContainer): number {
-  const items = list.items
-    .filter(it => it.containerId === c.id)
-    .reduce((sum, it) => sum + itemWeightG(it), 0);
-  return items + c.selfWeightG;
-}
-
-/** Whole-list weight = every item + every bag's self-weight (Unassigned counts items only). */
-export function listTotalWeight(list: PackList): number {
-  const items = list.items.reduce((s, it) => s + itemWeightG(it), 0);
-  const bags = list.containers.reduce((s, c) => s + c.selfWeightG, 0);
-  return items + bags;
-}
-
-function isOver(list: PackList, c: PackContainer): boolean {
-  return c.limitG > 0 && containerWeight(list, c) > c.limitG;
-}
-
-function genLocalId(): string {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 /* ── Subscriptions ───────────────────────────────────────────────────────── */
