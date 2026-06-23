@@ -37,18 +37,10 @@ import {
   lastUsed, legCountries, legCitiesFor, defaultPlace, defaultCurrency,
   convert, addExpenseWithDefaults, COUNTRY_CURRENCY,
 } from './expense-defaults.ts';
-
-interface Category { id: string; label: string; icon: string; color: string; builtin: boolean; }
-
-const BUILTIN_CATEGORIES: Category[] = [
-  { id: 'accommodation', label: 'Stay',      icon: '🏠', color: '#ddeeff', builtin: true }, // sky blue
-  { id: 'food',          label: 'Food',      icon: '🍜', color: '#fdf3dd', builtin: true }, // warm yellow
-  { id: 'transport',     label: 'Transport', icon: '🚆', color: '#d1f5e8', builtin: true }, // mint green
-  { id: 'activities',    label: 'Activities',icon: '🎭', color: '#fce4e4', builtin: true }, // coral pink
-  { id: 'shopping',      label: 'Shopping',  icon: '🛍️', color: '#ede8fb', builtin: true }, // soft purple
-  { id: 'health',        label: 'Health',    icon: '💊', color: '#ffecd6', builtin: true }, // peach
-  { id: 'misc',          label: 'Misc',      icon: '📌', color: '#e8e8e8', builtin: true }, // neutral
-];
+import {
+  type Category, BUILTIN_CATEGORIES, UNCLASSIFIED,
+  type AnalysisDim, type BudgetTab, ANALYSIS_DIMS, nightCount,
+} from './expense-helpers.ts';
 
 /** Built-ins followed by the user's custom categories (sorted). */
 function categories(): Category[] {
@@ -61,8 +53,6 @@ function categories(): Category[] {
 function categoryById(id: string): Category | undefined {
   return categories().find((c) => c.id === id);
 }
-
-const UNCLASSIFIED = '';
 
 let expenses: StoredExpense[] = [];
 let legs: StoredLeg[] = [];
@@ -86,21 +76,7 @@ let unsubLegs: (() => void) | null = null;
 let unsubCategories: (() => void) | null = null;
 let unsubTripChange: (() => void) | null = null;
 
-type AnalysisDim = 'category' | 'place' | 'time';
-type BudgetTab = 'total' | 'country' | 'category';
-const ANALYSIS_DIMS: { id: AnalysisDim }[] = [
-  { id: 'category' },
-  { id: 'place' },
-  { id: 'time' },
-];
-
 /* ── Leg-aware helpers ───────────────────────────────────────────────────── */
-
-/** Nights stayed: dateFrom is check-in, dateTo is check-out (not counted). */
-function nightCount(fromIso: string, toIso: string): number {
-  const ms = new Date(toIso).getTime() - new Date(fromIso).getTime();
-  return Math.max(1, Math.round(ms / 86400000));
-}
 
 /** Nights the itinerary allocates to a country/city, from its legs. Falls back to
  *  the number of distinct expense dates for the place if no leg covers it. */
