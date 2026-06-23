@@ -741,6 +741,11 @@ a.rd-clip-preview-title:hover { color: #0369a1; text-decoration: underline; }
   min-height: 380px;
   padding: var(--sp-3) var(--sp-4) var(--sp-4);
 }
+/* In map view the day list lives inside rd-plan-main, so the outer Unassigned
+   column can shrink to give the map more room. */
+.rd-plan-layout:has(.rd-plan-map-layout) {
+  grid-template-columns: 1fr 168px;
+}
 .rd-plan-main {
   overflow: hidden;
   min-width: 0;
@@ -1367,21 +1372,21 @@ a.rd-clip-title:hover { color: #0369a1; text-decoration: underline; }
 /* ── Plan Map view ───────────────────────────────────────────────────────── */
 .rd-plan-map-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 240px;
-  gap: var(--sp-4);
+  grid-template-columns: minmax(0, 1.85fr) minmax(170px, 0.6fr);
+  gap: var(--sp-3);
   align-items: start;
-  min-height: 400px;
+  min-height: 460px;
 }
 .rd-plan-map-tile {
-  height: 400px;
+  height: 460px;
   border-radius: var(--r-xl);
   overflow: hidden;
   border: 1px solid var(--rule-soft);
   box-shadow: var(--shadow-sm);
-  min-height: 260px;
+  min-height: 300px;
 }
 .rd-plan-map-panel {
-  display: flex; flex-direction: column; gap: var(--sp-3); max-height: 400px; overflow: hidden;
+  display: flex; flex-direction: column; gap: var(--sp-3); max-height: 460px; overflow: hidden;
 }
 .rd-pmap-header {
   display: flex; align-items: center; gap: var(--sp-3); flex-shrink: 0;
@@ -1478,9 +1483,9 @@ a.rd-clip-title:hover { color: #0369a1; text-decoration: underline; }
 }
 
 @media (max-width: 640px) {
-  .rd-plan-map-layout { grid-template-columns: 1fr; }
-  .rd-plan-map-tile { height: 260px; }
-  .rd-plan-map-panel { max-height: 200px; }
+  .rd-plan-map-layout { grid-template-columns: 1fr; min-height: 0; }
+  .rd-plan-map-tile { height: 300px; }
+  .rd-plan-map-panel { max-height: 220px; }
 }
 
 /* ==========================================================================
