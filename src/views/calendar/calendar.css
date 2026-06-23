@@ -70,6 +70,11 @@
 .cal-cell {
   position: relative;
   min-height: 96px;
+  /* Keep every 1fr track equal: without min-width:0 a cell's content (event
+     chips) sets an intrinsic min-content width that blows the track out and
+     squeezes the empty days into a sliver. */
+  min-width: 0;
+  overflow: hidden;
   padding: 6px 5px 5px;
   border-radius: var(--r-md);
   background: var(--surface);
@@ -393,3 +398,14 @@
   background: var(--surface-3); border-radius: var(--r-sm); padding: 1px 6px;
 }
 .cal-todo-due.is-overdue { background: #fee2e2; color: var(--coral-600); font-weight: 700; }
+
+/* ── Phone / narrow PWA: keep the 7-col grid fitting without horizontal scroll
+   by tightening cell chrome. The cells stay equal-width (min-width:0 above);
+   this just buys back legibility at ~390–500px widths. */
+@media (max-width: 560px) {
+  .cal-grid { gap: 2px; }
+  .cal-cell { min-height: 64px; padding: 4px 3px 3px; }
+  .cal-hdr { font-size: 9px; padding: 2px 0 4px; }
+  .cal-daynum { font-size: 11px; }
+  .cal-chip, .cal-leg-label { font-size: 9px; padding: 1px 3px; }
+}
