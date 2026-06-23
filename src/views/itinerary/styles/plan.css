@@ -268,9 +268,11 @@
   font-size: var(--fs-xs); color: var(--ink-muted);
   background: var(--surface-3); padding: 1px 7px; border-radius: var(--r-full);
 }
-.rd-plan-cat-rows { display: flex; flex-direction: column; gap: var(--sp-1); }
+/* Wrap rows: pack multiple short items per line, each sized to its content. */
+.rd-plan-cat-rows { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .rd-plan-cat-row {
-  display: flex; align-items: center; gap: var(--sp-2);
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  max-width: 100%;
   padding: var(--sp-2) var(--sp-3);
   background: var(--surface-2);
   border: 1px solid var(--rule-soft);
@@ -279,7 +281,10 @@
 }
 .rd-plan-cat-row.is-done { opacity: 0.5; }
 .rd-plan-cat-row.is-done .rd-plan-cat-title { text-decoration: line-through; }
-.rd-plan-cat-title { flex: 1; font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
+.rd-plan-cat-title {
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .rd-plan-cat-day {
   font-size: var(--fs-xs); color: var(--ink-muted);
   background: var(--surface-3); padding: 1px 7px; border-radius: var(--r-full);
