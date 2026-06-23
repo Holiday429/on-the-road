@@ -95,11 +95,41 @@
 }
 .td-hero-left { flex: 1; min-width: 0; }
 .td-hero-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
   font-family: var(--font-ui);
   font-size: var(--fs-xl);
   font-weight: 700;
   color: var(--ink);
   line-height: 1.2;
+  /* reset <button> chrome */
+  margin: 0;
+  padding: 2px 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.td-hero-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.td-hero-name-caret {
+  flex-shrink: 0;
+  font-size: 0.7em;
+  color: var(--ink-soft);
+  transition: transform var(--dur-fast, 0.15s) ease;
+  /* The sidebar pill is the primary trip switcher on desktop; only surface the
+     caret affordance on mobile/PWA, where the sidebar is hidden. */
+  display: none;
+}
+.td-hero-name:hover .td-hero-name-caret { color: var(--accent-deep); }
+@media (max-width: 768px) {
+  .td-hero-name-caret { display: inline; }
 }
 .td-hero-anchor {
   font-size: var(--fs-sm);
@@ -139,6 +169,10 @@
   gap: var(--sp-4);
   align-items: start;
 }
+
+/* All grid items: prevent intrinsic content width from blowing out 1fr tracks
+   (default min-width:auto makes columns unequal when content can't shrink). */
+.td-grid > * { min-width: 0; }
 
 /* Row 1: exact thirds */
 .td-w-currency { grid-column: 1 / span 4; align-self: stretch; }
@@ -518,7 +552,16 @@
 }
 .td-jq-btn:hover { background: var(--amber-50); border-color: var(--amber-200); }
 .td-jq-icon  { font-size: 22px; line-height: 1; }
-.td-jq-label { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600; color: var(--ink-soft); }
+.td-jq-label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* Journal composer modal */
 .td-compose-body { display: flex; flex-direction: column; gap: var(--sp-3); }

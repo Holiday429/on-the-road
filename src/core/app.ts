@@ -128,10 +128,13 @@ function refreshRequestSubscription() {
 }
 
 // ── Trip popover (floating panel rendered into <body>) ────────────────────────
-function openTripPopover() {
+// `anchor` is the element to position the panel against. Defaults to the sidebar
+// trip pill; the mobile dashboard banner passes its own anchor so the same menu
+// works when the sidebar is hidden (PWA / phone).
+function openTripPopover(anchor?: HTMLElement | null) {
   closeTripPopover();
 
-  const pill = document.getElementById('trip-pill');
+  const pill = anchor ?? document.getElementById('trip-pill');
   const rect = pill?.getBoundingClientRect();
 
   const backdrop = document.createElement('div');
@@ -142,13 +145,20 @@ function openTripPopover() {
   panel.id = 'trip-popover';
   panel.setAttribute('role', 'menu');
 
-  // Position below pill, clamped so the 280px panel stays on-screen
+  // Position below the anchor, clamped so the 280px panel stays on-screen.
+  // Prefer dropping below; if that would overflow the viewport bottom (e.g. a
+  // banner low on a short landscape screen), flip above the anchor instead.
   if (rect) {
     const PANEL_W = 280;
-    const top  = rect.bottom + 8;
-    const left = Math.min(rect.left, window.innerWidth - PANEL_W - 8);
-    panel.style.top  = `${top}px`;
+    const left = Math.min(Math.max(8, rect.left), window.innerWidth - PANEL_W - 8);
+    const below = rect.bottom + 8;
+    const flipUp = below + 320 > window.innerHeight && rect.top > window.innerHeight / 2;
     panel.style.left = `${left}px`;
+    if (flipUp) {
+      panel.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+    } else {
+      panel.style.top = `${below}px`;
+    }
   }
 
   const activeId = currentTrip()?.id;
@@ -259,6 +269,22 @@ function openTripPopover() {
 function closeTripPopover() {
   document.getElementById('trip-popover-backdrop')?.remove();
   document.getElementById('trip-popover')?.remove();
+}
+
+/** Open the trip switcher / share menu anchored to an arbitrary element.
+   Used by the mobile dashboard banner so trip switching + sharing stay
+   reachable when the sidebar (which hosts the pill) is hidden in the PWA. */
+export function openTripSwitcher(anchor: HTMLElement) {
+  if (!currentTrip()) { openNewTripModal(); return; }
+  if (tripMenuOpen) { tripMenuOpen = false; closeTripPopover(); return; }
+  tripMenuOpen = true;
+  openTripPopover(anchor);
+  listTrips()
+    .then((trips) => {
+      tripList = trips;
+      if (tripMenuOpen && document.getElementById('trip-popover')) openTripPopover(anchor);
+    })
+    .catch((e) => console.warn('listTrips failed:', e));
 }
 
 // Each view registers an idempotent init fn. We keep the fn (never delete it)

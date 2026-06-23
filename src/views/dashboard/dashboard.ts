@@ -13,7 +13,7 @@ import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
 import { currentTrip, baseCurrency, tripBudget, countryBudgets, onTripChange, currentTripId } from '../../data/trip-context.ts';
 import { addExpenseWithDefaults, defaultPlace, defaultCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES } from '../../data/rates.ts';
-import { navigateTo, type ViewId, type NavIntent, openNewTrip } from '../../core/app.ts';
+import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import type { PlanItem, PlanDay, ClipCategory } from '../../data/schema.ts';
@@ -267,7 +267,10 @@ function renderHero(phase: Phase): string {
       <div class="td-hero-inner">
         ${weatherBlock}
         <div class="td-hero-left">
-          <div class="td-hero-name">${esc(name)}</div>
+          <button type="button" class="td-hero-name" data-trip-switch aria-haspopup="true" title="${esc(t('app.currentTripPill'))}">
+            <span class="td-hero-name-text">${esc(name)}</span>
+            <span class="td-hero-name-caret" aria-hidden="true">▾</span>
+          </button>
           ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
           ${details}
         </div>
@@ -1233,6 +1236,13 @@ function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acquired' 
 }
 
 function wire(body: HTMLElement): void {
+  // Hero trip name → trip switcher / share menu. This is the only way to switch
+  // or share trips on mobile/PWA, where the sidebar (and its trip pill) is hidden.
+  body.querySelector<HTMLElement>('[data-trip-switch]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openTripSwitcher(e.currentTarget as HTMLElement);
+  });
+
   // Navigation clicks (widget tap-through).
   body.querySelectorAll<HTMLElement>('[data-nav]').forEach(el => {
     el.addEventListener('click', (e) => {

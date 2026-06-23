@@ -1081,7 +1081,11 @@
 #mobile-nav-inner {
   display: flex;
   flex-direction: row;
-  min-width: max-content;
+  /* Fill the bar so items spread evenly; grow past 100% only when they can't
+     fit (narrow phones), at which point the bar scrolls horizontally. */
+  min-width: 100%;
+  width: max-content;
+  margin: 0 auto;
   padding: 0 var(--sp-2);
   gap: 0;
 }
@@ -1098,6 +1102,17 @@
   justify-content: center;
   flex-shrink: 0;
 }
+
+/* Wide / landscape: the full nav fits, so distribute items across the whole
+   bar instead of scrolling — keeps the account avatar visible without a swipe. */
+@media (min-width: 600px) {
+  #mobile-nav-inner {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .mobile-nav-item { flex: 1 1 0; min-width: 0; padding: 4px 4px; }
+  .mobile-nav-account { border-left: none; margin-left: 0; }
+}
 .mobile-nav-item.active { color: var(--amber-600); }
 .mobile-nav-item .nav-icon {
   width: 22px;
@@ -1106,7 +1121,13 @@
   align-items: center;
   justify-content: center;
 }
-.mobile-nav-item .nav-label { font-size: 11px; font-weight: 700; font-family: var(--font-ui); }
+.mobile-nav-item .nav-label {
+  font-size: 11px; font-weight: 700; font-family: var(--font-ui);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Account / sign-in entry, pinned at the end of the mobile nav */
 .mobile-nav-account { border-left: 1px solid var(--rule-soft); margin-left: 4px; }
