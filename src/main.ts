@@ -7,7 +7,6 @@ import './core/app.css';
 
 import { initApp, registerView, renderSession, openOnboarding, navigateTo, setAllowedViews, firstAllowedView, type ViewId } from './core/app.ts';
 import { onAuth, authReady, currentUser, signInWithGoogle, signInAnonymously, consumeRedirectResult, type User } from './firebase/auth.ts';
-import { initLandingMap } from './views/map/landing-map.ts';
 import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites, currentMemberPages } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
@@ -58,7 +57,6 @@ const authButton = document.getElementById('auth-google-btn') as HTMLButtonEleme
 const authStatus = document.getElementById('auth-status') as HTMLElement | null;
 const authCard = document.querySelector<HTMLElement>('.auth-card');
 const appRoot = document.getElementById('app') as HTMLElement | null;
-const mapContainer = document.getElementById('landingMap') as HTMLElement | null;
 
 // Set when a viewer invite boots the app without auth.
 let _viewerMode = false;
@@ -204,7 +202,6 @@ function showRequestSentCard(tripName: string, created: boolean): void {
 
 let shellBooted = false;
 let signingIn = false;
-let landingMapInitialized = false;
 let bootPromise: Promise<void> | null = null;
 let appPrepared = false;
 let preparedUserId: string | null = null;
@@ -494,11 +491,12 @@ async function runPostEntryTasks(user: User, alreadyOnboarding: boolean, migrati
   }
 }
 
-// Enter button: always just enters the app — no auth state shown on preload screen.
-// If Firebase already resolved a user in the background, boot the authenticated shell;
-// viewer invite → boot viewer shell directly without auth.
-// Otherwise boot as guest. Google sign-in is handled exclusively via the sidebar avatar.
-authButton?.addEventListener('click', async () => {
+// Enter the app — boots the right shell and runs the fade-out. Always just enters,
+// no auth state shown on the preload screen. If Firebase already resolved a user in
+// the background, boot the authenticated shell; viewer invite → boot viewer shell
+// directly without auth. Otherwise boot as guest. Google sign-in is handled
+// exclusively via the sidebar avatar.
+async function enterAppFlow(): Promise<void> {
   setAuthButtonState('Entering…', true);
   setAuthStatus('');
   try {
@@ -541,19 +539,18 @@ authButton?.addEventListener('click', async () => {
       setAuthStatus('Could not enter. Try again or sign in from a refreshed page.', true);
     }
   }
-});
+}
 
-/* Init map when hero starts shrinking (travel.gif 2.5s + hero walk 1.5s). */
-setTimeout(async () => {
-  if (!landingMapInitialized && mapContainer && authScreen) {
-    landingMapInitialized = true;
-    try {
-      await initLandingMap(mapContainer);
-    } catch (error) {
-      console.warn('Landing map init failed:', error);
-    }
-  }
-}, 4000);
+authButton?.addEventListener('click', () => { void enterAppFlow(); });
+
+// Arriving from the marketing page (/app?from=landing): the user already made the
+// "open the app" decision there, so skip the Enter card and boot straight in. Only
+// for the normal entry flow — an invite link owns the UI and must not be bypassed.
+if (!INVITE_TOKEN && new URLSearchParams(window.location.search).get('from') === 'landing') {
+  // Drop the query so a refresh/share of the in-app URL doesn't re-trigger the skip.
+  history.replaceState(null, '', window.location.pathname + window.location.hash);
+  void enterAppFlow();
+}
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

@@ -132,16 +132,6 @@
   animation: stage-show 2.5s ease-out forwards;
 }
 
-.stage-map {
-  position: absolute;
-  inset: -3% -14% -11% -18%;
-  background: transparent;
-  overflow: hidden;
-  opacity: 0;
-  /* wait for travel.gif (2.5s) + hero walk (1.5s) before showing map */
-  animation: stage-appear 0.7s ease-out 4s forwards;
-}
-
 .landing-hero-img {
   position: absolute;
   left: 50%;
@@ -154,28 +144,11 @@
   z-index: 4;
   opacity: 0;
   filter: drop-shadow(0 16px 28px rgba(58, 29, 110, 0.18));
-  will-change: left, top, width, height, transform, opacity;
 }
 
-/* CSS-driven: appears at t=2.5s when travel.gif ends, stays visible; JS takes over at t=4s */
+/* Act 2: mascot fades in at t=2.5s as travel.gif ends, then stays put. */
 .landing-hero-img.stage-hero-walk {
   animation: hero-walk-in 0.4s ease-out 2.5s forwards;
-}
-
-.landing-hero-img.is-stage-hero {
-  animation: none;
-  opacity: 1;
-}
-
-.landing-hero-img.is-map-bound {
-  opacity: 1;
-  width: 58px;
-  height: 58px;
-  transform: translate(-50%, -100%) scaleX(1) scale(1);
-}
-
-.landing-hero-img.is-map-bound.facing-right {
-  transform: translate(-50%, -100%) scaleX(-1) scale(1);
 }
 
 @keyframes stage-show {
@@ -185,13 +158,7 @@
   100% { opacity: 0; }
 }
 
-/* Hero appears at full size, stays visible; JS adds is-map-bound to trigger shrink */
 @keyframes hero-walk-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes stage-appear {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
@@ -1300,10 +1267,6 @@
   .stage-canvas {
     max-height: 45dvh;
     min-height: 280px;
-  }
-
-  .stage-map {
-    inset: -1% -15% -9% -18%;
   }
 
   .auth-card {
