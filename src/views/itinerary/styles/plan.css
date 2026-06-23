@@ -1,0 +1,469 @@
+/* ── Plan view tabs ──────────────────────────────────────────────────────── */
+.rd-view-tabs {
+  display: flex; gap: 2px;
+  background: var(--surface-3);
+  border-radius: var(--r-full);
+  padding: 2px;
+  flex-shrink: 0;
+  /* On very narrow screens, allow wrapping to next line (rd-section-head wraps) */
+  max-width: 100%;
+  overflow: hidden;
+}
+.rd-view-tab {
+  border: none; background: none;
+  padding: 4px 10px; border-radius: var(--r-full);
+  font-size: var(--fs-xs); font-weight: 600;
+  color: var(--ink-muted); cursor: pointer;
+  transition: all var(--dur-fast);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rd-view-tab.is-active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
+.rd-view-tab:hover:not(.is-active) { color: var(--ink); }
+
+/* ── Plan add form ───────────────────────────────────────────────────────── */
+/* ── Plan two-column layout ──────────────────────────────────────────────── */
+.rd-section--plans { padding: 0; overflow: hidden; }
+
+/* Header: title + tabs row, then add-item bar below */
+.rd-plan-header {
+  padding: var(--sp-4) var(--sp-5) var(--sp-3);
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+.rd-plan-header-top {
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+}
+.rd-plan-header-top h3 {
+  font-family: var(--font-ui); font-size: var(--fs-lg);
+  font-weight: 700; color: var(--ink); margin: 0; flex: 1;
+}
+.rd-plan-add-bar {
+  display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap;
+}
+.rd-plan-add-bar .rd-add-input { flex: 1 1 160px; min-width: 0; font-size: var(--fs-sm); }
+.rd-plan-cat-sel { flex: 0 0 clamp(80px, 18%, 130px); min-width: 0; font-size: var(--fs-sm); }
+.rd-plan-dur-input { flex: 0 0 90px; min-width: 0; font-size: var(--fs-sm); }
+.rd-plan-cost-input { flex: 0 0 80px; min-width: 0; font-size: var(--fs-sm); }
+.rd-plan-add-details {
+  display: flex; gap: var(--sp-2); flex-wrap: wrap;
+}
+.rd-plan-add-details .input { flex: 1; min-width: 80px; font-size: var(--fs-sm); }
+
+.rd-plan-layout {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: var(--sp-3);
+  align-items: stretch;
+  min-height: 380px;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+}
+/* In map view the day list lives inside rd-plan-main, so the outer Unassigned
+   column can shrink to give the map more room. */
+.rd-plan-layout:has(.rd-plan-map-layout) {
+  grid-template-columns: 1fr 168px;
+}
+.rd-plan-main {
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Phones / narrow foldables: stack the unassigned panel below the board so it
+   doesn't steal width from the day-columns. */
+@media (max-width: 720px) {
+  .rd-plan-layout {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .rd-plan-sidebar { min-height: 120px; }
+}
+.rd-plan-sidebar {
+  display: flex; flex-direction: column;
+  background: #fffbf0;
+  border: 2px dashed #d97706;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+/* ── Unassigned panel (sidebar) ──────────────────────────────────────────── */
+.rd-plan-unassigned-head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 8px var(--sp-3);
+  background: #fef3c7;
+  border-bottom: 1px dashed #f59e0b;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  flex-shrink: 0;
+}
+.rd-plan-unassigned-title {
+  font-family: var(--font-ui); font-size: var(--fs-sm);
+  font-weight: 700; color: #92400e; flex: 1;
+}
+.rd-plan-unassigned-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  background: #d97706; color: #fff;
+  border-radius: var(--r-full); padding: 2px 7px; flex-shrink: 0;
+}
+.rd-plan-unassigned-items {
+  flex: 1; overflow-y: auto; min-height: 60px;
+  padding: var(--sp-2);
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  border: none !important; border-radius: 0 !important;
+}
+.rd-plan-unassigned-items.is-drag-over { background: var(--amber-50); }
+.rd-plan-unassigned-items .rd-plan-tag { width: 100%; box-sizing: border-box; }
+
+/* ── Plan item tag ───────────────────────────────────────────────────────── */
+.rd-plan-tag {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  cursor: grab;
+  user-select: none;
+  position: relative;
+  transition: opacity var(--dur-fast), box-shadow var(--dur-fast), filter var(--dur-fast);
+}
+.rd-plan-tag:hover { box-shadow: var(--shadow-sm); filter: brightness(0.96); }
+
+/* Custom tooltip — shown when data-tooltip is present */
+.rd-plan-tag[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(30,30,30,0.92);
+  color: #fff;
+  font-size: 11px; font-weight: 500; line-height: 1.45;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  max-width: 220px;
+  word-break: break-word;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+  z-index: 200;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.rd-plan-tag[data-tooltip]:hover::after { opacity: 1; }
+.rd-plan-tag.is-done { opacity: 0.5; }
+.rd-plan-tag.is-done .rd-plan-tag-name { text-decoration: line-through; }
+.rd-plan-tag-check {
+  width: 18px; height: 18px; flex-shrink: 0;
+  border: 1.5px solid rgba(0,0,0,0.18);
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,0.55);
+  cursor: pointer;
+  font-size: 11px; color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.rd-plan-tag.is-done .rd-plan-tag-check,
+.rd-plan-tag-check.is-done { background: var(--route-active); border-color: var(--route-active); }
+.rd-plan-tag-name {
+  flex: 1; min-width: 0;
+  font-size: var(--fs-xs); font-weight: 600; color: var(--ink);
+  word-break: break-word;
+}
+.rd-plan-tag-open {
+  flex-shrink: 0; border: none; background: none;
+  color: rgba(0,0,0,0.35); cursor: pointer; font-size: 16px; padding: 0 2px;
+  transition: color var(--dur-fast);
+}
+.rd-plan-tag:hover .rd-plan-tag-open { color: rgba(0,0,0,0.6); }
+.rd-plan-tag-del {
+  flex-shrink: 0; border: none; background: none;
+  color: rgba(0,0,0,0.3); cursor: pointer; font-size: 11px; padding: 0 2px;
+  opacity: 0; transition: opacity var(--dur-fast), color var(--dur-fast);
+  line-height: 1;
+}
+.rd-plan-tag:hover .rd-plan-tag-del { opacity: 1; }
+.rd-plan-tag-del:hover { color: var(--badge-red, #b91c1c); }
+
+/* ── Plan drag ghost ─────────────────────────────────────────────────────── */
+.rd-plan-drag-ghost {
+  position: fixed; z-index: 500; pointer-events: none;
+  background: var(--ink); color: #fff;
+  font-size: var(--fs-xs); font-weight: 600;
+  padding: 5px 10px; border-radius: var(--r-full);
+  transform: rotate(-2deg);
+  white-space: nowrap; max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Plan Board view ─────────────────────────────────────────────────────── */
+.rd-plan-board-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* Fit as many day-columns per row as can hold a readable width, instead of
+   forcing 4 equal columns that crush to one-letter-per-line on phones.
+   --rd-col-min sets the comfortable minimum and steps down with the viewport:
+   ~4-up on desktop, 2-up on tablets/foldables, 1-up on phones. */
+.rd-plan-columns {
+  --rd-col-min: 200px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--rd-col-min), 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+  width: 100%;
+}
+.rd-plan-day-col {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .rd-plan-columns { --rd-col-min: 240px; }
+}
+@media (max-width: 560px) {
+  /* One column per row on phones — full width, no vertical-letter squeeze. */
+  .rd-plan-columns { --rd-col-min: 100%; }
+}
+.rd-plan-day-head {
+  margin-bottom: var(--sp-2);
+}
+.rd-plan-day-num {
+  display: block;
+  font-family: var(--font-ui); font-size: var(--fs-xs);
+  font-weight: 700; color: var(--ink-muted);
+  letter-spacing: 0.05em;
+}
+.rd-plan-day-date {
+  display: block;
+  font-size: var(--fs-xs); color: var(--ink-muted);
+  margin-top: 1px;
+}
+.rd-plan-day-label {
+  display: inline-block;
+  font-size: 10px; font-weight: 600;
+  color: var(--amber-700); background: var(--amber-100);
+  padding: 1px 6px; border-radius: var(--r-full);
+  margin-top: 2px;
+}
+.rd-plan-drop-zone {
+  min-height: 80px;
+  border: 1.5px solid var(--rule-soft);
+  border-radius: var(--r-lg);
+  padding: var(--sp-2);
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.rd-plan-drop-zone.is-drag-over {
+  background: var(--amber-50);
+  border-color: var(--amber-300);
+}
+.rd-plan-drop-hint {
+  font-size: var(--fs-xs); color: var(--ink-faint);
+  text-align: center; padding: var(--sp-3) 0;
+  pointer-events: none;
+}
+
+/* ── Plan Category view ──────────────────────────────────────────────────── */
+.rd-plan-cat-list { display: flex; flex-direction: column; gap: var(--sp-4); }
+.rd-plan-cat-group {}
+.rd-plan-cat-head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.rd-plan-cat-count {
+  font-size: var(--fs-xs); color: var(--ink-muted);
+  background: var(--surface-3); padding: 1px 7px; border-radius: var(--r-full);
+}
+.rd-plan-cat-rows { display: flex; flex-direction: column; gap: var(--sp-1); }
+.rd-plan-cat-row {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-md);
+  transition: opacity var(--dur-fast);
+}
+.rd-plan-cat-row.is-done { opacity: 0.5; }
+.rd-plan-cat-row.is-done .rd-plan-cat-title { text-decoration: line-through; }
+.rd-plan-cat-title { flex: 1; font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
+.rd-plan-cat-day {
+  font-size: var(--fs-xs); color: var(--ink-muted);
+  background: var(--surface-3); padding: 1px 7px; border-radius: var(--r-full);
+  white-space: nowrap;
+}
+
+/* ── Plan Feed view ──────────────────────────────────────────────────────── */
+.rd-feed-list { display: flex; flex-direction: column; gap: var(--sp-5); }
+
+.rd-feed-day-group {}
+.rd-feed-day-head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.rd-feed-day-dot {
+  width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 2px currentColor;
+}
+.rd-feed-day--active .rd-feed-day-dot { box-shadow: 0 0 0 3px rgba(34,197,94,0.25); }
+.rd-feed-day-label {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink-soft);
+}
+.rd-feed-day--active .rd-feed-day-label { color: #15803d; }
+.rd-feed-day--past   .rd-feed-day-label { color: var(--ink-faint); }
+.rd-feed-day--unassigned .rd-feed-day-label { color: var(--ink-faint); }
+.rd-feed-day-date {
+  font-size: var(--fs-xs); color: var(--ink-faint);
+}
+.rd-feed-day--active .rd-feed-day-date { color: #15803d; font-weight: 600; }
+
+.rd-feed-items {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding-left: var(--sp-5);
+  border-left: 2px solid var(--surface-4);
+}
+.rd-feed-day--active .rd-feed-items { border-color: rgba(34,197,94,0.35); }
+.rd-feed-day--past   .rd-feed-items { border-color: var(--surface-3); }
+
+.rd-feed-item {
+  display: flex; align-items: flex-start; gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-md);
+  transition: box-shadow var(--dur-fast), opacity var(--dur-fast);
+  cursor: default;
+}
+.rd-feed-item:hover { box-shadow: var(--shadow-sm); }
+.rd-feed-item.is-done { opacity: 0.5; }
+.rd-feed-item-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px;
+}
+.rd-feed-item-body { flex: 1; min-width: 0; }
+.rd-feed-item-row {
+  display: flex; align-items: center; gap: var(--sp-2);
+  flex-wrap: nowrap;
+}
+.rd-feed-item-title {
+  flex: 1; min-width: 0;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rd-feed-item.is-done .rd-feed-item-title { text-decoration: line-through; }
+.rd-feed-item-note {
+  font-size: var(--fs-xs); color: var(--ink-muted);
+  margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Plan Calendar view (monthly grid) ───────────────────────────────────── */
+.rd-cal-grid-wrap { user-select: none; }
+.rd-cal-grid-nav {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.rd-cal-grid-month {
+  font-family: var(--font-ui); font-size: var(--fs-base); font-weight: 700; color: var(--ink);
+  min-width: 140px; text-align: center;
+}
+.rd-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: var(--surface-3);
+  gap: 1px;
+}
+.rd-cal-grid-dow {
+  background: var(--surface-2);
+  text-align: center;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
+  color: var(--ink-muted); letter-spacing: 0.06em;
+  padding: var(--sp-2) 0;
+}
+.rd-cal-grid-cell {
+  background: var(--surface);
+  min-height: 80px;
+  padding: var(--sp-2);
+  display: flex; flex-direction: column; gap: 2px;
+  position: relative;
+}
+.rd-cal-grid-cell--other {
+  background: var(--surface-2);
+}
+.rd-cal-grid-cell--other .rd-cal-grid-num { color: var(--ink-faint); }
+.rd-cal-grid-cell.in-leg { background: #fffbf0; }
+.rd-cal-grid-cell.is-today { outline: 2px solid var(--amber-400); outline-offset: -2px; border-radius: 2px; }
+.rd-cal-grid-num {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
+  color: var(--ink-muted); line-height: 1; margin-bottom: 2px; align-self: flex-end;
+}
+.rd-cal-grid-num.is-today-num {
+  background: var(--ink);
+  color: #fff;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.rd-cal-grid-item {
+  font-size: 10px; font-weight: 600; color: var(--ink-soft);
+  padding: 1px 5px; border-radius: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer;
+  transition: opacity var(--dur-fast);
+}
+.rd-cal-grid-item:hover { opacity: 0.8; }
+.rd-cal-grid-item.is-done { text-decoration: line-through; opacity: 0.5; }
+.rd-cal-grid-more {
+  font-size: 10px; color: var(--ink-faint); padding: 0 2px;
+}
+@media (max-width: 640px) {
+  .rd-cal-grid-cell { min-height: 56px; padding: var(--sp-1); }
+  .rd-cal-grid-item { display: none; }
+  .rd-cal-grid-cell.in-leg::after {
+    content: '';
+    position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--amber-400);
+  }
+}
+
+/* ── Plan item detail drawer ─────────────────────────────────────────────── */
+.rd-plan-drawer {
+  position: fixed;
+  right: 0; top: 0; bottom: 0;
+  width: 340px; max-width: 100vw;
+  background: var(--surface);
+  border-left: 1px solid var(--rule-soft);
+  box-shadow: var(--shadow-lg);
+  z-index: 300;
+  display: flex; flex-direction: column;
+  animation: slideInRight var(--dur-mid) var(--ease-out);
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+.rd-drawer-inner { display: flex; flex-direction: column; height: 100%; }
+.rd-drawer-header {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.rd-drawer-title-input {
+  flex: 1; font-weight: 700; font-size: var(--fs-base);
+  border: none; background: none; padding: 0;
+  box-shadow: none !important;
+}
+.rd-drawer-title-input:focus { outline: none; }
+.rd-drawer-body {
+  flex: 1; overflow-y: auto;
+  padding: var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+}
+.rd-drawer-row { display: flex; flex-direction: column; gap: 4px; }
+.rd-drawer-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.rd-drawer-note { min-height: 80px; resize: vertical; font-size: var(--fs-sm); }
+.rd-drawer-footer {
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--rule-soft);
+  display: flex; justify-content: flex-end; gap: var(--sp-2);
+}
+

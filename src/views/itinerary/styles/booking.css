@@ -1,0 +1,137 @@
+/* ── Category colour palette ─────────────────────────────────────────────── */
+.rd-cat-palette {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+.rd-cat-swatch {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform var(--dur-fast), border-color var(--dur-fast);
+}
+.rd-cat-swatch:hover { transform: scale(1.15); }
+.rd-cat-swatch.is-selected { border-color: var(--ink); }
+
+/* ── Transport ───────────────────────────────────────────────────────────── */
+.rd-transport {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.rd-transport-icon {
+  width: 40px; height: 40px;
+  border-radius: var(--r-md);
+  background: var(--amber-100);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.rd-transport-main { flex: 1; min-width: 0; }
+.rd-transport-route { font-size: var(--fs-base); font-weight: 600; color: var(--ink); }
+.rd-transport-meta {
+  display: flex; flex-wrap: wrap; gap: var(--sp-3);
+  font-size: var(--fs-xs); color: var(--ink-muted);
+  margin-top: 3px;
+}
+.rd-transport-note { font-size: var(--fs-sm); color: var(--ink-soft); font-style: italic; margin-top: 4px; }
+.rd-transport .badge {
+  flex-shrink: 0;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+/* ── Stays ───────────────────────────────────────────────────────────────── */
+.rd-stay-list { display: flex; flex-direction: column; gap: var(--sp-3); }
+.rd-stay {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-md);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.rd-stay-order {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--amber-400);
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.rd-stay-main { flex: 1; min-width: 0; }
+.rd-stay-name { font-size: var(--fs-base); font-weight: 600; color: var(--ink); }
+.rd-stay-meta {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center;
+  font-size: var(--fs-xs); color: var(--ink-muted);
+  margin-top: 3px;
+}
+.rd-stay-actions { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; flex-wrap: wrap; }
+.rd-map-btn {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: #0369a1;
+  background: #e0f2fe;
+  padding: 5px 10px;
+  border-radius: var(--r-full);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--dur-fast);
+}
+.rd-map-btn:hover { background: #bae6fd; }
+
+.rd-icon-btn {
+  width: 28px; height: 28px;
+  border: none; background: transparent;
+  color: var(--ink-muted);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.rd-icon-btn:hover { background: var(--surface-3); color: var(--ink); }
+
+/* ── Plans ───────────────────────────────────────────────────────────────── */
+.rd-plan-group { margin-bottom: var(--sp-3); }
+.rd-plan-group-head {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-muted);
+  letter-spacing: 0.02em;
+  margin-bottom: var(--sp-2);
+}
+.rd-plan-cards { display: flex; flex-direction: column; gap: var(--sp-2); }
+.rd-plan {
+  display: flex; align-items: flex-start; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-md);
+  transition: opacity var(--dur-fast);
+}
+.rd-plan.done { opacity: 0.55; }
+.rd-plan.done .rd-plan-title { text-decoration: line-through; }
+.rd-plan-check {
+  width: 20px; height: 20px;
+  border: 1.5px solid var(--surface-4);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 12px; line-height: 1;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.rd-plan.done .rd-plan-check { background: var(--route-active); border-color: var(--route-active); }
+.rd-plan-body { flex: 1; min-width: 0; }
+.rd-plan-title { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
+.rd-plan-note { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; }
+.rd-plan-actions { display: flex; gap: 2px; flex-shrink: 0; }
+

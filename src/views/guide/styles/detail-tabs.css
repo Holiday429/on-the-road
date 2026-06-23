@@ -1,0 +1,163 @@
+/* ── Detail pane (borderless — content uses the full canvas) ──────────────── */
+.guide-detail {
+  min-height: 300px;
+}
+.guide-detail.active { animation: fadeUp var(--dur-mid) var(--ease-out); }
+
+.guide-empty-detail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: var(--ink-faint);
+  text-align: center;
+  gap: var(--sp-3);
+}
+.guide-empty-detail .empty-icon { font-size: 48px; }
+
+/* ── Detail header (compact, single inline row) ──────────────────────────── */
+.guide-detail-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+}
+.guide-detail-flag { font-size: 28px; line-height: 1; align-self: center; }
+.guide-detail-header-text {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.guide-detail-city {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  line-height: 1.1;
+}
+.guide-detail-country { font-size: var(--fs-md); color: var(--ink-muted); }
+.guide-detail-query { font-size: var(--fs-sm); color: var(--ink-faint); font-style: italic; }
+.guide-regen-btn { font-size: var(--fs-sm); white-space: nowrap; align-self: center; }
+
+/* ── Tab strip ───────────────────────────────────────────────────────────── */
+.guide-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--rule-soft);
+  padding-bottom: var(--sp-3);
+}
+
+.guide-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  border: 1.5px solid transparent;
+  background: var(--surface-2);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all var(--dur-fast);
+  white-space: nowrap;
+}
+.guide-tab:hover { background: var(--surface-3); color: var(--ink); }
+.guide-tab.tab-do.active {
+  background: var(--amber-400);
+  border-color: var(--amber-600);
+  color: var(--ink);
+}
+.guide-tab.tab-know.active {
+  background: var(--surface-3);
+  border-color: var(--rule);
+  color: var(--ink);
+}
+
+/* ── Tab content ─────────────────────────────────────────────────────────── */
+.guide-tab-content {
+  min-height: 200px;
+  animation: fadeUp var(--dur-fast) var(--ease-out);
+}
+
+/* ── Overview tab ────────────────────────────────────────────────────────── */
+.guide-intro { max-width: 1000px; }
+.guide-intro-lede {
+  font-size: var(--fs-lg);
+  line-height: 1.7;
+  color: var(--ink);
+  margin-bottom: var(--sp-6);
+  max-width: 760px;
+}
+
+/* Multi-dimensional overview cards */
+.guide-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-7);
+}
+.guide-overview-card {
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  transition: box-shadow var(--dur-fast), transform var(--dur-fast);
+}
+.guide-overview-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.guide-overview-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.guide-overview-icon { font-size: 26px; line-height: 1; }
+.guide-overview-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ink);
+}
+.guide-overview-body {
+  font-size: var(--fs-base);
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+/* Fun facts block */
+.guide-funfacts-block {
+  background: var(--amber-50);
+  border: 1px solid var(--amber-200);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  margin-top: var(--sp-6);
+}
+.guide-funfacts-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: var(--fs-md);
+  color: var(--amber-700);
+  margin-bottom: var(--sp-3);
+}
+.guide-fun-facts { display: flex; flex-direction: column; gap: var(--sp-3); }
+.guide-fun-fact {
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  color: var(--ink);
+  padding-left: var(--sp-4);
+  position: relative;
+}
+.guide-fun-fact::before {
+  content: '⚡';
+  position: absolute;
+  left: 0;
+  font-size: 13px;
+}
+

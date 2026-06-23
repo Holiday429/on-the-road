@@ -1,0 +1,253 @@
+/* ==========================================================================
+   On the Road · App Shell
+   ========================================================================== */
+
+/* ── Auth gate ───────────────────────────────────────────────────────────── */
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  min-height: 100dvh;
+  padding: clamp(4px, 1vw, 12px) clamp(20px, 4vw, 48px) clamp(24px, 4vw, 40px);
+  background:
+    radial-gradient(circle at top left, rgba(249, 184, 48, 0.24), transparent 34%),
+    linear-gradient(180deg, #fffaf0 0%, #f7f3ea 100%);
+  overflow: auto;
+}
+
+@keyframes auth-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+.auth-screen.is-exiting {
+  animation: auth-fade-out 0.42s var(--ease-out) forwards;
+  pointer-events: none;
+}
+
+#app {
+  animation: none;
+  opacity: 1;
+  background: var(--surface-2);
+}
+
+#app.is-preparing {
+  opacity: 0.01;
+}
+
+#app.is-entering {
+  animation: auth-fade-in 0.42s var(--ease-out) both;
+}
+
+@keyframes auth-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.auth-shell {
+  min-height: calc(100dvh - clamp(36px, 6vw, 72px));
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 380px);
+  gap: clamp(28px, 4vw, 56px);
+  align-items: center;
+  transform: translateY(-clamp(28px, 4.8vh, 56px));
+}
+
+.auth-stage {
+  position: relative;
+  width: 100%;
+  max-width: min(100%, 780px);
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+  align-self: center;
+  justify-self: end;
+  padding-top: 0;
+}
+
+/* Brand wordmark — globe icon doubles as the "O" in "On" */
+.auth-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12em;
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  width: fit-content;
+  margin-top: clamp(-32px, -4vh, -16px);
+  margin-bottom: var(--sp-2);
+  pointer-events: auto;
+}
+
+.auth-eyebrow-on {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  letter-spacing: -0.05em;
+}
+
+.auth-eyebrow-road {
+  letter-spacing: -0.03em;
+}
+
+.auth-eyebrow-n {
+  display: inline-block;
+  transform: translateX(-0.04em) translateY(-0.01em);
+}
+
+.auth-eyebrow-icon {
+  width: 1.7em;
+  height: 1.7em;
+  display: block;
+  flex-shrink: 0;
+  margin-right: -0.12em;
+  transform: translateY(0.01em);
+}
+
+/* Stacking container — all children overlap */
+.stage-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5/4;
+  max-height: min(70dvh, 720px);
+  /* explicit height needed so amCharts reads clientHeight correctly */
+  min-height: 420px;
+}
+
+.stage-gif {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* Act 1: travel GIF — visible 0–2.5s, then fades */
+.stage-pack {
+  animation: stage-show 2.5s ease-out forwards;
+}
+
+.landing-hero-img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 90%;
+  height: 90%;
+  object-fit: contain;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  filter: drop-shadow(0 16px 28px rgba(58, 29, 110, 0.18));
+}
+
+/* Act 2: mascot fades in at t=2.5s as travel.gif ends, then stays put. */
+.landing-hero-img.stage-hero-walk {
+  animation: hero-walk-in 0.4s ease-out 2.5s forwards;
+}
+
+@keyframes stage-show {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes hero-walk-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.auth-card {
+  padding: 28px 24px 24px;
+  width: min(100%, 340px);
+  border-radius: var(--r-2xl);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  top: auto;
+  pointer-events: auto;
+  align-self: center;
+  justify-self: center;
+}
+
+.auth-card-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.auth-card-text {
+  margin-top: var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.auth-google-btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: var(--sp-6);
+  min-height: 52px;
+  font-size: var(--fs-base);
+}
+
+.auth-google-btn[disabled] {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.auth-signin-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2, var(--amber-50));
+  font-size: var(--fs-xs, var(--fs-sm));
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.auth-signin-hint-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.auth-signin-hint strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.auth-status {
+  margin-top: var(--sp-3);
+  min-height: 20px;
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.auth-status.is-error {
+  color: var(--coral-500);
+}
+
+.auth-legal {
+  margin-top: var(--sp-4);
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+.auth-legal a {
+  color: var(--ink-muted);
+  text-decoration: none;
+}
+.auth-legal a:hover { color: var(--amber-700); text-decoration: underline; }
+

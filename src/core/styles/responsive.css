@@ -1,0 +1,134 @@
+/* ── iPad portrait / small tablet (769px–1024px) ────────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  #sidebar {
+    width: var(--sidebar-w-collapsed);
+  }
+
+  #main {
+    margin-left: var(--sidebar-w-collapsed);
+  }
+
+  .sidebar-header {
+    justify-content: center;
+    padding: var(--sp-4) var(--sp-2);
+  }
+
+  .sidebar-header-profile {
+    justify-content: center;
+  }
+
+  .sidebar-profile-meta,
+  .trip-pill-label,
+  .trip-pill-name,
+  .trip-pill-days,
+  .nav-section-label,
+  .nav-item .nav-label {
+    display: none;
+  }
+
+  .trip-pill {
+    margin: var(--sp-3) var(--sp-2) 0;
+    padding: var(--sp-2);
+    text-align: center;
+  }
+
+  .trip-pill-date {
+    display: block;
+    margin-top: 0;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .sidebar-nav {
+    padding: var(--sp-3) var(--sp-2);
+    align-items: center;
+  }
+
+  .nav-item {
+    justify-content: center;
+    width: 100%;
+    padding: 10px 0;
+  }
+
+  .nav-item .nav-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .nav-icon-image {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* ── Auth screen: stack only on true phone widths ──────────────────────────
+   Foldables / small tablets (e.g. Galaxy Fold unfolded, iPad portrait) are
+   wide enough for the web-style side-by-side map + card, which reads far
+   better than a giant stacked map. Keep the safe-area top padding so the
+   card/map clear the status bar on every device. */
+.auth-screen {
+  padding-top: max(clamp(4px, 1vw, 12px), env(safe-area-inset-top));
+}
+
+@media (max-width: 700px) {
+  .auth-screen {
+    padding: calc(14px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom));
+  }
+
+  .auth-shell {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    gap: 20px;
+    transform: none;
+  }
+
+  .auth-stage {
+    max-width: none;
+    justify-self: stretch;
+    margin-bottom: var(--sp-3);
+  }
+
+  .stage-canvas {
+    max-height: 45dvh;
+    min-height: 280px;
+  }
+
+  .auth-card {
+    position: static;
+    top: auto;
+    width: 100%;
+  }
+}
+
+/* Tablet / unfolded foldable: keep side-by-side but let the card shrink so it
+   never overflows the narrower 700–960px range. */
+@media (min-width: 701px) and (max-width: 960px) {
+  .auth-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+    gap: clamp(20px, 3vw, 40px);
+  }
+}
+
+/* ── App shell goes mobile (bottom nav + safe areas) below tablet width ──── */
+@media (max-width: 768px) {
+  #sidebar { display: none; }
+  #main {
+    margin-left: 0;
+    /* Clear the status bar / Dynamic Island when installed as a PWA */
+    padding-top: env(safe-area-inset-top);
+    /* Bottom nav height + home-indicator inset */
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+  }
+  #mobile-nav { display: block; }
+
+  /* When the topbar is present, it (not #main) must clear the Dynamic Island,
+     since it's sticky-pinned to the top of the scroll area. */
+  #app-topbar:not(:empty) {
+    padding-top: env(safe-area-inset-top);
+  }
+  /* Topbar already handles the inset; don't double-pad #main above it. */
+  #main:has(#app-topbar:not(:empty)) {
+    padding-top: 0;
+  }
+}
+

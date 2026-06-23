@@ -1,0 +1,121 @@
+/* ==========================================================================
+   On the Road · Expenses
+   ========================================================================== */
+
+#view-expenses { animation: fadeUp var(--dur-mid) var(--ease-out); }
+
+/* Hide number input spinners throughout expenses */
+#view-expenses input[type="number"]::-webkit-inner-spin-button,
+#view-expenses input[type="number"]::-webkit-outer-spin-button,
+.exp-records-overlay input[type="number"]::-webkit-inner-spin-button,
+.exp-records-overlay input[type="number"]::-webkit-outer-spin-button,
+.exp-budget-overlay input[type="number"]::-webkit-inner-spin-button,
+.exp-budget-overlay input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#view-expenses input[type="number"],
+.exp-records-overlay input[type="number"],
+.exp-budget-overlay input[type="number"] { -moz-appearance: textfield; }
+
+/* ── Summary cards ───────────────────────────────────────────────────────── */
+.exp-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+@media (max-width: 500px) {
+  .exp-summary { grid-template-columns: 1fr; }
+}
+.exp-stat-card {
+  position: relative;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4) var(--sp-5);
+  box-shadow: var(--shadow-sm);
+}
+.exp-stat-card.accent { background: var(--amber-400); }
+.exp-stat-chip {
+  position: absolute;
+  top: var(--sp-3); right: var(--sp-3);
+  font-size: 11px; font-weight: 700;
+  color: var(--amber-700);
+  background: rgba(255,255,255,0.55);
+  padding: 3px 8px;
+  border-radius: var(--r-full);
+  cursor: pointer;
+}
+.exp-stat-chip:hover { background: rgba(255,255,255,0.85); }
+.exp-stat-num {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1;
+}
+.exp-stat-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-muted);
+  letter-spacing: 0.01em;
+  margin-top: 4px;
+}
+.exp-stat-card.accent .exp-stat-label { color: var(--amber-700); }
+
+/* ── Two-column layout ───────────────────────────────────────────────────── */
+.exp-layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: var(--sp-6);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .exp-layout { grid-template-columns: 1fr; }
+}
+
+/* ── Add expense form ────────────────────────────────────────────────────── */
+.exp-form {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  padding: var(--sp-6);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--sp-6);
+}
+.exp-form-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+.exp-form-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-3); flex-wrap: wrap;
+  margin-bottom: var(--sp-5);
+}
+.exp-base-picker {
+  display: flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+.exp-base-picker .input { width: auto; padding: 4px 8px; font-size: var(--fs-sm); }
+.exp-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.exp-form-grid .field-full { grid-column: 1 / -1; }
+
+/* ── Unsorted-pile banner & inline picker ────────────────────────────────── */
+.exp-sort-banner {
+  display: block; width: 100%; text-align: left;
+  background: var(--amber-50);
+  border: 1.5px solid var(--amber-200);
+  border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--amber-700);
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.exp-sort-banner:hover { background: var(--amber-100); }
+

@@ -18,6 +18,10 @@ import { resolveCityLocations, isoFor, continentFor, EUROPE_CENTER } from './geo
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
 import { MAP_COLORS as C, countryColor } from './map-shared.ts';
+import {
+  type GeoPt, arcPoints, chainWaypoints,
+  expandBounds, geoDist, fmtRange, nights, wrapMapLabel, heatColor,
+} from './map-geo.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
@@ -55,7 +59,6 @@ interface PlottedLeg {
   iso: string | null;
   stops: Array<{ key: string; name: string; lat: number; lng: number }>;
 }
-interface GeoPt { lat: number; lng: number; }
 /** A derived home flight: an ordered chain of city waypoints. */
 interface FlightChain {
   label: string;
@@ -72,51 +75,6 @@ interface OverlayItem {
   el: HTMLElement;
   lng: number;
   lat: number;
-}
-
-/* ── Bézier arc helpers ──────────────────────────────────────────────────── */
-/* Quadratic Bézier arc — perpendicular-left bend (flight-map style) */
-function arcPoints(
-  from: GeoPt, to: GeoPt,
-  n = 20, bendFraction = 0.15,
-): [number,number][] {
-  const dLng = to.lng - from.lng, dLat = to.lat - from.lat;
-  const chord = Math.sqrt(dLng*dLng + dLat*dLat);
-  if (chord < 0.001) return [[from.lng, from.lat]];
-  const pLng = -dLat/chord, pLat = dLng/chord;
-  const b = chord * bendFraction;
-  const cpLng = (from.lng+to.lng)/2 + pLng*b;
-  const cpLat = (from.lat+to.lat)/2 + pLat*b;
-  const pts: [number,number][] = [];
-  for (let i = 0; i <= n; i++) {
-    const t = i/n, u = 1-t;
-    pts.push([u*u*from.lng + 2*u*t*cpLng + t*t*to.lng,
-              u*u*from.lat + 2*u*t*cpLat + t*t*to.lat]);
-  }
-  return pts;
-}
-function bezierWaypoints(from:GeoPt, to:GeoPt, bend=0.25, n=30) {
-  return arcPoints(from, to, n, bend).map(([lng,lat]) => ({lat, lng}));
-}
-
-/* Waypoints whose count is proportional to geo distance, so that with a fixed
-   per-waypoint duration the plane moves at a constant *visual* speed across
-   segments of different lengths. ~one waypoint per `degPerStep` degrees. */
-function evenSpeedWaypoints(from:GeoPt, to:GeoPt, bend=0.25, degPerStep=1.6) {
-  const dLng = to.lng - from.lng, dLat = to.lat - from.lat;
-  const chord = Math.sqrt(dLng*dLng + dLat*dLat);
-  const n = Math.max(2, Math.round(chord / degPerStep));
-  return bezierWaypoints(from, to, bend, n);
-}
-
-/** Even-speed waypoints through a chain of geo points (for connecting flights). */
-function chainWaypoints(chain: GeoPt[], bend = 0.22): GeoPt[] {
-  const out: GeoPt[] = [];
-  for (let i = 0; i < chain.length - 1; i++) {
-    const seg = evenSpeedWaypoints(chain[i], chain[i + 1], bend);
-    out.push(...(i > 0 ? seg.slice(1) : seg));
-  }
-  return out;
 }
 
 /* ── State ────────────────────────────────────────────────────────────────── */
@@ -272,31 +230,6 @@ async function buildReturnChain(_outbound: FlightChain | null, legs: PlottedLeg[
   };
 }
 
-function fmtRange(from: string, to: string): string {
-  const o: Intl.DateTimeFormatOptions = { month:'short', day:'numeric' };
-  return `${new Date(from).toLocaleDateString('en-US',o)} – ${new Date(to).toLocaleDateString('en-US',o)}`;
-}
-function nights(from: string, to: string): number {
-  return Math.max(0, Math.round((+new Date(to) - +new Date(from)) / 86400000));
-}
-
-function wrapMapLabel(text: string, maxLineLength = 12): string {
-  const words = text.trim().split(/\s+/).filter(Boolean);
-  if (words.length < 2) return text;
-  const lines: string[] = [];
-  let current = words[0];
-  for (const word of words.slice(1)) {
-    if (`${current} ${word}`.length <= maxLineLength) {
-      current = `${current} ${word}`;
-      continue;
-    }
-    lines.push(current);
-    current = word;
-  }
-  lines.push(current);
-  return lines.join('\n');
-}
-
 function buildCountryStops(legs: PlottedLeg[], code: string): CountryStop[] {
   const stops = new Map<string, CountryStop>();
   for (const leg of legs) {
@@ -310,18 +243,6 @@ function buildCountryStops(legs: PlottedLeg[], code: string): CountryStop[] {
   return [...stops.values()];
 }
 
-function expandBounds(bounds: { left: number; right: number; top: number; bottom: number }, ratio = 0.12) {
-  const width = Math.max(0.1, bounds.right - bounds.left);
-  const height = Math.max(0.1, bounds.top - bounds.bottom);
-  const padLng = Math.max(0.28, width * ratio);
-  const padLat = Math.max(0.28, height * ratio);
-  return {
-    left: bounds.left - padLng,
-    right: bounds.right + padLng,
-    top: bounds.top + padLat,
-    bottom: bounds.bottom - padLat,
-  };
-}
 
 function fitGeoBounds(bounds: { left: number; right: number; top: number; bottom: number }, duration = 700, ratio = 0.12) {
   if (!_chart) return false;
@@ -371,11 +292,6 @@ function geoCentroid(geometry: any) {
   return { longitude: EUROPE_CENTER.longitude, latitude: EUROPE_CENTER.latitude };
 }
 
-// Great-circle-ish distance in degrees (good enough for de-duping nearby labels).
-function geoDist(aLng: number, aLat: number, bLng: number, bLat: number): number {
-  const dLng = aLng - bLng, dLat = aLat - bLat;
-  return Math.sqrt(dLng * dLng + dLat * dLat);
-}
 
 function renderRegionLabels(series: any, cityStops: CountryStop[] = []) {
   _regionLabelOverlays = clearOverlayItems(_regionLabelOverlays, 'mapRegionLabels');
@@ -710,14 +626,6 @@ function fmtSpend(n: number): string {
   }
 }
 
-/** Map a 0..1 intensity to an amber heat colour (light cream → deep orange). */
-function heatColor(t: number): string {
-  const lo = { r: 0xfd, g: 0xee, b: 0xd0 };  // pale amber
-  const hi = { r: 0xe0, g: 0x6b, b: 0x1a };  // deep orange
-  const k = Math.sqrt(Math.min(1, Math.max(0, t)));   // sqrt so small spends still read
-  const ch = (a: number, b: number) => Math.round(a + (b - a) * k);
-  return `rgb(${ch(lo.r, hi.r)}, ${ch(lo.g, hi.g)}, ${ch(lo.b, hi.b)})`;
-}
 
 function zoomToCountryPoly(poly: any) {
   const di = poly?.dataItem;

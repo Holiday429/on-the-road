@@ -1,0 +1,177 @@
+/* ── New-trip modal ──────────────────────────────────────────────────────── */
+.trip-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--sp-4);
+}
+.trip-modal {
+  background: #fff;
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.trip-modal-title { margin: 0 0 var(--sp-4); font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700; }
+.trip-modal-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: var(--sp-3); font-size: var(--fs-sm); }
+.trip-modal-field > span { font-weight: 600; color: var(--ink-muted); }
+.trip-modal-row { display: flex; gap: var(--sp-3); }
+.trip-modal-row .trip-modal-field { flex: 1; }
+.trip-modal-opt { font-weight: 400; color: var(--ink-faint); }
+.trip-modal-hint { display: block; font-size: 11px; color: var(--ink-faint); margin: calc(-1 * var(--sp-2)) 0 var(--sp-2); }
+.trip-modal-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
+.trip-modal-error { color: #c0392b; font-size: var(--fs-sm); margin-top: var(--sp-2); min-height: 1em; }
+
+/* Wider modal for onboarding wizard */
+.trip-modal.is-onboarding {
+  max-width: 480px;
+}
+.trip-modal-subtitle {
+  margin: -8px 0 var(--sp-4);
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}
+
+/* Travel-style pill picker */
+.trip-style-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: 4px;
+}
+.trip-style-btn {
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: var(--fs-sm);
+  font-family: var(--font-ui);
+  background: transparent;
+  cursor: pointer;
+  color: var(--ink-2);
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.trip-style-btn:hover { border-color: var(--amber-500); }
+.trip-style-btn.is-active {
+  border-color: var(--amber-500);
+  background: var(--amber-50, #fffbeb);
+  color: var(--amber-700);
+  font-weight: 600;
+}
+
+/* Destination tag input */
+.trip-dest-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 6px 10px;
+  min-height: 42px;
+  cursor: text;
+}
+.trip-dest-wrap:focus-within { border-color: var(--amber-500); }
+.trip-dest-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--amber-50, #fffbeb);
+  border: 1px solid var(--amber-300, #fcd34d);
+  border-radius: 999px;
+  padding: 2px 10px 2px 12px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--amber-700);
+}
+.trip-dest-tag button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--amber-600);
+  line-height: 1;
+}
+.trip-dest-input {
+  border: none;
+  outline: none;
+  font-size: var(--fs-sm);
+  font-family: var(--font-ui);
+  background: transparent;
+  min-width: 100px;
+  flex: 1;
+  padding: 0;
+}
+.trip-dest-hint { font-size: var(--fs-xs); color: var(--ink-faint); margin-top: 2px; }
+
+/* Cover colour swatches */
+.trip-color-swatches {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.trip-color-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid transparent;
+  cursor: pointer;
+  outline: none;
+  transition: transform 0.1s, border-color 0.1s;
+}
+.trip-color-swatch:hover { transform: scale(1.15); }
+.trip-color-swatch.is-active {
+  border-color: var(--ink-1);
+  transform: scale(1.1);
+}
+
+/* Onboarding: step progress dots */
+.trip-modal-steps {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: var(--sp-4);
+}
+.trip-modal-step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s;
+}
+.trip-modal-step-dot.is-active { background: var(--amber-500); }
+
+/* ── Trip-scope picker (used in pack + checklist new-item modals) ────────── */
+.pk-scope-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--sp-4);
+}
+.pk-scope-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pk-scope-option:has(input:checked) {
+  border-color: var(--amber-500);
+  background: var(--amber-50, #fffbeb);
+}
+.pk-scope-option input[type="radio"] { margin-top: 3px; accent-color: var(--amber-500); }
+.pk-scope-label { display: flex; flex-direction: column; gap: 2px; }
+.pk-scope-title { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-1); }
+.pk-scope-title em { font-style: normal; color: var(--amber-700); }
+.pk-scope-desc { font-size: var(--fs-xs); color: var(--ink-muted); }
+

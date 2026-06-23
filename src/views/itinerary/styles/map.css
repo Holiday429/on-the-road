@@ -1,0 +1,47 @@
+/* ==========================================================================
+   Responsive overrides
+   ========================================================================== */
+
+/* Compact sidebar breakpoint (~900px content) */
+@media (max-width: 900px) {
+  .rd-section { padding: var(--sp-3) var(--sp-4); }
+  .rd-detail-grid--top { grid-template-columns: 1fr; }
+}
+
+/* Mobile — sidebar hidden, single column */
+@media (max-width: 640px) {
+  .rd-title-city { font-size: var(--fs-xl); }
+  .rd-section { padding: var(--sp-3); border-radius: var(--r-lg); }
+
+  /* View tabs fill the full row below the heading */
+  .rd-section-head { align-items: flex-start; }
+  .rd-view-tabs { width: 100%; }
+  .rd-view-tab { flex: 1; text-align: center; padding: 5px 4px; }
+
+  /* Clip grid: 1 column */
+  .rd-clip-grid { grid-template-columns: 1fr; }
+
+  /* Plan layout: stack sidebar below main */
+  .rd-plan-layout { grid-template-columns: 1fr; }
+  .rd-plan-main { border-right: none; }
+  .rd-plan-add-bar { flex-wrap: wrap; }
+  .rd-plan-cat-sel { flex: none; width: 100%; }
+  .rd-plan-unassigned-items { max-height: 160px; }
+
+  /* Drawer: full-width */
+  .rd-plan-drawer { width: 100vw; border-left: none; border-top: 1px solid var(--rule-soft); }
+
+  /* Editor: single column */
+  .rd-editor-grid { grid-template-columns: 1fr; }
+  .rd-editor { padding: var(--sp-4); }
+
+  /* List: tighter timeline */
+  .route-country-group { padding-left: 36px; }
+  .route-leg-header { gap: var(--sp-2); padding: var(--sp-3); }
+  .route-leg-flag { font-size: 22px; }
+  .route-leg-city { font-size: var(--fs-lg); }
+  .route-leg-dates { font-size: var(--fs-xs); }
+
+  /* Add form: single column */
+  .route-add-form-grid { grid-template-columns: 1fr; }
+}

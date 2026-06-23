@@ -1,0 +1,126 @@
+/* ── City walk: map + waypoint timeline ──────────────────────────────────── */
+.guide-walk-section { margin-top: var(--sp-5); }
+.guide-walk-map {
+  height: 240px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--rule-soft);
+  margin-bottom: var(--sp-4);
+  background: var(--surface-3);
+  z-index: 0;
+}
+/* Numbered route pin (Leaflet divIcon) */
+.guide-walk-pin {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--amber-500);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+  border: 2px solid #fff;
+}
+
+.guide-walk-stops {
+  display: flex;
+  flex-direction: column;
+}
+.guide-walk-stop {
+  display: flex;
+  gap: var(--sp-3);
+  position: relative;
+  padding-bottom: var(--sp-4);
+}
+/* Connector line between stops */
+.guide-walk-stop:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 26px;
+  bottom: 0;
+  width: 2px;
+  background: var(--amber-200);
+}
+.guide-walk-stop-num {
+  flex-shrink: 0;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--amber-500);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+.guide-walk-stop-text { padding-top: 2px; }
+.guide-walk-stop-name {
+  font-weight: 700;
+  font-size: var(--fs-base);
+  color: var(--ink);
+}
+.guide-walk-stop-note {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+.guide-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.guide-modal-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: var(--fs-md);
+}
+.guide-modal-body {
+  padding: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.guide-modal-card-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface-2);
+  border-radius: var(--r-lg);
+  font-size: var(--fs-sm);
+  margin-bottom: var(--sp-2);
+}
+.guide-modal-label {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-muted);
+  font-family: var(--font-ui);
+  letter-spacing: 0.04em;
+  margin-top: var(--sp-1);
+}
+.guide-modal-leg-select, .guide-modal-note { width: 100%; }
+.guide-modal-footer {
+  display: flex;
+  gap: var(--sp-3);
+  justify-content: flex-end;
+  padding: var(--sp-4) var(--sp-5);
+  border-top: 1px solid var(--rule-soft);
+  background: var(--surface-2);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+

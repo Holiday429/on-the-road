@@ -1,0 +1,158 @@
+/* ── Image-led card grid ─────────────────────────────────────────────────── */
+.guide-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
+  gap: var(--sp-5);
+}
+
+.guide-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 22px;
+  border: 1px solid var(--rule-soft);
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast);
+}
+.guide-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(0,0,0,0.12);
+}
+.guide-card.saved { border-color: var(--amber-300); }
+
+/* Media zone — photo or colour-block + emoji */
+.guide-card-media {
+  position: relative;
+  height: 168px;
+  overflow: hidden;
+}
+.guide-card-photo {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-3);
+  transition: transform var(--dur-mid) var(--ease-out);
+}
+.guide-card:hover .guide-card-photo { transform: scale(1.06); }
+
+.guide-card-tint {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 40%, var(--tint), color-mix(in srgb, var(--tint) 55%, #fff));
+}
+.guide-card-tint-emoji {
+  font-size: 56px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 10px rgba(0,0,0,0.12));
+}
+
+/* Bookmark heart/star pinned top-right of the media */
+.guide-card-fav {
+  position: absolute;
+  top: 10px; right: 10px;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(4px);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink-muted);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  transition: transform var(--dur-fast), color var(--dur-fast);
+}
+.guide-card-fav:hover { transform: scale(1.1); }
+.guide-card-fav.saved { color: var(--amber-500); }
+
+/* Body — clickable to open the detail modal */
+.guide-card-body {
+  padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  flex: 1;
+}
+.guide-card-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: var(--fs-md);
+  line-height: 1.25;
+  color: var(--ink);
+}
+.guide-card-highlight {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  line-height: 1.5;
+  flex: 1;
+}
+.guide-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: 2px;
+}
+.guide-card-meta span {
+  font-size: var(--fs-xs);
+  padding: 2px 9px;
+  background: var(--surface-3);
+  border-radius: var(--r-full);
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.guide-card-actions {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4) var(--sp-4);
+}
+
+.guide-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: var(--r-full);
+  border: 1.5px solid var(--rule);
+  background: var(--surface);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--ink-muted);
+  transition: all var(--dur-fast);
+  white-space: nowrap;
+}
+.guide-icon-btn:hover { background: var(--surface-3); color: var(--ink); }
+a.guide-icon-btn { text-decoration: none; }
+.guide-save-btn.saved {
+  color: var(--amber-600);
+  border-color: var(--amber-300);
+  background: var(--amber-50);
+}
+.guide-map-btn:hover {
+  background: #e8f0fe;
+  border-color: #4285f4;
+  color: #1a73e8;
+}
+.guide-commit-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent-deep);
+  color: var(--ink);
+}
+.guide-nomad-btn:hover {
+  background: #fef3e2;
+  border-color: var(--amber-300);
+  color: var(--amber-700);
+}
+.guide-nomad-btn.saved {
+  background: var(--sage-400);
+  border-color: var(--sage-500);
+  color: #14532d;
+}
+

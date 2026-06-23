@@ -1,0 +1,250 @@
+/* ==========================================================================
+   On the Road · Guide
+   ========================================================================== */
+
+#view-cities { animation: fadeUp var(--dur-mid) var(--ease-out); }
+
+/* ── Search area ─────────────────────────────────────────────────────────── */
+.guide-search-area {
+  max-width: 760px;
+  margin-bottom: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.guide-search-row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* City input wrapper — relative so dropdown can absolute-position */
+.guide-city-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-city-input {
+  width: 100%;
+  padding: 13px 16px;
+  font-size: var(--fs-md);
+  border-radius: var(--r-lg);
+}
+
+/* Autocomplete dropdown */
+.guide-city-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--surface);
+  border: 1.5px solid var(--rule);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+  overflow: hidden;
+  display: none;
+}
+.guide-city-dropdown.open { display: block; }
+
+.guide-dd-section-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--ink-faint);
+  letter-spacing: 0.05em;
+  padding: 8px 14px 4px;
+}
+
+.guide-dd-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 9px 14px;
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  transition: background var(--dur-fast);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+.guide-dd-item:hover, .guide-dd-item:focus { background: var(--surface-2); outline: none; }
+
+#guide-generate-btn {
+  padding: 13px 20px;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+}
+
+/* Refine toggle — subtle ghost, becomes amber when active */
+.guide-refine-toggle {
+  padding: 9px 14px;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  color: var(--ink-muted);
+}
+.guide-refine-toggle.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+/* Refine row — hidden by default, shown on toggle */
+.guide-refine-row {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  animation: fadeUp var(--dur-fast) var(--ease-out);
+}
+
+#guide-refine-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: var(--fs-sm);
+}
+
+#guide-search-status {
+  font-size: var(--fs-sm);
+  color: var(--coral-500);
+  min-height: 18px;
+}
+
+/* ── History (right-side drawer) ─────────────────────────────────────────── */
+.guide-history-toggle {
+  padding: 9px 14px;
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  color: var(--ink-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.guide-history-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Dim overlay behind the drawer */
+.guide-history-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 900;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast);
+}
+.guide-history-overlay.open { opacity: 1; pointer-events: auto; }
+
+/* Slide-in drawer */
+.guide-history-drawer {
+  position: fixed;
+  top: 0; right: 0;
+  height: 100vh;
+  width: min(340px, 90vw);
+  background: var(--surface);
+  border-left: 1px solid var(--rule);
+  box-shadow: -8px 0 32px rgba(0,0,0,0.12);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform var(--dur-mid) var(--ease-out);
+}
+.guide-history-drawer.open { transform: translateX(0); }
+
+.guide-history-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-5);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.guide-history-drawer-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+}
+.guide-history-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--ink-muted);
+  padding: 0 4px;
+  transition: color var(--dur-fast);
+}
+.guide-history-close:hover { color: var(--ink); }
+
+.guide-history-search {
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.guide-history-search .input { width: 100%; font-size: var(--fs-sm); padding: 9px 12px; }
+
+.guide-history-list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.guide-history-empty {
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: var(--fs-sm);
+  padding: var(--sp-6);
+}
+
+.guide-history-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.guide-history-row:hover { background: var(--surface-2); }
+.guide-history-row.active { background: var(--accent-bg); }
+
+.guide-history-row-flag { font-size: 22px; flex-shrink: 0; }
+.guide-history-row-text { flex: 1; min-width: 0; }
+.guide-history-row-name {
+  font-weight: 700;
+  font-size: var(--fs-base);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.guide-history-row-country { font-size: var(--fs-sm); color: var(--ink-muted); }
+
+.guide-history-del {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-size: 18px;
+  padding: 0 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color var(--dur-fast);
+}
+.guide-history-del:hover { color: var(--coral-500); }
+

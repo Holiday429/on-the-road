@@ -1,0 +1,193 @@
+/* ── To-do ────────────────────────────────────────────────────────────────── */
+.td-w-todo { justify-content: space-between; }
+.td-todo-list { display: flex; flex-direction: column; gap: var(--sp-2); flex: 1; }
+.td-todo-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md); background: var(--surface-3);
+  transition: background var(--dur-fast);
+}
+.td-todo-row:hover { background: var(--surface-4); }
+.td-todo-check {
+  width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--surface-4);
+  flex-shrink: 0; background: transparent;
+  transition: background var(--dur-fast), border-color var(--dur-fast); cursor: pointer;
+}
+.td-todo-check:hover { border-color: var(--sage-500); background: var(--amber-50); }
+.td-todo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.td-todo-label {
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.td-todo-due { font-size: 10px; color: var(--ink-faint); }
+.td-todo-due.is-overdue { color: var(--coral-500); font-weight: 600; }
+.td-todo-empty { font-size: var(--fs-sm); color: var(--ink-faint); font-style: italic; padding: var(--sp-1) 0; }
+.td-todo-add { display: flex; align-items: center; gap: var(--sp-2); }
+.td-todo-add-cal {
+  flex-shrink: 0; font-size: 16px; line-height: 1;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-md);
+  opacity: 0.6;
+  transition: opacity var(--dur-fast);
+  cursor: pointer;
+}
+.td-todo-add-cal:hover { opacity: 1; }
+.td-todo-add-input {
+  flex: 1; min-width: 0; padding: 6px 10px;
+  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
+  font-size: var(--fs-sm); outline: none; background: var(--surface); color: var(--ink);
+}
+.td-todo-add-input:focus { border-color: var(--accent); }
+.td-todo-add-btn { flex-shrink: 0; padding: 6px 12px; font-size: var(--fs-sm); }
+
+/* ── Upcoming itinerary ───────────────────────────────────────────────────── */
+.td-up-card {
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-3); border-radius: var(--r-md);
+  background: var(--surface-3); cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.td-up-card:hover { background: var(--surface-4); }
+.td-up-card.is-current {
+  background: var(--amber-50); border-left: 3px solid var(--accent);
+  padding-left: calc(var(--sp-3) - 3px);
+}
+.td-up-flag { font-size: 26px; flex-shrink: 0; line-height: 1; margin-top: 2px; }
+.td-up-body { flex: 1; min-width: 0; }
+.td-up-city {
+  font-family: var(--font-ui); font-size: var(--fs-base); font-weight: 700; color: var(--ink);
+}
+.td-up-dates { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; }
+.td-up-dates strong { color: var(--accent-deep); }
+.td-up-acc  { font-size: var(--fs-xs); color: var(--ink-faint); margin-top: 2px; }
+.td-up-chips { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: 5px; }
+.td-up-chip {
+  font-size: 10px; font-weight: 600; border-radius: var(--r-sm); padding: 2px 7px;
+}
+.td-up-transport { background: var(--amber-50); color: var(--amber-700); border: 1px solid var(--amber-200); }
+.td-up-plans     { background: var(--surface); color: var(--ink-muted); border: 1px solid var(--rule-soft); }
+.td-up-arrow { margin-left: auto; color: var(--ink-faint); font-size: 18px; flex-shrink: 0; align-self: center; }
+.td-upcoming-empty { font-size: var(--fs-sm); color: var(--ink-faint); font-style: italic; }
+
+/* ── Journal quick-entry ──────────────────────────────────────────────────── */
+.td-jq-hint { font-size: var(--fs-xs); color: var(--ink-faint); }
+.td-jq-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  /* Equal-height rows so all four buttons are the same size even when the
+     widget is stretched taller than its content by the bento grid. */
+  grid-auto-rows: 1fr;
+  gap: var(--sp-2);
+}
+.td-jq-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  padding: var(--sp-3) var(--sp-2);
+  min-height: 64px;
+  background: var(--surface-3); border-radius: var(--r-md);
+  border: 1.5px solid transparent;
+  cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast);
+  text-align: center; width: 100%;
+}
+.td-jq-btn:hover { background: var(--amber-50); border-color: var(--amber-200); }
+.td-jq-icon  { font-size: 22px; line-height: 1; }
+.td-jq-label {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Journal composer modal */
+.td-compose-body { display: flex; flex-direction: column; gap: var(--sp-3); }
+.td-cmp-text { resize: vertical; min-height: 120px; }
+.td-compose-row { display: flex; gap: var(--sp-2); }
+.td-compose-row .input { flex: 1; min-width: 0; }
+
+
+/* ── Plan feed (Upcoming widget) ──────────────────────────────────────────── */
+.td-plan-subtitle { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: -var(--sp-1); }
+.td-plan-city {
+  font-family: var(--font-ui); font-size: var(--fs-base); font-weight: 700;
+  color: var(--ink); margin-top: calc(-1 * var(--sp-1));
+}
+.td-plan-feed { display: flex; flex-direction: column; gap: 4px; }
+.td-plan-row {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 6px 8px; border-radius: var(--r-md);
+  background: var(--surface-3); cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.td-plan-row:hover { background: var(--surface-4); }
+.td-plan-row.is-done { opacity: 0.45; }
+.td-plan-row.is-done .td-plan-title { text-decoration: line-through; }
+.td-plan-icon { font-size: 14px; flex-shrink: 0; }
+.td-plan-title {
+  flex: 1; min-width: 0; font-size: var(--fs-sm); font-weight: 500; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.td-plan-title.is-overdue { color: var(--coral-500); }
+.td-plan-check { flex-shrink: 0; font-size: 11px; color: var(--sage-500); font-weight: 700; }
+.td-plan-more { font-size: var(--fs-xs); color: var(--ink-faint); text-align: center; padding-top: var(--sp-1); }
+.td-plan-day-header {
+  font-family: var(--font-ui); font-size: 10px; font-weight: 700;
+  color: var(--ink-faint); letter-spacing: 0.04em;
+  padding: var(--sp-1) 0 2px; margin-top: 4px;
+}
+.td-plan-day-header:first-child { margin-top: 0; }
+
+/* ── Feed view (Upcoming widget) ─────────────────────────────────────────── */
+.td-feed-list { display: flex; flex-direction: column; gap: var(--sp-3); }
+.td-feed-day-group { display: flex; flex-direction: column; gap: var(--sp-1); }
+.td-feed-day-head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding-bottom: 4px; border-bottom: 1px solid var(--rule-soft);
+}
+.td-feed-day-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.8);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+}
+.td-feed-day-num {
+  font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+  color: var(--ink-muted); letter-spacing: 0.04em;
+}
+.td-feed-day-date {
+  font-size: 11px; color: var(--ink-faint); margin-left: 2px;
+}
+.td-feed-day-label {
+  font-size: 10px; font-weight: 600; color: var(--accent-deep);
+  background: var(--amber-50); border-radius: var(--r-sm);
+  padding: 1px 6px; margin-left: auto;
+}
+.td-feed-day--active .td-feed-day-num { color: var(--ink); }
+.td-feed-day--past { opacity: 0.55; }
+.td-feed-items { display: flex; flex-direction: column; gap: 3px; }
+.td-feed-item {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 5px 8px; border-radius: var(--r-md);
+  background: var(--surface-3); cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.td-feed-item:hover { background: var(--surface-4); }
+.td-feed-item.is-done { opacity: 0.45; }
+.td-feed-item-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.td-feed-item-body {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-2);
+}
+.td-cat-badge {
+  font-size: 10px; font-weight: 600; border-radius: var(--r-sm);
+  padding: 1px 7px; flex-shrink: 0; color: var(--ink-soft);
+}
+.td-feed-item-title {
+  flex: 1; min-width: 0; font-size: var(--fs-sm); font-weight: 500; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.td-feed-item-title.is-done { text-decoration: line-through; }
+

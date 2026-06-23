@@ -1,0 +1,135 @@
+/* ── Know/Culture tab ────────────────────────────────────────────────────── */
+.guide-know-grid {
+  display: grid;
+  /* min(…, 100%) so a single card never forces horizontal overflow on
+     sub-340px foldable cover screens. */
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: var(--sp-5);
+}
+.guide-know-section {
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  transition: box-shadow var(--dur-fast);
+}
+.guide-know-section:hover { box-shadow: var(--shadow-sm); }
+.guide-safety-section {
+  background: var(--amber-50);
+  border: 1px solid var(--amber-200);
+}
+.guide-know-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  font-family: var(--font-ui);
+  color: var(--ink);
+  margin-bottom: var(--sp-4);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-bottom: var(--sp-3);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.guide-know-item {
+  margin-bottom: var(--sp-4);
+  font-size: var(--fs-base);
+}
+.guide-know-item strong { font-size: var(--fs-md); }
+.guide-know-meaning {
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+  margin-top: 3px;
+  line-height: 1.5;
+}
+.muted { color: var(--ink-muted); }
+.guide-know-section ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: 0;
+  list-style: none;
+}
+.guide-know-section li {
+  font-size: var(--fs-base);
+  color: var(--ink-soft);
+  padding-left: var(--sp-4);
+  position: relative;
+  line-height: 1.6;
+}
+.guide-know-section li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber-400);
+}
+
+/* ── Budget tab (card grid) ──────────────────────────────────────────────── */
+.guide-money-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+  gap: var(--sp-4);
+}
+.guide-money-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--rule-soft);
+  transition: box-shadow var(--dur-fast), transform var(--dur-fast);
+}
+.guide-money-tip:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+.guide-money-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--amber-50);
+  border-radius: var(--r-md);
+}
+.guide-money-text {
+  flex: 1;
+  font-size: var(--fs-base);
+  line-height: 1.6;
+  color: var(--ink);
+}
+.guide-tip-save {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--ink-faint);
+  padding: 0 4px;
+  transition: color var(--dur-fast);
+  flex-shrink: 0;
+}
+.guide-tip-save:hover, .guide-tip-save.saved { color: var(--amber-500); }
+
+/* ── "Generate more" footer ──────────────────────────────────────────────── */
+.guide-more-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--sp-6);
+}
+.guide-more-btn {
+  font-size: var(--fs-sm);
+  padding: 10px 22px;
+  border: 1.5px dashed var(--rule);
+  color: var(--ink-muted);
+}
+.guide-more-btn:hover:not(:disabled) {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--ink);
+}
+.guide-more-btn:disabled { opacity: 0.7; cursor: default; }
+

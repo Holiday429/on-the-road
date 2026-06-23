@@ -1,0 +1,159 @@
+/* ── Trip popover (fixed floating panel) ─────────────────────────────────── */
+#trip-popover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199;
+}
+
+#trip-popover {
+  position: fixed;
+  z-index: 200;
+  width: 280px;
+  background: #fff;
+  border: 1.5px solid var(--amber-200);
+  border-radius: var(--r-lg);
+  padding: var(--sp-1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.14);
+  max-height: 60vh;
+  overflow-y: auto;
+  animation: popover-in 0.12s var(--ease-out) both;
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+.trip-popover-header {
+  padding: var(--sp-2) var(--sp-3) var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.trip-menu-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--r-md);
+}
+.trip-menu-row .trip-menu-item { flex: 1; min-width: 0; }
+.trip-menu-share,
+.trip-menu-edit,
+.trip-menu-leave,
+.trip-menu-delete {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  opacity: 1;
+  transition: color 0.15s, background 0.15s;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-muted);
+}
+.trip-menu-share:hover { color: var(--ink-1); background: var(--surface-2); }
+.trip-menu-edit:hover { color: var(--ink-1); background: var(--surface-2); }
+.trip-menu-leave:hover { color: #b45309; background: #fef3c7; }
+.trip-menu-delete:hover { color: #b91c1c; background: #fee2e2; }
+
+/* ── Share modal ──────────────────────────────────────────────────────── */
+.share-section { margin-bottom: var(--sp-5); }
+.share-section-title { font-weight: 700; font-size: var(--fs-sm); margin-bottom: var(--sp-2); color: var(--ink); }
+.share-role-row { display: flex; gap: var(--sp-4); margin-bottom: var(--sp-3); }
+.share-role-opt { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); cursor: pointer; }
+.share-gen-btn { margin-bottom: var(--sp-3); }
+.share-hint { font-size: var(--fs-sm); color: var(--ink-muted); }
+.share-link-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.share-link-role { font-size: 11px; font-weight: 600; color: var(--ink-muted); white-space: nowrap; }
+.share-link-input { flex: 1; font-size: 12px; }
+.share-members { display: flex; flex-direction: column; gap: var(--sp-2); }
+.share-member-row { display: flex; align-items: center; gap: var(--sp-2); }
+.share-member-uid { flex: 1; font-size: var(--fs-sm); }
+.share-member-role { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--r-full); text-transform: capitalize; }
+.share-role-owner  { background: #fef3c7; color: #92400e; }
+.share-role-editor { background: #dbeafe; color: #1e40af; }
+.share-role-viewer { background: #f3f4f6; color: #4b5563; }
+
+/* Wide, two-column Share modal that fits without vertical scrolling */
+.otr-modal.share-modal-wide { max-width: 880px; }
+.share-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-5);
+  align-items: start;
+}
+.share-col { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.share-col .share-section { margin-bottom: 0; }
+@media (max-width: 720px) {
+  .share-grid { grid-template-columns: 1fr; gap: var(--sp-4); }
+}
+
+/* Page picker for view links */
+.share-pages-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+.share-page-check {
+  display: flex; align-items: center; gap: var(--sp-1);
+  font-size: var(--fs-sm); cursor: pointer;
+}
+.share-link-row-stacked { flex-direction: column; align-items: stretch; gap: var(--sp-1); margin-top: var(--sp-2); }
+.share-link-top { display: flex; align-items: center; gap: var(--sp-2); }
+.share-link-pages { display: flex; flex-wrap: wrap; gap: 4px; padding-left: 2px; }
+
+/* Edit column actions: create-link button + inline email invite row */
+.share-edit-actions { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-1); }
+.share-edit-actions .share-gen-btn { margin-bottom: 0; align-self: flex-start; }
+.share-email-row { display: flex; gap: var(--sp-2); align-items: center; }
+.share-email-row .share-email-input { flex: 1; min-width: 0; }
+.share-email-row .btn { white-space: nowrap; }
+.share-page-chip {
+  font-size: 10px; font-weight: 600; color: #4b5563;
+  background: #f3f4f6; border-radius: var(--r-full); padding: 2px 8px;
+}
+
+/* Pending edit requests */
+.share-badge {
+  display: inline-block; min-width: 18px; text-align: center;
+  font-size: 11px; font-weight: 700; color: #fff; background: #ef4444;
+  border-radius: var(--r-full); padding: 1px 6px; margin-left: 4px;
+}
+.share-request-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }
+.share-request-row .share-member-uid { flex: 1; }
+.trip-menu-item,
+.trip-menu-new {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: none;
+  background: none;
+  border-radius: var(--r-md);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.trip-menu-new { width: 100%; }
+.trip-menu-row:hover .trip-menu-item,
+.trip-menu-item:hover { background: var(--amber-50); }
+.trip-menu-new:hover { background: var(--amber-50); }
+.trip-menu-item.is-active { background: var(--amber-50); font-weight: 700; }
+.trip-menu-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.trip-menu-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trip-menu-check { color: var(--amber-700); font-weight: 700; }
+.trip-menu-empty { padding: var(--sp-2) var(--sp-3); color: var(--ink-muted); font-size: var(--fs-sm); }
+.trip-menu-new {
+  margin-top: 2px;
+  border-top: 1px solid var(--amber-100, var(--amber-200));
+  color: var(--amber-700);
+  font-weight: 600;
+}
+

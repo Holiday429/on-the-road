@@ -1,0 +1,159 @@
+/* ── Records overlay (independent full-screen ledger) ──────────────────────── */
+body.exp-records-lock { overflow: hidden; }
+.exp-records-panel { display: none; }
+.exp-records-panel.open { display: block; }
+.exp-records-overlay {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; flex-direction: column;
+  background: var(--surface-2, #fafaf9);
+  animation: expRecordsIn var(--dur-mid) var(--ease-out);
+}
+@keyframes expRecordsIn { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
+.exp-records-bar {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-4) var(--gutter);
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule-soft);
+  box-shadow: var(--shadow-sm);
+}
+.exp-records-bar-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg); font-weight: 700;
+}
+.exp-records-back {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm); font-weight: 700;
+  color: var(--ink-muted);
+  padding: 6px 14px;
+  border-radius: var(--r-full);
+  border: 1.5px solid var(--rule-soft);
+  cursor: pointer;
+  transition: all var(--dur-fast);
+}
+.exp-records-back:hover { border-color: var(--amber-300); color: var(--ink); }
+.exp-records-count { margin-left: auto; font-size: var(--fs-sm); color: var(--ink-faint); font-weight: 700; }
+.exp-records-scroll {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: var(--sp-5) var(--gutter) calc(var(--gutter) * 2);
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ── Day groups + compact category-tinted tags (route plan-tag style) ──────── */
+.exp-day-group { margin-bottom: var(--sp-5); }
+.exp-day-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: var(--sp-2);
+  padding-bottom: 4px;
+  border-bottom: 1px dashed var(--rule-soft);
+}
+.exp-day-date { font-size: var(--fs-sm); font-weight: 700; color: var(--ink-muted); }
+.exp-day-sum { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+.exp-tags {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--sp-2);
+}
+.exp-tag-item {
+  position: relative;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(0,0,0,0.04);
+  cursor: pointer;
+  transition: box-shadow var(--dur-fast), filter var(--dur-fast);
+}
+.exp-tag-item:hover { box-shadow: var(--shadow-sm); filter: brightness(0.96); }
+.exp-tag-item.unsorted { border-style: dashed; border-color: var(--amber-300); }
+.exp-tag-icon { font-size: 15px; flex-shrink: 0; }
+.exp-tag-name {
+  flex: 1; min-width: 0;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.exp-tag-amount {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm); font-weight: 700; color: var(--ink);
+}
+.exp-tag-del {
+  flex-shrink: 0; border: none; background: none;
+  color: rgba(0,0,0,0.32); cursor: pointer; font-size: 11px;
+  padding: 0 2px; line-height: 1;
+  opacity: 0; transition: opacity var(--dur-fast), color var(--dur-fast);
+}
+.exp-tag-item:hover .exp-tag-del { opacity: 1; }
+.exp-tag-del:hover { color: var(--coral-500); }
+.exp-tag-labels {
+  display: flex; flex-wrap: wrap; gap: 3px;
+  margin-top: 2px;
+}
+.exp-tag-label {
+  display: inline-block;
+  font-size: 10px; font-weight: 600;
+  color: var(--ink-soft);
+  background: rgba(0,0,0,0.08);
+  border-radius: var(--r-full);
+  padding: 1px 6px;
+  line-height: 1.4;
+}
+/* Tooltip — reuse the route plan-tag pattern */
+.exp-tag-item[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute; bottom: calc(100% + 6px); left: 12px;
+  background: rgba(30,30,30,0.92); color: #fff;
+  font-size: 11px; font-weight: 500; line-height: 1.45;
+  padding: 5px 9px; border-radius: 6px;
+  white-space: pre-wrap; max-width: 240px;
+  pointer-events: none; opacity: 0;
+  transition: opacity var(--dur-fast); z-index: 200;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.exp-tag-item[data-tooltip]:hover::after { opacity: 1; }
+
+/* ── Per-item editor modal ─────────────────────────────────────────────────── */
+.exp-editor-cats { margin-bottom: var(--sp-4); }
+.exp-editor-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3);
+}
+.exp-editor-grid .field-full { grid-column: 1 / -1; }
+
+/* ── Budget overview modal ─────────────────────────────────────────────────── */
+.exp-budget-tabs {
+  display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4);
+}
+.exp-budget-tab {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--rule-soft);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm); font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all var(--dur-fast);
+}
+.exp-budget-tab.active { background: var(--amber-100); color: var(--amber-700); border-color: var(--amber-300); }
+.exp-budget-rows { display: flex; flex-direction: column; gap: var(--sp-2); max-height: 46vh; overflow-y: auto; }
+.exp-budget-row {
+  display: flex; align-items: center; gap: var(--sp-3);
+}
+.exp-budget-row-name {
+  flex: 1; display: flex; flex-direction: column;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+}
+.exp-budget-row-spent { font-size: 11px; font-weight: 600; color: var(--ink-faint); }
+.exp-budget-row-input { width: 120px; flex-shrink: 0; margin-top: 0 !important; }
+.exp-budget-flex {
+  margin-top: var(--sp-4);
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  font-size: var(--fs-sm); font-weight: 600;
+  color: var(--ink-muted);
+}
+.exp-budget-flex.over { background: #fef2f2; color: var(--coral-500); }
+

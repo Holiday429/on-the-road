@@ -1,0 +1,159 @@
+/* ==========================================================================
+   On the Road · Dashboard
+   ========================================================================== */
+
+#view-today { animation: fadeUp var(--dur-mid) var(--ease-out); }
+/* Container context lives on the body (the parent), not on .td-grid itself —
+   container queries can't restyle the container element they're declared on, so
+   the responsive grid-template-columns must target .td-grid as a descendant. */
+.today-body  { padding-top: var(--sp-5); container-type: inline-size; container-name: tdgrid; }
+
+/* ── Greeting row (above banner) ─────────────────────────────────────────── */
+.td-greeting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+.td-greeting {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.15;
+}
+.td-new-trip-btn {
+  flex-shrink: 0;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.td-greeting-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+/* ── Language picker ──────────────────────────────────────────────────────── */
+.lang-picker { position: relative; flex-shrink: 0; }
+.lang-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lang-picker-flag { font-size: 16px; line-height: 1; }
+.lang-picker-dropdown {
+  left: auto;
+  right: 0;
+  min-width: 180px;
+}
+
+/* ── Hero banner ─────────────────────────────────────────────────────────── */
+.td-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  background: linear-gradient(135deg, var(--amber-50) 0%, #ffffff 75%);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-2xl);
+  padding: var(--sp-4) var(--sp-6);
+  margin-bottom: var(--sp-4);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+/* Inner row: weather-square + text */
+.td-hero-inner {
+  display: flex; align-items: center; gap: var(--sp-6); flex: 1; min-width: 0;
+}
+/* Weather square — no background, just centred icon + temps */
+.td-hero-weather-sq {
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 72px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 6px;
+  border-right: 1px solid var(--rule-soft);
+  padding-right: var(--sp-5);
+  margin-right: var(--sp-1);
+}
+.td-hero-weather-sq--loading { opacity: 0.45; }
+.td-hero-weather-icon { font-size: 42px; line-height: 1; }
+.td-hero-weather-temps {
+  display: flex; align-items: baseline; gap: 4px;
+}
+.td-hero-weather-high {
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
+  color: var(--ink);
+}
+.td-hero-weather-low {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 500;
+  color: var(--ink-muted);
+}
+.td-hero-left { flex: 1; min-width: 0; }
+.td-hero-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+  /* reset <button> chrome */
+  margin: 0;
+  padding: 2px 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+.td-hero-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.td-hero-name-caret {
+  flex-shrink: 0;
+  font-size: 0.7em;
+  color: var(--ink-soft);
+  transition: transform var(--dur-fast, 0.15s) ease;
+  /* The sidebar pill is the primary trip switcher on desktop; only surface the
+     caret affordance on mobile/PWA, where the sidebar is hidden. */
+  display: none;
+}
+.td-hero-name:hover .td-hero-name-caret { color: var(--accent-deep); }
+@media (max-width: 768px) {
+  .td-hero-name-caret { display: inline; }
+}
+.td-hero-anchor {
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  margin-top: var(--sp-1);
+}
+.td-hero-anchor strong { color: var(--accent-deep); font-weight: 700; }
+.td-hero-chips {
+  display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2);
+}
+.td-hero-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: var(--fs-xs); font-weight: 600; border-radius: var(--r-full);
+  padding: 3px 10px; line-height: 1.3;
+}
+.td-hero-chip-transport { background: var(--amber-50); color: var(--amber-700); border: 1px solid var(--amber-200); }
+.td-hero-chip-acc       { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.td-hero-logo {
+  width: 68px; height: 68px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+@media (max-width: 560px) { .td-hero-logo { display: none; } }
+

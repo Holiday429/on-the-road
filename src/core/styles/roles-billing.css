@@ -1,0 +1,94 @@
+/* ── Collaboration role badges ─────────────────────────────────────────── */
+.trip-pill-role {
+  margin-top: var(--sp-1);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  display: inline-block;
+}
+.trip-pill-role--viewer { background: #f3f4f6; color: #4b5563; }
+.trip-pill-role--editor { background: #dbeafe; color: #1e40af; }
+
+/* Owner-only pending edit-request badge on the trip pill */
+.trip-pill-reqbadge {
+  margin-top: var(--sp-1);
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border: none;
+  border-radius: var(--r-full);
+  background: #ef4444;
+  color: #fff;
+  cursor: pointer;
+}
+.trip-pill-reqbadge:hover { background: #dc2626; }
+
+/* Viewer mode: hide write affordances. The Firestore rules are the real guard;
+   this prevents silent failures on edit attempts. Scoped to write controls
+   so navigation, read actions, and sign-in prompts stay live. */
+#app[data-viewer="true"] .btn-primary,
+#app[data-viewer="true"] [data-quickadd],
+#app[data-viewer="true"] .pk-add-item,
+#app[data-viewer="true"] .exp-fab,
+#app[data-viewer="true"] [data-act="confirm"],
+#app[data-viewer="true"] .route-add-wrap,
+#app[data-viewer="true"] .route-add-form,
+#app[data-viewer="true"] .route-leg-del,
+#app[data-viewer="true"] [data-act="del"],
+#app[data-viewer="true"] [data-act="del-transport"],
+#app[data-viewer="true"] [data-act="edit-transport"],
+#app[data-viewer="true"] [data-act="add-stay"],
+#app[data-viewer="true"] [data-act="add-note"],
+#app[data-viewer="true"] [data-act="open-add-clip"],
+#app[data-viewer="true"] [data-act="edit-dates"],
+#app[data-viewer="true"] .exp-form-wrap,
+#app[data-viewer="true"] .journal-add-btn,
+#app[data-viewer="true"] .prep-add-row,
+#app[data-viewer="true"] .pack-add-row,
+#app[data-viewer="true"] .cmp-add-btn,
+#app[data-viewer="true"] .share-gen-btn,
+#app[data-viewer="true"] .share-email-row {
+  display: none !important;
+}
+
+/* Show a subtle "view only" banner in viewer mode */
+#app[data-viewer="true"]::before {
+  content: '👁 View only';
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+/* ── Account & billing modal ──────────────────────────────────────────────── */
+.account-body { display: flex; flex-direction: column; gap: var(--sp-3); }
+.account-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: var(--sp-4); font-size: var(--fs-sm);
+}
+.account-label { color: var(--ink-muted); }
+.account-value { font-weight: 600; color: var(--ink); text-align: right; }
+.account-upgrade { margin-top: var(--sp-2); align-self: flex-start; }
+.account-section-head {
+  margin-top: var(--sp-4); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.08em; color: var(--ink-faint);
+}
+.account-purchases { display: flex; flex-direction: column; gap: var(--sp-2); }
+.account-purchase-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: var(--fs-sm); padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.account-purchase-meta { color: var(--ink-muted); font-size: var(--fs-xs); }
+.account-loading, .account-empty { color: var(--ink-faint); font-size: var(--fs-sm); }
+.account-support { margin-top: var(--sp-4); font-size: var(--fs-xs); color: var(--ink-muted); }
+.account-support a { color: var(--amber-700); }

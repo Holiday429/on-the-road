@@ -1,0 +1,153 @@
+/* ── Commit modal ────────────────────────────────────────────────────────── */
+.guide-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+.guide-modal {
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  width: min(480px, 92vw);
+  overflow: hidden;
+  animation: slideUp var(--dur-mid) var(--ease-out);
+}
+
+/* ── Card detail modal ───────────────────────────────────────────────────── */
+.guide-detail-modal {
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.3);
+  width: min(560px, 94vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  animation: slideUp var(--dur-mid) var(--ease-out);
+}
+.guide-detail-modal-photo {
+  position: relative;
+  height: 240px;
+  background-size: cover;
+  background-position: center;
+}
+.guide-detail-modal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-4) var(--sp-5);
+  font-size: 40px;
+  line-height: 1;
+}
+.guide-detail-modal-close {
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(4px);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.guide-detail-modal-bar .guide-detail-modal-close { position: static; }
+.guide-detail-modal-credit {
+  position: absolute;
+  bottom: 8px; right: 10px;
+  font-size: 11px;
+  color: #fff;
+  background: rgba(0,0,0,0.4);
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  text-decoration: none;
+}
+.guide-detail-modal-body { padding: var(--sp-5) var(--sp-6); }
+.guide-detail-modal-kicker {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--accent-deep);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: var(--sp-2);
+}
+.guide-detail-modal-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-2xl);
+  font-weight: 800;
+  line-height: 1.15;
+  margin-bottom: var(--sp-2);
+}
+.guide-detail-modal-lede {
+  font-size: var(--fs-md);
+  color: var(--ink-soft);
+  line-height: 1.5;
+  margin-bottom: var(--sp-4);
+}
+.guide-detail-modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-5);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.guide-detail-modal-meta span {
+  font-size: var(--fs-sm);
+  padding: 4px 12px;
+  background: var(--surface-3);
+  border-radius: var(--r-full);
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+/* Labelled content blocks (About / Good to know / Route) */
+.guide-detail-modal-block { margin-bottom: var(--sp-5); }
+.guide-detail-modal-block-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  margin-bottom: var(--sp-2);
+}
+.guide-detail-modal-text {
+  font-size: var(--fs-base);
+  line-height: 1.7;
+  color: var(--ink);
+}
+.guide-detail-modal-bg {
+  font-size: var(--fs-base);
+  color: var(--ink-soft);
+  background: var(--amber-50);
+  border-left: 3px solid var(--amber-400);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  padding: var(--sp-3) var(--sp-4);
+  line-height: 1.65;
+}
+.guide-detail-modal-addr {
+  display: inline-block;
+  font-size: var(--fs-sm);
+  color: var(--accent-deep);
+  text-decoration: none;
+  margin-bottom: var(--sp-3);
+}
+.guide-detail-modal-addr:hover { text-decoration: underline; }
+
+/* Google "G" icon inside buttons */
+.g-icon { vertical-align: -2px; margin-right: 5px; }
+.guide-detail-modal-footer {
+  display: flex;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-6) var(--sp-6);
+}
+.guide-detail-modal-footer .btn { flex: 1; justify-content: center; }
+

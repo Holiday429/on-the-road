@@ -1,0 +1,42 @@
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+.guide-toast {
+  position: fixed;
+  bottom: var(--sp-6);
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--ink);
+  color: var(--surface);
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--r-full);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  z-index: 1100;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  white-space: nowrap;
+}
+.guide-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 540px) {
+  .guide-search-row {
+    flex-wrap: wrap;
+  }
+
+  .guide-city-input-wrap {
+    flex: 1 1 100%;
+  }
+
+  #guide-generate-btn {
+    flex: 1;
+  }
+
+  .guide-refine-toggle,
+  .guide-history-toggle {
+    flex: 1;
+    justify-content: center;
+  }
+}
