@@ -586,7 +586,15 @@
   .map-panel { gap: var(--sp-3); }
 }
 
-@media (max-width: 860px) {
+/* Keep the map ‖ itinerary side-by-side down to ~680px so wide landscape
+   PWA screens (unfolded foldables / tablets in the mobile shell) match the
+   website's two-column layout instead of stacking. The map stays dominant and
+   the itinerary list shows in full beside it. */
+@media (max-width: 760px) and (min-width: 681px) {
+  .map-layout { grid-template-columns: minmax(0, 1fr) 200px; gap: var(--sp-3); }
+}
+
+@media (max-width: 680px) {
   .map-layout { grid-template-columns: 1fr; }
   .map-panel { position: static; }
   .map-legs { max-height: none; }
