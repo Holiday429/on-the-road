@@ -39,8 +39,12 @@
 /* Extra widgets: full width */
 .td-w-nomad    { grid-column: 1 / span 12; }
 
-/* Below ~860px: 3-col */
-@container tdgrid (max-width: 860px) {
+/* Below ~680px: 3-col. Kept low so wide-but-mobile-shell devices (unfolded
+   foldables, iPad/tablet landscape) — where .today-body lands around 760–880px
+   even though the bottom-nav shell is active — keep the full 12-col website
+   layout instead of collapsing to thirds. The desktop container is far wider,
+   so this is untouched there. */
+@container tdgrid (max-width: 680px) {
   .td-grid { grid-template-columns: 1fr 1fr 1fr; }
   .td-w-currency { grid-column: 1; }
   .td-w-calendar { grid-column: 2; }
