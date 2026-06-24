@@ -39,6 +39,9 @@
   font-size: var(--fs-sm); outline: none; background: var(--surface); color: var(--ink);
 }
 .td-todo-add-input:focus { border-color: var(--accent); }
+/* Placeholder runs a touch smaller so "+ Quick add task…" fits the narrow
+   field without truncating; typed text keeps the normal --fs-sm size. */
+.td-todo-add-input::placeholder { font-size: var(--fs-xs); }
 .td-todo-add-btn { flex-shrink: 0; padding: 6px 12px; font-size: var(--fs-sm); }
 
 /* ── Upcoming itinerary ───────────────────────────────────────────────────── */
@@ -100,6 +103,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* On wide-but-mobile-shell screens (unfolded foldables / tablet landscape, i.e.
+   bottom-nav active at ≤768px viewport) the 12-col journal column is too tight
+   for the labels — drop them and just center the icon so all four buttons stay
+   equal and clean. Scoped to the mobile shell so no desktop width loses labels. */
+@media (max-width: 768px) {
+  .td-w-journal .td-jq-label { display: none; }
+  .td-w-journal .td-jq-icon  { font-size: 28px; }
 }
 
 /* Journal composer modal */
