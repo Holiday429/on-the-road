@@ -39,19 +39,27 @@
 /* Extra widgets: full width */
 .td-w-nomad    { grid-column: 1 / span 12; }
 
-/* Below ~860px: 3-col */
-@container tdgrid (max-width: 860px) {
-  .td-grid { grid-template-columns: 1fr 1fr 1fr; }
-  .td-w-currency { grid-column: 1; }
-  .td-w-calendar { grid-column: 2; }
-  .td-w-todo     { grid-column: 3; }
-  .td-w-spend    { grid-column: 1 / span 2; }
-  .td-w-map      { grid-column: 3; grid-row: span 2; }
-  .td-w-journal  { grid-column: 1; }
-  .td-w-mini-col { grid-column: 2; }
-  .td-w-upcoming { grid-column: 1 / span 2; }
-  .td-w-whereto  { grid-column: 3; }
-  .td-w-nomad    { grid-column: 1 / span 3; }
+/* Below ~1100px (incl. wide PWA tablets): 2-col layout that keeps the website's
+   proportions — spend ‖ map equal halves, journal+pack stacked under spend at
+   the same width, upcoming ‖ where-to-go a balanced pair. Avoids the cramped
+   1/3-width map the old 3-col fallback produced on tablets. */
+@container tdgrid (max-width: 1100px) {
+  .td-grid { grid-template-columns: 1fr 1fr; }
+  /* Explicit rows so map can stay tall (spanning the spend+journal+pack stack)
+     regardless of auto-flow. */
+  .td-w-currency { grid-column: 1; grid-row: 1; }
+  .td-w-calendar { grid-column: 2; grid-row: 1; }
+  .td-w-todo     { grid-column: 1 / span 2; grid-row: 2; }
+  /* Spend (left) ‖ Map (right). Map spans rows 3–5 so it's as tall as the
+     spend + journal + pack stack beneath it — the website's proportion. */
+  .td-w-spend    { grid-column: 1; grid-row: 3; }
+  .td-w-map      { grid-column: 2; grid-row: 3 / span 3; }
+  .td-w-journal  { grid-column: 1; grid-row: 4; }
+  .td-w-mini-col { grid-column: 1; grid-row: 5; }
+  /* Balanced bottom pair, equal halves. */
+  .td-w-upcoming { grid-column: 1; grid-row: 6; }
+  .td-w-whereto  { grid-column: 2; grid-row: 6; align-self: start; }
+  .td-w-nomad    { grid-column: 1 / span 2; grid-row: 7; }
 }
 /* Below ~580px: 2-col */
 @container tdgrid (max-width: 580px) {
