@@ -87,7 +87,7 @@ a { color: inherit; text-decoration: none; }
   gap: 2rem;
   max-width: 1140px;
   margin: 0 auto;
-  padding: clamp(2rem, 5vw, 4rem) clamp(1rem, 5vw, 3rem) clamp(1.5rem, 4vw, 3rem);
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 5vw, 3rem) clamp(1rem, 3vw, 2rem);
 }
 .lp-eyebrow {
   display: inline-block;
@@ -96,14 +96,14 @@ a { color: inherit; text-decoration: none; }
   color: var(--amber-600);
   background: var(--amber-100);
   padding: 0.35rem 0.8rem; border-radius: 9999px;
-  margin-bottom: 1.1rem;
+  margin-bottom: 0.8rem;
 }
 .lp-hero h1 { font-size: clamp(2.2rem, 6vw, 3.6rem); font-weight: 800; line-height: 1.08; }
-.lp-sub { font-size: clamp(1rem, 2.2vw, 1.18rem); color: var(--ink-soft); margin: 1.2rem 0 1.8rem; max-width: 34ch; }
+.lp-sub { font-size: clamp(1rem, 2.2vw, 1.18rem); color: var(--ink-soft); margin: 0.9rem 0 1.4rem; max-width: 34ch; }
 .lp-hero-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
-.lp-hero-note { margin-top: 1.1rem; font-size: 0.85rem; color: var(--ink-muted); }
+.lp-hero-note { margin-top: 0.8rem; font-size: 0.85rem; color: var(--ink-muted); }
 .lp-hero-art { display: flex; justify-content: center; }
-.lp-hero-art img { width: 100%; max-width: 300px; height: auto; filter: drop-shadow(0 16px 32px rgba(28, 25, 23, 0.1)); }
+.lp-hero-art img, .lp-hero-art-media { width: 100%; max-width: 300px; height: auto; aspect-ratio: 1 / 1; filter: drop-shadow(0 16px 32px rgba(28, 25, 23, 0.1)); }
 
 /* ── Trust strip ─────────────────────────────────────────────────────────── */
 .lp-strip {
@@ -114,10 +114,10 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
-.lp-section { max-width: 1140px; margin: 0 auto; padding: clamp(2rem, 5vw, 3.5rem) clamp(1rem, 5vw, 3rem); }
-.lp-section-head { text-align: center; max-width: 54rem; margin: 0 auto 2rem; }
-.lp-section-head h2 { font-size: clamp(1.5rem, 3.2vw, 2.2rem); font-weight: 700; white-space: nowrap; }
-.lp-section-head p { margin-top: 0.6rem; color: var(--ink-soft); font-size: 1rem; white-space: nowrap; }
+.lp-section { max-width: 1140px; margin: 0 auto; padding: clamp(1.5rem, 4vw, 2.75rem) clamp(1rem, 5vw, 3rem); }
+.lp-section-head { text-align: center; max-width: 54rem; margin: 0 auto 1.5rem; }
+.lp-section-head h2 { font-size: clamp(1.5rem, 3.2vw, 2.2rem); font-weight: 700; text-wrap: balance; }
+.lp-section-head p { margin-top: 0.6rem; color: var(--ink-soft); font-size: 1rem; text-wrap: balance; }
 
 /* ── Features ────────────────────────────────────────────────────────────── */
 .lp-features {
@@ -237,8 +237,7 @@ a { color: inherit; text-decoration: none; }
   .lp-sub { max-width: none; }
   .lp-hero-cta { justify-content: center; }
   .lp-hero-art { order: -1; }
-  .lp-hero-art img { max-width: 200px; }
-  .lp-section-head h2, .lp-section-head p { white-space: normal; }
+  .lp-hero-art img, .lp-hero-art-media { max-width: 200px; }
 }
 @media (max-width: 560px) {
   .lp-nav-links { gap: 0.9rem; }
