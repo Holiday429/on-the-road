@@ -1167,14 +1167,21 @@ function bindDetail(c: HTMLElement, l: PackList) {
   });
 
   /* ── Drag-to-bag ─────────────────────────────────────────────────────────
-     Items are draggable tags. On pointerdown → ghost follows cursor. On drop
-     over a .pk-drop-zone, the item is moved to that container (or Unassigned
-     if data-container-id=""). A drop outside any zone cancels the drag.
+     Items are draggable tags driven by Pointer Events so the same code path
+     handles mouse, pen and touch. On touch, dragging only starts from the
+     ⠿ handle (so the items list can still be scrolled by swiping the tag
+     body); on mouse, the whole tag is grabbable. The pointer is captured and
+     default touch behaviour is suppressed once a drag begins, otherwise the
+     browser's scroll gesture would fire pointercancel and abort the drag.
+     On drop over a .pk-drop-zone the item moves to that container (or to
+     Unassigned when data-container-id=""). A drop outside any zone cancels.
   ── */
   const ghost = c.querySelector<HTMLElement>('#pk-drag-ghost')!;
   const DRAG_THRESHOLD = 6;
 
   let dragItemId: string | null = null;
+  let dragTag: HTMLElement | null = null;
+  let dragPointerId: number | null = null;
   let dragStartX = 0, dragStartY = 0;
   let dragging = false;
 
@@ -1194,17 +1201,31 @@ function bindDetail(c: HTMLElement, l: PackList) {
     return null;
   }
 
+  function endDrag() {
+    if (dragTag && dragPointerId != null) {
+      try { dragTag.releasePointerCapture(dragPointerId); } catch { /* already released */ }
+    }
+    document.body.style.cursor = '';
+    ghost.setAttribute('hidden', '');
+    c.querySelectorAll('.pk-drop-zone').forEach(z => z.classList.remove('is-drag-over'));
+    dragItemId = null;
+    dragTag = null;
+    dragPointerId = null;
+    dragging = false;
+  }
+
   function onPointerMove(e: PointerEvent) {
     if (!dragItemId) return;
     const dx = e.clientX - dragStartX, dy = e.clientY - dragStartY;
     if (!dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
       dragging = true;
       ghost.removeAttribute('hidden');
-      const tag = c.querySelector<HTMLElement>(`[data-id="${dragItemId}"][data-drag="item"]`);
-      ghost.textContent = tag?.querySelector('.tag-name')?.textContent ?? '';
+      ghost.textContent = dragTag?.querySelector('.tag-name')?.textContent ?? '';
       document.body.style.cursor = 'grabbing';
     }
     if (dragging) {
+      // Suppress native scrolling/selection now that a real drag is underway.
+      e.preventDefault();
       ghost.style.left = `${e.clientX + 12}px`;
       ghost.style.top  = `${e.clientY - 12}px`;
       // Highlight drop zone under cursor
@@ -1215,32 +1236,45 @@ function bindDetail(c: HTMLElement, l: PackList) {
   }
 
   function onPointerUp(e: PointerEvent) {
-    document.removeEventListener('pointermove', onPointerMove);
-    document.removeEventListener('pointerup', onPointerUp);
-    document.body.style.cursor = '';
-    ghost.setAttribute('hidden', '');
-    c.querySelectorAll('.pk-drop-zone').forEach(z => z.classList.remove('is-drag-over'));
-
     if (dragging && dragItemId) {
       const zone = findDropZone(e.clientX, e.clientY);
       if (zone) {
         void packStore.moveItem(id, dragItemId, zone.containerId);
       }
     }
-    dragItemId = null;
-    dragging = false;
+    endDrag();
   }
 
   c.querySelectorAll<HTMLElement>('[data-drag="item"]').forEach(tag => {
     tag.addEventListener('pointerdown', e => {
       // Don't steal clicks on buttons/selects inside the tag
       if ((e.target as HTMLElement).closest('button, select, input')) return;
+      // On touch/pen, require starting from the ⠿ handle so the items list
+      // stays swipe-scrollable. Mouse can grab anywhere on the tag.
+      if (e.pointerType !== 'mouse' && !(e.target as HTMLElement).closest('.tag-drag-handle')) return;
+      // Ignore secondary buttons / multi-touch beyond the first finger.
+      if (dragItemId) return;
+
       dragItemId = tag.dataset.id!;
+      dragTag = tag;
+      dragPointerId = e.pointerId;
       dragStartX = e.clientX;
       dragStartY = e.clientY;
       dragging = false;
-      document.addEventListener('pointermove', onPointerMove);
-      document.addEventListener('pointerup', onPointerUp);
+      // Route all subsequent pointer events to this tag even if the finger
+      // slides off it — essential for dragging across containers on touch.
+      try { tag.setPointerCapture(e.pointerId); } catch { /* unsupported */ }
+    });
+
+    // Pointer capture delivers move/up/cancel to the captured element.
+    tag.addEventListener('pointermove', e => {
+      if (e.pointerId === dragPointerId) onPointerMove(e);
+    });
+    tag.addEventListener('pointerup', e => {
+      if (e.pointerId === dragPointerId) onPointerUp(e);
+    });
+    tag.addEventListener('pointercancel', e => {
+      if (e.pointerId === dragPointerId) endDrag();
     });
   });
 }

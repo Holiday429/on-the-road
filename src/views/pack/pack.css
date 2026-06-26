@@ -320,8 +320,14 @@
 .tag-drag-handle {
   color: var(--ink-faint); cursor: grab; font-size: 13px; line-height: 1;
   padding: 0 1px; flex-shrink: 0;
+  /* Claim the touch gesture so dragging from the handle never scrolls. */
+  touch-action: none;
 }
 .tag-drag-handle:active { cursor: grabbing; }
+/* Bigger, easier-to-grab handle on touch screens. */
+@media (pointer: coarse) {
+  .tag-drag-handle { font-size: 16px; padding: 2px 4px; }
+}
 .tag-name { font-size: var(--fs-sm); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 .tag-qty-badge { font-size: 10px; color: var(--ink-muted); margin-left: 2px; }
 .tag-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: 2px; }
@@ -498,8 +504,14 @@
 @media (max-width: 1200px) {
   .pack-containers-grid { grid-template-columns: repeat(2, 1fr); }
 }
-/* Stack layout on small screens */
-@media (max-width: 860px) {
+/* Landscape tablets / narrow desktops: keep the Unassigned sidebar but give it
+   a slimmer column and let containers fall to a single column so both fit. */
+@media (max-width: 860px) and (min-width: 620px) {
+  .pack-detail-layout { grid-template-columns: 1fr 200px; }
+  .pack-containers-grid { grid-template-columns: 1fr; }
+}
+/* Stack layout only on genuinely narrow (phone-width) screens */
+@media (max-width: 619px) {
   .pack-detail-layout { grid-template-columns: 1fr; height: auto; }
   .pack-containers-grid { grid-template-columns: 1fr; }
   .pack-unassigned-panel { height: 240px; }
