@@ -1,4 +1,4 @@
-const CACHE = 'otr-shell-v2';
+const CACHE = 'otr-shell-v3';
 
 const SHELL = [
   '/',
@@ -61,19 +61,21 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-first for static assets (JS/CSS/fonts/images)
-  if (/\.(js|css|png|jpg|jpeg|svg|gif|woff2?|ico)(\?.*)?$/.test(url.pathname)) {
+  // Stale-while-revalidate for static assets (JS/CSS/fonts/images/media):
+  // serve the cached copy instantly for speed/offline, but always re-fetch in
+  // the background and update the cache so edits (e.g. landing.css, the hero
+  // video) reach users on their next visit instead of being pinned forever.
+  if (/\.(js|css|png|jpg|jpeg|svg|gif|webp|woff2?|ico|mp4|webm)(\?.*)?$/.test(url.pathname)) {
     e.respondWith(
-      caches.match(request).then(cached => {
-        if (cached) return cached;
-        return fetch(request).then(res => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE).then(c => c.put(request, clone));
-          }
-          return res;
-        });
-      })
+      caches.open(CACHE).then(cache =>
+        cache.match(request).then(cached => {
+          const network = fetch(request).then(res => {
+            if (res.ok) cache.put(request, res.clone());
+            return res;
+          }).catch(() => cached);
+          return cached || network;
+        })
+      )
     );
   }
 });
