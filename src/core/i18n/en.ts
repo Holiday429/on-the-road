@@ -170,6 +170,7 @@ export const en: StringTable = {
   'expenses.formTitle':     'Add expense',
   'expenses.descPh':        'e.g. Dinner at Boqueria market',
   'expenses.btnAdd':        'Add expense',
+  'expenses.addFailed':     'Could not save the expense. Check your connection and that you are signed in, then try again.',
   'expenses.managerTitle':  'Your categories',
   'expenses.showTotalsIn':  'Show totals in',
   'expenses.filterAllCities':'All cities',

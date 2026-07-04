@@ -126,7 +126,9 @@ export interface AddExpenseInput {
  *  and remembers the place/currency for next time. Returns false on bad input. */
 export async function addExpenseWithDefaults(input: AddExpenseInput): Promise<boolean> {
   const { amount, currency, description, date, category, country, city, rates } = input;
-  if (!amount || !description.trim()) return false;
+  // Only the amount is required; a description is optional (an amount + category
+  // + date is enough to log a spend and tidy the note in later).
+  if (!amount) return false;
   const { rate, baseAmount } = convert(rates, amount, currency);
   await expenseStore.add({
     amount, currency, rate, baseAmount,

@@ -357,19 +357,34 @@ function renderForm(el: HTMLElement) {
   el.querySelector('#exp-cat-manage')?.addEventListener('click', () => openCategoryManager(el));
 
   el.querySelector('#exp-add-btn')?.addEventListener('click', async () => {
-    const amount = parseFloat((el.querySelector('#exp-amount') as HTMLInputElement).value);
+    const amountInput = el.querySelector('#exp-amount') as HTMLInputElement;
+    const amount = parseFloat(amountInput.value);
     const currency = curInput.value;
     const desc = (el.querySelector('#exp-desc') as HTMLInputElement).value;
     const date = (el.querySelector('#exp-date') as HTMLInputElement).value;
     const country = formCountry === WHOLE_TRIP ? '' : formCountry;
+    const btn = el.querySelector('#exp-add-btn') as HTMLButtonElement;
 
-    const ok = await addExpenseWithDefaults({
-      amount, currency, description: desc, date,
-      category: selectedCategory, country, city: formCity, rates,
-    });
-    if (ok) {
-      (el.querySelector('#exp-amount') as HTMLInputElement).value = '';
-      (el.querySelector('#exp-desc') as HTMLInputElement).value = '';
+    // Only the amount is required — an empty amount just refocuses the field.
+    if (!amount) { amountInput.focus(); return; }
+
+    btn.disabled = true;
+    try {
+      const ok = await addExpenseWithDefaults({
+        amount, currency, description: desc, date,
+        category: selectedCategory, country, city: formCity, rates,
+      });
+      if (ok) {
+        amountInput.value = '';
+        (el.querySelector('#exp-desc') as HTMLInputElement).value = '';
+      }
+    } catch (err) {
+      // A rejected write (not signed in, offline-then-denied, rules) used to
+      // fail silently and look like a dead button. Surface it instead.
+      console.error('Failed to add expense:', err);
+      alert(t('expenses.addFailed'));
+    } finally {
+      btn.disabled = false;
     }
   });
 }

@@ -163,6 +163,7 @@ export const zh: StringTable = {
   'expenses.formTitle':     '添加记账',
   'expenses.descPh':        '如：博盖利亚市场晚餐',
   'expenses.btnAdd':        '添加记账',
+  'expenses.addFailed':     '无法保存这笔记账。请检查网络连接并确认已登录后重试。',
   'expenses.managerTitle':  '我的类别',
   'expenses.showTotalsIn':  '汇总显示货币',
   'expenses.filterAllCities':'全部城市',
