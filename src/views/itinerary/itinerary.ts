@@ -13,16 +13,22 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { t as tr } from '../../core/i18n.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
+import { citySharedStore, type StoredCityShared } from '../../data/stores/city-shared-store.ts';
 import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
 import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
-import { escHtml as esc } from '../../core/utils.ts';
+import { escHtml as esc, slugId } from '../../core/utils.ts';
 import { flagForCountry } from '../../data/destinations.ts';
 import {
   TRANSPORT_ICONS, uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
   legStays, mapHref, NOTE_COLORS, noteColor, resolveNoteColor, dayColour, bearing,
+  legNoteCardsOf,
 } from './itinerary-utils.ts';
+import {
+  cityShareContext, sharedPlans, groupSharedPlans, buildSharedDoc,
+  sharedClips, sharedNoteCards, type SharedPlan,
+} from './itinerary-city-shared.ts';
 import { coordsFor } from '../map/geo.ts';
 import { geocode } from '../map/geocode.ts';
 import { currencySymbol } from '../../data/rates.ts';
@@ -84,12 +90,26 @@ let _dragStartX = 0, _dragStartY = 0;
 let _dragging = false;
 
 let legs: Leg[] = [];
+let sharedCities: StoredCityShared[] = [];   // per-trip intent layer (repeated cities)
 let addFormOpen = false;
 let selectedLegId: string | null = null;   // null = list view
 let _unsubRoute: (() => void) | null = null;
+let _unsubShared: (() => void) | null = null;
 let _navIntentBound = false;   // window listener for Today deep-links, bound once
-// IDs of legs whose note cards were just saved locally — suppress one Firestore echo re-render.
-const _notesSuppressed = new Set<string>();
+// Legs whose note cards were just saved locally → suppress re-renders briefly so
+// the focused textarea isn't torn down by the Firestore echo(es). Maps leg id to
+// an expiry timestamp; a note edit can fan out to two echoes (the leg's own doc
+// and the shared-city projection), so a time window is more robust than a
+// one-shot flag. See saveNoteCards / render.
+const _notesSuppressed = new Map<string, number>();
+const NOTE_SUPPRESS_MS = 1200;
+function suppressNotes(legId: string) { _notesSuppressed.set(legId, Date.now() + NOTE_SUPPRESS_MS); }
+function isNoteSuppressed(legId: string): boolean {
+  const until = _notesSuppressed.get(legId);
+  if (until == null) return false;
+  if (Date.now() > until) { _notesSuppressed.delete(legId); return false; }
+  return true;
+}
 let _tripList: StoredTrip[] = [];          // cached for the add-form trip selector
 let _countryPicker: DestinationInputInstance | null = null;
 let _cityPicker: DestinationInputInstance | null = null;
@@ -147,7 +167,26 @@ async function deleteLeg(id: string) {
 }
 
 function patchLeg(id: string, patch: Partial<SchemaLeg>) {
-  return routeStore.update(id, clean(patch)).catch(saveFailed);
+  const p = routeStore.update(id, clean(patch)).catch(saveFailed);
+  // Keep the city's shared "intent layer" in sync when a repeated-city leg's
+  // shared-relevant fields change (wishlist plans, clips, notes, categories).
+  if ('plans' in patch || 'clips' in patch || 'noteCards' in patch || 'clipCategories' in patch) {
+    const leg = legs.find(l => l.id === id);
+    if (leg) syncCityShared({ ...leg, ...patch } as Leg);
+  }
+  return p;
+}
+
+/** Rebuild and upsert the shared doc for a leg's city from all its siblings.
+ *  No-op for cities that appear only once. `overrideLeg` carries the optimistic
+ *  post-patch version so the projection reflects the change immediately. */
+function syncCityShared(overrideLeg: Leg) {
+  const merged = legs.map(l => (l.id === overrideLeg.id ? overrideLeg : l));
+  const ctx = cityShareContext(overrideLeg, merged, sharedCities);
+  if (!ctx) return;   // city not repeated → nothing to share
+
+  const doc = buildSharedDoc(ctx);
+  citySharedStore.save(clean(doc)).catch(saveFailed);
 }
 
 /** Rewrite a leg from scratch, dropping any keys listed in `omit`. Needed for
@@ -444,27 +483,42 @@ function categorySelectOptions(leg: Leg, selected: string): string {
 /* ── Clips section ───────────────────────────────────────────────────────── */
 
 function renderClipsSection(leg: Leg): string {
-  const clips = [...(leg.clips ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   const cats = allCategories(leg);
+
+  // Merge clips across every visit to this city (same trip). When the city is
+  // unique, `entries` is just this leg's clips tagged with its own id.
+  const ctx = cityShareContext(leg, legs, sharedCities);
+  const entries: { clip: Clip; srcLegId: string }[] = ctx
+    ? sharedClips(ctx)
+    : [...(leg.clips ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(c => ({ clip: c, srcLegId: leg.id }));
+
+  // Position of each sibling leg, for the "from visit N" tag on foreign clips.
+  const visitIndex = (legId: string) =>
+    ctx ? ctx.siblings.findIndex(s => s.id === legId) + 1 : 0;
 
   // active filter stored in data attr of the section element; default = ''
   const filterAttr = `data-clip-filter=""`;
 
-  const card = (c: Clip) => {
-    const cat = c.category ? categoryById(leg, c.category) : undefined;
+  const card = ({ clip: c, srcLegId }: { clip: Clip; srcLegId: string }) => {
+    // Category colour resolves against the clip's own leg (categories are per-leg).
+    const srcLeg = legs.find(l => l.id === srcLegId) ?? leg;
+    const cat = c.category ? categoryById(srcLeg, c.category) : undefined;
     const color = cat?.color ?? '#ebebeb';
     const imgs = clipImages(c);
+    const foreign = srcLegId !== leg.id;
+    const vIdx = foreign ? visitIndex(srcLegId) : 0;
     return `
-    <div class="rd-clip-card rd-clip-card--expandable" data-clip="${esc(c.id)}" data-clip-cat="${esc(c.category ?? '')}" data-act="preview-clip" data-clip-preview="${esc(c.id)}">
+    <div class="rd-clip-card rd-clip-card--expandable${foreign ? ' rd-clip-card--shared' : ''}" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" data-clip-cat="${esc(c.category ?? '')}" data-act="preview-clip" data-clip-preview="${esc(c.id)}">
       <div class="rd-clip-card-color" style="background:${esc(color)}"></div>
       <div class="rd-clip-card-body">
         ${imgs.length ? `<div class="rd-clip-card-imgs">${imgs.slice(0, 3).map((u, i) => `<div class="rd-clip-card-img-wrap">${i === 2 && imgs.length > 3 ? `<img class="rd-clip-card-img" src="${esc(u)}" alt=""><div class="rd-clip-card-img-more">+${imgs.length - 2}</div>` : `<img class="rd-clip-card-img" src="${esc(u)}" alt="">`}</div>`).join('')}</div>` : ''}
         <div class="rd-clip-card-top">
           ${cat ? `<span class="rd-cat-badge rd-cat-badge--sm" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
+          ${foreign ? `<span class="rd-share-tag" title="${tr('route.shareFromVisitTitle')}">${tr('route.shareFromVisit', { n: vIdx })}</span>` : ''}
           <div class="rd-clip-card-actions">
-            <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${esc(c.id)}" title="Convert to plan item">→✨</button>
-            <button class="rd-icon-btn" data-act="edit-clip" data-clip="${esc(c.id)}" title="Edit">✎</button>
-            <button class="rd-icon-btn rd-danger" data-act="del-clip" data-clip="${esc(c.id)}" title="Remove">✕</button>
+            <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Convert to plan item">→✨</button>
+            <button class="rd-icon-btn" data-act="edit-clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Edit">✎</button>
+            <button class="rd-icon-btn rd-danger" data-act="del-clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Remove">✕</button>
           </div>
         </div>
         ${c.url
@@ -478,7 +532,7 @@ function renderClipsSection(leg: Leg): string {
   const filterBar = `
     <div class="rd-filter-bar" id="rd-clip-filter-bar">
       <button class="rd-filter-chip is-active" data-filter="">${tr('route.filterAll')}</button>
-      ${cats.filter(c => clips.some(cl => cl.category === c.id)).map(c =>
+      ${cats.filter(c => entries.some(e => e.clip.category === c.id)).map(c =>
         `<button class="rd-filter-chip" data-filter="${esc(c.id)}" style="--chip-color:${esc(c.color)}">${esc(c.label)}</button>`
       ).join('')}
       <button class="rd-filter-chip rd-filter-chip--add" data-act="add-clip-category" title="New category">${tr('route.btnAddCategory')}</button>
@@ -491,38 +545,38 @@ function renderClipsSection(leg: Leg): string {
         <button class="btn btn-ghost rd-sm" data-act="open-add-clip">${tr('route.btnAddClip')}</button>
       </div>
       ${filterBar}
-      ${clips.length
-        ? `<div class="rd-clip-grid">${clips.map(card).join('')}</div>`
+      ${entries.length
+        ? `<div class="rd-clip-grid">${entries.map(card).join('')}</div>`
         : `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.clipsEmpty')}</span></div>`}
     </section>`;
 }
 
 /* ── Notes section ───────────────────────────────────────────────────────── */
 
-/** Migrate legacy `leg.notes` string into a single NoteCard if noteCards is empty.
- *  Also normalises any out-of-palette colors to the current palette. */
-function legNoteCards(leg: Leg): NoteCard[] {
-  if (leg.noteCards?.length) {
-    return [...leg.noteCards]
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      .map((c, i) => ({ ...c, color: resolveNoteColor(c.color, i) }));
-  }
-  if (leg.notes?.trim()) {
-    return [{ id: 'legacy', title: '', body: leg.notes, color: NOTE_COLORS[0], order: 0 }];
-  }
-  return [];
-}
+// Note-card migration/normalisation now lives in itinerary-utils as
+// `legNoteCardsOf` (shared with the city-sharing aggregator).
+const legNoteCards = legNoteCardsOf;
 
 function renderNotesSection(leg: Leg): string {
-  const cards = legNoteCards(leg);
+  // Merge notes across every visit to this city (same trip); each card is
+  // tagged with the leg it lives in so edits patch the right document.
+  const ctx = cityShareContext(leg, legs, sharedCities);
+  const entries: { card: NoteCard; srcLegId: string }[] = ctx
+    ? sharedNoteCards(ctx)
+    : legNoteCards(leg).map(c => ({ card: c, srcLegId: leg.id }));
 
-  const cardHtml = cards.map((c, i) => {
+  const visitIndex = (legId: string) =>
+    ctx ? ctx.siblings.findIndex(s => s.id === legId) + 1 : 0;
+
+  const cardHtml = entries.map(({ card: c, srcLegId }, i) => {
     const color = resolveNoteColor(c.color, i);
+    const foreign = srcLegId !== leg.id;
     return `
-    <div class="rd-note-card" data-note-id="${esc(c.id)}" style="background:${esc(color)}">
+    <div class="rd-note-card${foreign ? ' rd-note-card--shared' : ''}" data-note-id="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" style="background:${esc(color)}">
       <div class="rd-note-card-head">
         <input class="rd-note-title-input" data-note-id="${esc(c.id)}" value="${esc(c.title)}" placeholder="Title…">
         <div class="rd-note-card-actions">
+          ${foreign ? `<span class="rd-share-tag" title="${tr('route.shareFromVisitTitle')}">${tr('route.shareFromVisit', { n: visitIndex(srcLegId) })}</span>` : ''}
           <button class="rd-note-expand-btn" data-act="expand-note" data-note-id="${esc(c.id)}" title="View full note">↗</button>
           <div class="rd-note-color-wrap" data-note-id="${esc(c.id)}">
             <button class="rd-note-color-trigger" data-act="toggle-color" data-note-id="${esc(c.id)}" title="Note colour" style="background:${esc(color)}"></button>
@@ -545,7 +599,7 @@ function renderNotesSection(leg: Leg): string {
         <h3>${tr('route.sectionNotes')}</h3>
         <button class="btn btn-ghost rd-sm" data-act="add-note">${tr('route.btnAddNote')}</button>
       </div>
-      ${cards.length
+      ${entries.length
         ? `<div class="rd-note-grid">${cardHtml}</div>`
         : `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.notesEmpty')}</span></div>`}
     </section>`;
@@ -686,6 +740,61 @@ function initPlanLeaflet(timeline: HTMLElement, leg: Leg) {
 
 const PLANS_ONBOARDED_KEY = 'route-plans-onboarded';
 
+/** Returns the set of normalised plan titles already present in this leg, so
+ *  the shared-history block can hide items the user has already brought over. */
+function legPlanTitleSet(leg: Leg): Set<string> {
+  return new Set((leg.plans ?? []).map(p => slugId(p.title) || p.title.trim().toLowerCase()));
+}
+
+/** The "from your other visits" block in the plan sidebar: items planned (or
+ *  missed, or done) on the trip's other stops in this same city. Read-only
+ *  references with a one-click "add to this visit" for the ones not yet here. */
+function renderSharedHistory(leg: Leg): string {
+  const ctx = cityShareContext(leg, legs, sharedCities);
+  if (!ctx) return '';
+
+  const here = legPlanTitleSet(leg);
+  const all = sharedPlans(ctx);
+  const { missed, visited } = groupSharedPlans(all);
+  // Only show items that aren't already in THIS leg's plans.
+  const missedOther  = missed.filter(p => !here.has(p.key));
+  const visitedOther = visited.filter(p => !here.has(p.key));
+  if (!missedOther.length && !visitedOther.length) return '';
+
+  const row = (p: SharedPlan, kind: 'missed' | 'visited') => {
+    const when = p.occurrences[0] ? fmtDate(p.occurrences[0].dateFrom) : '';
+    const meta = kind === 'visited'
+      ? tr('route.shareDoneOn', { date: when })
+      : tr('route.shareMissedOn', { date: when });
+    return `
+      <div class="rd-share-item rd-share-item--${kind}" data-share-key="${esc(p.key)}">
+        <span class="rd-share-item-mark">${kind === 'visited' ? '✓' : '⏳'}</span>
+        <span class="rd-share-item-name">${esc(p.title)}</span>
+        <span class="rd-share-item-meta">${meta}</span>
+        <button class="rd-icon-btn rd-sm rd-share-item-add" data-act="adopt-shared" data-share-key="${esc(p.key)}" title="${tr('route.shareAddTitle')}">＋</button>
+      </div>`;
+  };
+
+  const missedBlock = missedOther.length ? `
+    <details class="rd-share-group" open>
+      <summary class="rd-share-group-head">⏳ ${tr('route.shareMissedGroup', { n: missedOther.length })}</summary>
+      ${missedOther.map(p => row(p, 'missed')).join('')}
+    </details>` : '';
+
+  const visitedBlock = visitedOther.length ? `
+    <details class="rd-share-group">
+      <summary class="rd-share-group-head">✓ ${tr('route.shareVisitedGroup', { n: visitedOther.length })}</summary>
+      ${visitedOther.map(p => row(p, 'visited')).join('')}
+    </details>` : '';
+
+  return `
+    <div class="rd-share-history">
+      <div class="rd-share-history-head">${tr('route.shareHistoryTitle')}</div>
+      ${missedBlock}
+      ${visitedBlock}
+    </div>`;
+}
+
 function renderPlansSection(leg: Leg): string {
   const views: { id: PlanView; label: string }[] = [
     { id: 'board',    label: '📋 Board' },
@@ -726,6 +835,7 @@ function renderPlansSection(leg: Leg): string {
         ${unassigned.map(p => renderPlanItem(p, leg)).join('')}
         ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">${tr('route.newItemsHint')}</div>` : ''}
       </div>
+      ${renderSharedHistory(leg)}
     </div>`;
 
   return `
@@ -758,6 +868,36 @@ function renderPlansSection(leg: Leg): string {
     </section>`;
 }
 
+/** Status bar shown when this city repeats in the trip — surfaces visit
+ *  history so the user can plan the return without repeating themselves. */
+function renderCityShareBar(leg: Leg): string {
+  const ctx = cityShareContext(leg, legs, sharedCities);
+  if (!ctx) return '';
+
+  const plans = sharedPlans(ctx);
+  const { visited, fresh, missed } = groupSharedPlans(plans);
+  const toPlan = fresh.length + missed.length;
+
+  const others = ctx.otherVisits
+    .map(v => `${fmtDate(v.dateFrom)}–${fmtDate(v.dateTo)}`)
+    .join(', ');
+
+  const counts: string[] = [];
+  if (visited.length) counts.push(tr('route.shareVisitedCount', { n: visited.length }));
+  if (toPlan)        counts.push(tr('route.shareToPlanCount', { n: toPlan }));
+
+  return `
+    <div class="rd-share-bar">
+      <span class="rd-share-bar-icon">🔗</span>
+      <span class="rd-share-bar-text">
+        <strong>${esc(leg.city)}</strong> ·
+        ${tr('route.shareVisitOf', { i: ctx.currentIndex, n: ctx.siblings.length })}
+        ${others ? `<span class="rd-share-bar-dim"> · ${tr('route.shareOtherVisits', { dates: others })}</span>` : ''}
+        ${counts.length ? `<span class="rd-share-bar-dim"> · ${counts.join(' · ')}</span>` : ''}
+      </span>
+    </div>`;
+}
+
 function renderDetail(leg: Leg): string {
   const days = daysBetween(leg.dateFrom, leg.dateTo);
   const status = legStatus(leg);
@@ -780,6 +920,7 @@ function renderDetail(leg: Leg): string {
           <button class="rd-datebar-edit-btn" data-act="edit-dates" title="Edit dates">✎</button>
         </div>
       </div>
+      ${renderCityShareBar(leg)}
       <div class="rd-detail-layout">
         <div class="rd-detail-grid rd-detail-grid--top">
           ${renderTransportSection(leg)}
@@ -802,11 +943,9 @@ function render() {
   const selected = selectedLegId ? legs.find((l) => l.id === selectedLegId) : null;
   if (selectedLegId && !selected) selectedLegId = null;
 
-  // Skip re-render if only note cards changed (suppress one echo to avoid typing flicker).
-  if (selected && _notesSuppressed.has(selected.id)) {
-    _notesSuppressed.delete(selected.id);
-    return;
-  }
+  // Skip re-render while a note edit is in flight (avoids tearing down the
+  // focused textarea on the Firestore echo). Time-windowed, not one-shot.
+  if (selected && isNoteSuppressed(selected.id)) return;
 
   timeline.innerHTML = selected ? renderDetail(selected) : renderTimeline();
   timeline.classList.toggle('is-detail', !!selected);
@@ -964,16 +1103,30 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   });
 
   /* — Notes — */
-  function saveNoteCards(cards: NoteCard[]) {
+  // Notes merge across every visit to this city (same trip). A note card may
+  // live in a sibling leg; edits are routed back to that leg via data-src-leg.
+  const noteSrcLeg = (el: HTMLElement): Leg => {
+    const card = el.closest<HTMLElement>('[data-src-leg]');
+    return legs.find(l => l.id === (card?.dataset.srcLeg || leg.id)) ?? leg;
+  };
+  // Which leg owns a given note id (needed when only the note id is known).
+  const legForNoteId = (id: string): Leg =>
+    legs.find(l => legNoteCards(l).some(c => c.id === id)) ?? leg;
+
+  function saveNoteCards(target: Leg, cards: NoteCard[]) {
     // Patch in-memory leg so the Firestore echo finds the same value and render() is suppressed.
-    const idx = legs.findIndex(l => l.id === leg.id);
+    const idx = legs.findIndex(l => l.id === target.id);
     if (idx >= 0) legs[idx] = { ...legs[idx], noteCards: cards };
-    leg.noteCards = cards;
-    _notesSuppressed.add(leg.id);
-    patchLeg(leg.id, { noteCards: clean(cards) });
+    target.noteCards = cards;
+    // Suppress renders of the CURRENT view (which holds the focused textarea),
+    // not just the target leg — a foreign-note edit echoes on the sibling leg
+    // AND on the shared-city projection, so we window both out.
+    suppressNotes(target.id);
+    if (selectedLegId) suppressNotes(selectedLegId);
+    patchLeg(target.id, { noteCards: clean(cards) });
   }
 
-  // Add note
+  // Add note — always to THIS visit's leg.
   on('add-note', () => {
     const cards = legNoteCards(leg);
     const next: NoteCard = {
@@ -984,11 +1137,12 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     patchLeg(leg.id, { noteCards: clean([...cards, next]) });
   });
 
-  // Delete note
+  // Delete note — from whichever leg owns it.
   on('del-note', (el) => {
     const id = el.dataset.noteId!;
-    const cards = legNoteCards(leg).filter(c => c.id !== id);
-    patchLeg(leg.id, { noteCards: clean(cards) });
+    const src = noteSrcLeg(el);
+    const cards = legNoteCards(src).filter(c => c.id !== id);
+    patchLeg(src.id, { noteCards: clean(cards) });
   });
 
   // Per-card textarea & title — debounced, no re-render
@@ -1013,8 +1167,9 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
       const id = ta.dataset.noteId!;
       clearTimeout(_noteTimers[id]);
       _noteTimers[id] = setTimeout(() => {
-        const cards = legNoteCards(leg).map(c => c.id === id ? { ...c, body: ta.value } : c);
-        saveNoteCards(cards);
+        const src = legForNoteId(id);
+        const cards = legNoteCards(src).map(c => c.id === id ? { ...c, body: ta.value } : c);
+        saveNoteCards(src, cards);
       }, 800);
     });
   });
@@ -1024,8 +1179,9 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
       const id = inp.dataset.noteId!;
       clearTimeout(_noteTimers[id + '-title']);
       _noteTimers[id + '-title'] = setTimeout(() => {
-        const cards = legNoteCards(leg).map(c => c.id === id ? { ...c, title: inp.value } : c);
-        saveNoteCards(cards);
+        const src = legForNoteId(id);
+        const cards = legNoteCards(src).map(c => c.id === id ? { ...c, title: inp.value } : c);
+        saveNoteCards(src, cards);
       }, 600);
     });
   });
@@ -1052,7 +1208,8 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
       e.stopPropagation();
       const id = sw.dataset.noteId!;
       const color = sw.dataset.color!;
-      const cards = legNoteCards(leg).map(c => c.id === id ? { ...c, color } : c);
+      const src = legForNoteId(id);
+      const cards = legNoteCards(src).map(c => c.id === id ? { ...c, color } : c);
       // Update card background immediately without full re-render
       const card = timeline.querySelector<HTMLElement>(`.rd-note-card[data-note-id="${id}"]`);
       if (card) {
@@ -1062,21 +1219,29 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
         card.querySelectorAll<HTMLButtonElement>('.rd-note-color-swatch').forEach(s => s.classList.toggle('is-active', s.dataset.color === color));
       }
       closeColorPopovers();
-      saveNoteCards(cards);
+      saveNoteCards(src, cards);
     });
   });
 
   /* — Clips — */
+  // A clip may live in a sibling leg (same city, same trip). data-src-leg tells
+  // us which leg actually owns it, so edits/deletes patch the right document.
+  const srcLegOf = (el: HTMLElement): Leg =>
+    legs.find(l => l.id === (el.dataset.srcLeg || leg.id)) ?? leg;
+
   on('open-add-clip', () => openClipEditor(timeline, leg, null));
-  on('edit-clip', (el) => openClipEditor(timeline, leg, el.dataset.clip!));
+  on('edit-clip', (el) => openClipEditor(timeline, srcLegOf(el), el.dataset.clip!));
   on('del-clip', (el) => {
+    const src = srcLegOf(el);
     const id = el.dataset.clip!;
-    if (confirm('Remove this clip?')) patchLeg(leg.id, { clips: (leg.clips ?? []).filter(c => c.id !== id) });
+    if (confirm('Remove this clip?')) patchLeg(src.id, { clips: (src.clips ?? []).filter(c => c.id !== id) });
   });
   on('clip-to-plan', (el) => {
+    const src = srcLegOf(el);
     const id = el.dataset.clip!;
-    const clip = (leg.clips ?? []).find(c => c.id === id);
+    const clip = (src.clips ?? []).find(c => c.id === id);
     if (!clip) return;
+    // Convert into THIS leg's plans (the plan belongs to the current visit).
     const plans = leg.plans ?? [];
     const next: PlanItem = {
       id: uid(), title: clip.title || clip.url || 'Untitled',
@@ -1091,9 +1256,10 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     if ((e.target as HTMLElement).closest('[data-act]:not([data-act="preview-clip"])')) return;
     const id = el.dataset.clipPreview ?? el.closest<HTMLElement>('[data-clip-preview]')?.dataset.clipPreview;
     if (!id) return;
-    const clip = (leg.clips ?? []).find(c => c.id === id);
+    const src = srcLegOf(el.closest<HTMLElement>('[data-src-leg]') ?? el);
+    const clip = (src.clips ?? []).find(c => c.id === id);
     if (!clip) return;
-    const cat = clip.category ? categoryById(leg, clip.category) : undefined;
+    const cat = clip.category ? categoryById(src, clip.category) : undefined;
     const color = cat?.color ?? '#ebebeb';
     const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
     const dlg = document.createElement('div');
@@ -1139,7 +1305,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
 
   on('expand-note', (el) => {
     const id = el.dataset.noteId!;
-    const card = legNoteCards(leg).find(c => c.id === id);
+    const card = legNoteCards(noteSrcLeg(el)).find(c => c.id === id);
     if (!card) return;
     const color = card.color ?? NOTE_COLORS[0];
     const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
@@ -1222,6 +1388,25 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   });
   planInput?.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Enter') (timeline.querySelector('[data-act="add-plan"]') as HTMLElement)?.click();
+  });
+
+  // Bring an item from another visit into this leg's wishlist (unassigned).
+  on('adopt-shared', (el) => {
+    const key = el.dataset.shareKey!;
+    const ctx = cityShareContext(leg, legs, sharedCities);
+    if (!ctx) return;
+    const shared = sharedPlans(ctx).find(p => p.key === key);
+    if (!shared) return;
+    const plans = leg.plans ?? [];
+    // Guard against double-add if the echo hasn't landed yet.
+    if (legPlanTitleSet(leg).has(key)) return;
+    const next: PlanItem = {
+      id: uid(), title: shared.title,
+      category: shared.category ?? '',
+      note: shared.note || undefined,
+      dayId: null, done: false, order: plans.length,
+    };
+    patchLeg(leg.id, { plans: [...plans, clean(next)] });
   });
 
   /* — Plan item actions — */
@@ -1616,14 +1801,25 @@ function applyNavIntent() {
 export function initRoute() {
   // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
   _unsubRoute?.();
+  _unsubShared?.();
   destroyPickers();
   legs = [];
+  sharedCities = [];
   selectedLegId = null;
   addFormOpen = false;
   _unsubRoute = routeStore.subscribe((rows) => {
     legs = sortLegs(rows as Leg[]);
     render();
     applyNavIntent();
+  });
+  // The shared "intent layer" for repeated cities. Kept in module state so the
+  // detail renderers can read a city's shared wishlist/clips/notes synchronously.
+  _unsubShared = citySharedStore.subscribe((rows) => {
+    sharedCities = rows;
+    // Only repaint the detail view — the list view doesn't read shared data.
+    // Skip while a note edit is in flight so the focused textarea isn't torn
+    // down mid-typing (the route echo's render already covers the update).
+    if (selectedLegId && !isNoteSuppressed(selectedLegId)) render();
   });
 
   // A re-activation (view already mounted) won't re-run init — listen so a

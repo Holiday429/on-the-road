@@ -155,6 +155,49 @@ export const LegSchema = doc({
 });
 export type Leg = z.infer<typeof LegSchema>;
 
+/* ── City-level sharing ──────────────────────────────────────────────────── */
+// When one city appears more than once in a trip (e.g. two Copenhagen stays,
+// start and end of a Europe trip), the "intent layer" — what you want to see,
+// what you've researched — is shared across the visits, while the "execution
+// layer" (which day, which hotel) stays private to each leg.
+//
+// Stored at trips/{tripId}/cityShared/{slug} where slug = slugId(city), so the
+// same city folds into one doc regardless of how many legs reference it.
+
+// A footprint recording that a shared wishlist item was scheduled on one visit.
+export const CityVisitSchema = z.object({
+  legId: z.string(),        // which leg (visit) scheduled it
+  dateFrom: z.string(),     // that leg's start date, for "planned 5/3" labels
+  done: z.boolean().default(false),  // whether it was marked done on that visit
+});
+export type CityVisit = z.infer<typeof CityVisitSchema>;
+
+// A shared wishlist item. Mirrors PlanItem's descriptive fields but is never
+// scheduled itself (no dayId) — scheduling happens by copying it into a leg's
+// plans. `visits` accumulates the footprints across every visit to the city.
+export const SharedPlanItemSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  note: z.string().optional(),
+  category: z.string().default(''),
+  address: z.string().optional(),
+  duration: z.string().optional(),
+  cost: z.string().optional(),
+  order: z.number().default(0),
+  visits: z.array(CityVisitSchema).default([]),
+});
+export type SharedPlanItem = z.infer<typeof SharedPlanItemSchema>;
+
+export const CitySharedSchema = doc({
+  tripId: z.string().nullable().default(null),
+  city: z.string(),                 // display name (from the first leg that created it)
+  plans: z.array(SharedPlanItemSchema).default([]),   // shared wishlist
+  clips: z.array(ClipSchema).default([]),             // shared research
+  clipCategories: z.array(ClipCategorySchema).default([]),
+  noteCards: z.array(NoteCardSchema).default([]),     // shared general notes
+});
+export type CityShared = z.infer<typeof CitySharedSchema>;
+
 /* ── Stay (accommodation comparison) — legacy, kept for migration ─────────── */
 export const StayDimensionSchema = z.object({
   id: z.string(),

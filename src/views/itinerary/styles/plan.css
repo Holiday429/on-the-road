@@ -472,3 +472,36 @@
   display: flex; justify-content: flex-end; gap: var(--sp-2);
 }
 
+/* ── City-sharing: "from your other visits" (plan sidebar) ───────────────── */
+.rd-share-history {
+  border-top: 1px dashed #f59e0b;
+  padding: var(--sp-2);
+  display: flex; flex-direction: column; gap: 6px;
+  background: #fffdf5;
+}
+.rd-share-history-head {
+  font-family: var(--font-ui); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: #b45309; padding: 0 2px 2px;
+}
+.rd-share-group { border-radius: var(--r-md); }
+.rd-share-group-head {
+  font-size: var(--fs-xs); font-weight: 600; color: #92400e;
+  cursor: pointer; padding: 4px 2px; list-style: none;
+}
+.rd-share-group-head::-webkit-details-marker { display: none; }
+.rd-share-group[open] .rd-share-group-head { margin-bottom: 2px; }
+.rd-share-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: var(--r-md);
+  font-size: var(--fs-xs); background: #fff;
+  border: 1px solid var(--rule-soft);
+}
+.rd-share-item--visited { opacity: 0.6; }
+.rd-share-item-mark { flex-shrink: 0; font-size: 11px; }
+.rd-share-item--visited .rd-share-item-mark { color: var(--route-active, #16a34a); }
+.rd-share-item-name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-share-item--visited .rd-share-item-name { text-decoration: line-through; }
+.rd-share-item-meta { color: var(--ink-faint); font-size: 10px; flex-shrink: 0; }
+.rd-share-item-add { flex-shrink: 0; }
+

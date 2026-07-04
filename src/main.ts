@@ -5,13 +5,14 @@
 import './core/base.css';
 import './core/app.css';
 
-import { initApp, registerView, renderSession, openOnboarding, navigateTo, setAllowedViews, firstAllowedView, type ViewId } from './core/app.ts';
+import { initApp, registerView, renderSession, openOnboarding, navigateTo, reinitForTripChange, setAllowedViews, firstAllowedView, type ViewId } from './core/app.ts';
 import { onAuth, authReady, currentUser, signInWithGoogle, signInAnonymously, consumeRedirectResult, type User } from './firebase/auth.ts';
-import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites, currentMemberPages } from './data/trip-context.ts';
+import { ensureDefaultTrip, restoreActiveTrip, checkAndAcceptEmailInvites, currentMemberPages, currentTripId } from './data/trip-context.ts';
 import { migrateMultiTrip } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
+import { migrateCityShared } from './data/migrate-city-shared.ts';
 import { migrateCollab, isCollabMigrated } from './data/migrate-collab.ts';
 import { migratePublicView } from './data/migrate-publicview.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
@@ -321,6 +322,13 @@ async function bootAuthenticatedShell(user: User) {
 
   prepareAppFrame();
 
+  // Trip the shell was last built on (if any). When an anonymous guest upgrades
+  // to Google in place, the shell is already mounted on the guest's trip; the
+  // active trip then changes silently below. We compare against this to rebind
+  // the already-mounted views to the new trip after entry.
+  const shellWasBooted = shellBooted;
+  const prevTripId = currentTripId();
+
   bootPromise = (async () => {
     // FAST PATH: this device already ran the collab migration, so the trips/**
     // layout is populated. We can read the active trip and enter immediately,
@@ -353,6 +361,15 @@ async function bootAuthenticatedShell(user: User) {
     bootShellOnce();
     renderSession(user, handleSidebarAuth);
     navigateTo(currentViewOrDefault());
+    // If the shell was already mounted (guest boot) on a different trip, its
+    // views are still subscribed to the old trip's collections. navigateTo()
+    // won't re-init an already-mounted view, and the boot-time trip restore
+    // doesn't broadcast onTripChange — so rebind mounted views to the new trip
+    // here. Without this the Today hero/weather stay stuck on the guest state
+    // until a manual refresh.
+    if (shellWasBooted && currentTripId() !== prevTripId) {
+      reinitForTripChange();
+    }
     preparedUserId = user.uid;
     lastRenderedAnonymous = !!user.isAnonymous;
     guestShellReady = false;
@@ -422,6 +439,13 @@ async function runPreTripMigrations(): Promise<void> {
     const n = await migrateStaysToCompares();
     if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
   } catch (e) { console.warn('Stay→compare migration skipped:', e); }
+
+  // Seed the shared "intent layer" for cities that repeat within a trip.
+  // Reads trips/**/legs, so it runs after the route migration above.
+  try {
+    const n = await migrateCityShared();
+    if (n > 0) console.info(`Seeded ${n} shared-city doc(s) for repeated cities.`);
+  } catch (e) { console.warn('City-shared migration skipped:', e); }
 }
 
 /**
@@ -446,6 +470,7 @@ async function runPostEntryTasks(user: User, alreadyOnboarding: boolean, migrati
     try { if (await migrateRouteToCloud() > 0) dataChanged = true; } catch (e) { console.warn('Route migration (bg) skipped:', e); }
     try { if (await migrateExpensesToCloud() > 0) dataChanged = true; } catch (e) { console.warn('Expense migration (bg) skipped:', e); }
     try { if (await migrateStaysToCompares() > 0) dataChanged = true; } catch (e) { console.warn('Stay→compare migration (bg) skipped:', e); }
+    try { if (await migrateCityShared() > 0) dataChanged = true; } catch (e) { console.warn('City-shared migration (bg) skipped:', e); }
     try { await migrateMultiTrip(); } catch (e) { console.warn('Multi-trip migration (bg) skipped:', e); }
   }
 

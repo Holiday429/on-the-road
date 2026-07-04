@@ -6,7 +6,7 @@
    state, so they live here to keep route.ts focused on rendering + wiring.
    ========================================================================== */
 
-import type { Leg as SchemaLeg } from '../../data/schema.ts';
+import type { Leg as SchemaLeg, NoteCard } from '../../data/schema.ts';
 
 type Leg = SchemaLeg & { id: string };
 type Accommodation = NonNullable<SchemaLeg['accommodations']>[number];
@@ -87,6 +87,21 @@ export function noteColor(idx: number): string {
 /** If a card has an old/unknown color, remap it to the canonical palette by position. */
 export function resolveNoteColor(stored: string, idx: number): string {
   return NOTE_COLORS.includes(stored) ? stored : noteColor(idx);
+}
+
+/** Note cards for a leg, migrating the legacy single `notes` string and
+ *  normalising palette colours. Shared by the detail renderer and the
+ *  city-sharing aggregator. */
+export function legNoteCardsOf(leg: Leg): NoteCard[] {
+  if (leg.noteCards?.length) {
+    return [...leg.noteCards]
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((c, i) => ({ ...c, color: resolveNoteColor(c.color, i) }));
+  }
+  if (leg.notes?.trim()) {
+    return [{ id: 'legacy', title: '', body: leg.notes, color: NOTE_COLORS[0], order: 0 }];
+  }
+  return [];
 }
 
 /* ── Plan-day palette ────────────────────────────────────────────────────── */

@@ -266,3 +266,28 @@
 }
 .rd-cat-badge--sm { font-size: 10px; padding: 1px 6px; }
 
+/* ── City-sharing status bar (same city repeated in the trip) ────────────── */
+.rd-share-bar {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 8px var(--sp-3);
+  margin-bottom: var(--sp-4);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm); color: #78350f;
+}
+.rd-share-bar-icon { flex-shrink: 0; }
+.rd-share-bar-text { line-height: 1.4; }
+.rd-share-bar-dim { color: var(--ink-faint); }
+
+/* Tag on a clip/note card that was carried over from another visit to the city. */
+.rd-share-tag {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  padding: 1px 6px; border-radius: var(--r-full);
+  background: #fef3c7; color: #92400e; white-space: nowrap;
+  flex-shrink: 0;
+}
+/* Subtle dashed outline so shared cards read as "from elsewhere" but stay editable. */
+.rd-clip-card--shared,
+.rd-note-card--shared { box-shadow: inset 0 0 0 1px #fcd34d; }
+
