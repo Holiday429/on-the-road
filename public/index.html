@@ -65,12 +65,11 @@
     <div class="lp-hero-note">Free to start · works on every device · share with travel companions</div>
   </div>
   <div class="lp-hero-art">
-    <video class="lp-hero-art-media" width="800" height="800"
-           poster="/art/logo.png" autoplay loop muted playsinline
-           aria-label="On the Road mascot">
-      <source src="/art/logo.webm" type="video/webm">
-      <source src="/art/logo.mp4" type="video/mp4">
-    </video>
+    <!-- Transparent-background animated mascot. The .webm/.mp4 encodes a solid
+         white matte (yuv420p carries no alpha), so it can't blend into the
+         cream page; the GIF has real transparency. -->
+    <img class="lp-hero-art-media" src="/art/logo.gif" width="800" height="800"
+         alt="On the Road mascot" decoding="async">
   </div>
 </section>
 

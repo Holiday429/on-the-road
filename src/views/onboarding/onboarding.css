@@ -6,15 +6,24 @@
   position: fixed;
   inset: 0;
   z-index: 500;
+  /* Flex column, but DON'T use align/justify to center — that clips the top
+     of a card taller than the viewport and iOS won't scroll up to it.
+     Instead center via margin:auto on the child (works in both axes in a
+     flex container) so a short card centers and a tall one scrolls fully. */
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   background:
     radial-gradient(circle at 20% 10%, rgba(249,184,48,0.18), transparent 40%),
     radial-gradient(circle at 80% 90%, rgba(249,184,48,0.10), transparent 40%),
     linear-gradient(160deg, #fffaf0 0%, #f7f3ea 100%);
-  padding: clamp(18px, 4vw, 40px) clamp(12px, 3vw, 28px);
+  padding:
+    max(clamp(18px, 4vw, 40px), env(safe-area-inset-top))
+    max(clamp(12px, 3vw, 28px), env(safe-area-inset-right))
+    max(clamp(18px, 4vw, 40px), env(safe-area-inset-bottom))
+    max(clamp(12px, 3vw, 28px), env(safe-area-inset-left));
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 #onboarding-screen[hidden] { display: none; }
@@ -22,6 +31,10 @@
 .ob-card {
   width: 100%;
   max-width: 920px;
+  /* Center horizontally, and vertically only when there's spare room —
+     margin:auto centers a short card but never clips a tall one. */
+  margin: auto;
+  flex-shrink: 0;
   padding: 24px 32px 18px;
   background: #fff;
   border-radius: 22px;
