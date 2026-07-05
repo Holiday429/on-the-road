@@ -19,6 +19,7 @@ import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type 
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import {
+  OTHER_DESTINATION,
   currentCity,
   currentMonthKey,
   monthKeyFromIso,
@@ -284,6 +285,14 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       if (target.matches('[data-filter-destination]')) {
         state.filter.destination = target.value;
+        deps.requestRender();
+        return;
+      }
+
+      if (target.matches('#journal-destination-select')) {
+        syncDraftFromDom(liveShell);
+        const selected = (target as HTMLSelectElement).value;
+        state.draft.destination = selected === OTHER_DESTINATION ? '' : selected;
         deps.requestRender();
         return;
       }

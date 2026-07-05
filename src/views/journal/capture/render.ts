@@ -11,11 +11,13 @@ import {
 import type { CaptureState } from './types.ts';
 import {
   MOODS,
+  OTHER_DESTINATION,
   escHtml,
   excerpt,
   prettyDate,
   suggestedDestinations,
   titleFor,
+  tripCities,
 } from '../shared/utils.ts';
 
 export interface PlaceGroup {
@@ -202,6 +204,9 @@ function renderComposer(
   const item = template(state.draft.template);
   const prompt = item.prompts[state.promptIndex % item.prompts.length];
   const destinations = suggestedDestinations(entries, legs);
+  const cities = tripCities(legs);
+  const currentDestination = state.draft.destination.trim();
+  const isCustomDestination = currentDestination !== '' && !cities.includes(currentDestination);
 
   return `
     <section class="journal-composer journal-fmt-${item.format}" style="--tint:${item.tint}">
@@ -243,7 +248,20 @@ function renderComposer(
         </div>
         ${item.fields.destination ? `
           <div class="journal-meta-row-single">
-            <input class="input" id="journal-destination" list="journal-dest-list" placeholder="${escHtml(item.destinationLabel)}" value="${escHtml(state.draft.destination)}">
+            ${cities.length ? `
+              <select class="select input" id="journal-destination-select">
+                ${cities.map((city) => `<option value="${escHtml(city)}" ${!isCustomDestination && city === currentDestination ? 'selected' : ''}>${escHtml(city)}</option>`).join('')}
+                <option value="${OTHER_DESTINATION}" ${isCustomDestination ? 'selected' : ''}>Other place…</option>
+              </select>
+            ` : ''}
+            <input
+              class="input"
+              id="journal-destination"
+              list="journal-dest-list"
+              placeholder="${escHtml(item.destinationLabel)}"
+              value="${escHtml(state.draft.destination)}"
+              style="${cities.length && !isCustomDestination ? 'display:none' : ''}"
+            >
             <datalist id="journal-dest-list">
               ${destinations.map((destination) => `<option value="${escHtml(destination)}"></option>`).join('')}
             </datalist>

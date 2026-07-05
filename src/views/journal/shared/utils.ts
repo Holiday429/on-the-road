@@ -3,6 +3,8 @@ import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { DEFAULT_TEMPLATE, template } from '../templates.ts';
 export { escHtml } from '../../../core/utils.ts';
 
+export const OTHER_DESTINATION = '__other__';
+
 export const MOODS: { value: string; emoji: string }[] = [
   { value: 'spark', emoji: '⚡' },
   { value: 'calm', emoji: '🌊' },
@@ -82,6 +84,12 @@ export function suggestedDestinations(entries: StoredJournalEntry[], legs: Store
   const fromLegs = legs.map((leg) => leg.city.trim()).filter(Boolean);
   const fromEntries = entries.map((entry) => entry.destination.trim()).filter(Boolean);
   return [...new Set([...fromLegs, ...fromEntries])].slice(0, 12);
+}
+
+/** Cities visited on this trip, in itinerary order (earliest leg first), deduped. */
+export function tripCities(legs: StoredLeg[]): string[] {
+  const ordered = [...legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  return [...new Set(ordered.map((leg) => leg.city.trim()).filter(Boolean))];
 }
 
 export function sortEntries(entries: StoredJournalEntry[]): StoredJournalEntry[] {
