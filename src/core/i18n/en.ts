@@ -47,6 +47,8 @@ export const en: StringTable = {
   'dash.greeting.evening':   'Good evening',
   'dash.greeting.night':     'Still up',
   'dash.widget.currency': 'Currency',
+  'dash.currency.swap': 'Swap',
+  'dash.currency.source': 'ECB reference rate',
   'dash.widget.spend':    'Spend',
   'dash.widget.routeMap': 'Route map',
   'dash.widget.upcoming': 'Upcoming',

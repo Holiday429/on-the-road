@@ -43,6 +43,8 @@ export const ko: StringTable = {
   'dash.greeting.evening':   '좋은 저녁이에요',
   'dash.greeting.night':     '아직 안 주무셨네요',
   'dash.widget.currency': '환율',
+  'dash.currency.swap': '전환',
+  'dash.currency.source': 'ECB 기준 환율',
   'dash.widget.spend':    '지출',
   'dash.widget.routeMap': '경로 지도',
   'dash.widget.upcoming': '곧 다가올',

@@ -43,6 +43,8 @@ export const fr: StringTable = {
   'dash.greeting.evening':   'Bonsoir',
   'dash.greeting.night':     'Encore debout',
   'dash.widget.currency': 'Devise',
+  'dash.currency.swap': 'Inverser',
+  'dash.currency.source': 'Taux de référence BCE',
   'dash.widget.spend':    'Dépenses',
   'dash.widget.routeMap': "Carte de l'itinéraire",
   'dash.widget.upcoming': 'À venir',

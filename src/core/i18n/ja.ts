@@ -43,6 +43,8 @@ export const ja: StringTable = {
   'dash.greeting.evening':   'こんばんは',
   'dash.greeting.night':     'まだ起きてますね',
   'dash.widget.currency': '為替',
+  'dash.currency.swap': '入れ替え',
+  'dash.currency.source': 'ECB参考レート',
   'dash.widget.spend':    '支出',
   'dash.widget.routeMap': 'ルートマップ',
   'dash.widget.upcoming': 'まもなく',

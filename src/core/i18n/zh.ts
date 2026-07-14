@@ -43,6 +43,8 @@ export const zh: StringTable = {
   'dash.greeting.evening':   '晚上好',
   'dash.greeting.night':     '还没睡',
   'dash.widget.currency': '汇率',
+  'dash.currency.swap': '互换',
+  'dash.currency.source': '欧洲央行参考汇率',
   'dash.widget.spend':    '花费',
   'dash.widget.routeMap': '路线地图',
   'dash.widget.upcoming': '即将到来',

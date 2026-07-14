@@ -35,13 +35,19 @@
 /* Rate info rows — no dividers */
 .td-cur-rates { display: flex; flex-direction: column; gap: 2px; padding-top: var(--sp-1); }
 .td-cur-rate-row {
-  display: flex; align-items: center; justify-content: center; gap: var(--sp-3);
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
   font-size: var(--fs-sm); color: var(--ink-soft);
-  padding: 5px var(--sp-3);
+  padding: 5px var(--sp-2);
+  white-space: nowrap; min-width: 0;
 }
-.td-cur-rate-row span:last-child { display: flex; align-items: center; gap: 5px; }
+.td-cur-rate-row > span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .td-cur-rate-row strong { font-weight: 700; color: var(--ink); font-family: var(--font-ui); font-size: var(--fs-sm); }
 .td-cur-rate-eq { color: var(--ink-faint); padding: 0 2px; }
+/* Source note — right-aligned in the widget header, next to the title. */
+.td-cur-source {
+  color: var(--ink-faint); font-size: var(--fs-xs);
+  text-align: right; white-space: nowrap; flex-shrink: 0;
+}
 
 /* ── Calendar mini ────────────────────────────────────────────────────────── */
 .td-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }

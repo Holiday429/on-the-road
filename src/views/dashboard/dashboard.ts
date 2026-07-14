@@ -286,29 +286,40 @@ function currencyOptions(selected: string): string {
   ).join('');
 }
 
+/** Base-units worth of 1 unit of `code` (i.e. how "valuable" a currency is vs base). */
+function unitValueInBase(code: string): number {
+  const base = baseCurrency();
+  if (code === base) return 1;
+  return _rates[code] ?? 0;
+}
+
+/** Order a pair so the stronger (more valuable) currency sits on the left,
+ *  matching convention: 1 EUR = 7.95 CNY, 1 CNY = 24 JPY. */
+function strongerFirst(a: string, b: string): [string, string] {
+  return unitValueInBase(a) >= unitValueInBase(b) ? [a, b] : [b, a];
+}
+
+function flagFor(code: string): string {
+  return CURRENCIES.find(c => c.code === code)?.flag ?? '';
+}
+
 function renderCurrencyWidget(): string {
-  const base   = baseCurrency();
-  const fromCur = _rateFrom || base;
-  const toCur   = _rateTo   || localCurrency();
+  const base = baseCurrency();
+  // Default the converter with the stronger currency on the left.
+  const [defFrom, defTo] = strongerFirst(base, localCurrency());
+  const fromCur = _rateFrom || defFrom;
+  const toCur   = _rateTo   || defTo;
 
   // Converter: from → to
   const rateToBase   = fromCur === base ? 1 : (_rates[fromCur] ? (1 / _rates[fromCur]) : null);
   const rateFromBase = toCur === base ? 1 : (_rates[toCur] ? (1 / _rates[toCur]) : null);
   const crossRate = (rateToBase != null && rateFromBase != null) ? rateFromBase / rateToBase : null;
-  // For rates table: 1 base = ? currency (rates[c] = how many base per 1 unit of c, so 1/rates[c])
-  function rateDisplay(code: string): string {
-    if (code === base) return '1.0000';
-    const r = _rates[code];
-    return r ? (1 / r).toFixed(4) : '—';
-  }
 
   const inputAmt = _rateInput !== '' ? parseFloat(_rateInput) : null;
   const converted = (inputAmt != null && crossRate != null) ? (inputAmt * crossRate).toFixed(2) : '';
 
-  const baseFlag = CURRENCIES.find(c => c.code === base)?.flag ?? '';
-
-  // 3 rate info rows: always show 3 different non-base currencies
-  // Priority: localCurrency, then trip leg currencies, then common fallbacks
+  // 3 rate info rows: always show 3 different non-base currencies.
+  // Priority: trip leg currencies, then common fallbacks.
   const fallbacks = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'DKK', 'SEK'];
   const candidates = [
     ...tripCurrencies(),
@@ -320,23 +331,30 @@ function renderCurrencyWidget(): string {
     if (seen3.size === 3) break;
   }
   const rateRowCodes = Array.from(seen3);
+  // Each row: put the stronger currency on the left, show "1 STRONG = N.NN WEAK".
   const rateRowsHtml = rateRowCodes.map(code => {
-    const flag = CURRENCIES.find(c => c.code === code)?.flag ?? '';
-    return `<div class="td-cur-rate-row"><span>${baseFlag} ${esc(base)}</span><span class="td-cur-rate-eq">=</span><span><strong>${rateDisplay(code)}</strong> ${flag} ${esc(code)}</span></div>`;
+    const [left, right] = strongerFirst(base, code);
+    const perLeft = unitValueInBase(right) > 0
+      ? (unitValueInBase(left) / unitValueInBase(right)).toFixed(2)
+      : '—';
+    return `<div class="td-cur-rate-row"><span>${flagFor(left)} ${esc(left)}</span><span class="td-cur-rate-eq">=</span><span><strong>${perLeft}</strong> ${flagFor(right)} ${esc(right)}</span></div>`;
   }).join('');
 
   return `
     <div class="td-widget td-w-currency">
-      <div class="td-widget-label">💱 Currency</div>
+      <div class="td-widget-header">
+        <div class="td-widget-label">💱 ${esc(t('dash.widget.currency'))}</div>
+        <span class="td-cur-source">${esc(t('dash.currency.source'))}</span>
+      </div>
       <div class="td-cur-converter">
         <div class="td-cur-conv-row">
           <div class="td-cur-conv-side">
             <input class="td-currency-input" data-rate-input type="text" inputmode="decimal" placeholder="1" value="${esc(_rateInput)}">
             <select class="td-cur-select" data-rate-from>${currencyOptions(fromCur)}</select>
           </div>
-          <button class="td-currency-swap" data-rate-swap title="Swap">⇄</button>
+          <button class="td-currency-swap" data-rate-swap title="${esc(t('dash.currency.swap'))}">⇄</button>
           <div class="td-cur-conv-side td-cur-conv-result">
-            <span class="td-currency-value">${esc(converted || (crossRate != null ? crossRate.toFixed(4) : '—'))}</span>
+            <span class="td-currency-value">${esc(converted || (crossRate != null ? crossRate.toFixed(2) : '—'))}</span>
             <select class="td-cur-select" data-rate-to>${currencyOptions(toCur)}</select>
           </div>
         </div>
@@ -1034,8 +1052,9 @@ function quickAddSpend(amount: number, desc: string, category: string): void {
 
 function crossRate(): number | null {
   const base    = baseCurrency();
-  const fromCur = _rateFrom || base;
-  const toCur   = _rateTo   || localCurrency();
+  const [defFrom, defTo] = strongerFirst(base, localCurrency());
+  const fromCur = _rateFrom || defFrom;
+  const toCur   = _rateTo   || defTo;
   const rateToBase   = fromCur === base ? 1 : (_rates[fromCur] ? (1 / _rates[fromCur]) : null);
   const rateFromBase = toCur === base ? 1 : (_rates[toCur] ? (1 / _rates[toCur]) : null);
   return (rateToBase != null && rateFromBase != null) ? rateFromBase / rateToBase : null;
@@ -1046,7 +1065,7 @@ function updateConverterResult(body: HTMLElement): void {
   const amt  = parseFloat(_rateInput);
   const result = (rate != null && Number.isFinite(amt) && amt > 0)
     ? (amt * rate).toFixed(2)
-    : (rate != null ? rate.toFixed(4) : '—');
+    : (rate != null ? rate.toFixed(2) : '—');
   const span = body.querySelector<HTMLElement>('.td-currency-value');
   if (span) span.textContent = result;
 }
@@ -1121,8 +1140,9 @@ function wire(body: HTMLElement): void {
   });
   // Swap button.
   body.querySelector<HTMLButtonElement>('[data-rate-swap]')?.addEventListener('click', () => {
-    const tmp = _rateFrom || baseCurrency();
-    _rateFrom = _rateTo   || localCurrency();
+    const [defFrom, defTo] = strongerFirst(baseCurrency(), localCurrency());
+    const tmp = _rateFrom || defFrom;
+    _rateFrom = _rateTo   || defTo;
     _rateTo   = tmp;
     render();
   });
