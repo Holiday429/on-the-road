@@ -19,6 +19,7 @@
 
 import './expenses.css';
 import { t } from '../../core/i18n.ts';
+import { escHtml } from '../../core/utils.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import {
@@ -63,6 +64,13 @@ let selectedCategory = 'food';
 // and what a new expense is tagged with). Seeded from remembered/leg defaults.
 let formCountry = '';
 let formCity = '';
+// In-progress values for the transient form fields. Persisting them across the
+// re-render that a country/city change triggers is what keeps those edits from
+// being wiped. `undefined` means "not yet touched → use the computed default".
+let draftAmount = '';
+let draftDesc = '';
+let draftCurrency: string | undefined;
+let draftDate: string | undefined;
 let filterCategory = 'all';
 let filterCity = 'all';
 let analysisDim: AnalysisDim = 'category';
@@ -252,6 +260,17 @@ function renderForm(el: HTMLElement) {
   const defCur = defaultCurrency(legs, todayIso);
   const base = baseCurrency();
 
+  // Before rebuilding the form, capture whatever is currently typed so this
+  // re-render — whether from a country/city change or an external store update —
+  // never wipes an in-progress entry. Only runs when the form already exists.
+  const liveAmount = el.querySelector<HTMLInputElement>('#exp-amount');
+  if (liveAmount) {
+    draftAmount   = liveAmount.value;
+    draftDesc     = (el.querySelector('#exp-desc') as HTMLInputElement).value;
+    draftCurrency = (el.querySelector('#exp-currency') as HTMLSelectElement).value;
+    draftDate     = (el.querySelector('#exp-date') as HTMLInputElement).value;
+  }
+
   // Seed the form's place from remembered/leg defaults (only when unset, so a
   // re-render after store updates doesn't clobber an in-progress selection).
   if (!formCountry && !formCity) {
@@ -262,6 +281,11 @@ function renderForm(el: HTMLElement) {
 
   const isWholeTrip = !formCountry || formCountry === WHOLE_TRIP;
   const cityOpts = cityOptions(formCountry, formCity);
+
+  // Resolve the field values: a touched draft wins over the computed default,
+  // so re-rendering (e.g. after a country/city change) preserves what was typed.
+  const curValue  = draftCurrency ?? defCur;
+  const dateValue = draftDate ?? todayIso;
 
   el.innerHTML = `
     <div class="exp-form">
@@ -286,21 +310,21 @@ function renderForm(el: HTMLElement) {
       <div class="exp-form-grid">
         <div>
           <label class="field-label">Amount</label>
-          <input class="input" type="number" id="exp-amount" placeholder="0.00" min="0" step="0.01">
+          <input class="input" type="number" id="exp-amount" placeholder="0.00" min="0" step="0.01" value="${escHtml(draftAmount)}">
         </div>
         <div>
           <label class="field-label">Currency</label>
           <select class="input select" id="exp-currency">
-            ${currencyOptions(defCur)}
+            ${currencyOptions(curValue)}
           </select>
         </div>
         <div>
           <label class="field-label">What for?</label>
-          <input class="input" id="exp-desc" placeholder="${t('expenses.descPh')}">
+          <input class="input" id="exp-desc" placeholder="${t('expenses.descPh')}" value="${escHtml(draftDesc)}">
         </div>
         <div>
           <label class="field-label">Date</label>
-          <input class="input" type="date" id="exp-date" value="${todayIso}">
+          <input class="input" type="date" id="exp-date" value="${dateValue}">
         </div>
         <div>
           <label class="field-label">Country</label>
@@ -327,6 +351,8 @@ function renderForm(el: HTMLElement) {
       formCountry = countrySel.value;
     }
     formCity = '';
+    // Auto-pick the country's currency only if the user never chose one. Written
+    // to the live select so renderForm's snapshot carries it into the redraw.
     if (!lastUsed().currency && formCountry !== WHOLE_TRIP) {
       curInput.value = COUNTRY_CURRENCY[formCountry] ?? base;
     }
@@ -375,6 +401,9 @@ function renderForm(el: HTMLElement) {
         category: selectedCategory, country, city: formCity, rates,
       });
       if (ok) {
+        // Reset the one-off fields (keep currency/date as sticky defaults).
+        draftAmount = '';
+        draftDesc = '';
         amountInput.value = '';
         (el.querySelector('#exp-desc') as HTMLInputElement).value = '';
       }
