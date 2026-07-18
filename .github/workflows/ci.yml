@@ -26,10 +26,15 @@ jobs:
           cache: npm
 
       # Firestore emulator (used by test:rules below) runs on the JVM.
+      # firebase-tools requires JDK 21+ as of the version pinned in
+      # package-lock.json (17 was fine when this step was first added, then
+      # a later `npm audit fix` bumped firebase-tools and raised the floor —
+      # this broke CI on main for two pushes before being caught, since a
+      # push only confirms the run STARTED, not that it finished green).
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       # The emulator jar (~60MB) is downloaded on first use and cached here by
       # firebase-tools; without this cache every CI run re-downloads it.
