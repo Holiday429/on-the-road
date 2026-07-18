@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /app
+
+Sitemap: https://easy-on-the-road.vercel.app/sitemap.xml

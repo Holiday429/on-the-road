@@ -7,14 +7,22 @@
   <meta name="description" content="On the Road is a travel planner that brings your itinerary, budget, packing list, AI city guides, maps, safety info and journal into one beautiful place. Start free — no account needed.">
 
   <link rel="icon" href="/art/logo.png">
-  <link rel="canonical" href="https://www.easy-on-the-road.app/">
+  <!-- NOTE: points at the live Vercel URL, not www.easy-on-the-road.app — that
+       custom domain doesn't resolve yet. Swap back once it's actually live
+       (DNS + Vercel domain binding), or every shared link/search snippet
+       here points at a dead host. -->
+  <link rel="canonical" href="https://easy-on-the-road.vercel.app/">
 
   <!-- Open Graph / social -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.easy-on-the-road.app/">
+  <meta property="og:url" content="https://easy-on-the-road.vercel.app/">
   <meta property="og:title" content="On the Road — Plan every trip in one place">
   <meta property="og:description" content="Itinerary, budget, packing, AI city guides, maps, safety & journal — one travel planner. Start free.">
-  <meta property="og:image" content="https://www.easy-on-the-road.app/art/logo.png">
+  <!-- TODO(design): og-card.png doesn't exist yet — a proper 1200×630 social
+       card (logo + tagline on brand bg) needs real design work I can't fake
+       with local tools. Falling back to logo.png (square, weak crop on
+       Twitter/FB link previews) until it's made. -->
+  <meta property="og:image" content="https://easy-on-the-road.vercel.app/art/logo.png">
   <meta name="twitter:card" content="summary_large_image">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,6 +32,66 @@
 
   <!-- Analytics (Plausible — no cookies, script is a no-op if blocked) -->
   <script defer data-domain="easy-on-the-road.app" src="https://plausible.io/js/script.tagged-events.js"></script>
+
+  <!-- FAQPage structured data — mirrors the #faq section below verbatim so
+       search engines can surface these as rich-result snippets. Keep both in
+       sync if the FAQ copy changes. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Do I need an account to start?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Tap “Start free” and you’re in — you can build a full trip right away. Sign in with Google later to sync across devices and share; your data carries over."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is my data saved across devices?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Everything lives in the cloud, so your trips, expenses and journal are available on any device once you sign in."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What does the Trip Pass include?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "One additional trip you keep forever, 10 AI city guides for it, every feature unlocked, and the ability to share and collaborate. It’s a one-time $8.8 — no subscription."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What are AI credits?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Each AI city guide generation uses one credit. Paid trips include 10. Need more? A $2.9 top-up adds 10 credits that work across all your trips."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I get a refund?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Unused purchases are refundable. See the Refund Policy for details."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I plan a trip with friends?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. Invite companions to view or edit, with page-level permissions, and everyone stays in sync in real time."
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
 
@@ -191,7 +259,9 @@
   </div>
   <p class="lp-pricing-note">
     Need more AI guides? Grab a top-up booster ($2.9 for 10) anytime, on any plan.
-    Payments handled securely by Lemon Squeezy.
+  </p>
+  <p class="lp-trust-line">
+    🔒 Payments by Lemon Squeezy · ☁️ Data stored securely on Google Firebase · ↩️ <a href="/refund.html">Unused purchases refundable</a>
   </p>
 </section>
 

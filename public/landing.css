@@ -176,6 +176,9 @@ a { color: inherit; text-decoration: none; }
 .lp-plan-perks li:last-child { border-bottom: none; }
 .lp-plan .lp-btn { text-align: center; }
 .lp-pricing-note { text-align: center; margin-top: 2rem; color: var(--ink-muted); font-size: 0.9rem; }
+.lp-trust-line { text-align: center; margin-top: 0.6rem; color: var(--ink-muted); font-size: 0.82rem; }
+.lp-trust-line a { color: var(--ink-muted); text-decoration: underline; }
+.lp-trust-line a:hover { color: var(--accent); }
 
 /* ── Steps ───────────────────────────────────────────────────────────────── */
 .lp-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.4rem; }
