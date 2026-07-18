@@ -32,6 +32,24 @@ const redirectResultPromise = consumeRedirectResult().then((u) => {
   return u;
 }).catch(() => { _redirectConsumed = true; return null; });
 
+// Raw module loaders for the lazy views. Each just fetches the chunk (no init).
+// Reused two ways: registerView() resolves the init fn from it on first
+// navigation, and prefetchViewChunks() warms all of them into the SW cache so
+// any view opens offline even if the user never visited it online first.
+const VIEW_CHUNK_LOADERS = [
+  () => import('./views/calendar/calendar.ts'),
+  () => import('./views/checklist/checklist.ts'),
+  () => import('./views/itinerary/itinerary.ts'),
+  () => import('./views/expenses/expenses.ts'),
+  () => import('./views/guide/guide.ts'),
+  () => import('./views/journal/index.ts'),
+  () => import('./views/map/map.ts'),
+  () => import('./views/nomad/nomad.ts'),
+  () => import('./views/compare/compare.ts'),
+  () => import('./views/pack/pack.ts'),
+  () => import('./views/safety/safety.ts'),
+];
+
 // Register view inits (fire once on first navigation). Dashboard is eager;
 // every other view is a lazy loader — app.ts dynamic-imports the module the
 // first time the view is opened, then caches the resolved init fn.
@@ -47,6 +65,28 @@ registerView('nomad',    () => import('./views/nomad/nomad.ts').then(m => m.init
 registerView('budget',   () => import('./views/compare/compare.ts').then(m => m.initCompare));
 registerView('pack',     () => import('./views/pack/pack.ts').then(m => m.initPack));
 registerView('safety',   () => import('./views/safety/safety.ts').then(m => m.initSafety));
+
+// Background-prefetch every view chunk once the app is idle after entry, so a
+// view opens offline even on its first-ever visit (the SW caches each chunk as
+// it downloads). Sequential + idle-scheduled so it never competes with the
+// active view's own work or the initial paint. Failures are silent — this is
+// pure enhancement, and a missing chunk just falls back to on-demand loading.
+let _chunksPrefetched = false;
+function prefetchViewChunks(): void {
+  if (_chunksPrefetched) return;
+  _chunksPrefetched = true;
+  const schedule = (fn: () => void) =>
+    'requestIdleCallback' in window
+      ? (window as unknown as { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(fn)
+      : setTimeout(fn, 1200);
+  let i = 0;
+  const next = () => {
+    if (i >= VIEW_CHUNK_LOADERS.length) return;
+    const load = VIEW_CHUNK_LOADERS[i++];
+    load().catch(() => {}).finally(() => schedule(next));
+  };
+  schedule(next);
+}
 
 const authScreen = document.getElementById('auth-screen') as HTMLElement | null;
 const authButton = document.getElementById('auth-google-btn') as HTMLButtonElement | null;
@@ -277,6 +317,11 @@ function enterApp() {
     appRoot.classList.remove('is-preparing', 'is-entering');
   }, { once: true });
   appEntered = true;
+
+  // Warm the offline cache with every view's chunk. Only meaningful online;
+  // if we entered offline, retry once the connection returns.
+  if (navigator.onLine) prefetchViewChunks();
+  else window.addEventListener('online', prefetchViewChunks, { once: true });
 }
 
 function bootShellOnce() {

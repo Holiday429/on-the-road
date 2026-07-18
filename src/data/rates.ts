@@ -40,6 +40,12 @@ const EUR_PER_UNIT: Record<string, number> = {
 export type RateTable = Record<string, number>;
 
 const TTL_KEY = (base: string, day: string) => `otr:rates:${base}:${day}`;
+// Undated "last known good" cache, kept alongside the per-day one. If the
+// user's offline when the day rolls over, the per-day key misses and we'd
+// otherwise silently drop to the static EUR_PER_UNIT approximation — this
+// keeps yesterday's real fetched rate available instead, which is closer to
+// correct than a table that could be stale by months.
+const LAST_GOOD_KEY = (base: string) => `otr:rates:${base}:last-good`;
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -64,8 +70,20 @@ function readCache(base: string): RateTable | null {
   return null;
 }
 
+/** Yesterday-or-earlier's last successfully fetched table, if any. */
+function readLastGood(base: string): RateTable | null {
+  try {
+    const raw = localStorage.getItem(LAST_GOOD_KEY(base));
+    if (raw) return JSON.parse(raw) as RateTable;
+  } catch { /* ignore */ }
+  return null;
+}
+
 function writeCache(base: string, table: RateTable) {
-  try { localStorage.setItem(TTL_KEY(base, today()), JSON.stringify(table)); } catch { /* quota */ }
+  try {
+    localStorage.setItem(TTL_KEY(base, today()), JSON.stringify(table));
+    localStorage.setItem(LAST_GOOD_KEY(base), JSON.stringify(table));
+  } catch { /* quota */ }
 }
 
 let inflight: Record<string, Promise<RateTable>> = {};
@@ -101,7 +119,7 @@ export async function getRateTable(base: string): Promise<RateTable> {
       writeCache(base, table);
       return table;
     } catch {
-      return fallbackTable(base);
+      return readLastGood(base) ?? fallbackTable(base);
     } finally {
       delete inflight[base];
     }
@@ -110,8 +128,9 @@ export async function getRateTable(base: string): Promise<RateTable> {
   return inflight[base];
 }
 
-/** Synchronous best-effort table: today's cache if present, else fallback.
- *  For instant first paint before getRateTable() resolves. */
+/** Synchronous best-effort table: today's cache, else the last successfully
+ *  fetched table, else the static fallback. For instant first paint before
+ *  getRateTable() resolves, and for staying accurate while offline. */
 export function peekRateTable(base: string): RateTable {
-  return readCache(base) ?? fallbackTable(base);
+  return readCache(base) ?? readLastGood(base) ?? fallbackTable(base);
 }

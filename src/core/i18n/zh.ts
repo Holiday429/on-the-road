@@ -59,6 +59,8 @@ export const zh: StringTable = {
   'dash.todoPlaceholder': '+ 快速添加任务…',
 
   'app.title':              'On the Road',
+  'app.offlineBanner':      '当前离线 — 恢复联网后将自动同步更改。',
+  'app.backOnline':         '已恢复联网 — 正在同步…',
   'app.tripMenuEmpty':      '暂无行程',
   'app.signInSync':         '登录以同步和保存',
   'app.signInSubtitle':     '使用 Google 登录',

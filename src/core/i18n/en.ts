@@ -64,6 +64,8 @@ export const en: StringTable = {
 
   // ── App shell ──────────────────────────────────────────────────────────────
   'app.title':              'On the Road',
+  'app.offlineBanner':      "You're offline — changes will sync once you're back online.",
+  'app.backOnline':         'Back online — syncing…',
   'app.tripMenuEmpty':      'No trips yet',
   'app.signInSync':         'Sign in to sync & save',
   'app.signInSubtitle':     'Sign in with Google',

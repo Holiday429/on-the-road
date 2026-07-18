@@ -1314,4 +1314,41 @@ export function initApp() {
     const h = window.location.hash.replace('#', '') as ViewId;
     if (NAV_ITEMS.find(n => n.id === h)) navigateTo(h);
   });
+
+  initOfflineBanner();
+}
+
+/* ── Offline banner ────────────────────────────────────────────────────────
+   A persistent bar while offline (Firestore's local cache keeps the app
+   usable — this just tells the user why writes look instant but haven't
+   round-tripped), plus a brief "back online" confirmation on reconnect. */
+let _offlineBannerEl: HTMLElement | null = null;
+
+function initOfflineBanner(): void {
+  if (_offlineBannerEl) return; // already wired (guards a stray double-call)
+
+  const el = document.createElement('div');
+  el.className = 'offline-banner';
+  el.hidden = true;
+  el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9998;text-align:center;padding:.5rem 1rem;font-size:.85rem;font-weight:600;color:#fff;transition:background-color .2s';
+  document.body.appendChild(el);
+  _offlineBannerEl = el;
+
+  function render() {
+    if (navigator.onLine) {
+      if (el.hidden) return; // was never shown — nothing to confirm
+      el.textContent = t('app.backOnline');
+      el.style.backgroundColor = '#16a34a';
+      setTimeout(() => { el.hidden = true; }, 2500);
+    } else {
+      el.hidden = false;
+      el.textContent = t('app.offlineBanner');
+      el.style.backgroundColor = '#78716c';
+    }
+  }
+
+  window.addEventListener('online', render);
+  window.addEventListener('offline', render);
+  onLocaleChange(() => { if (!el.hidden) render(); });
+  if (!navigator.onLine) render();
 }

@@ -3,7 +3,7 @@
    Replace with your actual Firebase project values.
    ========================================================================== */
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
@@ -16,7 +16,15 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const app     = initializeApp(firebaseConfig);
-export const db      = getFirestore(app);
+export const app = initializeApp(firebaseConfig);
+
+// Persistent local cache: already-loaded trip data (legs, expenses, journal,
+// etc.) reads offline, and writes queue locally and sync automatically once
+// the connection returns. Multi-tab manager keeps two open tabs coherent
+// instead of one silently falling back to memory-only cache.
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
+
 export const auth    = getAuth(app);
 export const storage = getStorage(app);
