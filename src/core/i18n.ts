@@ -35,14 +35,19 @@ export interface LocaleMeta {
   aiName: string;
 }
 
-/** Single source of truth for the supported set. Order = picker order. */
+/**
+ * Single source of truth for the *offered* set (picker order = this order).
+ * ja/fr/es/ko are ~30% translated (see ./i18n/*.ts) — t() falls back to
+ * English for missing keys, so they're not broken, just a mixed-language
+ * experience. Hidden from the picker until each is filled in; re-add its
+ * entry here to bring it back. A user who already had one of those four set
+ * as their preference (localStorage/profile) falls back to English on load
+ * (see isLocale() below) — their original choice is left untouched in
+ * storage, so restoring the entry here picks it back up automatically.
+ */
 export const LOCALES: LocaleMeta[] = [
   { code: 'en', label: 'English',  flag: '🇬🇧', aiName: 'English' },
   { code: 'zh', label: '中文',      flag: '🇨🇳', aiName: 'Simplified Chinese' },
-  { code: 'ja', label: '日本語',    flag: '🇯🇵', aiName: 'Japanese' },
-  { code: 'fr', label: 'Français',  flag: '🇫🇷', aiName: 'French' },
-  { code: 'es', label: 'Español',   flag: '🇪🇸', aiName: 'Spanish' },
-  { code: 'ko', label: '한국어',     flag: '🇰🇷', aiName: 'Korean' },
 ];
 
 const DEFAULT_LOCALE: Locale = 'en';
