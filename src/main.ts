@@ -17,18 +17,11 @@ import { migrateCollab, isCollabMigrated } from './data/migrate-collab.ts';
 import { migratePublicView } from './data/migrate-publicview.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
 import { initTouchTooltips } from './core/touch.ts';
+// Dashboard is the default landing view (see currentViewOrDefault) — kept as
+// a static import so the first paint doesn't wait on a dynamic import. Every
+// other view is lazy: its module (and CSS) is fetched on first navigation,
+// whether that's a click or landing directly via a deep-link hash.
 import { initDashboard } from './views/dashboard/dashboard.ts';
-import { initCalendar } from './views/calendar/calendar.ts';
-import { initPrep }     from './views/checklist/checklist.ts';
-import { initRoute }    from './views/itinerary/itinerary.ts';
-import { initExpenses } from './views/expenses/expenses.ts';
-import { initCities }   from './views/guide/guide.ts';
-import { initJournal }  from './views/journal/index.ts';
-import { initMap }      from './views/map/map.ts';
-import { initNomad }    from './views/nomad/nomad.ts';
-import { initCompare }  from './views/compare/compare.ts';
-import { initPack }     from './views/pack/pack.ts';
-import { initSafety }   from './views/safety/safety.ts';
 
 // Consume any pending Google redirect result on iOS PWA. Must resolve before
 // the onAuth callback can act on the resulting user — we store the promise and
@@ -39,19 +32,21 @@ const redirectResultPromise = consumeRedirectResult().then((u) => {
   return u;
 }).catch(() => { _redirectConsumed = true; return null; });
 
-// Register lazy view inits (fire once on first navigation)
+// Register view inits (fire once on first navigation). Dashboard is eager;
+// every other view is a lazy loader — app.ts dynamic-imports the module the
+// first time the view is opened, then caches the resolved init fn.
 registerView('today',    initDashboard);
-registerView('calendar', initCalendar);
-registerView('prep',     initPrep);
-registerView('route',    initRoute);
-registerView('expenses', initExpenses);
-registerView('cities',   initCities);
-registerView('journal',  initJournal);
-registerView('map',      initMap);
-registerView('nomad',    initNomad);
-registerView('budget',   initCompare);
-registerView('pack',     initPack);
-registerView('safety',   initSafety);
+registerView('calendar', () => import('./views/calendar/calendar.ts').then(m => m.initCalendar));
+registerView('prep',     () => import('./views/checklist/checklist.ts').then(m => m.initPrep));
+registerView('route',    () => import('./views/itinerary/itinerary.ts').then(m => m.initRoute));
+registerView('expenses', () => import('./views/expenses/expenses.ts').then(m => m.initExpenses));
+registerView('cities',   () => import('./views/guide/guide.ts').then(m => m.initCities));
+registerView('journal',  () => import('./views/journal/index.ts').then(m => m.initJournal));
+registerView('map',      () => import('./views/map/map.ts').then(m => m.initMap));
+registerView('nomad',    () => import('./views/nomad/nomad.ts').then(m => m.initNomad));
+registerView('budget',   () => import('./views/compare/compare.ts').then(m => m.initCompare));
+registerView('pack',     () => import('./views/pack/pack.ts').then(m => m.initPack));
+registerView('safety',   () => import('./views/safety/safety.ts').then(m => m.initSafety));
 
 const authScreen = document.getElementById('auth-screen') as HTMLElement | null;
 const authButton = document.getElementById('auth-google-btn') as HTMLButtonElement | null;

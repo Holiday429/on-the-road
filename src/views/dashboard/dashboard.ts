@@ -21,14 +21,19 @@ import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashb
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
-import { BUILTIN_CATEGORIES } from '../itinerary/itinerary.ts';
+// From itinerary-shared.ts (not itinerary.ts) so Dashboard's eager bundle
+// doesn't pull in the itinerary view module — and Leaflet with it.
+import { BUILTIN_CATEGORIES } from '../itinerary/itinerary-shared.ts';
 import { openModal } from '../../core/modal.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { createLanguagePicker, type LanguagePickerInstance } from '../../core/language-picker.ts';
-import { openJournalComposerOverlay } from '../journal/index.ts';
+// Lazy (see call site below) — journal/index.ts pulls in Leaflet via capture.ts,
+// which Dashboard shouldn't eagerly load just to wire up a click handler.
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { baggageRemainG } from '../../data/packing-formula.ts';
-import { listTotalWeight } from '../pack/pack.ts';
+// From pack-helpers.ts (not pack.ts) so Dashboard's eager bundle doesn't pull
+// in the full pack view module.
+import { listTotalWeight } from '../pack/pack-helpers.ts';
 import { openDashboardTodoModal, openPackBagChangeModal } from './dashboard-modals.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
@@ -1163,7 +1168,8 @@ function wire(body: HTMLElement): void {
   body.querySelectorAll<HTMLElement>('[data-journal-template]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      openJournalComposerOverlay(btn.dataset.journalTemplate ?? 'moment');
+      const template = btn.dataset.journalTemplate ?? 'moment';
+      import('../journal/index.ts').then(m => m.openJournalComposerOverlay(template));
     });
   });
 

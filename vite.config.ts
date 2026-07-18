@@ -20,6 +20,17 @@ export default defineConfig({
       // by Vercel's filesystem default. Keeping the app out of index.html is what
       // lets the landing page own the domain root.
       input: 'app.html',
+      output: {
+        // Firebase is the single largest dependency and changes far less
+        // often than app code — its own chunk means a normal app deploy
+        // doesn't invalidate the browser's cache of it. (Rolldown's
+        // manualChunks takes a function, not the classic Rollup object form.)
+        manualChunks(id: string) {
+          if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
+            return 'firebase';
+          }
+        },
+      },
     },
   },
   server: {

@@ -12,7 +12,9 @@ import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts'
 import { type StoredLeg } from '../../data/stores/route-store.ts';
 import { itemWeightG, itemsPresentAtLeg } from '../../data/packing-formula.ts';
 import { scheduleAllNotifications } from '../../core/notifications.ts';
-import { PACK_CATEGORIES } from '../pack/pack.ts';
+// From pack-helpers.ts (not pack.ts) — keeps Dashboard's eager bundle from
+// pulling in the full pack view module.
+import { PACK_CATEGORIES } from '../pack/pack-helpers.ts';
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);

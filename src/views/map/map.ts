@@ -102,6 +102,8 @@ let _countryPinOverlays: OverlayItem[] = [];
 let _activeMotionId: string | null = null;
 let _buildToken = 0;   // guards against stale async builds after teardown/scope switch
 let _tripNames  = new Map<string, string>();   // tripId → trip name cache
+let _idleChartToken = 0;   // guards against overlapping bootIdleChart() calls racing on the async amCharts load
+let _bootChartAttempt = 0; // guards against overlapping buildAndBoot() calls racing to bootChart()
 
 /* ── Data layers (overlays beyond the route itself) ───────────────────────── */
 type LayerId = 'nomad' | 'journal' | 'guide' | 'stay' | 'expenses';
@@ -722,13 +724,24 @@ async function bootIdleChart() {
   const el = document.getElementById('mapChart');
   if (!el) return;
   const idleToken = _buildToken;
+  // Claim this build synchronously (before the async gap below) so a second
+  // overlapping call — e.g. two routeStore snapshots (cache, then server)
+  // both landing on showEmpty()/showSetupPanel() while amCharts is still
+  // loading — bails instead of racing to create two am5.Root instances on
+  // the same DOM node.
+  const myIdleAttempt = ++_idleChartToken;
   try {
     await loadAmCharts();
   } catch { return; }
-  // Bail if legs arrived during the async load (buildAndBoot already took over).
-  if (_chart || idleToken !== _buildToken) return;
+  // Bail if legs arrived during the async load (buildAndBoot already took over),
+  // or another bootIdleChart() call started after us and should win instead.
+  if (_chart || idleToken !== _buildToken || myIdleAttempt !== _idleChartToken) return;
   // Also bail if the DOM element is gone (buildAndBoot replaced the stage HTML).
   if (!document.getElementById('mapChart')) return;
+  // Defensive: dispose any root left behind by a losing bootChart()/bootIdleChart()
+  // attempt from the same race — token checks above only guard against races
+  // WITHIN one function, not between this and the other builder.
+  teardownChart();
 
   const root = am5.Root.new('mapChart');
   _root = root;
@@ -875,6 +888,12 @@ async function showSetupPanel(view: HTMLElement, token: number) {
 }
 
 async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: number) {
+  // Claim this build attempt synchronously — routeStore can fire its callback
+  // twice in quick succession (cached snapshot, then server-confirmed one)
+  // with the SAME _buildToken, so token alone doesn't stop two buildAndBoot()
+  // calls from both racing through the async geocode/chain-build pipeline
+  // below and both reaching bootChart() before either sets _chart.
+  const myAttempt = ++_bootChartAttempt;
   const stage = view.querySelector<HTMLElement>('.map-stage');
   // If we were showing an idle outline chart, tear it down and rebuild with full markup.
   if (stage?.querySelector('.map-empty, .map-setup-idle, .map-idle-hint')) {
@@ -907,7 +926,7 @@ async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: 
   renderPanel(view, legs);
   try {
     await loadAmCharts();
-    if (token !== _buildToken) return;
+    if (token !== _buildToken || myAttempt !== _bootChartAttempt) return;
     bootChart(view, legs);
     preloadDrilldownCountries(legs.map((l) => l.iso).filter(Boolean) as string[]);
   } catch (err) {
@@ -919,6 +938,10 @@ async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: 
 /* ── Chart ────────────────────────────────────────────────────────────────── */
 function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   _legsRef = legs;
+  // Defensive: dispose any root a concurrent bootIdleChart() left behind —
+  // amCharts throws "multiple Roots on the same DOM node" if we don't, since
+  // this function otherwise has no guard against that race at all.
+  teardownChart();
   const root = am5.Root.new('mapChart');
   _root = root;
   root.setThemes([am5themes_Animated.new(root)]);

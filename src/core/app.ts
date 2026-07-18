@@ -288,10 +288,14 @@ export function openTripSwitcher(anchor: HTMLElement) {
     .catch((e) => console.warn('listTrips failed:', e));
 }
 
-// Each view registers an idempotent init fn. We keep the fn (never delete it)
-// and track which views are currently mounted, so a trip switch can re-init
-// the mounted ones — re-subscribing their stores under the new tripId.
-let viewInits: Partial<Record<ViewId, () => void>> = {};
+// Each view registers an idempotent init fn — either eager (already imported)
+// or a lazy loader that dynamic-imports the view module on first navigation
+// and returns its init fn. We keep the resolved fn (never delete it) and track
+// which views are currently mounted, so a trip switch can re-init the mounted
+// ones — re-subscribing their stores under the new tripId. Once resolved, a
+// lazy loader is replaced in-place with the plain fn so re-init never re-imports.
+type ViewInit = (() => void) | (() => Promise<() => void>);
+let viewInits: Partial<Record<ViewId, ViewInit>> = {};
 const mountedViews = new Set<ViewId>();
 let sessionState: { user: User | null } = { user: null };
 let sessionPrimaryAction: (() => void | Promise<void>) | null = null;
@@ -392,8 +396,22 @@ function decorateViewTitles() {
   });
 }
 
-export function registerView(id: ViewId, initFn: () => void) {
+export function registerView(id: ViewId, initFn: ViewInit) {
   viewInits[id] = initFn;
+}
+
+/** Resolve a view's init fn — importing its module on first call if it was
+ *  registered lazily — then run it. Caches the resolved plain fn back into
+ *  viewInits so subsequent (re-)inits never re-import. */
+async function runViewInit(id: ViewId): Promise<void> {
+  const fn = viewInits[id];
+  if (!fn) return;
+  const result = fn();
+  if (result instanceof Promise) {
+    const resolved = await result;
+    viewInits[id] = resolved;
+    resolved();
+  }
 }
 
 /**
@@ -406,7 +424,7 @@ export function reinitForTripChange() {
   const active = (window.location.hash.replace('#', '') as ViewId) || undefined;
   for (const id of [...mountedViews]) {
     if (id === active && viewInits[id]) {
-      viewInits[id]!();           // re-init now (visible) — re-subscribes
+      void runViewInit(id);       // re-init now (visible) — re-subscribes
     } else {
       mountedViews.delete(id);    // re-init lazily on next open
     }
@@ -440,7 +458,7 @@ export function consumeNavIntent(view: ViewId): NavIntent | null {
 
 let _lastTrackedView: ViewId | null = null;
 
-export function navigateTo(id: ViewId, intent?: NavIntent) {
+export async function navigateTo(id: ViewId, intent?: NavIntent) {
   // Page-level access guard: bounce disallowed views to the first allowed one.
   if (!isViewAllowed(id)) id = firstAllowedView();
 
@@ -460,10 +478,10 @@ export function navigateTo(id: ViewId, intent?: NavIntent) {
     el.classList.add('active');
     clearGuestStates();
     // Lazy init — run once per mount; init fns are idempotent so re-running
-    // on a trip switch is safe.
+    // on a trip switch is safe. May dynamic-import the view module first.
     if (viewInits[id] && !mountedViews.has(id)) {
-      viewInits[id]!();
       mountedViews.add(id);
+      await runViewInit(id);
     }
   }
 
