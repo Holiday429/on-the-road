@@ -46,6 +46,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Only gates production dependencies (firebase/leaflet/zod) at high+
+      # severity. Dev-tooling vulnerabilities (vite/eslint/firebase-tools'
+      # transitive deps) are known and don't ship to users — see SECURITY.md.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Test
         run: npm test
 
