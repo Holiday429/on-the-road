@@ -13,6 +13,7 @@
    ========================================================================== */
 
 import { currentUser } from '../firebase/auth.ts';
+import { track } from './analytics.ts';
 
 const VERCEL_ORIGIN = 'https://www.easy-on-the-road.app';
 
@@ -106,5 +107,6 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
   }
 
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
+  track('ai_generate', { feature: path.replace(/^\/api\//, '') });
   return res.json() as Promise<T>;
 }

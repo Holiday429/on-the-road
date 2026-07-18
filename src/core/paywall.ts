@@ -18,12 +18,14 @@ import { QuotaError, AuthError, apiUrl } from './api.ts';
 import { currentUser } from '../firebase/auth.ts';
 import { quotaStore } from '../data/quota-store.ts';
 import { t } from './i18n.ts';
+import { track } from './analytics.ts';
 
 // ── Checkout ──────────────────────────────────────────────────────────────────
 
 type CheckoutPlan = 'trip_pass' | 'lifetime' | 'ai_topup';
 
 async function openCheckout(plan: CheckoutPlan, errEl: HTMLElement): Promise<void> {
+  track('checkout_started', { plan });
   const user = currentUser();
   if (!user) {
     errEl.textContent = t('paywall.errorSignIn');
@@ -131,12 +133,14 @@ function renderPlansModal(desc: string): void {
 
 /** Shown when a free user hits their owned-trip limit on "+ New trip". */
 export function showTripQuotaPaywall(): void {
+  track('paywall_shown', { reason: 'trip_quota' });
   renderPlansModal(t('paywall.quotaMsg'));
 }
 
 /** Generic upgrade modal — for users who haven't paid (e.g. free user out of
  *  their one trial AI generation). Surfaces the plan options. */
 export function showPaywall(opts: { feature?: string } = {}): void {
+  track('paywall_shown', { reason: opts.feature ?? 'generic' });
   const desc = opts.feature
     ? `${opts.feature} ${t('paywall.featureSuffix')}`
     : t('paywall.defaultMsg');
@@ -146,6 +150,7 @@ export function showPaywall(opts: { feature?: string } = {}): void {
 /** Shown when a PAID user runs out of AI credits — offers the AI top-up booster
  *  (no plan change, just more credits) with the plan options as a fallback. */
 export function showAiTopupPaywall(desc?: string): void {
+  track('paywall_shown', { reason: 'ai_topup' });
   openModal({
     title: t('paywall.aiTitle'),
     body: `

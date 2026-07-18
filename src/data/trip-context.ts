@@ -14,6 +14,7 @@ import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
 import { setMyTripIdsResolver } from '../firebase/db.ts';
 import { SCHEMA_VERSION, TripSchema, FREE_QUOTA, type Trip, type TravelStyle, type TripRole } from './schema.ts';
+import { track } from '../core/analytics.ts';
 
 export const DEFAULT_TRIP_ID = 'europe-2025'; // kept for migrate-retag reference only
 
@@ -304,6 +305,7 @@ export async function createTrip(input: NewTripInput): Promise<string> {
   });
   await setDoc(tripRef(id), stripUndefined(trip));
   _myTripIds = [...new Set([..._myTripIds, id])];
+  track('trip_created');
   return id;
 }
 

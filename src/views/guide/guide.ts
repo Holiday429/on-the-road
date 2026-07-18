@@ -23,6 +23,7 @@ import { quotaStore } from '../../data/quota-store.ts';
 import { emptyState } from '../../core/empty-state.ts';
 import { prefetchSafetyForCity } from '../safety/safety.ts';
 import { nomadStore } from '../../data/stores/nomad-store.ts';
+import { track } from '../../core/analytics.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,7 @@ async function generateGuide(city: string, country: string, query: string): Prom
     }
 
     if (!res.ok) throw new Error(`API error ${res.status}`);
+    track('ai_generate', { feature: 'guide' });
 
     const intel: Partial<CityIntel> & { id: string } = {
       id, city, country,
@@ -822,6 +824,7 @@ async function loadMore(intel: StoredCityIntel, section: TabKey, btn: HTMLButton
         : new AuthError(data.message ?? 'Sign in to use AI features.');
     }
     if (!res.ok) throw new Error(`API ${res.status}`);
+    track('ai_generate', { feature: 'guide-more' });
     const { items } = await res.json() as { items: unknown[] };
 
     if (Array.isArray(items) && items.length) {

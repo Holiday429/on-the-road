@@ -185,6 +185,15 @@ function showAccessRequestToast(): void {
   setTimeout(() => el.remove(), 5000);
 }
 
+/** Transient error toast — e.g. the Google sign-in popup was blocked or failed. */
+function showErrorToast(message: string): void {
+  const el = document.createElement('div');
+  el.textContent = message;
+  el.style.cssText = 'position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;padding:.6rem 1.25rem;border-radius:9999px;font-size:.875rem;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,.2);max-width:calc(100vw - 2rem);text-align:center';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
+}
+
 /** Replace the landing card with a "request sent" confirmation (reveals
  *  nothing about the trip beyond its name). */
 function showRequestSentCard(tripName: string, created: boolean): void {
@@ -282,6 +291,21 @@ function bootShellOnce() {
   shellBooted = true;
 }
 
+function signInFailureMessage(error: unknown): string | null {
+  const code = (error as { code?: string })?.code;
+  switch (code) {
+    case 'auth/popup-blocked':
+      return 'Your browser blocked the sign-in popup — allow popups for this site and try again.';
+    case 'auth/cancelled-popup-request':
+    case 'auth/popup-closed-by-user':
+      return null; // user dismissed it on purpose — no need to nag
+    case 'auth/unauthorized-domain':
+      return 'This domain isn’t authorized for Google sign-in yet.';
+    default:
+      return 'Sign-in failed — please try again.';
+  }
+}
+
 async function handleSidebarAuth() {
   if (signingIn) return;
   signingIn = true;
@@ -289,6 +313,8 @@ async function handleSidebarAuth() {
     await signInWithGoogle();
   } catch (error) {
     console.warn('Sidebar sign-in failed:', error);
+    const message = signInFailureMessage(error);
+    if (message) showErrorToast(message);
   } finally {
     signingIn = false;
   }

@@ -16,6 +16,7 @@ import { createDestinationInput, type DestinationInputInstance } from './destina
 import { escHtml as escapeHtml } from './utils.ts';
 import { openModal } from './modal.ts';
 import { t, onLocaleChange } from './i18n.ts';
+import { track } from './analytics.ts';
 import checklistIcon from '../../icon/Checklist.png';
 import guideIcon from '../../icon/Guide.png';
 import itineraryIcon from '../../icon/Itinerary.png';
@@ -437,9 +438,16 @@ export function consumeNavIntent(view: ViewId): NavIntent | null {
   return null;
 }
 
+let _lastTrackedView: ViewId | null = null;
+
 export function navigateTo(id: ViewId, intent?: NavIntent) {
   // Page-level access guard: bounce disallowed views to the first allowed one.
   if (!isViewAllowed(id)) id = firstAllowedView();
+
+  if (id !== _lastTrackedView) {
+    track('view', { id });
+    _lastTrackedView = id;
+  }
 
   _pendingIntent = intent ? { view: id, intent } : null;
 

@@ -25,6 +25,7 @@ import {
   type UserCredential,
 } from 'firebase/auth';
 import { auth } from './config.ts';
+import { track } from '../core/analytics.ts';
 
 export type { User };
 
@@ -100,6 +101,7 @@ export function isSignedInReal(): boolean {
 export async function signInAnonymously(): Promise<User> {
   if (_user) return _user;
   const result = await fbSignInAnonymously(auth);
+  track('signup');
   return result.user;
 }
 
@@ -143,7 +145,7 @@ export async function signInWithGoogle(): Promise<User> {
   if (isIosPwa()) {
     // Redirect flow — page reloads after Google auth; result consumed by
     // consumeRedirectResult(). linkWithRedirect upgrades the anon account.
-    if (anon) await linkWithRedirect(anon, provider);
+    if (anon) { track('google_upgrade'); await linkWithRedirect(anon, provider); }
     else await signInWithRedirect(auth, provider);
     // Navigates away — never reached, but TypeScript needs a return value.
     return new Promise(() => {/* resolved after redirect */});
@@ -152,6 +154,7 @@ export async function signInWithGoogle(): Promise<User> {
   if (anon) {
     try {
       const result = await linkWithPopup(anon, provider);
+      track('google_upgrade');
       return result.user;
     } catch (e) {
       // The Google account already exists (returning user). We can't merge two

@@ -9,6 +9,7 @@ import { createDestinationInput } from '../../core/destination-input.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../../data/schema.ts';
 import logoGif from '../../../assets/logo.gif';
 import { t } from '../../core/i18n.ts';
+import { track } from '../../core/analytics.ts';
 
 const STYLE_META: Record<TravelStyle, { icon: string; label: string }> = {
   solo:    { icon: '🧍', label: 'Solo'    },
@@ -168,6 +169,7 @@ export function showOnboarding(onDone: () => void): void {
 
   // ── Close (skip) ─────────────────────────────────────────────────────────
   screen.querySelector('#ob-close')?.addEventListener('click', () => {
+    track('onboarding_skipped');
     screen.setAttribute('hidden', '');
     destPicker?.destroy();
     onDone();
@@ -215,6 +217,7 @@ export function showOnboarding(onDone: () => void): void {
       } catch (e) {
         console.warn('Legacy retag skipped:', e);
       }
+      track('onboarding_done');
       screen.setAttribute('hidden', '');
       destPicker?.destroy();
       onDone();

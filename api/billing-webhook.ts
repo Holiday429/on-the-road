@@ -25,6 +25,7 @@
 import * as crypto from 'crypto';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { grantQuota, revokeGrant, type Sku } from './_billing';
+import { trackServerEvent } from './_analytics';
 
 type VercelRequest  = IncomingMessage & { body: Buffer | string; headers: Record<string, string | string[] | undefined>; method?: string };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse };
@@ -130,7 +131,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const revoked = await revokeGrant(uid, plan as Sku, orderId);
       res.status(200).json({ ok: true, revoked });
     } else {
-      const applied = await grantQuota(uid, plan as Sku, orderId, payload.data.attributes.total ?? null);
+      const totalCents = payload.data.attributes.total ?? null;
+      const applied = await grantQuota(uid, plan as Sku, orderId, totalCents);
+      if (applied) {
+        void trackServerEvent('purchase', {
+          plan,
+          amount: totalCents != null ? totalCents / 100 : 0,
+        });
+      }
       res.status(200).json({ ok: true, applied });
     }
   } catch (e) {
