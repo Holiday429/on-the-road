@@ -32,8 +32,15 @@ service cloud.firestore {
     // Owners and unrestricted editors (no memberCollections entry) write anything.
     function subCanEditCollection(tripId, sub) {
       let t = tripData(tripId);
+      // NOTE: `t.memberCollections == null` alone throws an evaluation error
+      // (denying the request) when the field is entirely absent from the doc
+      // — which is the common case, since memberCollections is optional and
+      // most trips never set it. Without the `in` check first, every editor
+      // on an ordinary (non-page-restricted) trip was silently unable to
+      // write ANY sub-collection.
       return subCanEdit(tripId)
         && (t.members[uid()] == 'owner'
+            || !('memberCollections' in t)
             || t.memberCollections == null
             || !(uid() in t.memberCollections)
             || (sub in t.memberCollections[uid()]));
@@ -138,7 +145,14 @@ service cloud.firestore {
       // safetyChecks, legacy trips). Credit/usage state is NOT stored here — it
       // lives on the user doc (server-only fields above) and on
       // trips/{tripId}/usage (server-only, see the trips block).
-      match /{document=**} {
+      //
+      // MUST be scoped to a named sub-collection, not {document=**}: that
+      // recursive wildcard also matches the users/{userId} document ITSELF
+      // (not just its descendants), and this inner rule has no
+      // billingFieldsUnchanged() check — it would silently OR past the write
+      // rule above and let any signed-in user grant themselves plan/
+      // tripQuota/aiCreditsPool by writing their own user doc directly.
+      match /{collection}/{document=**} {
         allow read, write: if signedIn() && uid() == userId;
       }
     }

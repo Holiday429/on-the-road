@@ -25,6 +25,19 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Firestore emulator (used by test:rules below) runs on the JVM.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # The emulator jar (~60MB) is downloaded on first use and cached here by
+      # firebase-tools; without this cache every CI run re-downloads it.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('package-lock.json') }}
+
       - run: npm ci
 
       - name: Typecheck
@@ -35,6 +48,9 @@ jobs:
 
       - name: Test
         run: npm test
+
+      - name: Firestore rules test
+        run: npm run test:rules
 
       - name: Build
         run: npm run build

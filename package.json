@@ -8,13 +8,16 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run --config vitest.rules.config.ts\"",
     "lint": "eslint ."
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^25.9.2",
     "@vercel/node": "^5.8.12",
     "eslint": "^10.7.0",
+    "firebase-tools": "^15.24.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.64.0",
     "vite": "^8.0.12",
