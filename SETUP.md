@@ -10,7 +10,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173
+Open http://localhost:5180
 
 ---
 
@@ -31,6 +31,19 @@ VITE_FIREBASE_APP_ID=...
 > Firestore is the source of truth; localStorage is only an offline cache that
 > paints the UI instantly and queues writes while offline.
 
+**Use the `on-the-road-dev` project for local development, not production.**
+Local dev, CI, and Vercel Preview deploys all point at `on-the-road-dev`;
+only the production Vercel deploy (main branch) points at `on-the-road-trip`.
+This keeps local testing, a broken migration, or a stray script from ever
+touching real user data. `.firebaserc`'s `default` alias is `on-the-road-dev`
+for the same reason — Firebase CLI commands without an explicit `--project`
+land on dev, not prod (see `npm run deploy:rules:dev` / `:prod` and
+SECURITY.md). If `on-the-road-dev` doesn't exist yet: Firebase Console →
+Add project → enable Firestore (production mode) + Authentication
+(Anonymous + Google providers) → Authentication → Settings → Authorized
+domains → add `localhost` and `127.0.0.1` → deploy the rules with
+`npm run deploy:rules:dev`.
+
 ### DeepSeek (powers all AI: Guide, Safety, Checklist check, Journal recap)
 Get your key from https://platform.deepseek.com
 
@@ -49,17 +62,21 @@ Optional server-side keys: `TAVILY_API_KEY` (web-search grounding for Safety),
 
 ## What's built
 
-| Route       | Status | Description |
-|-------------|--------|-------------|
-| `/prep`     | ✅ Full | Timeline-based checklist, 30 pre-loaded tasks, templates, per-category add |
-| `/route`    | ✅ Full | City-by-city timeline, pre-seeded Europe itinerary, add/delete stops |
-| `/expenses` | ✅ Full | Add expenses, multi-currency, category breakdown, city filter |
-| `/cities`   | ✅ Full | DeepSeek AI city cards: greetings, customs, neighborhoods, safety |
-| `/pack`     | 🚧 v2  | Packing formula |
-| `/budget`   | 🚧 v2  | Accommodation scorer |
-| `/safety`   | 🚧 v2  | Solo safety kit |
-| `/journal`  | 🚧 v2  | Travel journal |
-| `/map`      | 🚧 v2  | Footprint map |
+All routes are shipped and in active use.
+
+| Route       | Description |
+|-------------|-------------|
+| `/prep`     | Timeline-based checklist, templates, per-category add |
+| `/route`    | City-by-city itinerary, multi-country trips, drag-and-drop stops |
+| `/pack`     | Weight-aware packing lists, reusable core kit, per-bag limits |
+| `/budget`   | Compare (flights/trains/stays/shopping) |
+| `/cities`   | DeepSeek AI city guides: attractions, food, culture, safety |
+| `/map`      | Interactive world map — auto-lit route, flight arcs, country drill-down |
+| `/nomad`    | Work-friendly spot ratings (wifi/power/vibe) for digital nomads |
+| `/safety`   | Emergency numbers, embassy info, local scams, personal medical card |
+| `/expenses` | Multi-currency expense tracking, category/day/country breakdown |
+| `/journal`  | Travel journal with photo capture, AI-generated trip recap |
+| `/calendar` | Full calendar view (accessible from the Dashboard) |
 
 ## Build
 

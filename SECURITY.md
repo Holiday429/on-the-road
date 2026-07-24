@@ -60,8 +60,11 @@ an evaluation error (denying the write) on a field that was merely absent
 rather than null, silently blocking ordinary editor collaboration on most
 trips.
 
-Deploy rule changes with:
+Deploy rule changes with an EXPLICIT `--project` — `.firebaserc`'s `default`
+alias points at `on-the-road-dev`, not production, specifically so a bare
+`firebase deploy` can never touch real user data by accident:
 
 ```bash
-npx firebase deploy --only firestore:rules
+npm run deploy:rules:dev    # verify against the dev project first
+npm run deploy:rules:prod   # then, deliberately, production
 ```

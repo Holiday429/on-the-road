@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "on-the-road-trip"
+    "default": "on-the-road-dev",
+    "prod": "on-the-road-trip",
+    "dev": "on-the-road-dev"
   }
 }
