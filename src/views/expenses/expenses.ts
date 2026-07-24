@@ -300,8 +300,8 @@ function renderForm(el: HTMLElement) {
       </div>
       <div class="exp-cat-chips" id="exp-cat-chips">
         ${categories().map((c) => `
-          <button class="exp-cat-chip ${c.id === selectedCategory ? 'selected' : ''}" data-cat="${c.id}">
-            ${c.icon} ${c.label}
+          <button class="exp-cat-chip ${c.id === selectedCategory ? 'selected' : ''}" data-cat="${escHtml(c.id)}">
+            ${escHtml(c.icon)} ${escHtml(c.label)}
           </button>
         `).join('')}
         <button class="exp-cat-chip exp-cat-manage" id="exp-cat-manage" type="button" title="Manage categories">＋ New</button>
@@ -435,8 +435,8 @@ function openCategoryManager(formEl: HTMLElement) {
     <div class="exp-cat-manager-list">
       ${categories().map((c) => `
         <span class="exp-cat-manager-item ${c.builtin ? 'builtin' : ''}">
-          ${c.icon} ${c.label}
-          ${c.builtin ? '' : `<button class="exp-cat-del" data-id="${c.id}" title="Delete">✕</button>`}
+          ${escHtml(c.icon)} ${escHtml(c.label)}
+          ${c.builtin ? '' : `<button class="exp-cat-del" data-id="${escHtml(c.id)}" title="Delete">✕</button>`}
         </span>
       `).join('')}
     </div>
@@ -554,7 +554,7 @@ function renderRecordsScrollContent(scroll: HTMLElement) {
       ${categories().map((c) => {
         const isActive = filterCategory === c.id;
         const style = isActive ? `style="${filterBtnStyle(c.id)}"` : '';
-        return `<button class="exp-filter-btn ${isActive ? 'active' : ''}" data-filter="${c.id}" ${style}>${c.icon} ${c.label}</button>`;
+        return `<button class="exp-filter-btn ${isActive ? 'active' : ''}" data-filter="${escHtml(c.id)}" ${style}>${escHtml(c.icon)} ${escHtml(c.label)}</button>`;
       }).join('')}
       <button class="exp-filter-btn ${filterCategory === UNCLASSIFIED ? 'active' : ''}" data-filter="">${t('expenses.filterToSort')}</button>
     </div>
@@ -656,15 +656,15 @@ function renderRecordTag(e: StoredExpense): string {
   const place = [e.city, e.country].filter(Boolean).join(', ');
   const tip = [cat?.label ?? 'Unsorted', place].filter(Boolean).join(' · ');
   const tagsHtml = (e.tags ?? []).length
-    ? `<span class="exp-tag-labels">${(e.tags ?? []).map((t) => `<span class="exp-tag-label">${t}</span>`).join('')}</span>`
+    ? `<span class="exp-tag-labels">${(e.tags ?? []).map((t) => `<span class="exp-tag-label">${escHtml(t)}</span>`).join('')}</span>`
     : '';
   return `
     <div class="exp-tag-item ${e.category === UNCLASSIFIED ? 'unsorted' : ''}"
-         data-id="${e.id}" style="background:${color}"${tip ? ` data-tooltip="${tip}"` : ''}>
-      <span class="exp-tag-icon">${cat?.icon ?? '🗂️'}</span>
-      <span class="exp-tag-name">${e.description}${tagsHtml}</span>
+         data-id="${escHtml(e.id)}" style="background:${color}"${tip ? ` data-tooltip="${escHtml(tip)}"` : ''}>
+      <span class="exp-tag-icon">${escHtml(cat?.icon) || '🗂️'}</span>
+      <span class="exp-tag-name">${escHtml(e.description)}${tagsHtml}</span>
       <span class="exp-tag-amount">${fmtRaw(e.amount, e.currency)}${baseStr}</span>
-      <button class="exp-tag-del" data-id="${e.id}" title="Delete">✕</button>
+      <button class="exp-tag-del" data-id="${escHtml(e.id)}" title="Delete">✕</button>
     </div>`;
 }
 
@@ -683,7 +683,7 @@ function openExpenseEditor(id: string) {
     body: `
       <div class="exp-cat-chips exp-editor-cats" id="exp-edit-cats">
         ${categories().map((c) => `
-          <button class="exp-cat-chip ${c.id === e.category ? 'selected' : ''}" data-cat="${c.id}">${c.icon} ${c.label}</button>
+          <button class="exp-cat-chip ${c.id === e.category ? 'selected' : ''}" data-cat="${escHtml(c.id)}">${escHtml(c.icon)} ${escHtml(c.label)}</button>
         `).join('')}
       </div>
       <div class="exp-editor-grid">
@@ -697,11 +697,11 @@ function openExpenseEditor(id: string) {
         </div>
         <div class="field-full">
           <label class="field-label">What for?</label>
-          <input class="input" id="ee-desc" value="${(e.description ?? '').replace(/"/g, '&quot;')}">
+          <input class="input" id="ee-desc" value="${escHtml(e.description)}">
         </div>
         <div class="field-full">
           <label class="field-label">Tags <span style="font-weight:400;color:var(--ink-faint)">(comma-separated, e.g. #ramen, souvenir)</span></label>
-          <input class="input" id="ee-tags" placeholder="e.g. #ramen, business" value="${(e.tags ?? []).join(', ')}">
+          <input class="input" id="ee-tags" placeholder="e.g. #ramen, business" value="${escHtml((e.tags ?? []).join(', '))}">
         </div>
         <div>
           <label class="field-label">Country</label>
@@ -971,7 +971,7 @@ function renderBreakdown(el: HTMLElement) {
         return `
           <div class="exp-legend-row">
             <span class="exp-legend-dot" style="background:${r.color}"></span>
-            <span class="exp-legend-name">${r.label} ${setBtn}</span>
+            <span class="exp-legend-name">${escHtml(r.label)} ${setBtn}</span>
             <span class="exp-legend-pct">${pct}%</span>
             <span class="exp-legend-amt">${fmt(r.sum)}</span>
             ${budgetStr}
@@ -1058,7 +1058,7 @@ function renderBreakdown(el: HTMLElement) {
         const cityRows = [...cityGroups.entries()].sort((a, b) => b[1] - a[1]);
         const cityHtml = cityRows.map(([city, citySum]) => `
           <div class="exp-place-city">
-            <span class="exp-place-city-name">${city}</span>
+            <span class="exp-place-city-name">${escHtml(city)}</span>
             <span class="exp-place-city-amt">${fmt(citySum)}</span>
           </div>`).join('');
 
@@ -1066,8 +1066,8 @@ function renderBreakdown(el: HTMLElement) {
           <div class="exp-place-row">
             <div class="exp-place-header">
               <span class="exp-place-flag">${flag}</span>
-              <span class="exp-place-name">${r.country}</span>
-              <button class="exp-cat-budget-btn" data-budget-key="country:${r.country}"
+              <span class="exp-place-name">${escHtml(r.country)}</span>
+              <button class="exp-cat-budget-btn" data-budget-key="country:${escHtml(r.country)}"
                 title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>
               <span class="exp-place-total">${fmt(r.sum)}</span>
             </div>
@@ -1231,7 +1231,7 @@ function renderBudgetPage() {
                 const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
                 return `
                   <div class="exp-budget-cmp-row">
-                    <div class="exp-budget-cmp-name">${cat.icon} ${cat.label}</div>
+                    <div class="exp-budget-cmp-name">${escHtml(cat.icon)} ${escHtml(cat.label)}</div>
                     <div class="exp-budget-cmp-bar-wrap">
                       <div class="exp-budget-bar-track" style="flex:1">
                         <div class="exp-budget-bar-fill" style="width:${pct}%;background:${color}"></div>
@@ -1315,8 +1315,8 @@ function renderBudgetPage() {
             const daysLabel = countryDays[c] ? ` · ${countryDays[c]}d` : '';
             return `
               <div class="exp-budget-row">
-                <div class="exp-budget-row-name">${flag} ${c}<span class="exp-budget-row-spent">${fmt(spent)} ${t('expenses.spentLabel')}${daysLabel}</span></div>
-                <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${c}" data-days="${countryDays[c] ?? 0}" placeholder="no cap" value="${caps[c] ?? ''}">
+                <div class="exp-budget-row-name">${escHtml(flag)} ${escHtml(c)}<span class="exp-budget-row-spent">${fmt(spent)} ${t('expenses.spentLabel')}${daysLabel}</span></div>
+                <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${escHtml(c)}" data-days="${countryDays[c] ?? 0}" placeholder="no cap" value="${caps[c] ?? ''}">
               </div>`;
           }).join('')}
         </div>
@@ -1363,7 +1363,7 @@ function renderBudgetPage() {
           const spent = expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0);
           return `
             <div class="exp-budget-row">
-              <div class="exp-budget-row-name">${cat.icon} ${cat.label}<span class="exp-budget-row-spent">${fmt(spent)} ${t('expenses.spentLabel')}</span></div>
+              <div class="exp-budget-row-name">${escHtml(cat.icon)} ${escHtml(cat.label)}<span class="exp-budget-row-spent">${fmt(spent)} ${t('expenses.spentLabel')}</span></div>
               <input class="input exp-budget-row-input" type="number" min="0" step="1" data-cat="${cat.id}" placeholder="no cap" value="${caps[cat.id] ?? ''}">
             </div>`;
         }).join('')}
