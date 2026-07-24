@@ -14,7 +14,7 @@ import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';
 import { geocode } from '../map/geocode.ts';
 import { aiLanguage, t } from '../../core/i18n.ts';
 import type { GuideCard, CityWalk, GuideTip, CityIntel, Waypoint } from '../../data/schema.ts';
-import { slugId } from '../../core/utils.ts';
+import { slugId, escHtml, safeUrl } from '../../core/utils.ts';
 import { currentTripId } from '../../data/trip-context.ts';
 import { openModal } from '../../core/modal.ts';
 import { apiUrl, authHeaders } from '../../core/api.ts';
@@ -347,13 +347,13 @@ function renderHistoryBar(root: HTMLElement) {
   );
 
   panel.innerHTML = rows.length ? rows.map(c => `
-    <div class="guide-history-row ${c.id === _activeCityId ? 'active' : ''}" data-id="${c.id}">
-      <span class="guide-history-row-flag">${c.flag || '🗺️'}</span>
+    <div class="guide-history-row ${c.id === _activeCityId ? 'active' : ''}" data-id="${escHtml(c.id)}">
+      <span class="guide-history-row-flag">${escHtml(c.flag) || '🗺️'}</span>
       <div class="guide-history-row-text">
-        <div class="guide-history-row-name">${c.city}</div>
-        <div class="guide-history-row-country">${c.country}</div>
+        <div class="guide-history-row-name">${escHtml(c.city)}</div>
+        <div class="guide-history-row-country">${escHtml(c.country)}</div>
       </div>
-      <button class="guide-history-del" data-id="${c.id}" title="Remove">×</button>
+      <button class="guide-history-del" data-id="${escHtml(c.id)}" title="Remove">×</button>
     </div>
   `).join('') : `<div class="guide-history-empty">${t('guide.historyEmpty')}</div>`;
 
@@ -411,13 +411,13 @@ function renderCityDetail(_root: HTMLElement) {
   detail.classList.add('active');
   detail.innerHTML = `
     <div class="guide-detail-header">
-      <span class="guide-detail-flag">${intel.flag || '🗺️'}</span>
+      <span class="guide-detail-flag">${escHtml(intel.flag) || '🗺️'}</span>
       <div class="guide-detail-header-text">
-        <span class="guide-detail-city">${intel.city}</span>
-        <span class="guide-detail-country">${intel.country}</span>
-        ${intel.generatedQuery ? `<span class="guide-detail-query">🔍 "${intel.generatedQuery}"</span>` : ''}
+        <span class="guide-detail-city">${escHtml(intel.city)}</span>
+        <span class="guide-detail-country">${escHtml(intel.country)}</span>
+        ${intel.generatedQuery ? `<span class="guide-detail-query">🔍 "${escHtml(intel.generatedQuery)}"</span>` : ''}
       </div>
-      <button class="btn btn-ghost guide-regen-btn" data-id="${intel.id}">↺ Regen</button>
+      <button class="btn btn-ghost guide-regen-btn" data-id="${escHtml(intel.id)}">↺ Regen</button>
     </div>
 
     <div class="guide-tabs" role="tablist">
@@ -475,17 +475,17 @@ function renderIntroTab(intel: StoredCityIntel): string {
   const sections = intel.overviewSections ?? [];
   return `
     <div class="guide-intro">
-      ${intel.intro ? `<p class="guide-intro-lede">${intel.intro}</p>` : ''}
+      ${intel.intro ? `<p class="guide-intro-lede">${escHtml(intel.intro)}</p>` : ''}
 
       ${sections.length ? `
         <div class="guide-overview-grid">
           ${sections.map(s => `
             <div class="guide-overview-card">
               <div class="guide-overview-card-head">
-                <span class="guide-overview-icon">${s.icon || '📌'}</span>
-                <span class="guide-overview-title">${s.title}</span>
+                <span class="guide-overview-icon">${escHtml(s.icon) || '📌'}</span>
+                <span class="guide-overview-title">${escHtml(s.title)}</span>
               </div>
-              <p class="guide-overview-body">${s.body}</p>
+              <p class="guide-overview-body">${escHtml(s.body)}</p>
             </div>
           `).join('')}
         </div>
@@ -495,7 +495,7 @@ function renderIntroTab(intel: StoredCityIntel): string {
         <div class="guide-funfacts-block">
           <div class="guide-funfacts-label">${t('guide.funFacts')}</div>
           <div class="guide-fun-facts">
-            ${intel.funFacts.map(f => `<div class="guide-fun-fact">${f}</div>`).join('')}
+            ${intel.funFacts.map(f => `<div class="guide-fun-fact">${escHtml(f)}</div>`).join('')}
           </div>
         </div>
       ` : ''}
@@ -554,27 +554,27 @@ function renderFlipCard(card: GuideCard, city: string, type: string, idx: number
   const bannerColor = CARD_TINTS[idx % CARD_TINTS.length];
 
   const media = hasImg
-    ? `<div class="guide-card-photo" style="background-image:url('${card.imageUrl}')"></div>`
+    ? `<div class="guide-card-photo" style="background-image:url('${safeUrl(card.imageUrl)}')"></div>`
     : `<div class="guide-card-tint" style="--tint:${bannerColor}"><span class="guide-card-tint-emoji">${typeEmoji(type)}</span></div>`;
 
   return `
-    <div class="guide-card ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}">
+    <div class="guide-card ${s ? 'saved' : ''}" data-card-id="${escHtml(card.id)}" data-card-type="${escHtml(type)}">
       <div class="guide-card-media">
         ${media}
-        <button class="guide-card-fav guide-save-btn ${s ? 'saved' : ''}" data-card-id="${card.id}" data-card-type="${type}" title="Bookmark">${s ? '★' : '☆'}</button>
+        <button class="guide-card-fav guide-save-btn ${s ? 'saved' : ''}" data-card-id="${escHtml(card.id)}" data-card-type="${escHtml(type)}" title="Bookmark">${s ? '★' : '☆'}</button>
       </div>
-      <div class="guide-card-body" data-open-detail="${card.id}" data-card-type="${type}">
-        <div class="guide-card-title">${card.title}</div>
-        <div class="guide-card-highlight">${card.highlight}</div>
+      <div class="guide-card-body" data-open-detail="${escHtml(card.id)}" data-card-type="${escHtml(type)}">
+        <div class="guide-card-title">${escHtml(card.title)}</div>
+        <div class="guide-card-highlight">${escHtml(card.highlight)}</div>
         <div class="guide-card-meta">
-          ${card.duration ? `<span>⏱ ${card.duration}</span>` : ''}
-          ${card.cost ? `<span>💰 ${card.cost}</span>` : ''}
+          ${card.duration ? `<span>⏱ ${escHtml(card.duration)}</span>` : ''}
+          ${card.cost ? `<span>💰 ${escHtml(card.cost)}</span>` : ''}
         </div>
       </div>
       <div class="guide-card-actions">
-        <a class="guide-icon-btn guide-map-btn" href="${maps}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
-        ${(type === 'cafe' || type === 'restaurant') ? `<button class="guide-icon-btn guide-nomad-btn" data-card-id="${card.id}" data-card-type="${type}" title="Save as a work-friendly spot">☕ Nomad</button>` : ''}
-        <button class="guide-icon-btn guide-commit-btn" data-card-id="${card.id}" data-card-type="${type}" title="Add to itinerary">＋ Add</button>
+        <a class="guide-icon-btn guide-map-btn" href="${safeUrl(maps)}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
+        ${(type === 'cafe' || type === 'restaurant') ? `<button class="guide-icon-btn guide-nomad-btn" data-card-id="${escHtml(card.id)}" data-card-type="${escHtml(type)}" title="Save as a work-friendly spot">☕ Nomad</button>` : ''}
+        <button class="guide-icon-btn guide-commit-btn" data-card-id="${escHtml(card.id)}" data-card-type="${escHtml(type)}" title="Add to itinerary">＋ Add</button>
       </div>
     </div>
   `;
@@ -593,26 +593,26 @@ function renderWalkCard(walk: CityWalk, _city: string, idx: number): string {
   const hasImg = !!walk.imageUrl;
   const bannerColor = CARD_TINTS[idx % CARD_TINTS.length];
   const media = hasImg
-    ? `<div class="guide-card-photo" style="background-image:url('${walk.imageUrl}')"></div>`
+    ? `<div class="guide-card-photo" style="background-image:url('${safeUrl(walk.imageUrl)}')"></div>`
     : `<div class="guide-card-tint" style="--tint:${bannerColor}"><span class="guide-card-tint-emoji">🚶</span></div>`;
 
   return `
-    <div class="guide-card walk-card ${s ? 'saved' : ''}" data-card-id="${walk.id}" data-card-type="cityWalk">
+    <div class="guide-card walk-card ${s ? 'saved' : ''}" data-card-id="${escHtml(walk.id)}" data-card-type="cityWalk">
       <div class="guide-card-media">
         ${media}
-        <button class="guide-card-fav guide-save-btn ${s ? 'saved' : ''}" data-card-id="${walk.id}" data-card-type="cityWalk" title="Bookmark">${s ? '★' : '☆'}</button>
+        <button class="guide-card-fav guide-save-btn ${s ? 'saved' : ''}" data-card-id="${escHtml(walk.id)}" data-card-type="cityWalk" title="Bookmark">${s ? '★' : '☆'}</button>
       </div>
-      <div class="guide-card-body" data-open-detail="${walk.id}" data-card-type="cityWalk">
-        <div class="guide-card-title">${walk.title}</div>
-        <div class="guide-card-highlight">${walk.highlight}</div>
+      <div class="guide-card-body" data-open-detail="${escHtml(walk.id)}" data-card-type="cityWalk">
+        <div class="guide-card-title">${escHtml(walk.title)}</div>
+        <div class="guide-card-highlight">${escHtml(walk.highlight)}</div>
         <div class="guide-card-meta">
-          ${walk.duration ? `<span>⏱ ${walk.duration}</span>` : ''}
-          ${walk.distance ? `<span>📏 ${walk.distance}</span>` : ''}
+          ${walk.duration ? `<span>⏱ ${escHtml(walk.duration)}</span>` : ''}
+          ${walk.distance ? `<span>📏 ${escHtml(walk.distance)}</span>` : ''}
         </div>
       </div>
       <div class="guide-card-actions">
-        ${walk.searchUrl ? `<a class="guide-icon-btn guide-map-btn" href="${walk.searchUrl}" target="_blank" rel="noopener" title="Search route">🔍 Route</a>` : ''}
-        <button class="guide-icon-btn guide-commit-btn" data-card-id="${walk.id}" data-card-type="cityWalk" title="Add to itinerary">＋ Add</button>
+        ${walk.searchUrl ? `<a class="guide-icon-btn guide-map-btn" href="${safeUrl(walk.searchUrl)}" target="_blank" rel="noopener" title="Search route">🔍 Route</a>` : ''}
+        <button class="guide-icon-btn guide-commit-btn" data-card-id="${escHtml(walk.id)}" data-card-type="cityWalk" title="Add to itinerary">＋ Add</button>
       </div>
     </div>
   `;
@@ -630,8 +630,8 @@ function renderKnowTab(intel: StoredCityIntel): string {
           <div class="guide-know-title">${t('guide.knowGreetings')}</div>
           ${intel.greetings.map(g => `
             <div class="guide-know-item">
-              <strong>${g.phrase}</strong>${g.pronunciation ? `<span class="muted"> · ${g.pronunciation}</span>` : ''}
-              ${g.meaning ? `<div class="guide-know-meaning">${g.meaning}</div>` : ''}
+              <strong>${escHtml(g.phrase)}</strong>${g.pronunciation ? `<span class="muted"> · ${escHtml(g.pronunciation)}</span>` : ''}
+              ${g.meaning ? `<div class="guide-know-meaning">${escHtml(g.meaning)}</div>` : ''}
             </div>
           `).join('')}
         </div>
@@ -639,13 +639,13 @@ function renderKnowTab(intel: StoredCityIntel): string {
       ${intel.customs?.length ? `
         <div class="guide-know-section">
           <div class="guide-know-title">${t('guide.knowCustoms')}</div>
-          <ul>${intel.customs.map(c => `<li>${c}</li>`).join('')}</ul>
+          <ul>${intel.customs.map(c => `<li>${escHtml(c)}</li>`).join('')}</ul>
         </div>
       ` : ''}
       ${intel.taboos?.length ? `
         <div class="guide-know-section">
           <div class="guide-know-title">${t('guide.knowTaboos')}</div>
-          <ul>${intel.taboos.map(t => `<li>${t}</li>`).join('')}</ul>
+          <ul>${intel.taboos.map(tb => `<li>${escHtml(tb)}</li>`).join('')}</ul>
         </div>
       ` : ''}
       ${intel.neighborhoods?.length ? `
@@ -653,8 +653,8 @@ function renderKnowTab(intel: StoredCityIntel): string {
           <div class="guide-know-title">${t('guide.knowNeighbourhoods')}</div>
           ${intel.neighborhoods.map(n => `
             <div class="guide-know-item">
-              <strong>${n.name}</strong>
-              <div class="guide-know-meaning">${n.vibe}</div>
+              <strong>${escHtml(n.name)}</strong>
+              <div class="guide-know-meaning">${escHtml(n.vibe)}</div>
             </div>
           `).join('')}
         </div>
@@ -662,13 +662,13 @@ function renderKnowTab(intel: StoredCityIntel): string {
       ${intel.safetyTips?.length ? `
         <div class="guide-know-section guide-safety-section">
           <div class="guide-know-title">${t('guide.knowSafety')}</div>
-          <ul>${intel.safetyTips.map(t => `<li>${t}</li>`).join('')}</ul>
+          <ul>${intel.safetyTips.map(tip => `<li>${escHtml(tip)}</li>`).join('')}</ul>
         </div>
       ` : ''}
       ${intel.transport?.length ? `
         <div class="guide-know-section">
           <div class="guide-know-title">${t('guide.knowTransport')}</div>
-          <ul>${intel.transport.map(t => `<li>${t}</li>`).join('')}</ul>
+          <ul>${intel.transport.map(tr => `<li>${escHtml(tr)}</li>`).join('')}</ul>
         </div>
       ` : ''}
     </div>
@@ -679,11 +679,11 @@ function renderMoneyTab(tips: GuideTip[]): string {
   if (!tips.length) return renderSectionLoading(t('guide.loadingMoney'));
   return `
     <div class="guide-money-list">
-      ${tips.map(t => `
+      ${tips.map(tip => `
         <div class="guide-money-tip">
           <span class="guide-money-icon">💸</span>
-          <span class="guide-money-text">${t.text}</span>
-          <button class="guide-icon-btn guide-tip-save ${t.saved ? 'saved' : ''}" data-tip-id="${t.id}" title="Save">${t.saved ? '★' : '☆'}</button>
+          <span class="guide-money-text">${escHtml(tip.text)}</span>
+          <button class="guide-icon-btn guide-tip-save ${tip.saved ? 'saved' : ''}" data-tip-id="${escHtml(tip.id)}" title="Save">${tip.saved ? '★' : '☆'}</button>
         </div>
       `).join('')}
     </div>
@@ -894,9 +894,9 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
   modal.innerHTML = `
     <div class="guide-detail-modal">
       ${hasImg ? `
-        <div class="guide-detail-modal-photo" style="background-image:url('${card.imageUrl}')">
+        <div class="guide-detail-modal-photo" style="background-image:url('${safeUrl(card.imageUrl)}')">
           <button class="guide-detail-modal-close">×</button>
-          ${card.photographer ? `<a class="guide-detail-modal-credit" href="${card.photographerUrl || '#'}" target="_blank" rel="noopener">Photo · ${card.photographer} / Unsplash</a>` : ''}
+          ${card.photographer ? `<a class="guide-detail-modal-credit" href="${safeUrl(card.photographerUrl) || '#'}" target="_blank" rel="noopener">Photo · ${escHtml(card.photographer)} / Unsplash</a>` : ''}
         </div>
       ` : `
         <div class="guide-detail-modal-bar">
@@ -906,31 +906,31 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
       `}
       <div class="guide-detail-modal-body">
         <div class="guide-detail-modal-kicker">${typeEmoji(cardType)} ${TYPE_LABEL[cardType] ?? ''}</div>
-        <h3 class="guide-detail-modal-title">${card.title}</h3>
-        ${card.highlight ? `<p class="guide-detail-modal-lede">${card.highlight}</p>` : ''}
+        <h3 class="guide-detail-modal-title">${escHtml(card.title)}</h3>
+        ${card.highlight ? `<p class="guide-detail-modal-lede">${escHtml(card.highlight)}</p>` : ''}
         <div class="guide-detail-modal-meta">
-          ${g.duration ? `<span>⏱ ${g.duration}</span>` : ''}
-          ${g.cost ? `<span>💰 ${g.cost}</span>` : ''}
-          ${isWalk && w.distance ? `<span>📏 ${w.distance}</span>` : ''}
-          ${g.category && !isWalk ? `<span>🏷️ ${g.category}</span>` : ''}
+          ${g.duration ? `<span>⏱ ${escHtml(g.duration)}</span>` : ''}
+          ${g.cost ? `<span>💰 ${escHtml(g.cost)}</span>` : ''}
+          ${isWalk && w.distance ? `<span>📏 ${escHtml(w.distance)}</span>` : ''}
+          ${g.category && !isWalk ? `<span>🏷️ ${escHtml(g.category)}</span>` : ''}
         </div>
 
         ${card.detail ? `
           <div class="guide-detail-modal-block">
             <div class="guide-detail-modal-block-label">About</div>
-            <p class="guide-detail-modal-text">${card.detail}</p>
+            <p class="guide-detail-modal-text">${escHtml(card.detail)}</p>
           </div>
         ` : ''}
 
         ${card.background ? `
           <div class="guide-detail-modal-block">
             <div class="guide-detail-modal-block-label">Good to know</div>
-            <div class="guide-detail-modal-bg">💡 ${card.background}</div>
+            <div class="guide-detail-modal-bg">💡 ${escHtml(card.background)}</div>
           </div>
         ` : ''}
 
         ${g.address && !isWalk ? `
-          <a class="guide-detail-modal-addr" href="${maps}" target="_blank" rel="noopener">📍 ${g.address} · open in Maps</a>
+          <a class="guide-detail-modal-addr" href="${safeUrl(maps)}" target="_blank" rel="noopener">📍 ${escHtml(g.address)} · open in Maps</a>
         ` : ''}
 
         ${isWalk && waypoints.length ? `
@@ -942,8 +942,8 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
                 <div class="guide-walk-stop">
                   <span class="guide-walk-stop-num">${i + 1}</span>
                   <div class="guide-walk-stop-text">
-                    <div class="guide-walk-stop-name">${wp.name}</div>
-                    ${wp.note ? `<div class="guide-walk-stop-note">${wp.note}</div>` : ''}
+                    <div class="guide-walk-stop-name">${escHtml(wp.name)}</div>
+                    ${wp.note ? `<div class="guide-walk-stop-note">${escHtml(wp.note)}</div>` : ''}
                   </div>
                 </div>
               `).join('')}
@@ -953,8 +953,8 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
       </div>
       <div class="guide-detail-modal-footer">
         ${isWalk && waypoints.length
-          ? `<a class="btn btn-ghost guide-walk-route-link" href="${walkRouteUrlByName(waypoints, intel.city)}" target="_blank" rel="noopener">${t('guide.btnOpenRoute')}</a>`
-          : `<a class="btn btn-ghost" href="${card.searchUrl || maps}" target="_blank" rel="noopener">${googleIcon()} Search in Google</a>`}
+          ? `<a class="btn btn-ghost guide-walk-route-link" href="${safeUrl(walkRouteUrlByName(waypoints, intel.city))}" target="_blank" rel="noopener">${t('guide.btnOpenRoute')}</a>`
+          : `<a class="btn btn-ghost" href="${safeUrl(card.searchUrl || maps)}" target="_blank" rel="noopener">${googleIcon()} Search in Google</a>`}
         <button class="btn btn-primary guide-detail-modal-commit">${t('guide.btnAddItinerary')}</button>
       </div>
     </div>
@@ -1046,7 +1046,7 @@ function drawWalkRoute(mapEl: HTMLElement, stops: { name: string; lat: number; l
       iconSize: [26, 26],
       iconAnchor: [13, 13],
     });
-    L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(`<b>${i + 1}. ${s.name}</b>`);
+    L.marker([s.lat, s.lng], { icon }).addTo(map).bindPopup(`<b>${i + 1}. ${escHtml(s.name)}</b>`);
   });
 
   map.fitBounds(L.latLngBounds(latlngs).pad(0.2));
@@ -1072,18 +1072,18 @@ function openCommitModal(intel: StoredCityIntel, cardId: string, cardType: strin
     body: `
       <div class="guide-modal-card-preview">
         <span>${typeEmoji(cardType)}</span>
-        <strong>${card.title}</strong>
+        <strong>${escHtml(card.title)}</strong>
       </div>
       <label class="guide-modal-label">Choose leg</label>
       <select class="input guide-modal-leg-select" id="gcm-leg" ${!_legs.length ? 'disabled' : ''}>
         ${matchedLegs.length ? `
-          <optgroup label="📍 Matching — ${intel.city}">
-            ${matchedLegs.map(l => `<option value="${l.id}">${l.flag || ''} ${l.city} · ${l.dateFrom} – ${l.dateTo}</option>`).join('')}
+          <optgroup label="📍 Matching — ${escHtml(intel.city)}">
+            ${matchedLegs.map(l => `<option value="${escHtml(l.id)}">${escHtml(l.flag) || ''} ${escHtml(l.city)} · ${escHtml(l.dateFrom)} – ${escHtml(l.dateTo)}</option>`).join('')}
           </optgroup>
         ` : ''}
         ${otherLegs.length ? `
           <optgroup label="Other legs">
-            ${otherLegs.map(l => `<option value="${l.id}">${l.flag || ''} ${l.city} · ${l.dateFrom} – ${l.dateTo}</option>`).join('')}
+            ${otherLegs.map(l => `<option value="${escHtml(l.id)}">${escHtml(l.flag) || ''} ${escHtml(l.city)} · ${escHtml(l.dateFrom)} – ${escHtml(l.dateTo)}</option>`).join('')}
           </optgroup>
         ` : ''}
         ${!_legs.length ? `<option value="">No legs yet — add destinations in Itinerary first</option>` : ''}
@@ -1340,8 +1340,8 @@ export function initCities() {
     const renderGroup = (label: string, items: typeof results) => items.length ? `
       <div class="guide-dd-section-label">${label}</div>
       ${items.map(d => `
-        <div class="guide-dd-item" data-label="${d.label}" data-country="${d.country}">
-          <span>${d.flag}</span><span>${d.label}</span>
+        <div class="guide-dd-item" data-label="${escHtml(d.label)}" data-country="${escHtml(d.country)}">
+          <span>${escHtml(d.flag)}</span><span>${escHtml(d.label)}</span>
         </div>
       `).join('')}
     ` : '';

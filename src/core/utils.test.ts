@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { escHtml } from './utils.ts';
+import { escHtml, safeUrl } from './utils.ts';
 
 describe('escHtml', () => {
   it('returns an empty string for null/undefined/empty input', () => {
@@ -36,5 +36,31 @@ describe('escHtml', () => {
 
   it('escapes & exactly once even when the input already looks encoded (no double-unescape bugs)', () => {
     expect(escHtml('&amp;')).toBe('&amp;amp;');
+  });
+});
+
+describe('safeUrl', () => {
+  it('passes through a plain http(s) URL (HTML-escaped)', () => {
+    expect(safeUrl('https://images.unsplash.com/photo-123')).toBe('https://images.unsplash.com/photo-123');
+    expect(safeUrl('http://example.com/a?b=1&c=2')).toBe('http://example.com/a?b=1&amp;c=2');
+  });
+
+  it('blocks javascript: and data: schemes (scheme injection escHtml would let through)', () => {
+    expect(safeUrl('javascript:alert(1)')).toBe('');
+    expect(safeUrl("javascript:alert('xss')")).toBe('');
+    expect(safeUrl('data:text/html,<script>alert(1)</script>')).toBe('');
+    expect(safeUrl('vbscript:msgbox(1)')).toBe('');
+  });
+
+  it('blocks a CSS url() breakout attempt', () => {
+    // Would break out of style="background-image:url('...')" if not blocked.
+    expect(safeUrl("');background:url('evil")).toBe('');
+  });
+
+  it('returns empty for null/undefined/empty', () => {
+    expect(safeUrl(null)).toBe('');
+    expect(safeUrl(undefined)).toBe('');
+    expect(safeUrl('')).toBe('');
+    expect(safeUrl('   ')).toBe('');
   });
 });
