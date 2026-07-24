@@ -151,6 +151,27 @@ describe('trips/{tripId}', () => {
     await assertSucceeds(getDoc(doc(bob.firestore(), 'trips/t1')));
   });
 
+  // Regression: a trip document with NEITHER publicView NOR hasPublicView
+  // (the common case — most trips never set them) must still be readable by
+  // its own member. Before the `in` existence guard, the get rule's
+  // `resource.data.hasPublicView == true` threw a Null value error on the
+  // absent field, failing the whole rule and denying the owner their own
+  // trip — the app hung on "Loading…" forever. (Same bug class as N1.)
+  it('get: a member can read their own trip that has no publicView/hasPublicView fields', async () => {
+    await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/t1'), baseTrip('alice')); });
+    const alice = testEnv.authenticatedContext('alice');
+    await assertSucceeds(getDoc(doc(alice.firestore(), 'trips/t1')));
+  });
+
+  it('sub-collection read: a member can read a sub-collection of a trip with no publicView fields', async () => {
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'trips/t1'), baseTrip('alice'));
+      await setDoc(doc(ctx.firestore(), 'trips/t1/expenses/e1'), { amount: 10 });
+    });
+    const alice = testEnv.authenticatedContext('alice');
+    await assertSucceeds(getDoc(doc(alice.firestore(), 'trips/t1/expenses/e1')));
+  });
+
   it('list: the memberUids array-contains query works for a member, and cannot be widened', async () => {
     await seed(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'trips/t1'), baseTrip('alice'));

@@ -162,10 +162,16 @@ service cloud.firestore {
       // Single-doc reads: non-existent (probing is safe), members, or a trip
       // with public view enabled. Dual-read during migration: accept either the
       // new publicView.enabled or the legacy hasPublicView flag.
+      //
+      // NOTE: `resource.data.publicView` / `.hasPublicView` throw a "Null
+      // value error" (which fails the whole rule -> permission-denied) when
+      // the field is ABSENT, not merely null. Most trips have neither field,
+      // so both must be guarded by an `in` existence check first. Same bug
+      // class as subCanEditCollection's memberCollections check (see N1).
       allow get: if resource == null
         || (signedIn() && uid() in resource.data.memberUids)
-        || (resource.data.publicView != null && resource.data.publicView.enabled == true)
-        || resource.data.hasPublicView == true;
+        || ('publicView' in resource.data && resource.data.publicView != null && resource.data.publicView.enabled == true)
+        || ('hasPublicView' in resource.data && resource.data.hasPublicView == true);
 
       // Queries: only the canonical "my trips" query is provable.
       allow list: if signedIn() && uid() in resource.data.memberUids;
@@ -203,11 +209,15 @@ service cloud.firestore {
       // bypasses these rules). A client must never be able to reset its own
       // AI usage. All other sub-collections follow the normal editor gate.
       match /{sub}/{docId} {
+        // Same absent-field guard as the parent get rule: publicView /
+        // hasPublicView throw on a trip doc that lacks them (the common case),
+        // which would deny members their own sub-collection reads.
         allow read: if subIsMember(tripId)
-          || (tripData(tripId).publicView != null
+          || ('publicView' in tripData(tripId)
+              && tripData(tripId).publicView != null
               && tripData(tripId).publicView.enabled == true
               && (sub in tripData(tripId).publicView.collections))
-          || tripData(tripId).hasPublicView == true;
+          || ('hasPublicView' in tripData(tripId) && tripData(tripId).hasPublicView == true);
         allow write: if sub != 'usage' && subCanEditCollection(tripId, sub);
       }
     }
