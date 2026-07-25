@@ -4,6 +4,7 @@
 
 import { authReady, currentUser } from './firebase/auth.ts';
 import { setAllowedViews, type ViewId } from './core/app.ts';
+import { getInvite } from './data/trip-invites.ts';
 
 // Capture any invite token from the URL SYNCHRONOUSLY, at module-eval time,
 // before any await yields control. This is the single source of truth for
@@ -81,7 +82,6 @@ export async function resolveInviteLink(host: InviteResolutionHost): Promise<voi
     // Wait for the Firebase auth state to settle before any Firestore read.
     await authReady();
 
-    const { getInvite } = await import('./data/trip-invites.ts');
     const inv = await getInvite(tok);
 
     if (!inv || inv.revoked) {

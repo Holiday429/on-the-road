@@ -514,6 +514,11 @@ export async function restoreActiveTrip(): Promise<void> {
 export async function checkAndAcceptEmailInvites(): Promise<number> {
   const u = currentUser();
   if (!u?.email) return 0;
+  // Dynamic on purpose: trip-invites.ts statically imports getTrip from this
+  // module, so a static import here would form a cycle. Vite reports this as
+  // an "ineffective dynamic import" because trip-share.ts/migrate-publicview.ts
+  // import trip-invites.ts statically elsewhere — that's fine, this one just
+  // can't be static too.
   const { acceptEmailInvite } = await import('./trip-invites.ts');
   const trips = await listTrips();
   let joined = 0;
