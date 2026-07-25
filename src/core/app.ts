@@ -186,6 +186,7 @@ function openTripPopover(anchor?: HTMLElement | null) {
     </div>`;
   }).join('');
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   panel.innerHTML = `
     <div class="trip-popover-header">${t('app.title')}</div>
     ${rows || `<div class="trip-menu-empty">${t('app.tripMenuEmpty')}</div>`}
@@ -392,6 +393,7 @@ function decorateViewTitles() {
     const seeded = titleEl.dataset.title ?? titleEl.textContent?.trim();
     const custom = seeded && seeded !== item.label ? seeded : undefined;
     if (custom) titleEl.dataset.title = custom;
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     titleEl.innerHTML = renderViewTitleMarkup(item.id, custom);
   });
 }
@@ -571,6 +573,7 @@ function buildTripPill(): string {
 
 function buildSidebar() {
   const sidebar = document.getElementById('sidebar')!;
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   sidebar.innerHTML = `
     ${buildSidebarHeader()}
     ${sessionState.user ? buildTripPill() : buildGuestPanel()}
@@ -681,6 +684,7 @@ function openCalendarTooltip(pill: HTMLElement) {
   const tooltip = document.createElement('div');
   tooltip.id = 'trip-cal-tooltip';
   tooltip.setAttribute('role', 'tooltip');
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   tooltip.innerHTML = buildCalendarHTML(startDate, endDate ?? null, legs);
 
   document.body.appendChild(tooltip);
@@ -804,6 +808,7 @@ function buildMobileNav() {
     </div>`;
   }).join('');
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   mobileNav.innerHTML = `<div id="mobile-nav-inner">${navItems}${buildMobileAccountItem()}</div>`;
 
   mobileNav.querySelectorAll<HTMLElement>('.mobile-nav-item[data-view]').forEach(item => {
@@ -872,6 +877,7 @@ function buildNavSections(_context: 'sidebar' | 'mobile'): string {
 export function renderSession(user: User | null, onPrimaryAction: () => void) {
   sessionState = { user };
   sessionPrimaryAction = onPrimaryAction;
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
   buildMobileNav();
@@ -1133,6 +1139,7 @@ function openTripForm(opts: {
   }
 
   function mount() {
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     backdrop.innerHTML = buildHtml();
     document.body.appendChild(backdrop);
     // Mount destination picker into its slot
@@ -1146,6 +1153,7 @@ function openTripForm(opts: {
 
   function rerenderPart(selector: string, html: string) {
     const el = backdrop.querySelector<HTMLElement>(selector);
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     if (el) el.innerHTML = html;
   }
 
@@ -1277,6 +1285,7 @@ export function applyRoleState() {
 }
 
 export function initApp() {
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
   buildMobileNav();

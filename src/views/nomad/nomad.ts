@@ -10,6 +10,7 @@ import { type NomadSpot, composite, scoreClass } from './nomad-types.ts';
 import { openAddModal, openDetailModal } from './nomad-modal.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { t } from '../../core/i18n.ts';
+import { escHtml, safeUrl } from '../../core/utils.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -46,7 +47,7 @@ function filteredSpots(): NomadSpot[] {
 
 function renderCardPhoto(spot: NomadSpot): string {
   const src = spot.photos[0] ?? spot.placePhotoUrl ?? '';
-  if (src) return `<img src="${src}" alt="${spot.name}" loading="lazy">`;
+  if (src) return `<img src="${safeUrl(src)}" alt="${escHtml(spot.name)}" loading="lazy">`;
   const emoji = spot.type === 'Café' ? '☕' : spot.type === 'Co-working' ? '💻' : spot.type === 'Library' ? '📚' : '🏨';
   return `<div class="nomad-card-photo-placeholder">${emoji}<span>${t('nomad.noPhoto')}</span></div>`;
 }
@@ -63,18 +64,18 @@ function renderAmenities(r: NomadSpot['ratings']): string {
 function renderCard(spot: NomadSpot): string {
   const score = composite(spot.ratings);
   return `
-    <div class="nomad-card" data-id="${spot.id}">
+    <div class="nomad-card" data-id="${escHtml(spot.id)}">
       <div class="nomad-card-photo">
         ${renderCardPhoto(spot)}
-        <span class="nomad-card-type-badge">${spot.type}</span>
+        <span class="nomad-card-type-badge">${escHtml(spot.type)}</span>
         <span class="nomad-card-score-badge ${scoreClass(score)}">${score.toFixed(1)}</span>
       </div>
       <div class="nomad-card-body">
-        <div class="nomad-card-name">${spot.name}</div>
-        <div class="nomad-card-location">📍 ${spot.city}, ${spot.country}</div>
+        <div class="nomad-card-name">${escHtml(spot.name)}</div>
+        <div class="nomad-card-location">📍 ${escHtml(spot.city)}, ${escHtml(spot.country)}</div>
         <div class="nomad-card-amenities">${renderAmenities(spot.ratings)}</div>
-        ${spot.comment ? `<div class="nomad-card-comment">${spot.comment}</div>` : ''}
-        ${spot.mapsUrl ? `<a class="nomad-card-map-link" href="${spot.mapsUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🗺 View on Google Maps</a>` : ''}
+        ${spot.comment ? `<div class="nomad-card-comment">${escHtml(spot.comment)}</div>` : ''}
+        ${spot.mapsUrl ? `<a class="nomad-card-map-link" href="${safeUrl(spot.mapsUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🗺 View on Google Maps</a>` : ''}
       </div>
     </div>
   `;
@@ -84,6 +85,7 @@ function renderGallery(container: HTMLElement) {
   const visible = filteredSpots();
   if (visible.length === 0) {
     const isFiltered = !!activeCountry || !!searchQuery;
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     container.innerHTML = `
       <div class="nomad-empty">
         <div class="nomad-empty-icon">💻</div>
@@ -93,6 +95,7 @@ function renderGallery(container: HTMLElement) {
     `;
     return;
   }
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   container.innerHTML = visible.map(renderCard).join('');
 }
 
@@ -102,8 +105,9 @@ function renderChips(container: HTMLElement) {
   const countries = getCountries();
   const allChip = `<div class="nomad-chip${!activeCountry ? ' active' : ''}" data-country="">${t('nomad.filterAll')} <span class="nomad-chip-count">${spots.length}</span></div>`;
   const chips = countries.map(({ country, count }) =>
-    `<div class="nomad-chip${activeCountry === country ? ' active' : ''}" data-country="${country}">${country} <span class="nomad-chip-count">${count}</span></div>`
+    `<div class="nomad-chip${activeCountry === country ? ' active' : ''}" data-country="${escHtml(country)}">${escHtml(country)} <span class="nomad-chip-count">${count}</span></div>`
   ).join('');
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   container.innerHTML = allChip + chips;
 }
 
@@ -122,6 +126,7 @@ export function initNomad() {
   const body = document.querySelector<HTMLElement>('#view-nomad .nomad-body');
   if (!body) return;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   body.innerHTML = `
     <div class="nomad-toolbar">
       <div class="nomad-scope">

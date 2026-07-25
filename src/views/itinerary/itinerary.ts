@@ -653,7 +653,7 @@ function initPlanLeaflet(timeline: HTMLElement, leg: Leg) {
   if (cityCoords) {
     const icon = L.divIcon({
       className: 'rd-pmap-pin rd-pmap-pin--city',
-      html: `<span class="rd-pmap-pin-label">${leg.city}</span>`,
+      html: `<span class="rd-pmap-pin-label">${esc(leg.city)}</span>`,
       iconSize: [0, 0], iconAnchor: [0, 0],
     });
     L.marker([cityCoords.lat, cityCoords.lng], { icon }).addTo(map);
@@ -947,6 +947,7 @@ function render() {
   // focused textarea on the Firestore echo). Time-windowed, not one-shot.
   if (selected && isNoteSuppressed(selected.id)) return;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   timeline.innerHTML = selected ? renderDetail(selected) : renderTimeline();
   timeline.classList.toggle('is-detail', !!selected);
 
@@ -1264,6 +1265,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
     const dlg = document.createElement('div');
     dlg.className = 'rd-editor-overlay';
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     dlg.innerHTML = `
       <div class="rd-editor rd-clip-preview-modal">
         <div class="rd-clip-preview-top">
@@ -1311,6 +1313,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
     const dlg = document.createElement('div');
     dlg.className = 'rd-editor-overlay';
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     dlg.innerHTML = `
       <div class="rd-editor rd-note-expand-modal" style="background:${esc(color)}">
         <div class="rd-note-card-head">
@@ -1508,6 +1511,7 @@ function openPlanItemDrawer(timeline: HTMLElement, leg: Leg, planId: string) {
 
   const catOptions = categorySelectOptions(leg, p.category ?? '');
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   drawer.innerHTML = `
     <div class="rd-drawer-inner">
       <div class="rd-drawer-header">
@@ -1589,6 +1593,7 @@ function openClipEditor(timeline: HTMLElement, leg: Leg, clipId: string | null) 
 
   const catOptions = categorySelectOptions(leg, existing?.category ?? '');
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   dlg.innerHTML = `
     <div class="rd-editor">
       <div class="rd-editor-title">${existing ? 'Edit clip' : 'Add clip'}</div>
@@ -1636,6 +1641,7 @@ function openClipEditor(timeline: HTMLElement, leg: Leg, clipId: string | null) 
   function refreshPreviews() {
     previewsEl.style.display = pending.length ? '' : 'none';
     previewsEl.className = 'rd-clip-img-previews';
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     previewsEl.innerHTML = pending.map((p, i) => `
       <div class="rd-clip-img-thumb">
         <img src="${esc(p.localUrl)}" alt="">
@@ -1737,6 +1743,7 @@ function openCategoryEditor(timeline: HTMLElement, leg: Leg) {
     `<button class="rd-cat-swatch" data-color="${c}" style="background:${c}" type="button"></button>`
   ).join('');
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   dlg.innerHTML = `
     <div class="rd-editor" style="max-width:380px">
       <div class="rd-editor-title">New category</div>

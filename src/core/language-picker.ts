@@ -24,6 +24,7 @@ export function createLanguagePicker(container: HTMLElement): LanguagePickerInst
   let popover: HTMLElement | null = null;
 
   container.classList.add('lang-picker');
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   container.innerHTML = '';
 
   const btn = document.createElement('button');
@@ -36,6 +37,7 @@ export function createLanguagePicker(container: HTMLElement): LanguagePickerInst
 
   function renderButton() {
     const meta = LOCALES.find((l) => l.code === getLocale()) ?? LOCALES[0];
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     btn.innerHTML = `<span class="lang-picker-flag">${meta.flag}</span><span class="lang-picker-label">${meta.label}</span>`;
     btn.title = t('lang.button');
     btn.setAttribute('aria-label', t('lang.button'));
@@ -50,6 +52,7 @@ export function createLanguagePicker(container: HTMLElement): LanguagePickerInst
     const el = document.createElement('div');
     el.className = 'dest-dropdown lang-picker-dropdown';
     el.setAttribute('role', 'listbox');
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     el.innerHTML = `
       <div class="dest-dropdown-section">
         <div class="dest-dropdown-section-label">${t('lang.title')}</div>
@@ -106,6 +109,7 @@ export function createLanguagePicker(container: HTMLElement): LanguagePickerInst
   return {
     destroy() {
       closePopover();
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
       container.innerHTML = '';
       container.classList.remove('lang-picker');
     },

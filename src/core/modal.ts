@@ -66,6 +66,7 @@ export function openModal(opts: ModalOptions): ModalHandle {
        </div>`
     : '';
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   backdrop.innerHTML = `
     <div class="otr-modal otr-modal--${variant} ${className}" role="dialog" aria-modal="true">
       ${header}

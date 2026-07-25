@@ -4,7 +4,7 @@
 
 import type { StoredCitySafety } from '../../data/stores/safety-store.ts';
 import { t } from '../../core/i18n.ts';
-import { escHtml as esc } from '../../core/utils.ts';
+import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 
 function telHref(number: string): string {
   return `tel:${number.replace(/[^+0-9]/g, '')}`;
@@ -46,7 +46,7 @@ function renderModal(card: StoredCitySafety): string {
         ${e.name ? `<div class="sfym-place-name">${esc(e.name)}</div>` : ''}
         ${e.address ? `<div class="sfym-place-line">${esc(e.address)}</div>` : ''}
         ${e.phone ? `<a class="sfym-place-line sfym-link" href="${telHref(e.phone)}">${esc(e.phone)}</a>` : ''}
-        ${e.website ? `<a class="sfym-place-line sfym-link" href="${esc(e.website)}" target="_blank" rel="noopener">${esc(e.website)}</a>` : ''}
+        ${e.website ? `<a class="sfym-place-line sfym-link" href="${safeUrl(e.website)}" target="_blank" rel="noopener">${esc(e.website)}</a>` : ''}
         ${e.name ? `<a class="sfym-maps-btn" href="${mapSearchUrl(e.name, card.city)}" target="_blank" rel="noopener">📍 View on map</a>` : ''}
       </div>
     </div>` : '';
@@ -125,6 +125,7 @@ export function openCityModal(
   document.getElementById('sfy-city-modal')?.remove();
 
   const div = document.createElement('div');
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   div.innerHTML = renderModal(card);
   const modal = div.firstElementChild as HTMLElement;
   document.body.appendChild(modal);

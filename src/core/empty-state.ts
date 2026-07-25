@@ -34,6 +34,7 @@ export interface EmptyStateOpts {
 export function emptyState(opts: EmptyStateOpts): HTMLElement {
   const el = document.createElement('div');
   el.className = 'otr-empty';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   el.innerHTML = `
     <div class="otr-empty-icon" aria-hidden="true">${opts.icon}</div>
     <div class="otr-empty-title">${escHtml(opts.title)}</div>

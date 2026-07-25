@@ -96,9 +96,11 @@ export function openAccountModal(): void {
     const el = m.root.querySelector<HTMLElement>('#account-purchases');
     if (!el) return;
     if (!rows.length) {
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
       el.innerHTML = `<div class="account-empty">No purchases yet.</div>`;
       return;
     }
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     el.innerHTML = rows.map((r) => {
       const label = r.plan === 'lifetime' ? 'Lifetime' : r.plan === 'trip_pass' ? 'Trip Pass' : escHtml(r.plan ?? '—');
       const amount = typeof r.amount === 'number' ? `$${(r.amount / 100).toFixed(2)}` : '';

@@ -5,6 +5,7 @@
 import type { NomadRatings, NomadSpot } from './nomad-types.ts';
 import { RATING_DIMS, composite, scoreClass } from './nomad-types.ts';
 import { apiUrl } from '../../core/api.ts';
+import { escHtml, safeUrl } from '../../core/utils.ts';
 
 /* ── Google Places helpers ───────────────────────────────────────────────────
    Autocomplete / details / photo go through /api/places so the billable Places
@@ -87,6 +88,7 @@ export function openAddModal(
 
   const backdrop = document.createElement('div');
   backdrop.className = 'nomad-modal-backdrop';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   backdrop.innerHTML = `
     <div class="nomad-modal nomad-add-modal" role="dialog" aria-modal="true" aria-label="Add a spot">
       <div class="nomad-modal-header">
@@ -231,10 +233,11 @@ export function openAddModal(
       const results = await fetchPlaceSuggestions(q);
       if (results.length === 0) { suggestionsEl.hidden = true; return; }
       suggestionsEl.hidden = false;
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
       suggestionsEl.innerHTML = results.map(r => `
-        <div class="nomad-place-item" data-place-id="${r.placeId}" data-description="${r.description}">
-          <div class="nomad-place-item-main">${r.mainText}</div>
-          <div class="nomad-place-item-sub">${r.secondaryText}</div>
+        <div class="nomad-place-item" data-place-id="${escHtml(r.placeId)}" data-description="${escHtml(r.description)}">
+          <div class="nomad-place-item-main">${escHtml(r.mainText)}</div>
+          <div class="nomad-place-item-sub">${escHtml(r.secondaryText)}</div>
         </div>
       `).join('');
     }, 320);
@@ -256,7 +259,8 @@ export function openAddModal(
       selectedMapsUrl = detail.mapsUrl;
       selectedAddress = detail.address;
       if (detail.photoRef) selectedPlacePhotoUrl = buildPlacePhotoUrl(detail.photoRef);
-      placeInfoEl.innerHTML = `📍 ${detail.address}`;
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
+      placeInfoEl.innerHTML = `📍 ${escHtml(detail.address)}`;
     } else {
       selectedMapsUrl = `https://maps.google.com/?q=${encodeURIComponent(nameInput.value)}`;
       placeInfoEl.textContent = '📍 Address not found — a Maps link will be generated from the name.';
@@ -266,6 +270,7 @@ export function openAddModal(
   photoInput.addEventListener('change', () => {
     const files = Array.from(photoInput.files ?? []).slice(0, 5);
     pendingPhotos = [];
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     photoPreviewEl.innerHTML = '';
     files.forEach(file => {
       const reader = new FileReader();
@@ -327,12 +332,12 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
 
   const heroSrc = spot.photos[0] ?? spot.placePhotoUrl ?? '';
   const heroContent = heroSrc
-    ? `<img src="${heroSrc}" alt="${spot.name}">`
+    ? `<img src="${safeUrl(heroSrc)}" alt="${escHtml(spot.name)}">`
     : `<div class="nomad-detail-hero-placeholder">${spot.type === 'Café' ? '☕' : spot.type === 'Co-working' ? '💻' : '📍'}</div>`;
 
   const ratingsHtml = RATING_DIMS.map(d => `
     <div class="nomad-detail-rating-row">
-      <div class="nomad-detail-rating-label"><span>${d.emoji}</span>${d.label}</div>
+      <div class="nomad-detail-rating-label"><span>${d.emoji}</span>${escHtml(d.label)}</div>
       <div class="nomad-detail-rating-bar-track">
         <div class="nomad-detail-rating-bar-fill" style="width:${(spot.ratings[d.key] / 5) * 100}%"></div>
       </div>
@@ -345,7 +350,7 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
     if (spot.placePhotoUrl && all.length === 0) all.push(spot.placePhotoUrl);
     return all.length > 1
       ? `<div class="nomad-section-label">Photos</div>
-         <div class="nomad-detail-photos">${all.map(p => `<img class="nomad-detail-photo" src="${p}" alt="">`).join('')}</div>`
+         <div class="nomad-detail-photos">${all.map(p => `<img class="nomad-detail-photo" src="${safeUrl(p)}" alt="">`).join('')}</div>`
       : '';
   })();
 
@@ -353,13 +358,14 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
 
   const backdrop = document.createElement('div');
   backdrop.className = 'nomad-modal-backdrop nomad-split-backdrop';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   backdrop.innerHTML = `
-    <div class="nomad-modal nomad-split-modal" role="dialog" aria-modal="true" aria-label="${spot.name}">
+    <div class="nomad-modal nomad-split-modal" role="dialog" aria-modal="true" aria-label="${escHtml(spot.name)}">
       <div class="nomad-split-info">
         <div class="nomad-detail-hero">
           ${heroContent}
           <div class="nomad-detail-hero-badges">
-            <span class="nomad-card-type-badge">${spot.type}</span>
+            <span class="nomad-card-type-badge">${escHtml(spot.type)}</span>
             <span class="nomad-card-score-badge ${scoreLabel}">${score.toFixed(1)}</span>
           </div>
           <button class="nomad-modal-close" style="position:absolute;top:var(--sp-3);right:var(--sp-3);background:rgba(255,255,255,0.9)" aria-label="Close">✕</button>
@@ -367,10 +373,10 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
         <div class="nomad-detail-body">
           <div class="nomad-detail-title-row">
             <div>
-              <div class="nomad-detail-name">${spot.name}</div>
-              <div class="nomad-detail-location">📍 ${spot.address || `${spot.city}, ${spot.country}`}</div>
+              <div class="nomad-detail-name">${escHtml(spot.name)}</div>
+              <div class="nomad-detail-location">📍 ${escHtml(spot.address || `${spot.city}, ${spot.country}`)}</div>
             </div>
-            <a class="nomad-detail-map-btn" href="${spot.mapsUrl || `https://maps.google.com/?q=${encodeURIComponent(spot.name + ' ' + spot.city)}`}" target="_blank" rel="noopener" title="Open in Google Maps">↗</a>
+            <a class="nomad-detail-map-btn" href="${safeUrl(spot.mapsUrl || `https://maps.google.com/?q=${encodeURIComponent(spot.name + ' ' + spot.city)}`)}" target="_blank" rel="noopener" title="Open in Google Maps">↗</a>
           </div>
           <div>
             <div class="nomad-section-label">Ratings</div>
@@ -379,7 +385,7 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
           ${spot.comment ? `
           <div>
             <div class="nomad-section-label">Comment</div>
-            <div class="nomad-detail-comment">${spot.comment}</div>
+            <div class="nomad-detail-comment">${escHtml(spot.comment)}</div>
           </div>` : ''}
           ${photosHtml}
         </div>
@@ -387,16 +393,16 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
       <div class="nomad-split-map">
         <iframe
           class="nomad-map-iframe"
-          src="${embedUrl}"
+          src="${safeUrl(embedUrl)}"
           allowfullscreen
           loading="lazy"
           referrerpolicy="no-referrer-when-downgrade"
-          title="Map: ${spot.name}"
+          title="Map: ${escHtml(spot.name)}"
         ></iframe>
         <div class="nomad-map-no-key" id="nomad-map-notice" hidden>
           <div>🗺</div>
           <div>Add a Google Maps API key to enable the embedded map.</div>
-          <a href="${spot.mapsUrl || `https://maps.google.com/?q=${encodeURIComponent(spot.name + ' ' + spot.city)}`}" target="_blank" rel="noopener" class="btn btn-ghost" style="margin-top:var(--sp-3)">Open in Google Maps ↗</a>
+          <a href="${safeUrl(spot.mapsUrl || `https://maps.google.com/?q=${encodeURIComponent(spot.name + ' ' + spot.city)}`)}" target="_blank" rel="noopener" class="btn btn-ghost" style="margin-top:var(--sp-3)">Open in Google Maps ↗</a>
         </div>
       </div>
     </div>

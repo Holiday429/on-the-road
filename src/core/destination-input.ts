@@ -54,6 +54,7 @@ export function createDestinationInput(opts: DestinationInputOptions): Destinati
 
   // ── DOM ─────────────────────────────────────────────────────────────────
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   container.innerHTML = `
     <div class="dest-input-wrap">
       <div class="dest-input-field" role="combobox" aria-haspopup="listbox" aria-expanded="false"></div>
@@ -68,6 +69,7 @@ export function createDestinationInput(opts: DestinationInputOptions): Destinati
     const existingInput = field.querySelector<HTMLInputElement>('.dest-input-text');
     const existingValue = existingInput?.value ?? '';
 
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     field.innerHTML = values.map((v) => {
       const d = destMap.get(v);
       return `
@@ -181,6 +183,7 @@ export function createDestinationInput(opts: DestinationInputOptions): Destinati
     const el = document.createElement('div');
     el.className = 'dest-dropdown';
     el.setAttribute('role', 'listbox');
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     el.innerHTML = renderSection('Countries', countries) + renderSection('Cities', cities);
 
     el.querySelectorAll<HTMLButtonElement>('.dest-dropdown-item').forEach(btn => {
@@ -261,6 +264,7 @@ export function createDestinationInput(opts: DestinationInputOptions): Destinati
   return {
     getValues: () => [...values],
     setValues: (v) => { values = [...v]; render(); },
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     destroy: () => { container.innerHTML = ''; },
   };
 }

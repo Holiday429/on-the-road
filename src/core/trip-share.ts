@@ -93,6 +93,7 @@ async function renderShareBody(body: HTMLElement, tripId: string): Promise<void>
       <div class="share-link-pages">${pageChips(inv.pages ?? [])}</div>
     </div>`;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   body.innerHTML = `
    <div class="share-grid">
     <div class="share-col">

@@ -28,6 +28,7 @@ export function showTripToast(tripName: string) {
   document.querySelector('.tc-toast')?.remove();
   const el = document.createElement('div');
   el.className = 'tc-toast';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   el.innerHTML = `<span class="tc-toast-check">✓</span> Switched to <strong>${esc(tripName)}</strong>`;
   document.body.appendChild(el);
   // Force reflow so the CSS transition fires.
@@ -65,6 +66,7 @@ export async function openTripChooser(opts: TripChooserOptions = {}) {
   const backdrop = document.createElement('div');
   backdrop.id = 'tc-backdrop';
   backdrop.className = 'trip-modal-backdrop';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   backdrop.innerHTML = `
     <div class="trip-modal tc-modal" role="dialog" aria-modal="true" aria-labelledby="tc-title">
       <div class="tc-header">
