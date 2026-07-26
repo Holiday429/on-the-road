@@ -32,6 +32,7 @@ import {
   timelineRange, msToFraction, fractionToMs,
 } from './map-timeline.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
+import { type Am5Obj, type MapChart, asMapChart } from './map-amcharts.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
@@ -68,15 +69,15 @@ interface OverlayItem {
 
 /* ── State ────────────────────────────────────────────────────────────────── */
 let _initialized = false;
-let _root:  any = null;
-let _chart: any = null;
+let _root:  Am5Obj = null;
+let _chart: MapChart | null = null;
 let _scope: 'trip' | 'all' = 'trip';
 let _unsubLegs: (() => void) | null = null;
-let _worldSeries: any = null;
-const _polyById      = new Map<string, any>();
-const _dataItemById  = new Map<string, any>();
+let _worldSeries: Am5Obj = null;
+const _polyById      = new Map<string, Am5Obj>();
+const _dataItemById  = new Map<string, Am5Obj>();
 const _lit         = new Set<string>();
-let _drillSeries: any = null;
+let _drillSeries: Am5Obj = null;
 let _drillCode:   string | null = null;
 let _replayTimer:    number | null = null;
 let _flightPanTimer: number | null = null;
@@ -258,7 +259,7 @@ function syncOverlayItems(items: OverlayItem[]) {
   }
 }
 
-function geoCentroid(geometry: any) {
+function geoCentroid(geometry: Am5Obj) {
   try {
     const centroid = am5map.getGeoCentroid(geometry);
     if (centroid && Number.isFinite(centroid.longitude) && Number.isFinite(centroid.latitude)) return centroid;
@@ -271,7 +272,7 @@ function geoCentroid(geometry: any) {
 }
 
 
-function renderRegionLabels(series: any, cityStops: CountryStop[] = []) {
+function renderRegionLabels(series: Am5Obj, cityStops: CountryStop[] = []) {
   _regionLabelOverlays = clearOverlayItems(_regionLabelOverlays, 'mapRegionLabels');
   const layer = overlayLayer('mapRegionLabels');
   if (!layer) return;
@@ -282,7 +283,7 @@ function renderRegionLabels(series: any, cityStops: CountryStop[] = []) {
   const LABEL_GAP = 1.1;    // degrees — minimum spacing between region labels
   const placed: { lng: number; lat: number }[] = [];
 
-  series.dataItems.forEach((item: any) => {
+  series.dataItems.forEach((item: Am5Obj) => {
     const name = String(item.dataContext?.name ?? '').trim();
     if (!name) return;
     const centroid = geoCentroid(item.get('geometry') ?? item.dataContext?.geometry);
@@ -519,7 +520,7 @@ interface StayLegInput {
 function enableStayLayer() {
   clearPinLayer('stay');
   const sub = _scope === 'all' ? routeStore.subscribeAll : routeStore.subscribe;
-  _pinLayers.stay.unsub = sub((legs) => { void resolveStayPlaces(legs as any); });
+  _pinLayers.stay.unsub = sub((legs) => { void resolveStayPlaces(legs as StayLegInput[]); });
 }
 function disableStayLayer() { _stayPlaces = []; clearPinLayer('stay'); }
 
@@ -590,7 +591,7 @@ function applyExpenseHeat() {
   _lit.forEach((iso) => paintCountry(iso, litColorFor(iso)));
 }
 
-function zoomToCountryPoly(poly: any) {
+function zoomToCountryPoly(poly: Am5Obj) {
   const di = poly?.dataItem;
   if (!_worldSeries || !_chart || !di) return;
   // Jump straight to the country's bounds with no animation, so the detailed
@@ -923,7 +924,10 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     zoomStep:1.4, maxZoomLevel:64, minZoomLevel:1,
     wheelSensitivity:0.6, homeGeoPoint:routeCenter(legs),
   }));
-  _chart = chart;
+  // Our overlay attachments (_planeItem/_heroImg/…) go through this typed view;
+  // `chart` itself stays the loose amCharts object for library calls.
+  const mc = asMapChart(chart);
+  _chart = mc;
 
   /* World polygons */
   const world = chart.series.push(am5map.MapPolygonSeries.new(root, {
@@ -1015,7 +1019,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   const planeData = chart.series.push(am5map.MapPointSeries.new(root, {}));
   const planeStart = _outboundChain?.waypoints[0] ?? legs[0];
   const planeItem = planeData.pushDataItem({ longitude:planeStart.lng, latitude:planeStart.lat });
-  (chart as any)._planeItem = planeItem;
+  mc._planeItem = planeItem;
   let planeImg = document.querySelector('.map-plane-img') as HTMLImageElement|null;
   if (!planeImg) {
     planeImg = document.createElement('img');
@@ -1025,14 +1029,14 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   }
   // Hidden until an outbound/return flight chain actually flies it.
   planeImg.style.opacity = '0';
-  (chart as any)._planeImg = planeImg;
+  mc._planeImg = planeImg;
   // Track position history to compute heading; no bob/pulse effects.
   let _prevPlanePx: {x:number;y:number}|null = null;
   let _planeBaseAngle = 180;
   let _planeCurrentAngle = 180;
   const syncPlane = () => {
-    const img = (chart as any)._planeImg as HTMLImageElement;
-    const it  = (chart as any)._planeItem;
+    const img = mc._planeImg;
+    const it  = mc._planeItem;
     if (!img||!it) return;
     const lng = it.get('longitude'), lat = it.get('latitude');
     if (lng==null||lat==null) return;
@@ -1054,10 +1058,10 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     _prevPlanePx = { x:px.x, y:px.y };
     img.style.left = `${px.x}px`; img.style.top = `${px.y}px`;
   };
-  (chart as any)._setPlaneBase = (angle: number) => {
+  mc._setPlaneBase = (angle: number) => {
     _planeBaseAngle    = angle;
     _planeCurrentAngle = angle;
-    const img = (chart as any)._planeImg as HTMLImageElement;
+    const img = mc._planeImg;
     if (img) img.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
   };
   root.events.on('frameended', syncPlane);
@@ -1065,13 +1069,13 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   /* Hero overlay */
   const heroData = chart.series.push(am5map.MapPointSeries.new(root, {}));
   const heroItem = heroData.pushDataItem({ longitude:legs[0].lng, latitude:legs[0].lat });
-  (chart as any)._heroItem = heroItem;
+  mc._heroItem = heroItem;
   const heroImg = ensureHeroOverlay(
     document.querySelector('.map-stage') as HTMLElement,
     'map-hero-img',
     HERO_GIF,
   );
-  (chart as any)._heroImg = heroImg;
+  mc._heroImg = heroImg;
   const syncHero = bindHeroOverlay(root, {
     chart,
     item: heroItem,
@@ -1137,7 +1141,7 @@ function routeCenter(legs: PlottedLeg[]) {
 }
 
 /* ── Tooltip ──────────────────────────────────────────────────────────────── */
-function positionTooltip(view: HTMLElement, ev: any) {
+function positionTooltip(view: HTMLElement, ev: Am5Obj) {
   const tooltip = document.getElementById('mapTooltip');
   if (!tooltip||!ev?.point) return;
   tooltip.style.left = `${ev.point.x}px`; tooltip.style.top = `${ev.point.y}px`;
@@ -1145,7 +1149,7 @@ function positionTooltip(view: HTMLElement, ev: any) {
 }
 
 /* ── Drilldown ────────────────────────────────────────────────────────────── */
-function fitDrilledCountry(series: any, duration = 760) {
+function fitDrilledCountry(series: Am5Obj, duration = 760) {
   try {
     const bounds = series.geoBounds();
     if (!bounds || !Number.isFinite(bounds.left) || !Number.isFinite(bounds.right)) return false;
@@ -1155,7 +1159,7 @@ function fitDrilledCountry(series: any, duration = 760) {
   }
 }
 
-async function drillCountry(code: string, name: string, legs: PlottedLeg[], worldPoly?: any): Promise<boolean> {
+async function drillCountry(code: string, name: string, legs: PlottedLeg[], worldPoly?: Am5Obj): Promise<boolean> {
   if (_drillCode === code && _drillSeries) {
     if (worldPoly) zoomToCountryPoly(worldPoly);
     else window.setTimeout(() => fitDrilledCountry(_drillSeries), 420);
@@ -1163,13 +1167,13 @@ async function drillCountry(code: string, name: string, legs: PlottedLeg[], worl
   }
   try { await loadCountryGeodata(code); } catch { return false; }
   const meta = DRILLDOWN_COUNTRIES[code];
-  const geo  = (window as any)[meta.global];
+  const geo  = (window as unknown as Record<string, Am5Obj>)[meta.global];
   if (!geo) { console.warn('geodata missing for', code); return false; }
 
   if (_drillSeries) { _drillSeries.dispose(); _drillSeries = null; }
   clearDrillOverlays();
 
-  const series = _chart.series.push(am5map.MapPolygonSeries.new(_root, { geoJSON:geo, visible:false }));
+  const series = _chart!.series.push(am5map.MapPolygonSeries.new(_root, { geoJSON:geo, visible:false }));
   series.mapPolygons.template.setAll({
     interactive:true,
     cursorOverStyle:'pointer',
@@ -1219,7 +1223,7 @@ async function drillCountry(code: string, name: string, legs: PlottedLeg[], worl
         zoomToCountryPoly(worldPoly);
       } else {
         if (!fitDrilledCountry(series, 0)) {
-          _chart.zoomToGeoPoint(geoCentroidOf(series), 6.5, true, 0);
+          _chart!.zoomToGeoPoint(geoCentroidOf(series), 6.5, true, 0);
         }
       }
       resolve(true);
@@ -1231,7 +1235,7 @@ async function drillCountry(code: string, name: string, legs: PlottedLeg[], worl
   });
 }
 
-function geoCentroidOf(series: any) {
+function geoCentroidOf(series: Am5Obj) {
   try { const b = series.geoBounds(); return { longitude:(b.left+b.right)/2, latitude:(b.top+b.bottom)/2 }; }
   catch { return EUROPE_CENTER; }
 }
@@ -1290,8 +1294,8 @@ function stopReplayMotion() {
   _playing = false;
   setReplayBtnLabel(false);
   clearAllTimers();
-  const heroImg  = (_chart as any)?._heroImg  as HTMLImageElement|null;
-  const planeImg = (_chart as any)?._planeImg as HTMLImageElement|null;
+  const heroImg  = _chart?._heroImg;
+  const planeImg = _chart?._planeImg;
   if (planeImg) planeImg.style.opacity = '0';
   if (heroImg)  heroImg.style.opacity  = '1';
 }
@@ -1310,7 +1314,7 @@ function focusMotion(id: string | null) {
 
 /* ── Plane animation ──────────────────────────────────────────────────────── */
 function animatePlaneThrough(waypoints:GeoPt[], segDuration:number): Promise<void> {
-  const item = (_chart as any)?._planeItem;
+  const item = _chart?._planeItem;
   if (!item||waypoints.length<2) return Promise.resolve();
   return new Promise((resolve) => {
     let idx = 0;
@@ -1341,7 +1345,7 @@ function startFlightPan(segMs: number) {
   let idx = 0;
   _flightPanTimer = window.setInterval(() => {
     if (_paused) { clearAllTimers(); return; }
-    const item = (_chart as any)?._planeItem;
+    const item = _chart?._planeItem;
     if (!item) { clearAllTimers(); return; }
     const lng = item.get('longitude');
     const lat = item.get('latitude');
@@ -1356,7 +1360,7 @@ function stopFlightPan() {
 
 /* ── Travel sequence ──────────────────────────────────────────────────────── */
 async function travelSequence(legs: PlottedLeg[], replay = false) {
-  const heroItem = (_chart as any)?._heroItem;
+  const heroItem = _chart?._heroItem;
   if (!heroItem||legs.length===0) return;
   clearAllTimers();
   _paused = false;
@@ -1364,9 +1368,9 @@ async function travelSequence(legs: PlottedLeg[], replay = false) {
   setReplayBtnLabel(true);
   if (replay) resetLit();
 
-  const heroImg  = (_chart as any)?._heroImg  as HTMLImageElement|null;
-  const planeImg = (_chart as any)?._planeImg as HTMLImageElement|null;
-  const planeItem = (_chart as any)?._planeItem;
+  const heroImg  = _chart?._heroImg;
+  const planeImg = _chart?._planeImg;
+  const planeItem = _chart?._planeItem;
 
   // Reduced-motion: skip animation, just light everything and fit.
   if (!replay && window.matchMedia?.('(prefers-reduced-motion:reduce)').matches) {
@@ -1386,7 +1390,7 @@ async function travelSequence(legs: PlottedLeg[], replay = false) {
     const wpts = _outboundChain.waypoints;
     if (planeItem) { planeItem.set('longitude',wpts[0].lng); planeItem.set('latitude',wpts[0].lat); }
     // Heading: leftward if the flight trends west, else rightward.
-    (_chart as any)._setPlaneBase?.(wpts[wpts.length-1].lng < wpts[0].lng ? 180 : 0);
+    _chart?._setPlaneBase?.(wpts[wpts.length-1].lng < wpts[0].lng ? 180 : 0);
     if (planeImg) planeImg.style.opacity = '1';
     if (heroImg) heroImg.style.opacity = '0';
     focusMotion('flight-outbound');
@@ -1417,7 +1421,7 @@ async function travelSequence(legs: PlottedLeg[], replay = false) {
     if (_drillSeries) backToOverview();
     const wpts = _returnChain.waypoints;
     if (heroImg)  heroImg.style.opacity  = '0';
-    (_chart as any)._setPlaneBase?.(wpts[wpts.length-1].lng < wpts[0].lng ? 180 : 0);
+    _chart?._setPlaneBase?.(wpts[wpts.length-1].lng < wpts[0].lng ? 180 : 0);
     if (planeImg) planeImg.style.opacity = '1';
     if (planeItem) { planeItem.set('longitude',wpts[0].lng); planeItem.set('latitude',wpts[0].lat); }
     focusMotion('flight-return');
@@ -1453,7 +1457,7 @@ async function settleView(legs: PlottedLeg[]) {
 }
 
 function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
-  const item = (_chart as any)?._heroItem;
+  const item = _chart?._heroItem;
   if (!item||legs.length===0) return Promise.resolve();
   const LEG_DURATION = 1800, STEP_DELAY = LEG_DURATION + 300;
   return new Promise((resolve) => {
@@ -1594,8 +1598,8 @@ function setScrubFraction(legs: PlottedLeg[], fraction: number) {
     }
   }
   // Park the hero at the most recently revealed stop (or hide if nothing yet).
-  const heroItem = (_chart as any)?._heroItem;
-  const heroImg = (_chart as any)?._heroImg as HTMLImageElement | null;
+  const heroItem = _chart?._heroItem;
+  const heroImg = _chart?._heroImg;
   if (latest && heroItem) {
     heroItem.set('longitude', latest.lng);
     heroItem.set('latitude', latest.lat);

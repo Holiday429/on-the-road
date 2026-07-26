@@ -1,6 +1,8 @@
+import type { Am5Obj } from './map-amcharts.ts';
+
 interface HeroOverlayOptions {
-  chart: any;
-  item: any;
+  chart: Am5Obj;
+  item: Am5Obj;
   image: HTMLImageElement;
   host: HTMLElement;
   chartContainer?: HTMLElement;
@@ -18,7 +20,7 @@ export function ensureHeroOverlay(host: HTMLElement, className: string, src: str
   return image;
 }
 
-export function bindHeroOverlay(root: any, options: HeroOverlayOptions) {
+export function bindHeroOverlay(root: Am5Obj, options: HeroOverlayOptions) {
   const { chart, item, image, host, chartContainer = host } = options;
   let lastX: number | null = null;
 
