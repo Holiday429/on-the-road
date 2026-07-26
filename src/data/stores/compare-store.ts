@@ -114,7 +114,7 @@ export function scoreGroup(group: CompareGroup): ScoreResult {
     const vals = candidates.map((c) => ({ id: c.id, v: rawValue(c, dim) }));
     const present = vals.filter((x) => x.v != null) as { id: string; v: number }[];
 
-    let norms: Record<string, number> = {};
+    const norms: Record<string, number> = {};
     if (dim.type === 'number') {
       const nums = present.map((x) => x.v);
       const min = Math.min(...nums), max = Math.max(...nums);

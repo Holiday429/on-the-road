@@ -1106,7 +1106,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   });
 
   // Per-card textarea & title — debounced, no re-render
-  let _noteTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+  const _noteTimers: Record<string, ReturnType<typeof setTimeout>> = {};
 
   const MAX_NOTE_H = 150;
 

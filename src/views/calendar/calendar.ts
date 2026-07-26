@@ -467,6 +467,7 @@ function render(): void {
 
   const monthName = new Date(_year, _month, 1).toLocaleString('en', { month: 'long' });
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = `
     <div class="cal-root">
       <div class="cal-main">

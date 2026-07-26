@@ -31,6 +31,7 @@ export function showOnboarding(onDone: () => void): void {
   let destPicker: ReturnType<typeof createDestinationInput> | null = null;
 
   // ── Render ───────────────────────────────────────────────────────────────
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   screen.innerHTML = `
     <div class="ob-card">
 

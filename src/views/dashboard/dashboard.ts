@@ -383,7 +383,7 @@ function renderCalendarWidget(): string {
   };
   // Leg date ranges
   for (const leg of _legs) {
-    let d = new Date(leg.dateFrom + 'T00:00:00');
+    const d = new Date(leg.dateFrom + 'T00:00:00');
     const end = new Date(leg.dateTo + 'T00:00:00');
     while (d <= end) {
       addDot(d.toISOString().slice(0, 10), 'var(--amber-400)');
@@ -538,7 +538,7 @@ function renderSpendWidget(): string {
         <div class="td-barchart-label">Last 30 days</div>
       </div>
       <form class="td-quickadd td-quickadd-v" data-quickadd>
-        <div class="td-quickadd-hint">📍 ${leg?.country || '—'}${leg?.city ? ' · ' + leg.city : ''} · ${currencySymbol(defaultCurrency(_legs, today))}${defaultCurrency(_legs, today)}</div>
+        <div class="td-quickadd-hint">📍 ${esc(leg?.country || '—')}${leg?.city ? ' · ' + esc(leg.city) : ''} · ${currencySymbol(defaultCurrency(_legs, today))}${defaultCurrency(_legs, today)}</div>
         <div class="td-quickadd-row2">
           <div class="td-quickadd-amt-wrap">
             <span class="td-quickadd-sym">${sym}</span>
@@ -1079,6 +1079,7 @@ function render(): void {
   const body = document.querySelector<HTMLElement>('#view-today .today-body');
   if (!body) return;
   const phase = tripPhase();
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = `${renderGreeting()}${renderHero(phase)}${renderBudgetAlerts()}${layout(phase)}`;
   wire(body);
   bootMap();

@@ -103,7 +103,7 @@ export function createLanguagePicker(container: HTMLElement): LanguagePickerInst
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    open ? closePopover() : openPopover();
+    if (open) closePopover(); else openPopover();
   });
 
   return {

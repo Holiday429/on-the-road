@@ -212,6 +212,7 @@ function renderWeatherCard(): string {
 function renderList(c: HTMLElement) {
   const kitTotal = _kit.reduce((s, k) => s + k.weightG, 0);
   const weatherCard = renderWeatherCard();
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   c.innerHTML = `
     <div class="pack-top-row${weatherCard ? '' : ' pack-top-row--no-weather'}">
       ${weatherCard}
@@ -332,6 +333,7 @@ function renderBagChangeSummary(l: StoredPackList): string {
 function renderDetail(c: HTMLElement, l: PackList) {
   const unassigned = l.items.filter(i => i.containerId === null);
   const hasLegs = _legs.length > 0;
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   c.innerHTML = `
     <div class="pack-detail">
       <div class="pack-detail-bar">
@@ -616,6 +618,7 @@ function openBagChangeModal(list: StoredPackList, defaultAction?: 'acquired' | '
     if (!legId) return;
     const present = itemsPresentAtLeg(list.items, _legs, legId).filter(it => !it.droppedLegId);
     const listEl = m.root.querySelector<HTMLElement>('#pk-bc-drop-list')!;
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     listEl.innerHTML = present.length
       ? present.map(it => `
           <label class="pk-drop-check-row">
@@ -1070,6 +1073,7 @@ function bindDetail(c: HTMLElement, l: PackList) {
       const pop = document.createElement('div');
       pop.id = 'pk-edit-popover';
       pop.className = 'pk-edit-popover';
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
       pop.innerHTML = `
         <select class="input pk-ep-cat">${categoryOptions(catVal)}</select>
         <input class="input pk-ep-weight" type="number" min="0" step="any" value="${wVal}" placeholder="${weightUnit === 'jin' ? '斤' : weightUnit}">

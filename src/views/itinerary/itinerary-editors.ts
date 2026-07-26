@@ -44,6 +44,7 @@ export function openDatesEditor(timeline: HTMLElement, leg: Leg, patchLeg: Patch
   const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
   const dlg = document.createElement('div');
   dlg.className = 'rd-editor-overlay';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   dlg.innerHTML = `
     <div class="rd-editor" style="max-width:400px">
       <div class="rd-editor-title">Edit dates · ${esc(leg.city)}</div>
@@ -89,6 +90,7 @@ export function openTransportEditor(
   const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
   const dlg = document.createElement('div');
   dlg.className = 'rd-editor-overlay';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   dlg.innerHTML = `
     <div class="rd-editor rd-editor--wide">
       <div class="rd-editor-title">Transportation to ${esc(leg.city)}</div>
@@ -221,6 +223,7 @@ export function openStayEditor(
   const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
   const dlg = document.createElement('div');
   dlg.className = 'rd-editor-overlay';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   dlg.innerHTML = `
     <div class="rd-editor">
       <div class="rd-editor-title">${existing ? 'Edit stay' : 'Add stay'} · ${esc(leg.city)}</div>
@@ -335,6 +338,7 @@ export function openStaySyncDialog(
   const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
   const dlg = document.createElement('div');
   dlg.className = 'rd-editor-overlay';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   dlg.innerHTML = `
     <div class="rd-editor">
       <div class="rd-editor-title">${synced ? 'Update expense' : 'Log to Expenses'} · ${esc(stay.name)}</div>
@@ -425,6 +429,7 @@ export function openTransportSyncDialog(
   const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
   const dlg = document.createElement('div');
   dlg.className = 'rd-editor-overlay';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   dlg.innerHTML = `
     <div class="rd-editor">
       <div class="rd-editor-title">${synced ? 'Update expense' : 'Log to Expenses'} · ${esc(desc)}</div>

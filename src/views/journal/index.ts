@@ -88,6 +88,7 @@ function renderJournal() {
   const captureHtml = mode === 'capture' ? capture.render() : '';
   const storyHtml   = mode === 'story'   ? story.render()   : '';
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = `
     <div class="journal-mode-shell">
       <div class="journal-topbar">
@@ -165,6 +166,7 @@ export function openJournalComposerOverlay(templateId: string): void {
   function renderOverlay() {
     if (!overlayEl) return;
     const tmp = document.createElement('div');
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     tmp.innerHTML = overlayCapture.render();
     const freshOverlay = tmp.querySelector<HTMLElement>('.journal-composer-overlay');
     if (!freshOverlay) {
@@ -187,6 +189,7 @@ export function openJournalComposerOverlay(templateId: string): void {
 
   // Extract the overlay+drawer HTML from the full capture render
   const tmp = document.createElement('div');
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   tmp.innerHTML = html;
   const overlayNode = tmp.querySelector<HTMLElement>('.journal-composer-overlay');
   if (!overlayNode) return; // composerOpen was false — nothing to show

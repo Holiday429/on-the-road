@@ -140,6 +140,7 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
     if (!legId) return;
     const present = itemsPresentAtLeg(list.items, sLegs, legId).filter(it => !it.droppedLegId);
     const el = m.root.querySelector<HTMLElement>('#td-bc-drop-list')!;
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     el.innerHTML = present.length
       ? present.map(it => `
           <label class="pk-drop-check-row">

@@ -209,9 +209,11 @@ function renderAll(): void {
   const root = document.getElementById('view-safety');
   if (!root) return;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   root.querySelector('.sfy-sos-wrap')!.innerHTML = renderSos();
 
   const landingWrap = root.querySelector<HTMLElement>('.sfy-landing-wrap')!;
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   landingWrap.innerHTML = renderLanding(_cards, _legs, _hasProfile, _generating, _genStatus);
 
   wireAll(root);
@@ -317,6 +319,7 @@ export async function prefetchSafetyForCity(city: string, country: string): Prom
 // ── Init ─────────────────────────────────────────────────────────────────────
 export function initSafety(): void {
   const root = document.getElementById('view-safety')!;
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   root.querySelector('.safety-body')!.innerHTML = `
     <div class="sfy-sos-wrap"></div>
     <div class="sfy-landing-wrap"></div>

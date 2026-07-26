@@ -86,7 +86,7 @@ function writeCache(base: string, table: RateTable) {
   } catch { /* quota */ }
 }
 
-let inflight: Record<string, Promise<RateTable>> = {};
+const inflight: Record<string, Promise<RateTable>> = {};
 
 /**
  * Resolve a rate table for `base`. Returns today's cached table immediately if

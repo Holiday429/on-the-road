@@ -22,6 +22,7 @@ export async function openCardPreview(entry: StoredJournalEntry): Promise<void> 
 
   host = document.createElement('div');
   host.className = 'journal-composer-overlay journal-card-overlay';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   host.innerHTML = `
     <div class="journal-card-modal">
       <div class="journal-card-modal-head">
@@ -46,15 +47,18 @@ export async function openCardPreview(entry: StoredJournalEntry): Promise<void> 
   let currentCanvas: HTMLCanvasElement | null = null;
 
   async function rerender() {
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     stage.innerHTML = '<div class="journal-card-loading">Rendering…</div>';
     try {
       const canvas = await renderCardToCanvas(data, { ratio });
       currentCanvas = canvas;
       canvas.className = 'journal-card-canvas';
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
       stage.innerHTML = '';
       stage.appendChild(canvas);
     } catch (err) {
       console.error('Card render failed:', err);
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
       stage.innerHTML = '<div class="journal-card-loading">Could not render card</div>';
     }
   }

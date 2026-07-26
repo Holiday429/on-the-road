@@ -614,11 +614,13 @@ function render() {
   if (!body) return;
 
   if (!loaded) {
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     body.innerHTML = `<div class="cmp-loading">Loading…</div>`;
     return;
   }
 
   const group = currentGroup();
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = (selectedGroupId && group) ? renderMatrix(group) : renderGroupList();
   wire(body);
 }

@@ -43,6 +43,22 @@ export default tseslint.config(
       'src/views/itinerary/itinerary.ts',
       'src/views/safety/city-modal.ts',
       'src/views/journal/capture/render.ts',
+      // N10: remaining views audited + escaped, now error-tiered so new bare
+      // innerHTML can't regress.
+      'src/views/map/map.ts',
+      'src/views/checklist/checklist.ts',
+      'src/views/itinerary/itinerary-editors.ts',
+      'src/views/pack/pack.ts',
+      'src/views/journal/card/card-preview.ts',
+      'src/views/journal/index.ts',
+      'src/views/safety/safety.ts',
+      'src/views/safety/profile-sheet.ts',
+      'src/views/safety/essentials-sheet.ts',
+      'src/views/compare/compare.ts',
+      'src/views/onboarding/onboarding.ts',
+      'src/views/dashboard/dashboard.ts',
+      'src/views/dashboard/dashboard-modals.ts',
+      'src/views/calendar/calendar.ts',
     ],
     rules: {
       'no-restricted-syntax': [

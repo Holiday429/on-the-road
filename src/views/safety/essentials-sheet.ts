@@ -73,6 +73,7 @@ function bodyEl(): HTMLElement | null {
 function paint() {
   const body = bodyEl();
   if (!body) return;
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = renderBody(_groups, _checks);
   wireSheet();
 }
@@ -120,6 +121,7 @@ function createSheetDOM(): HTMLElement {
   const el = document.createElement('div');
   el.id = 'sfy-essentials-sheet';
   el.className = 'sfy-sheet-overlay';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   el.innerHTML = `
     <div class="sfy-sheet" role="dialog" aria-modal="true">
       <div class="sfy-sheet-header">

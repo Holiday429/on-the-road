@@ -73,9 +73,9 @@ let _chart: any = null;
 let _scope: 'trip' | 'all' = 'trip';
 let _unsubLegs: (() => void) | null = null;
 let _worldSeries: any = null;
-let _polyById      = new Map<string, any>();
-let _dataItemById  = new Map<string, any>();
-let _lit         = new Set<string>();
+const _polyById      = new Map<string, any>();
+const _dataItemById  = new Map<string, any>();
+const _lit         = new Set<string>();
 let _drillSeries: any = null;
 let _drillCode:   string | null = null;
 let _replayTimer:    number | null = null;
@@ -90,7 +90,7 @@ let _regionLabelOverlays: OverlayItem[] = [];
 let _countryPinOverlays: OverlayItem[] = [];
 let _activeMotionId: string | null = null;
 let _buildToken = 0;   // guards against stale async builds after teardown/scope switch
-let _tripNames  = new Map<string, string>();   // tripId → trip name cache
+const _tripNames  = new Map<string, string>();   // tripId → trip name cache
 let _idleChartToken = 0;   // guards against overlapping bootIdleChart() calls racing on the async amCharts load
 let _bootChartAttempt = 0; // guards against overlapping buildAndBoot() calls racing to bootChart()
 
@@ -239,6 +239,7 @@ function clearOverlayItems(items: OverlayItem[], layerId: string) {
   items.forEach(({ el }) => el.remove());
   items = [];
   const layer = overlayLayer(layerId);
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   if (layer) layer.innerHTML = '';
   return items;
 }
@@ -414,6 +415,7 @@ function renderNomadPins() {
     const el = document.createElement('button');
     el.className = 'map-nomad-pin'; el.type = 'button';
     el.title = `${spot.name}${spot.city ? ' · ' + spot.city : ''}`;
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     el.innerHTML = '<span class="map-nomad-pin-dot">☕</span>';
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -456,6 +458,7 @@ function renderJournalPins() {
     const el = document.createElement('button');
     el.className = 'map-journal-pin'; el.type = 'button';
     el.title = `${destination} · ${count} ${count > 1 ? 'entries' : 'entry'}`;
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     el.innerHTML = '<span class="map-journal-pin-emoji">✍️</span>' + `<span class="map-journal-pin-count">${count}</span>`;
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -496,6 +499,7 @@ function renderGuidePins() {
     const el = document.createElement('button');
     el.className = 'map-guide-pin'; el.type = 'button';
     el.title = `${city} · ${count} guide ${count === 1 ? 'idea' : 'ideas'}`;
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     el.innerHTML = '<span class="map-guide-pin-emoji">📍</span>' + (count ? `<span class="map-guide-pin-count">${count}</span>` : '');
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -544,6 +548,7 @@ function renderStayPins() {
     const el = document.createElement('button');
     el.className = 'map-stay-pin'; el.type = 'button';
     el.title = `${name}${city ? ' · ' + city : ''}`;
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     el.innerHTML = '<span class="map-stay-pin-emoji">🛏️</span>';
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -605,6 +610,7 @@ export function initMap() {
   if (_initialized) return; _initialized = true;
   const view = document.getElementById('view-map'); if (!view) return;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   view.querySelector('.view-header')!.innerHTML = `
     <div class="view-title">${renderViewTitleMarkup('map', 'My Map')}</div>
     <div class="view-subtitle">Your footprint, plotted from your itinerary — click a country to zoom into its regions.</div>`;
@@ -778,15 +784,18 @@ function subscribeLegs(view: HTMLElement) {
 
 function showEmpty(view: HTMLElement) {
   const panel = view.querySelector<HTMLElement>('.map-panel');
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   if (panel) panel.innerHTML = scopeToggleMarkup();
   wireScopeToggle(view);
   // No data → no layer chips, no scrubber.
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   const bar = document.getElementById('mapLayersBar'); if (bar) bar.innerHTML = '';
   removeTimelineScrubber();
   const stage = view.querySelector<HTMLElement>('.map-stage');
   if (!stage) return;
   if (!stage.querySelector('.map-idle-hint')) {
     teardownChart();
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     stage.innerHTML = `
       <div id="mapChart" class="map-chart"></div>
       <div class="map-idle-hint">
@@ -802,12 +811,14 @@ async function showSetupPanel(view: HTMLElement, token: number) {
   const panel = view.querySelector<HTMLElement>('.map-panel');
   if (!stage || !panel) return;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   const bar = document.getElementById('mapLayersBar'); if (bar) bar.innerHTML = '';
   removeTimelineScrubber();
 
   // Stage: outline world map + hint banner overlay.
   if (!stage.querySelector('.map-idle-hint')) {
     teardownChart();
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     stage.innerHTML = `
       <div id="mapChart" class="map-chart"></div>
       <div class="map-idle-hint">
@@ -818,6 +829,7 @@ async function showSetupPanel(view: HTMLElement, token: number) {
 
   if (token !== _buildToken) return;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   panel.innerHTML = `
     ${scopeToggleMarkup()}
     <div class="map-setup">
@@ -854,6 +866,7 @@ async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: 
   // If we were showing an idle outline chart, tear it down and rebuild with full markup.
   if (stage?.querySelector('.map-empty, .map-setup-idle, .map-idle-hint')) {
     teardownChart();
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     stage.innerHTML = stageInnerMarkup();
   }
 
@@ -1487,6 +1500,7 @@ function buildTimelineScrubber(legs: PlottedLeg[]) {
   const el = document.createElement('div');
   el.className = 'map-timeline';
   el.id = 'mapTimeline';
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   el.innerHTML = `
     <button class="map-timeline-play" id="mapTimelinePlay" title="Play through time">▶</button>
     <div class="map-timeline-track" id="mapTimelineTrack">
@@ -1660,17 +1674,18 @@ function visibleLayers(): LayerId[] {
 
 function toggleLayer(id: LayerId, on: boolean) {
   if (on) _layersOn.add(id); else _layersOn.delete(id);
-  if (id === 'nomad')    { on ? enableNomadLayer()   : disableNomadLayer(); }
-  if (id === 'journal')  { on ? enableJournalLayer() : disableJournalLayer(); }
-  if (id === 'guide')    { on ? enableGuideLayer()   : disableGuideLayer(); }
-  if (id === 'stay')     { on ? enableStayLayer()    : disableStayLayer(); }
-  if (id === 'expenses') { on ? enableExpenseLayer() : disableExpenseLayer(); }
+  if (id === 'nomad')    { if (on) enableNomadLayer();   else disableNomadLayer(); }
+  if (id === 'journal')  { if (on) enableJournalLayer(); else disableJournalLayer(); }
+  if (id === 'guide')    { if (on) enableGuideLayer();   else disableGuideLayer(); }
+  if (id === 'stay')     { if (on) enableStayLayer();    else disableStayLayer(); }
+  if (id === 'expenses') { if (on) enableExpenseLayer(); else disableExpenseLayer(); }
 }
 
 /** Render the layer chip row above the map and wire its toggles. */
 function renderLayersBar() {
   const bar = document.getElementById('mapLayersBar');
   if (!bar) return;
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   bar.innerHTML = `
     <span class="map-layers-label">Layers</span>
     ${visibleLayers().map((id) => {
@@ -1703,8 +1718,8 @@ function flightRowMarkup(chain: FlightChain | null, motionId: string): string {
     <div class="leg-flight-row ${_activeMotionId === motionId ? 'active' : ''}" data-motion-id="${motionId}">
       <span class="leg-flight-icon">✈️</span>
       <span class="leg-flight-main">
-        <span class="leg-flight-label">${chain.label}</span>
-        <span class="leg-flight-sub">${chain.sub}</span>
+        <span class="leg-flight-label">${esc(chain.label)}</span>
+        <span class="leg-flight-sub">${esc(chain.sub)}</span>
       </span>
     </div>`;
 }
@@ -1744,15 +1759,16 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
       lastTripId = l.tripId;
     }
     listItems.push(`
-      <button class="leg-row ${_activeMotionId===l.id ? 'active' : ''}" data-id="${l.id}" data-motion-id="${l.id}">
+      <button class="leg-row ${_activeMotionId===l.id ? 'active' : ''}" data-id="${esc(l.id)}" data-motion-id="${esc(l.id)}">
         <span class="leg-row-num">${i+1}</span>
         <span class="leg-row-main">
-          <span class="leg-row-city">${l.flag} ${l.city}</span>
+          <span class="leg-row-city">${esc(l.flag)} ${esc(l.city)}</span>
           <span class="leg-row-meta">${fmtRange(l.dateFrom,l.dateTo)} · ${nights(l.dateFrom,l.dateTo)} nights</span>
         </span>
       </button>`);
   });
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   (view.querySelector('.map-panel') as HTMLElement).innerHTML = `
     ${scopeToggleMarkup()}
     ${statsMarkup(summary)}

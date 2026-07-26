@@ -98,6 +98,7 @@ function renderListScreen(container: HTMLElement) {
   const checklists = _checklists;
   const templates = _templates;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   container.innerHTML = `
     <div class="prep-list-screen">
       <!-- Action bar -->
@@ -315,11 +316,12 @@ function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
       ? `<label class="pk-scope-option">
           <input type="radio" name="cl-scope" value="trip" checked>
           <span class="pk-scope-label">
-            <span class="pk-scope-title">${t('prep.scopeTripPrefix')}<em>${trip.name}</em></span>
+            <span class="pk-scope-title">${t('prep.scopeTripPrefix')}<em>${escHtml(trip.name)}</em></span>
             <span class="pk-scope-desc">${t('prep.scopeTripDesc')}</span>
           </span>
         </label>` : '';
     if (newModalBody) {
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
       newModalBody.innerHTML = `
         <label class="field-label">Name</label>
         <input class="input" id="new-checklist-name" placeholder="e.g. Paris Weekend Prep" autofocus>
@@ -418,6 +420,7 @@ function renderDetailScreen(container: HTMLElement) {
   const { done, total, pct } = progress(cl.groups);
   const allDone = total > 0 && done === total;
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   container.innerHTML = `
     <div class="prep-detail-screen">
       <!-- Add group (presets + custom) — placed above the title -->
@@ -807,8 +810,10 @@ async function runAiCheck(container: HTMLElement, cl: StoredChecklist) {
     result.removeAttribute('hidden');
 
     if (suggestions.length === 0) {
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
       result.innerHTML = `<div class="ai-no-suggestions">${t('prep.aiNoSuggestions')}</div>`;
     } else {
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
       result.innerHTML = `
         <div class="ai-suggestions-label">${t('prep.aiSuggestionsLabel')}</div>
         <ul class="ai-suggestions-list">
@@ -821,6 +826,7 @@ async function runAiCheck(container: HTMLElement, cl: StoredChecklist) {
     loading.setAttribute('hidden', '');
     result.removeAttribute('hidden');
     if (handleAiError(err)) { result.textContent = ''; return; }
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     result.innerHTML = `<div class="ai-error">${t('prep.aiError')}<br><small>${escHtml(String(err))}</small></div>`;
   }
 }
@@ -831,6 +837,7 @@ function renderCelebrate(container: HTMLElement) {
   const cl = activeChecklistId ? _checklists.find(c => c.id === activeChecklistId) : null;
   const name = cl?.name ?? 'your checklist';
 
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   container.innerHTML = `
     <div class="celebrate-screen" id="celebrate-screen">
       <div class="celebrate-confetti" id="celebrate-confetti"></div>

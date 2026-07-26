@@ -10,10 +10,6 @@
 import { createTaggedCollectionStore } from '../firebase/db.ts';
 import { currentTripId } from './trip-context.ts';
 import { LegSchema, type Leg } from './schema.ts';
-// default-route is no longer used for seeding; kept only so the import doesn't
-// break if referenced elsewhere. Safe to delete when migrate-route is retired.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import {} from './default-route.ts';
 
 const FLAG_MAP: Record<string, string> = {
   'Denmark': '🇩🇰', 'Germany': '🇩🇪', 'Netherlands': '🇳🇱',
