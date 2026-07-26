@@ -6,10 +6,13 @@
    state, so they live here to keep route.ts focused on rendering + wiring.
    ========================================================================== */
 
-import type { Leg as SchemaLeg, NoteCard } from '../../data/schema.ts';
+import type { Leg as SchemaLeg, NoteCard, Clip } from '../../data/schema.ts';
+import { currencySymbol } from '../../data/rates.ts';
+import { slugId } from '../../core/utils.ts';
 
 type Leg = SchemaLeg & { id: string };
 type Accommodation = NonNullable<SchemaLeg['accommodations']>[number];
+type Transport = NonNullable<SchemaLeg['arrivalTransport']>;
 
 export const TRANSPORT_ICONS: Record<string, string> = {
   flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️',
@@ -123,4 +126,53 @@ export function bearing(a: [number, number], b: [number, number]): number {
   const y = Math.sin(dLng) * Math.cos(lat2);
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+/* ── Price / label formatters ────────────────────────────────────────────── */
+// The structured price fields win over the free-text legacy `price`. The
+// trip's base currency is passed in (not read from module state) so these
+// stay pure and testable.
+
+/** Accommodation price as "€120", or the legacy free-text price, or ''. */
+export function stayPriceLabel(a: Accommodation, fallbackCurrency: string): string {
+  if (a.priceAmount != null) return `${currencySymbol(a.priceCurrency ?? fallbackCurrency)}${a.priceAmount}`;
+  return a.price ?? '';
+}
+
+/** Transport price as "€39", or the legacy free-text price, or ''. */
+export function transportPriceLabel(t: Transport, fallbackCurrency: string): string {
+  if (t.priceAmount != null) return `${currencySymbol(t.priceCurrency ?? fallbackCurrency)}${t.priceAmount}`;
+  return t.price ?? '';
+}
+
+/** Normalise a pasted booking URL to an absolute https href (or '' if empty). */
+export function stayBookingHref(a: Accommodation): string {
+  const u = (a.bookingUrl ?? '').trim();
+  if (!u) return '';
+  return /^https?:\/\//i.test(u) ? u : `https://${u}`;
+}
+
+/** Baggage allowances as "Personal 5 · Carry-on 10 · Checked 23 kg", or ''.
+ *  Weights are stored in grams; a legacy single allowance maps to carry-on. */
+export function baggageLabel(t: Transport): string {
+  const parts: string[] = [];
+  const personal = t.baggagePersonalG;
+  const carry = t.baggageCarryOnG ?? t.baggageAllowanceG; // legacy single value = carry-on
+  const checked = t.baggageCheckedG;
+  if (personal) parts.push(`Personal ${personal / 1000}`);
+  if (carry) parts.push(`Carry-on ${carry / 1000}`);
+  if (checked) parts.push(`Checked ${checked / 1000}`);
+  return parts.length ? `${parts.join(' · ')} kg` : '';
+}
+
+/** Canonical image URL list for a clip, migrating the legacy single imageUrl. */
+export function clipImages(c: Clip): string[] {
+  if (c.imageUrls?.length) return c.imageUrls;
+  if (c.imageUrl) return [c.imageUrl];
+  return [];
+}
+
+/** Slugged titles of a leg's plan items — used to dedupe "from other visits". */
+export function legPlanTitleSet(leg: Leg): Set<string> {
+  return new Set((leg.plans ?? []).map(p => slugId(p.title) || p.title.trim().toLowerCase()));
 }

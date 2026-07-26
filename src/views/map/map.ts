@@ -14,7 +14,7 @@
 
 import './map.css';
 import { renderViewTitleMarkup, navigateTo } from '../../core/app.ts';
-import { resolveCityLocations, isoFor, continentFor, EUROPE_CENTER } from './geo.ts';
+import { resolveCityLocations, isoFor, EUROPE_CENTER } from './geo.ts';
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
 import { MAP_COLORS as C, countryColor } from './map-shared.ts';
@@ -22,6 +22,15 @@ import {
   type GeoPt, arcPoints, chainWaypoints,
   expandBounds, geoDist, fmtRange, nights, wrapMapLabel, heatColor,
 } from './map-geo.ts';
+import {
+  type PlottedLeg, type FlightChain, type CountryStop,
+  summarizeRoute, buildCountryStops,
+  aggregateExpensesByIso, fmtKm, fmtSpend,
+} from './map-stats.ts';
+import {
+  type TimeRange, legStartMs, fmtScrubDate,
+  timelineRange, msToFraction, fractionToMs,
+} from './map-timeline.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
@@ -49,28 +58,8 @@ interface StoredLegInput {
     type: string; from: string; to: string; via?: string[];
   };
 }
-interface PlottedLeg {
-  id: string; city: string; country: string; flag: string;
-  dateFrom: string; dateTo: string; notes?: string;
-  tripId?: string | null;
-  tripName?: string;
-  lat: number;
-  lng: number;
-  iso: string | null;
-  stops: Array<{ key: string; name: string; lat: number; lng: number }>;
-}
-/** A derived home flight: an ordered chain of city waypoints. */
-interface FlightChain {
-  label: string;
-  sub: string;
-  waypoints: GeoPt[];
-}
-interface CountryStop {
-  key: string;
-  name: string;
-  lat: number;
-  lng: number;
-}
+// PlottedLeg, FlightChain, CountryStop are defined in ./map-stats.ts (imported
+// above) so the pure route-stats logic can be tested without this module.
 interface OverlayItem {
   el: HTMLElement;
   lng: number;
@@ -131,7 +120,7 @@ let _stayPlaces:    Array<{ name: string; city: string; legId: string; lat: numb
 let _expenseUnsub: (() => void) | null = null;
 let _expenseByIso = new Map<string, number>();
 
-let _timeline: { minMs: number; maxMs: number } | null = null;
+let _timeline: TimeRange | null = null;
 let _scrubbing = false;
 let _timelineTimer: number | null = null;
 
@@ -231,20 +220,6 @@ async function buildReturnChain(_outbound: FlightChain | null, legs: PlottedLeg[
     waypoints: chainWaypoints(pts),
   };
 }
-
-function buildCountryStops(legs: PlottedLeg[], code: string): CountryStop[] {
-  const stops = new Map<string, CountryStop>();
-  for (const leg of legs) {
-    if (leg.iso !== code) continue;
-    for (const stop of leg.stops) {
-      if (!stops.has(stop.key)) {
-        stops.set(stop.key, { key: stop.key, name: stop.name, lat: stop.lat, lng: stop.lng });
-      }
-    }
-  }
-  return [...stops.values()];
-}
-
 
 function fitGeoBounds(bounds: { left: number; right: number; top: number; bottom: number }, duration = 700, ratio = 0.12) {
   if (!_chart) return false;
@@ -600,13 +575,7 @@ function disableExpenseLayer() {
 }
 
 function aggregateExpenses(rows: StoredExpense[]) {
-  const byIso = new Map<string, number>();
-  for (const e of rows) {
-    const iso = isoFor(e.country);
-    if (!iso) continue;
-    byIso.set(iso, (byIso.get(iso) ?? 0) + (e.baseAmount || 0));
-  }
-  _expenseByIso = byIso;
+  _expenseByIso = aggregateExpensesByIso(rows);
   if (_layersOn.has('expenses')) applyExpenseHeat();
 }
 
@@ -615,19 +584,6 @@ function applyExpenseHeat() {
   if (!_layersOn.has('expenses')) return;
   _lit.forEach((iso) => paintCountry(iso, litColorFor(iso)));
 }
-
-/** Format a spend total in the trip's base currency for the tooltip. */
-function fmtSpend(n: number): string {
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: currentTrip()?.baseCurrency || 'EUR',
-      maximumFractionDigits: 0,
-    }).format(n);
-  } catch {
-    return `${Math.round(n)}`;
-  }
-}
-
 
 function zoomToCountryPoly(poly: any) {
   const di = poly?.dataItem;
@@ -988,7 +944,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
       : (DRILLDOWN_COUNTRIES[id] ? 'click to zoom in' : '');
     // When the spend-heat layer is on, lead with the country's total spend.
     const spend = _layersOn.has('expenses') ? (_expenseByIso.get(id) ?? 0) : 0;
-    tipMeta.textContent = spend > 0 ? `${fmtSpend(spend)}${base ? ' · ' + base : ''}` : base;
+    tipMeta.textContent = spend > 0 ? `${fmtSpend(spend, currentTrip()?.baseCurrency)}${base ? ' · ' + base : ''}` : base;
     tooltip.classList.add('visible');
   });
   world.mapPolygons.template.events.on('globalpointermove', (ev:any) => positionTooltip(view, ev));
@@ -1518,30 +1474,15 @@ function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
 }
 
 /* ── Timeline scrubber (all footprints) ───────────────────────────────────── */
-function legStartMs(l: PlottedLeg): number { return +new Date(`${l.dateFrom}T00:00:00`); }
-function legEndMs(l: PlottedLeg): number { return +new Date(`${l.dateTo}T00:00:00`); }
-
-function fmtScrubDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-}
-
 /** Build (or rebuild) the date scrubber below the stage for the all-footprints view. */
 function buildTimelineScrubber(legs: PlottedLeg[]) {
   const slot = document.getElementById('mapTimelineSlot');
-  if (!slot || legs.length < 2) { removeTimelineScrubber(); return; }
-
-  const starts = legs.map(legStartMs);
-  const ends = legs.map(legEndMs);
-  const minMs = Math.min(...starts);
-  const maxMs = Math.max(...ends);
-  if (!Number.isFinite(minMs) || !Number.isFinite(maxMs) || maxMs <= minMs) {
-    removeTimelineScrubber();
-    return;
-  }
+  const range = timelineRange(legs);
+  if (!slot || !range) { removeTimelineScrubber(); return; }
 
   // Tear down any previous scrubber FIRST (it nulls _timeline), then arm state.
   removeTimelineScrubber();
-  _timeline = { minMs, maxMs };
+  _timeline = range;
 
   const el = document.createElement('div');
   el.className = 'map-timeline';
@@ -1601,23 +1542,18 @@ function wireTimelineScrubber(legs: PlottedLeg[]) {
     if (!_timeline) return;
     const step = (_timeline.maxMs - _timeline.minMs) / 40;
     const cur = currentScrubMs();
-    if (e.key === 'ArrowLeft')  { e.preventDefault(); setScrubFraction(legs, msToFraction(cur - step)); }
-    if (e.key === 'ArrowRight') { e.preventDefault(); setScrubFraction(legs, msToFraction(cur + step)); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); setScrubFraction(legs, msToFraction(cur - step, _timeline)); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); setScrubFraction(legs, msToFraction(cur + step, _timeline)); }
   });
   playBtn?.addEventListener('click', () => {
     if (_timelineTimer) stopTimelinePlay(); else playTimeline(legs);
   });
 }
 
-function msToFraction(ms: number): number {
-  if (!_timeline) return 1;
-  return Math.min(1, Math.max(0, (ms - _timeline.minMs) / (_timeline.maxMs - _timeline.minMs)));
-}
 function currentScrubMs(): number {
   const fill = document.getElementById('mapTimelineFill');
   const f = fill ? parseFloat(fill.style.width || '100') / 100 : 1;
-  if (!_timeline) return 0;
-  return _timeline.minMs + f * (_timeline.maxMs - _timeline.minMs);
+  return fractionToMs(f, _timeline);
 }
 
 /** Reveal the footprint up to `fraction` of the timeline: light visited
@@ -1625,7 +1561,7 @@ function currentScrubMs(): number {
 function setScrubFraction(legs: PlottedLeg[], fraction: number) {
   if (!_timeline) return;
   const f = Math.min(1, Math.max(0, fraction));
-  const cursorMs = _timeline.minMs + f * (_timeline.maxMs - _timeline.minMs);
+  const cursorMs = fractionToMs(f, _timeline);
 
   const fill = document.getElementById('mapTimelineFill');
   const handle = document.getElementById('mapTimelineHandle');
@@ -1761,58 +1697,6 @@ function renderLayersBar() {
 
 /* ── Side panel ───────────────────────────────────────────────────────────── */
 /** Great-circle distance between two geo points, in kilometres. */
-function haversineKm(a: GeoPt, b: GeoPt): number {
-  const R = 6371, rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
-  const lat1 = a.lat * rad, lat2 = b.lat * rad;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-function summarizeRoute(legs: PlottedLeg[]) {
-  const uniqueCountries = new Set<string>();
-  const uniqueCities = new Set<string>();
-  const continents = new Set<string>();
-  let nightCount = 0;
-  let distanceKm = 0;
-
-  for (let i = 0; i < legs.length; i++) {
-    const leg = legs[i];
-    uniqueCountries.add(leg.iso ?? leg.country);
-    const cont = leg.iso ? continentFor(leg.iso) : null;
-    if (cont) continents.add(cont);
-    nightCount += nights(leg.dateFrom, leg.dateTo);
-    for (const stop of leg.stops) {
-      uniqueCities.add(`${leg.iso ?? leg.country}:${stop.key}`);
-    }
-    if (i > 0) distanceKm += haversineKm(legs[i - 1], leg);
-  }
-  // Include the home flights in the distance when they exist (trip scope).
-  if (_outboundChain?.waypoints.length) {
-    const w = _outboundChain.waypoints;
-    distanceKm += haversineKm(w[0], w[w.length - 1]);
-  }
-  if (_returnChain?.waypoints.length) {
-    const w = _returnChain.waypoints;
-    distanceKm += haversineKm(w[0], w[w.length - 1]);
-  }
-
-  return {
-    cityCount: uniqueCities.size,
-    countryCount: uniqueCountries.size,
-    continentCount: continents.size,
-    nightCount,
-    distanceKm: Math.round(distanceKm),
-    legCount: legs.length,
-  };
-}
-
-/** Compact km formatter: 8420 → "8,420", 12500 → "12.5k". */
-function fmtKm(km: number): string {
-  if (km >= 10000) return `${(km / 1000).toFixed(1)}k`;
-  return km.toLocaleString('en-US');
-}
-
 function flightRowMarkup(chain: FlightChain | null, motionId: string): string {
   if (!chain) return '';
   return `
@@ -1847,7 +1731,7 @@ function statsMarkup(s: ReturnType<typeof summarizeRoute>): string {
 }
 
 function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
-  const summary = summarizeRoute(legs);
+  const summary = summarizeRoute(legs, _outboundChain, _returnChain);
 
   // Build leg list. In "all footprints" mode, inject a trip-label separator
   // whenever the trip changes (legs are sorted chronologically by dateFrom).

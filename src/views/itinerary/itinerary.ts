@@ -18,12 +18,13 @@ import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../dat
 import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
-import { escHtml as esc, slugId } from '../../core/utils.ts';
+import { escHtml as esc } from '../../core/utils.ts';
 import { flagForCountry } from '../../data/destinations.ts';
 import {
   TRANSPORT_ICONS, uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
   legStays, mapHref, NOTE_COLORS, noteColor, resolveNoteColor, dayColour, bearing,
-  legNoteCardsOf,
+  legNoteCardsOf, stayPriceLabel, transportPriceLabel, stayBookingHref,
+  baggageLabel, clipImages, legPlanTitleSet,
 } from './itinerary-utils.ts';
 import {
   cityShareContext, sharedPlans, groupSharedPlans, buildSharedDoc,
@@ -31,7 +32,6 @@ import {
 } from './itinerary-city-shared.ts';
 import { coordsFor } from '../map/geo.ts';
 import { geocode } from '../map/geocode.ts';
-import { currencySymbol } from '../../data/rates.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import type {
   Leg as SchemaLeg, PlanItem, Clip, ClipCategory, NoteCard,
@@ -61,24 +61,6 @@ export { BUILTIN_CATEGORIES, CATEGORY_PALETTE };
 // Common booking platforms offered in the stay editor. Free-text "Other" is
 // always allowed via the datalist, so this is a convenience list, not a closed set.
 /** Per-night price preferring the structured amount, falling back to legacy text. */
-function stayPriceLabel(a: Accommodation): string {
-  if (a.priceAmount != null) return `${currencySymbol(a.priceCurrency ?? baseCurrency())}${a.priceAmount}`;
-  return a.price ?? '';
-}
-
-/** Normalise a pasted order URL to an absolute href. */
-function stayBookingHref(a: Accommodation): string {
-  const u = (a.bookingUrl ?? '').trim();
-  return /^https?:\/\//i.test(u) ? u : `https://${u}`;
-}
-
-/** Returns the canonical image URL list for a clip, migrating legacy imageUrl. */
-function clipImages(c: Clip): string[] {
-  if (c.imageUrls?.length) return c.imageUrls;
-  if (c.imageUrl) return [c.imageUrl];
-  return [];
-}
-
 // Plan view modes
 type PlanView = 'board' | 'feed' | 'category' | 'calendar' | 'map';
 let _planView: PlanView = 'board';
@@ -372,26 +354,9 @@ function renderAddForm(): string {
 /* ── Render: detail ─────────────────────────────────────────────────────── */
 
 /** Price preferring the structured amount, falling back to legacy text. */
-function transportPriceLabel(t: Transport): string {
-  if (t.priceAmount != null) return `${currencySymbol(t.priceCurrency ?? baseCurrency())}${t.priceAmount}`;
-  return t.price ?? '';
-}
-
-/** Baggage allowances as "Personal 5 · Carry-on 10 · Checked 23 kg", or ''. */
-function baggageLabel(t: Transport): string {
-  const parts: string[] = [];
-  const personal = t.baggagePersonalG;
-  const carry = t.baggageCarryOnG ?? t.baggageAllowanceG; // legacy single value = carry-on
-  const checked = t.baggageCheckedG;
-  if (personal) parts.push(`Personal ${personal / 1000}`);
-  if (carry) parts.push(`Carry-on ${carry / 1000}`);
-  if (checked) parts.push(`Checked ${checked / 1000}`);
-  return parts.length ? `${parts.join(' · ')} kg` : '';
-}
-
 function renderTransportSection(leg: Leg): string {
   const t = leg.arrivalTransport;
-  const price = t ? transportPriceLabel(t) : '';
+  const price = t ? transportPriceLabel(t, baseCurrency()) : '';
   const bags = t ? baggageLabel(t) : '';
   const synced = !!t?.expenseId;
   const body = t ? `
@@ -433,7 +398,7 @@ function renderTransportSection(leg: Leg): string {
 function renderStaysSection(leg: Leg): string {
   const stays = legStays(leg);
   const rows = stays.map((a, i) => {
-    const price = stayPriceLabel(a);
+    const price = stayPriceLabel(a, baseCurrency());
     const canSync = a.priceAmount != null;
     const synced = !!a.expenseId;
     return `
@@ -739,12 +704,6 @@ function initPlanLeaflet(timeline: HTMLElement, leg: Leg) {
 }
 
 const PLANS_ONBOARDED_KEY = 'route-plans-onboarded';
-
-/** Returns the set of normalised plan titles already present in this leg, so
- *  the shared-history block can hide items the user has already brought over. */
-function legPlanTitleSet(leg: Leg): Set<string> {
-  return new Set((leg.plans ?? []).map(p => slugId(p.title) || p.title.trim().toLowerCase()));
-}
 
 /** The "from your other visits" block in the plan sidebar: items planned (or
  *  missed, or done) on the trip's other stops in this same city. Read-only
