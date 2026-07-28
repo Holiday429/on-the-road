@@ -421,6 +421,12 @@ body.otr-modal-open { overflow: hidden; }
 }
 /* Same toast shell, neutral tone — used for rate-limit / transient warnings */
 .otr-pay-toast--warn { background: #334155; white-space: normal; max-width: min(90vw, 26rem); text-align: center; }
+/* Service-worker "new version ready" toast — persistent (no auto-dismiss
+   timer) and clickable, so it needs a pointer cursor + hover affordance. */
+.otr-sw-update-toast {
+  background: #334155; cursor: pointer;
+}
+.otr-sw-update-toast:hover { background: #1e293b; }
 
 /* AI credit pill in guide / prep headers */
 .ai-credit-pill {

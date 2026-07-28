@@ -501,4 +501,5 @@ export const en: StringTable = {
   'paywall.aiCreditsFree':  '1 free AI guide',
   'paywall.payThanks':      '🎉 Payment received — thank you! Your new trip is unlocked.',
   'api.rateLimited':        'Too many requests — please slow down and try again in a moment.',
+  'sw.updateReady':         'New version ready — tap to reload',
 };
