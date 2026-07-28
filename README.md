@@ -74,6 +74,13 @@ Every push and PR runs a six-gate pipeline (`.github/workflows/ci.yml`):
 typecheck → lint → runtime-dependency audit → unit tests → Firestore rules
 tests (real emulator) → production build. Green is required before merge.
 
+## Status
+
+Pre-launch. A full audit (2026-07-28) found the engineering fundamentals
+sound. `/api/places` auth and server-side rate limiting are done (see
+SECURITY.md); remaining pre-launch work — GIF asset weight, PWA offline
+polish, and cleanup — is tracked internally.
+
 ## Documentation
 
 - **[SETUP.md](SETUP.md)** — environment setup, keys, dev/prod Firebase split.

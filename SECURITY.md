@@ -1,5 +1,16 @@
 # Security
 
+## Fixed since the 2026-07-28 audit
+
+- **`/api/places` auth** — `autocomplete`/`details` now require a verified
+  Firebase ID token; CORS is restricted to the production domain +
+  localhost. Photo delivery uses a short-lived HMAC-signed URL
+  (`op=photo-sign` → `op=photo`) instead of an open, keyless redirect.
+- **Server-side rate limiting** — `api/_ratelimit.ts` fixed-window-limits
+  `places`, the AI endpoints (`guide`/`guide-more`/`story`/`safety`/`check`),
+  and `create-checkout` by uid, backed by Upstash Redis (fails open if
+  Upstash env vars are unset, so local dev needs no Redis instance).
+
 ## Dependency vulnerability policy
 
 `npm audit` reports vulnerabilities across the whole dependency tree,
