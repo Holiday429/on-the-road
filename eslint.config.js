@@ -70,4 +70,17 @@ export default tseslint.config(
       ],
     },
   },
+  // ── Big-view-file ratchet (W4) ────────────────────────────────────────────
+  // These five files are the heaviest in the app (audit N-something flagged
+  // them for a split — see LAUNCH_CHECKLIST.md). Rather than block on the
+  // actual split, cap each at its OWN current line count so it can only
+  // shrink from here: any further growth fails lint instead of silently
+  // making the problem worse. Once a file is split into src/views/<x>/submodules
+  // (see views/journal/ for the pattern this repo already uses), lower its cap
+  // to match — don't leave it at the old ceiling.
+  { files: ['src/views/map/map.ts'],             rules: { 'max-lines': ['error', { max: 1803, skipBlankLines: false, skipComments: false }] } },
+  { files: ['src/views/itinerary/itinerary.ts'], rules: { 'max-lines': ['error', { max: 1799, skipBlankLines: false, skipComments: false }] } },
+  { files: ['src/views/expenses/expenses.ts'],   rules: { 'max-lines': ['error', { max: 1468, skipBlankLines: false, skipComments: false }] } },
+  { files: ['src/views/guide/guide.ts'],         rules: { 'max-lines': ['error', { max: 1457, skipBlankLines: false, skipComments: false }] } },
+  { files: ['src/views/dashboard/dashboard.ts'], rules: { 'max-lines': ['error', { max: 1331, skipBlankLines: false, skipComments: false }] } },
 );
