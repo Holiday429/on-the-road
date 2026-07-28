@@ -4,7 +4,7 @@
 
 import type { NomadRatings, NomadSpot } from './nomad-types.ts';
 import { RATING_DIMS, composite, scoreClass } from './nomad-types.ts';
-import { apiUrl } from '../../core/api.ts';
+import { apiUrl, authHeaders } from '../../core/api.ts';
 import { escHtml, safeUrl } from '../../core/utils.ts';
 
 /* ── Google Places helpers ───────────────────────────────────────────────────
@@ -31,7 +31,7 @@ async function fetchPlaceSuggestions(query: string): Promise<PlaceCandidate[]> {
   if (query.length < 3) return [];
   const url = apiUrl(`/api/places?op=autocomplete&q=${encodeURIComponent(query)}&session=${placesSession}`);
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: await authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return (data.predictions ?? []) as PlaceCandidate[];
@@ -43,7 +43,7 @@ async function fetchPlaceSuggestions(query: string): Promise<PlaceCandidate[]> {
 async function fetchPlaceDetail(placeId: string): Promise<{ address: string; mapsUrl: string; lat: number; lng: number; photoRef?: string } | null> {
   const url = apiUrl(`/api/places?op=details&placeId=${encodeURIComponent(placeId)}&session=${placesSession}`);
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: await authHeaders() });
     if (!res.ok) return null;
     const data = await res.json();
     if (!data.result) return null;
@@ -54,9 +54,31 @@ async function fetchPlaceDetail(placeId: string): Promise<{ address: string; map
   }
 }
 
-function buildPlacePhotoUrl(photoRef: string): string {
+/** Mint a short-lived signed photo URL from a raw (non-expiring) Google photo
+ *  reference. The signed URL is only used for immediate rendering — never
+ *  persisted — since it expires in 15 minutes (see api/places.ts). */
+async function signPhotoUrl(photoRef: string): Promise<string> {
   if (!photoRef) return '';
-  return apiUrl(`/api/places?op=photo&ref=${encodeURIComponent(photoRef)}`);
+  const url = apiUrl(`/api/places?op=photo-sign&ref=${encodeURIComponent(photoRef)}`);
+  try {
+    const res = await fetch(url, { headers: await authHeaders() });
+    if (!res.ok) return '';
+    const data = await res.json();
+    return (data.url as string) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** Resolve a spot's display photo: prefer the durable photoRef (re-signed on
+ *  every render), fall back to a legacy placePhotoUrl (pre-signing data with
+ *  no ref to re-sign), then user-uploaded photos. */
+export async function resolveSpotPhoto(spot: NomadSpot): Promise<string> {
+  if (spot.photoRef) {
+    const signed = await signPhotoUrl(spot.photoRef);
+    if (signed) return apiUrl(signed);
+  }
+  return spot.placePhotoUrl ?? '';
 }
 
 function buildMapsEmbedUrl(spot: NomadSpot): string {
@@ -83,7 +105,7 @@ export function openAddModal(
   let selectedPlaceId = '';
   let selectedMapsUrl = '';
   let selectedAddress = '';
-  let selectedPlacePhotoUrl = '';
+  let selectedPhotoRef = '';
   let pendingPhotos: string[] = [];
 
   const backdrop = document.createElement('div');
@@ -223,7 +245,7 @@ export function openAddModal(
     selectedPlaceId = '';
     selectedMapsUrl = '';
     selectedAddress = '';
-    selectedPlacePhotoUrl = '';
+    selectedPhotoRef = '';
     placeInfoEl.style.display = 'none';
 
     if (placesDebounce) clearTimeout(placesDebounce);
@@ -258,7 +280,7 @@ export function openAddModal(
     if (detail) {
       selectedMapsUrl = detail.mapsUrl;
       selectedAddress = detail.address;
-      if (detail.photoRef) selectedPlacePhotoUrl = buildPlacePhotoUrl(detail.photoRef);
+      if (detail.photoRef) selectedPhotoRef = detail.photoRef;
       // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
       placeInfoEl.innerHTML = `📍 ${escHtml(detail.address)}`;
     } else {
@@ -305,7 +327,7 @@ export function openAddModal(
       placeId: selectedPlaceId || undefined,
       mapsUrl,
       address: selectedAddress || undefined,
-      placePhotoUrl: selectedPlacePhotoUrl || undefined,
+      photoRef: selectedPhotoRef || undefined,
     };
 
     onAdd(spot);
@@ -330,10 +352,13 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
   const score = composite(spot.ratings);
   const scoreLabel = scoreClass(score);
 
-  const heroSrc = spot.photos[0] ?? spot.placePhotoUrl ?? '';
-  const heroContent = heroSrc
-    ? `<img src="${safeUrl(heroSrc)}" alt="${escHtml(spot.name)}">`
-    : `<div class="nomad-detail-hero-placeholder">${spot.type === 'Café' ? '☕' : spot.type === 'Co-working' ? '💻' : '📍'}</div>`;
+  // The hero photo may need a freshly-signed URL (see resolveSpotPhoto) — render
+  // a placeholder synchronously, then swap in the real <img> once resolved.
+  const heroPlaceholder = `<div class="nomad-detail-hero-placeholder" id="nomad-hero-placeholder">${spot.type === 'Café' ? '☕' : spot.type === 'Co-working' ? '💻' : '📍'}</div>`;
+  const heroFromUpload = spot.photos[0];
+  const heroContent = heroFromUpload
+    ? `<img src="${safeUrl(heroFromUpload)}" alt="${escHtml(spot.name)}">`
+    : heroPlaceholder;
 
   const ratingsHtml = RATING_DIMS.map(d => `
     <div class="nomad-detail-rating-row">
@@ -345,14 +370,12 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
     </div>
   `).join('');
 
-  const photosHtml = (() => {
-    const all = [...spot.photos];
-    if (spot.placePhotoUrl && all.length === 0) all.push(spot.placePhotoUrl);
-    return all.length > 1
-      ? `<div class="nomad-section-label">Photos</div>
-         <div class="nomad-detail-photos">${all.map(p => `<img class="nomad-detail-photo" src="${safeUrl(p)}" alt="">`).join('')}</div>`
-      : '';
-  })();
+  // Uploaded photos render immediately; a place photo (ref or legacy URL) is
+  // appended asynchronously below once resolved, if there are no uploads.
+  const photosHtml = spot.photos.length > 1
+    ? `<div class="nomad-section-label">Photos</div>
+       <div class="nomad-detail-photos" id="nomad-detail-photos">${spot.photos.map(p => `<img class="nomad-detail-photo" src="${safeUrl(p)}" alt="">`).join('')}</div>`
+    : '';
 
   const embedUrl = buildMapsEmbedUrl(spot);
 
@@ -412,6 +435,34 @@ export function openDetailModal(spot: NomadSpot, onClose: () => void) {
 
   // embedUrl (buildMapsEmbedUrl) already falls back to the keyless iframe when
   // no embed key is configured, so no post-mount src override is needed.
+
+  // Resolve the place photo (signed URL, re-minted per session — see
+  // resolveSpotPhoto) after mount, only when there's no user-uploaded photo.
+  if (!heroFromUpload) {
+    void resolveSpotPhoto(spot).then((src) => {
+      if (!src || !backdrop.isConnected) return;
+      const placeholder = backdrop.querySelector('#nomad-hero-placeholder');
+      if (placeholder) {
+        const img = document.createElement('img');
+        img.src = safeUrl(src);
+        img.alt = spot.name;
+        placeholder.replaceWith(img);
+      }
+      if (spot.photos.length === 0) {
+        const label = document.createElement('div');
+        label.className = 'nomad-section-label';
+        label.textContent = 'Photos';
+        const gallery = document.createElement('div');
+        gallery.className = 'nomad-detail-photos';
+        const photoImg = document.createElement('img');
+        photoImg.className = 'nomad-detail-photo';
+        photoImg.src = safeUrl(src);
+        photoImg.alt = '';
+        gallery.appendChild(photoImg);
+        backdrop.querySelector('.nomad-detail-body')?.append(label, gallery);
+      }
+    });
+  }
 
   function closeModal() { backdrop.remove(); onClose(); }
 

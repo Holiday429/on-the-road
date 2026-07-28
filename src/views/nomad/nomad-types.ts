@@ -23,6 +23,7 @@ export interface NomadSpot {
   mapsUrl?: string;
   address?: string;
   placePhotoUrl?: string;
+  photoRef?: string;
 }
 
 export const RATING_DIMS: { key: keyof NomadRatings; label: string; emoji: string }[] = [

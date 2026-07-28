@@ -7,7 +7,7 @@ import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.
 import { currentTripId } from '../../data/trip-context.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { type NomadSpot, composite, scoreClass } from './nomad-types.ts';
-import { openAddModal, openDetailModal } from './nomad-modal.ts';
+import { openAddModal, openDetailModal, resolveSpotPhoto } from './nomad-modal.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { t } from '../../core/i18n.ts';
 import { escHtml, safeUrl } from '../../core/utils.ts';
@@ -46,10 +46,35 @@ function filteredSpots(): NomadSpot[] {
 /* ── Card rendering ──────────────────────────────────────────────────────── */
 
 function renderCardPhoto(spot: NomadSpot): string {
-  const src = spot.photos[0] ?? spot.placePhotoUrl ?? '';
+  const src = spot.photos[0];
   if (src) return `<img src="${safeUrl(src)}" alt="${escHtml(spot.name)}" loading="lazy">`;
+  // A Google place photo (photoRef or legacy placePhotoUrl) needs an async
+  // signed-URL fetch — render a placeholder now, resolved after mount (see
+  // resolvePendingCardPhotos), unless there's no place photo at all.
+  if (spot.photoRef || spot.placePhotoUrl) {
+    return `<div class="nomad-card-photo-placeholder" data-pending-photo="${escHtml(spot.id)}">⏳</div>`;
+  }
   const emoji = spot.type === 'Café' ? '☕' : spot.type === 'Co-working' ? '💻' : spot.type === 'Library' ? '📚' : '🏨';
   return `<div class="nomad-card-photo-placeholder">${emoji}<span>${t('nomad.noPhoto')}</span></div>`;
+}
+
+/** After the gallery is mounted, resolve any pending place-photo placeholders
+ *  (signed URLs are minted per-render, never persisted — see resolveSpotPhoto
+ *  in nomad-modal.ts) and swap in the real <img>. */
+function resolvePendingCardPhotos(container: HTMLElement, visible: NomadSpot[]) {
+  const pending = container.querySelectorAll<HTMLElement>('[data-pending-photo]');
+  pending.forEach((placeholder) => {
+    const spot = visible.find(s => s.id === placeholder.dataset.pendingPhoto);
+    if (!spot) return;
+    void resolveSpotPhoto(spot).then((src) => {
+      if (!src || !placeholder.isConnected) return;
+      const img = document.createElement('img');
+      img.src = safeUrl(src);
+      img.alt = spot.name;
+      img.loading = 'lazy';
+      placeholder.replaceWith(img);
+    });
+  });
 }
 
 function renderAmenities(r: NomadSpot['ratings']): string {
@@ -97,6 +122,7 @@ function renderGallery(container: HTMLElement) {
   }
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   container.innerHTML = visible.map(renderCard).join('');
+  resolvePendingCardPhotos(container, visible);
 }
 
 /* ── Country chips ───────────────────────────────────────────────────────── */
@@ -205,7 +231,7 @@ export function initNomad() {
           placeId: newSpot.placeId,
           mapsUrl: newSpot.mapsUrl,
           address: newSpot.address,
-          placePhotoUrl: newSpot.placePhotoUrl,
+          photoRef: newSpot.photoRef,
           visibility: 'private',
           ownerId: currentUser()?.uid ?? '',
         });

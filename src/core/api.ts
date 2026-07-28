@@ -14,6 +14,7 @@
 
 import { currentUser } from '../firebase/auth.ts';
 import { track } from './analytics.ts';
+import { t } from './i18n.ts';
 
 const VERCEL_ORIGIN = 'https://www.easy-on-the-road.app';
 
@@ -49,6 +50,27 @@ export class AuthError extends Error {
     super(message);
     this.name = 'AuthError';
   }
+}
+
+/** Thrown by postJson when the server returns 429 (rate limited). */
+export class RateLimitError extends Error {
+  readonly retryAfter: number;
+  constructor(message: string, retryAfter: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/** A brief, non-blocking toast — reuses the post-payment toast shell in a
+ *  neutral tone. Good enough for transient notices (e.g. rate limiting)
+ *  that don't need a dedicated UI. */
+function showWarnToast(message: string): void {
+  const el = document.createElement('div');
+  el.className = 'otr-pay-toast otr-pay-toast--warn';
+  el.textContent = message;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
 }
 
 /**
@@ -104,6 +126,13 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
       data.message ?? 'AI features require a Trip Pass.',
       data.needTopup ?? false,
     );
+  }
+
+  if (res.status === 429) {
+    const data = await res.json().catch(() => ({})) as { message?: string; retryAfter?: number };
+    const message = data.message ?? t('api.rateLimited');
+    showWarnToast(message);
+    throw new RateLimitError(message, data.retryAfter ?? 60);
   }
 
   if (!res.ok) throw new Error(`${path} → ${res.status}`);

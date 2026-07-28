@@ -23,6 +23,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import { verifyAndMeter } from './_guard';
+import { checkRateLimit, respondRateLimited } from './_ratelimit';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse; write(chunk: string): boolean; flushHeaders(): void; setHeader(k: string, v: string): void; end(): void; };
@@ -310,6 +311,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     { tripId, chargeable: true },
   );
   if (!uid) return;
+
+  const limit = await checkRateLimit(`guide:${uid}`, 10, 60);
+  if (!limit.ok) { respondRateLimited(res, limit.retryAfter); return; }
 
   setOutputLanguage(lang);
 

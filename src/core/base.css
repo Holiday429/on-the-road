@@ -419,6 +419,8 @@ body.otr-modal-open { overflow: hidden; }
   white-space: nowrap;
   animation: fadeUp var(--dur-mid) var(--ease-out);
 }
+/* Same toast shell, neutral tone — used for rate-limit / transient warnings */
+.otr-pay-toast--warn { background: #334155; white-space: normal; max-width: min(90vw, 26rem); text-align: center; }
 
 /* AI credit pill in guide / prep headers */
 .ai-credit-pill {

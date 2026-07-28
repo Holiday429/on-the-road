@@ -19,6 +19,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 // Reuse the AI guard's google-auth-library-based token verifier rather than
 // duplicating verification logic here.
 import { verifyFirebaseToken } from './_guard';
+import { checkRateLimit, respondRateLimited } from './_ratelimit';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined>; method?: string };
 type VercelResponse = ServerResponse & { json(data: unknown): void; status(code: number): VercelResponse; setHeader(k: string, v: string): void; end(): void };
@@ -57,6 +58,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(401).json({ error: 'unauthenticated', message: 'Session expired. Please sign in again.' });
     return;
   }
+
+  const limit = await checkRateLimit(`create-checkout:${uid}`, 5, 60);
+  if (!limit.ok) { respondRateLimited(res, limit.retryAfter); return; }
 
   const plan = req.body.plan as Plan;
   if (plan !== 'trip_pass' && plan !== 'lifetime' && plan !== 'ai_topup') {

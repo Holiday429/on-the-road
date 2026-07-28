@@ -45,6 +45,7 @@ export const NomadSpotSchema = doc({
   mapsUrl: z.string().optional(),
   address: z.string().optional(),
   placePhotoUrl: z.string().optional(),
+  photoRef: z.string().optional(),
   // Reserved for a future cross-user community layer — not queried yet.
   visibility: z.enum(['private', 'public']).default('private'),
   ownerId: z.string().default(''),

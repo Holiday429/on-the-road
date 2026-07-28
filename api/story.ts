@@ -17,6 +17,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import { verifyAndMeter } from './_guard';
+import { checkRateLimit, respondRateLimited } from './_ratelimit';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; method: string; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & {
@@ -73,6 +74,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     { tripId: req.body.tripId as string | undefined, chargeable: true },
   );
   if (!uid) return;
+
+  const limit = await checkRateLimit(`story:${uid}`, 10, 60);
+  if (!limit.ok) { respondRateLimited(res, limit.retryAfter); return; }
 
   const prompt = (req.body.prompt as string ?? '').trim();
   if (!prompt) { res.status(400).json({ error: 'prompt is required' }); return; }

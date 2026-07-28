@@ -17,6 +17,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import { verifyAndMeter } from './_guard';
+import { checkRateLimit, respondRateLimited } from './_ratelimit';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & {
@@ -223,6 +224,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     { tripId: body.tripId as string | undefined, chargeable: true },
   );
   if (!guardUid) return;
+
+  const limit = await checkRateLimit(`safety:${guardUid}`, 10, 60);
+  if (!limit.ok) { respondRateLimited(res, limit.retryAfter); return; }
 
   const city = (body.city as string ?? '').trim();
   const country = (body.country as string ?? '').trim();

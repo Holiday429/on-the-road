@@ -12,6 +12,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import { verifyAndMeter } from './_guard';
+import { checkRateLimit, respondRateLimited } from './_ratelimit';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; method: string; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & {
@@ -72,6 +73,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     { tripId: req.body.tripId as string | undefined, chargeable: true },
   );
   if (!uid) return;
+
+  const limit = await checkRateLimit(`check:${uid}`, 10, 60);
+  if (!limit.ok) { respondRateLimited(res, limit.retryAfter); return; }
 
   const summary = (req.body.summary as string ?? '').trim();
   if (!summary) { res.status(400).json({ error: 'summary is required' }); return; }

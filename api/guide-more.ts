@@ -13,6 +13,7 @@
 
 import type { IncomingMessage, ServerResponse } from 'http';
 import { verifyAndMeter } from './_guard';
+import { checkRateLimit, respondRateLimited } from './_ratelimit';
 
 type VercelRequest  = IncomingMessage & { body: Record<string, unknown>; headers: Record<string, string | string[] | undefined> };
 type VercelResponse = ServerResponse & {
@@ -211,6 +212,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     { chargeable: false },
   );
   if (!uid) return;
+
+  const limit = await checkRateLimit(`guide:${uid}`, 10, 60);
+  if (!limit.ok) { respondRateLimited(res, limit.retryAfter); return; }
 
   const { city, section, existingTitles = [], query = '', lang } = req.body as {
     city: string; country?: string; section: SectionKey;
