@@ -13,6 +13,7 @@ import {
   decideBootPath, shouldSkipAuthenticatedBoot, decideOnAuthTransition, isAnonymousUpgrade,
 } from './boot-flow.ts';
 import { INVITE_TOKEN, resolveInviteLink, showAccessRequestToast, showErrorToast } from './boot-invite.ts';
+import { initServiceWorker } from './core/sw-update.ts';
 
 // Consume any pending Google redirect result on iOS PWA. Must resolve before
 // the onAuth callback can act on the resulting user — we store the promise and
@@ -375,9 +376,7 @@ export function startBoot(): void {
   }
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    });
+    window.addEventListener('load', () => { initServiceWorker(); });
   }
 
   onAuth(async ({ user, ready }) => {
