@@ -14,7 +14,7 @@
 
 import './compare.css';
 import {
-  compareStore, scoreGroup, fieldPrice, PRICE_DIM_ID,
+  compareStore, scoreGroup, fieldPrice, PRICE_DIM_ID, DURATION_DIM_ID,
   type StoredGroup,
 } from '../../data/stores/compare-store.ts';
 import type { CompareCandidate, CompareDimension, CompareType } from '../../data/schema.ts';
@@ -22,6 +22,10 @@ import { COMPARE_TYPES } from '../../data/schema.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 import { consumeNavIntent } from '../../core/app.ts';
+import { currencySymbol } from '../../data/rates.ts';
+import { baseCurrency } from '../../data/trip-context.ts';
+import { renderVerdict } from './compare-verdict.ts';
+import { openModal } from '../../core/modal.ts';
 
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
@@ -36,39 +40,42 @@ function getTypeMeta(): Record<CompareType, { icon: string; label: string; hint:
 }
 
 // Type-specific field definitions for the add-candidate form and column headers.
-// `key` must match keys used in candidate.fields.
-const TYPE_FIELDS: Record<CompareType, Array<{ key: string; label: string; placeholder: string; wide?: boolean }>> = {
-  accommodation: [
-    { key: 'price',    label: 'Total price',   placeholder: 'e.g. 360',          wide: false },
-    { key: 'nights',   label: 'Nights',        placeholder: 'e.g. 3',            wide: false },
-    { key: 'fees',     label: 'Extra fees',    placeholder: 'cleaning etc.',      wide: false },
-    { key: 'address',  label: 'Address',       placeholder: 'Neighbourhood / address', wide: true },
-  ],
-  flight: [
-    { key: 'price',    label: 'Price',         placeholder: 'e.g. 89',           wide: false },
-    { key: 'airline',  label: 'Airline',       placeholder: 'e.g. Ryanair',      wide: false },
-    { key: 'dep',      label: 'Departs',       placeholder: 'e.g. 06:30',        wide: false },
-    { key: 'arr',      label: 'Arrives',       placeholder: 'e.g. 09:15',        wide: false },
-    { key: 'duration', label: 'Duration',      placeholder: 'e.g. 2h45m',        wide: false },
-    { key: 'route',    label: 'Route',         placeholder: 'e.g. LHR → FCO',   wide: true  },
-  ],
-  train: [
-    { key: 'price',    label: 'Price',         placeholder: 'e.g. 45',           wide: false },
-    { key: 'operator', label: 'Operator',      placeholder: 'e.g. Trenitalia',   wide: false },
-    { key: 'dep',      label: 'Departs',       placeholder: 'e.g. 08:00',        wide: false },
-    { key: 'arr',      label: 'Arrives',       placeholder: 'e.g. 11:30',        wide: false },
-    { key: 'duration', label: 'Duration',      placeholder: 'e.g. 3h30m',        wide: false },
-    { key: 'route',    label: 'Route',         placeholder: 'e.g. Paris → Lyon', wide: true  },
-  ],
-  shopping: [
-    { key: 'price',    label: 'Price',         placeholder: 'e.g. 25',           wide: false },
-    { key: 'store',    label: 'Store / source',placeholder: 'e.g. Marché St-P',  wide: true  },
-  ],
-  other: [
-    { key: 'price',    label: 'Price / cost',  placeholder: 'e.g. 50',           wide: false },
-    { key: 'location', label: 'Location',      placeholder: 'optional',           wide: true  },
-  ],
-};
+// `key` must match keys used in candidate.fields. A function (not a module-level
+// const) so labels re-read the live locale on every render, like getTypeMeta().
+function typeFields(): Record<CompareType, Array<{ key: string; label: string; placeholder: string; wide?: boolean }>> {
+  return {
+    accommodation: [
+      { key: 'price',    label: t('compare.fieldTotalPrice'), placeholder: 'e.g. 360',          wide: false },
+      { key: 'nights',   label: t('compare.fieldNights'),     placeholder: 'e.g. 3',            wide: false },
+      { key: 'fees',     label: t('compare.fieldExtraFees'),  placeholder: 'cleaning etc.',      wide: false },
+      { key: 'address',  label: t('compare.fieldAddress'),    placeholder: 'Neighbourhood / address', wide: true },
+    ],
+    flight: [
+      { key: 'price',    label: t('compare.fieldPrice'),    placeholder: 'e.g. 89',           wide: false },
+      { key: 'airline',  label: t('compare.fieldAirline'),  placeholder: 'e.g. Ryanair',      wide: false },
+      { key: 'dep',      label: t('compare.fieldDeparts'),  placeholder: 'e.g. 06:30',        wide: false },
+      { key: 'arr',      label: t('compare.fieldArrives'),  placeholder: 'e.g. 09:15',        wide: false },
+      { key: 'duration', label: t('compare.fieldDuration'), placeholder: 'e.g. 2h45m',        wide: false },
+      { key: 'route',    label: t('compare.fieldRoute'),    placeholder: 'e.g. LHR → FCO',   wide: true  },
+    ],
+    train: [
+      { key: 'price',    label: t('compare.fieldPrice'),    placeholder: 'e.g. 45',           wide: false },
+      { key: 'operator', label: t('compare.fieldOperator'), placeholder: 'e.g. Trenitalia',   wide: false },
+      { key: 'dep',      label: t('compare.fieldDeparts'),  placeholder: 'e.g. 08:00',        wide: false },
+      { key: 'arr',      label: t('compare.fieldArrives'),  placeholder: 'e.g. 11:30',        wide: false },
+      { key: 'duration', label: t('compare.fieldDuration'), placeholder: 'e.g. 3h30m',        wide: false },
+      { key: 'route',    label: t('compare.fieldRoute'),    placeholder: 'e.g. Paris → Lyon', wide: true  },
+    ],
+    shopping: [
+      { key: 'price',    label: t('compare.fieldPrice'),     placeholder: 'e.g. 25',           wide: false },
+      { key: 'store',    label: t('compare.fieldStore'),     placeholder: 'e.g. Marché St-P',  wide: true  },
+    ],
+    other: [
+      { key: 'price',    label: t('compare.fieldPriceCost'), placeholder: 'e.g. 50',            wide: false },
+      { key: 'location', label: t('compare.fieldLocation'),  placeholder: 'optional',           wide: true  },
+    ],
+  };
+}
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -101,13 +108,14 @@ function pricePerNight(c: CompareCandidate): number | null {
 
 function candidateSubInfo(type: CompareType, c: CompareCandidate): string {
   const f = c.fields;
+  const sym = currencySymbol(baseCurrency());
   switch (type) {
     case 'accommodation': {
       const pn = pricePerNight(c);
       const nights = f['nights'];
       return pn != null
-        ? `€${Math.round(pn)}/night${nights ? ` · ${nights}n` : ''}`
-        : f['price'] ? `€${f['price']} total` : '';
+        ? `${sym}${Math.round(pn)}/night${nights ? ` · ${nights}n` : ''}`
+        : f['price'] ? `${sym}${f['price']} total` : '';
     }
     case 'flight':
     case 'train': {
@@ -216,17 +224,24 @@ function booleanCell(groupId: string, c: CompareCandidate, dim: CompareDimension
     <div class="cmp-cell ${isWinner ? 'winner' : ''}">
       <button class="cmp-toggle ${on ? 'on' : ''}" data-act="toggle"
         data-group="${groupId}" data-cand="${c.id}" data-dim="${dim.id}">
-        ${on ? 'Yes' : 'No'}
+        ${on ? t('compare.yes') : t('compare.no')}
       </button>
     </div>`;
+}
+
+/** A small dot marking a cell that fell back to the neutral (unscored)
+ *  midpoint rather than a value the user actually entered. */
+function unfilledMark(filled: boolean): string {
+  return filled ? '' : `<span class="cmp-unfilled" title="${esc(t('compare.unfilledHint'))}">·</span>`;
 }
 
 function priceCell(groupId: string, group: StoredGroup, c: CompareCandidate, isWinner: boolean): string {
   const p = c.fields['price'] ?? '';
   const type = group.compareType;
+  const sym = currencySymbol(baseCurrency());
   const displayVal = type === 'accommodation'
-    ? (() => { const pn = pricePerNight(c); return pn != null ? `€${Math.round(pn)}<span>/night</span>` : '—'; })()
-    : (p ? `€${p}` : '—');
+    ? (() => { const pn = pricePerNight(c); return pn != null ? `${sym}${Math.round(pn)}<span>/night</span>` : '—'; })()
+    : (p ? `${sym}${p}` : '—');
 
   const extraFields = type === 'accommodation'
     ? `<input class="cmp-mini-input" type="number" placeholder="total €"
@@ -284,22 +299,27 @@ function renderMatrix(group: StoredGroup): string {
           <input class="cmp-name-input" value="${esc(c.name)}"
             data-act="name" data-group="${group.id}" data-cand="${c.id}">
           ${sub ? `<div class="cmp-col-sub">${sub}</div>` : ''}
-          ${c.link ? `<a class="cmp-col-link" href="${esc(c.link)}" target="_blank" rel="noopener">↗ link</a>` : ''}
+          ${c.link ? `<a class="cmp-col-link" href="${esc(c.link)}" target="_blank" rel="noopener">↗ ${t('compare.linkLabel')}</a>` : ''}
           <div class="cmp-col-score">${total}<span>${t('compare.scoreUnit')}</span></div>
-          <button class="cmp-col-del" data-act="del-cand" data-group="${group.id}" data-cand="${c.id}" title="Remove">✕</button>
+          <button class="cmp-col-del" data-act="del-cand" data-group="${group.id}" data-cand="${c.id}" title="${esc(t('compare.btnRemove'))}">✕</button>
         </div>
       </th>`;
   }).join('');
 
   const rows = group.dimensions.map((dim) => {
     const cells = cands.map((c) => {
-      const win = result.cells[c.id]?.[dim.id]?.isWinner ?? false;
+      const cell = result.cells[c.id]?.[dim.id];
+      const win = cell?.isWinner ?? false;
+      const filled = cell?.filled ?? true;
       if (dim.id === PRICE_DIM_ID) return `<td>${priceCell(group.id, group, c, win)}</td>`;
-      if (dim.type === 'rating')   return `<td>${ratingCell(group.id, c, dim, win)}</td>`;
+      if (dim.id === DURATION_DIM_ID) return `<td><div class="cmp-cell ${win ? 'winner' : ''}">
+        <input class="cmp-mini-input" type="text" placeholder="e.g. 2h45m" value="${esc(c.fields['duration'] ?? '')}"
+          data-act="field" data-group="${group.id}" data-cand="${c.id}" data-key="duration"></div></td>`;
+      if (dim.type === 'rating')   return `<td>${ratingCell(group.id, c, dim, win)}${unfilledMark(filled)}</td>`;
       if (dim.type === 'boolean')  return `<td>${booleanCell(group.id, c, dim, win)}</td>`;
       return `<td><div class="cmp-cell ${win ? 'winner' : ''}">
         <input class="cmp-mini-input" type="number" value="${c.scores[dim.id] ?? ''}"
-          data-act="num" data-group="${group.id}" data-cand="${c.id}" data-dim="${dim.id}"></div></td>`;
+          data-act="num" data-group="${group.id}" data-cand="${c.id}" data-dim="${dim.id}">${unfilledMark(filled)}</div></td>`;
     }).join('');
 
     return `
@@ -308,7 +328,7 @@ function renderMatrix(group: StoredGroup): string {
           <div class="cmp-dim-label">
             <span>${esc(dim.label)}</span>
             ${!dim.builtin ? `<button class="cmp-dim-del" data-act="del-dim"
-              data-group="${group.id}" data-dim="${dim.id}" title="Remove">✕</button>` : ''}
+              data-group="${group.id}" data-dim="${dim.id}" title="${esc(t('compare.btnRemove'))}">✕</button>` : ''}
           </div>
           <div class="cmp-weight">
             <input type="range" min="0" max="5" step="1" value="${dim.weight}"
@@ -336,7 +356,7 @@ function renderMatrix(group: StoredGroup): string {
 }
 
 function renderAddForm(group: StoredGroup): string {
-  const fields = TYPE_FIELDS[group.compareType];
+  const fields = typeFields()[group.compareType];
   const fieldHtml = fields.map((f) =>
     `<div class="cmp-field ${f.wide ? 'cmp-field-wide' : ''}">
       <label>${f.label}</label>
@@ -349,11 +369,11 @@ function renderAddForm(group: StoredGroup): string {
       <div class="cmp-add-form-title">${t('compare.formAddTitle')}</div>
       <div class="cmp-form-grid">
         <div class="cmp-field cmp-field-wide">
-          <label>Name</label>
+          <label>${t('compare.fieldName')}</label>
           <input class="input" id="af-name" placeholder="${esc(getTypeMeta()[group.compareType].hint)}" autofocus>
         </div>
         <div class="cmp-field cmp-field-wide">
-          <label>Link <span class="cmp-opt">(optional)</span></label>
+          <label>${t('compare.fieldLink')} <span class="cmp-opt">(${t('compare.labelOptionalInline')})</span></label>
           <input class="input" id="af-link" type="url" placeholder="booking.com, skyscanner, …">
         </div>
         ${fieldHtml}
@@ -362,38 +382,6 @@ function renderAddForm(group: StoredGroup): string {
         <button class="btn btn-ghost" data-act="form-cancel">${t('compare.btnCancel')}</button>
         <button class="btn btn-primary" data-act="form-save" data-group="${group.id}">${t('compare.btnAddOption')}</button>
       </div>
-    </div>`;
-}
-
-function renderVerdict(group: StoredGroup, result: ReturnType<typeof scoreGroup>): string {
-  const byId = (id: string) => group.candidates.find((c) => c.id === id);
-  const champions = group.dimensions
-    .map((dim) => {
-      const winId = result.dimWinners[dim.id];
-      const c = winId ? byId(winId) : null;
-      return c ? `<li><span class="cmp-champ-dim">${esc(dim.label)}</span> → <strong>${esc(c.name)}</strong></li>` : '';
-    })
-    .filter(Boolean).join('');
-
-  const top = byId(result.ranking[0]);
-  const runnerUp = byId(result.ranking[1]);
-  const gap = runnerUp
-    ? Math.round((result.totals[result.ranking[0]] - result.totals[result.ranking[1]]) * 100)
-    : null;
-
-  return `
-    <div class="cmp-verdict">
-      <div class="cmp-verdict-main">
-        <div class="cmp-verdict-label">${t('compare.verdictLabel')}</div>
-        <div class="cmp-verdict-pick">🏆 ${top ? esc(top.name) : '—'}</div>
-        ${gap != null ? `<div class="cmp-verdict-gap">${gap === 0 ? t('compare.tiedWith') : `${gap} ${t('compare.ptsAheadOf')}`} ${esc(runnerUp!.name)}</div>` : ''}
-      </div>
-      ${champions ? `
-        <div class="cmp-verdict-champs">
-          <div class="cmp-verdict-label">${t('compare.bestOnDimension')}</div>
-          <ul>${champions}</ul>
-        </div>` : ''}
-      <div class="cmp-verdict-hint">${t('compare.verdictHint')}</div>
     </div>`;
 }
 
@@ -503,11 +491,11 @@ function handleClick(act: string, el: HTMLElement) {
         compareStore.remove(groupId!);
       } else {
         el.classList.add('is-confirming');
-        el.textContent = 'Confirm delete';
+        el.textContent = t('compare.btnConfirmDelete');
         // Auto-reset if user clicks away
         const reset = () => {
           el.classList.remove('is-confirming');
-          el.textContent = 'Delete';
+          el.textContent = t('compare.btnDelete');
           document.removeEventListener('click', reset);
         };
         setTimeout(() => document.addEventListener('click', reset), 0);
@@ -544,7 +532,7 @@ function handleClick(act: string, el: HTMLElement) {
       saveAddForm(groupId!);
       return;
     case 'add-dim':
-      promptAddDimension(groupId!);
+      openAddDimensionModal(groupId!);
       return;
   }
 }
@@ -580,7 +568,7 @@ async function saveAddForm(groupId: string) {
   const link = (document.querySelector<HTMLInputElement>('#af-link')?.value ?? '').trim();
 
   const fields: Record<string, string> = {};
-  for (const f of TYPE_FIELDS[group.compareType]) {
+  for (const f of typeFields()[group.compareType]) {
     const val = (document.querySelector<HTMLInputElement>(`#af-${f.key}`)?.value ?? '').trim();
     if (val) fields[f.key] = val;
   }
@@ -593,16 +581,69 @@ async function saveAddForm(groupId: string) {
   });
 }
 
-function promptAddDimension(groupId: string) {
-  const label = prompt('Dimension name (e.g. "Breakfast included", "View quality")');
-  if (!label) return;
-  const isRating = confirm('Score this 1–5 stars (OK) or Yes/No (Cancel)?');
-  if (isRating) {
-    compareStore.addDimension(groupId, label, 'rating', true);
-  } else {
-    const good = confirm(`For "${label}", is YES the better outcome? OK = yes, Cancel = no.`);
-    compareStore.addDimension(groupId, label, 'boolean', good);
-  }
+function openAddDimensionModal(groupId: string) {
+  const modal = openModal({
+    title: t('compare.addDimTitle'),
+    body: `
+      <div class="cmp-field">
+        <label>${t('compare.addDimLabel')}</label>
+        <input class="input" id="ad-label" placeholder="${esc(t('compare.addDimPlaceholder'))}">
+      </div>
+      <div class="cmp-field">
+        <label>${t('compare.addDimTypeLabel')}</label>
+        <div class="cmp-type-grid">
+          <button type="button" class="cmp-type-pill active" data-dim-type="rating">
+            <span class="cmp-type-pill-label">${t('compare.addDimRating')}</span>
+          </button>
+          <button type="button" class="cmp-type-pill" data-dim-type="boolean">
+            <span class="cmp-type-pill-label">${t('compare.addDimYesNo')}</span>
+          </button>
+        </div>
+      </div>
+      <div class="cmp-field" id="ad-direction-field">
+        <label>${t('compare.addDimDirectionLabel')}</label>
+        <div class="cmp-type-grid">
+          <button type="button" class="cmp-type-pill active" data-dim-dir="better">
+            <span class="cmp-type-pill-label">${t('compare.addDimYesBetter')}</span>
+          </button>
+          <button type="button" class="cmp-type-pill" data-dim-dir="worse">
+            <span class="cmp-type-pill-label">${t('compare.addDimNoBetter')}</span>
+          </button>
+        </div>
+      </div>`,
+    footer: `
+      <button class="btn btn-ghost" data-otr-close>${t('compare.btnCancel')}</button>
+      <button class="btn btn-primary" id="ad-save">${t('compare.btnAddDimension')}</button>`,
+  });
+
+  const root = modal.root;
+  const directionField = root.querySelector<HTMLElement>('#ad-direction-field')!;
+  let dimType: 'rating' | 'boolean' = 'rating';
+  let yesBetter = true;
+
+  root.querySelectorAll<HTMLElement>('[data-dim-type]').forEach((el) => {
+    el.addEventListener('click', () => {
+      root.querySelectorAll('[data-dim-type]').forEach((p) => p.classList.remove('active'));
+      el.classList.add('active');
+      dimType = el.dataset.dimType as 'rating' | 'boolean';
+      directionField.style.display = dimType === 'boolean' ? '' : 'none';
+    });
+  });
+  root.querySelectorAll<HTMLElement>('[data-dim-dir]').forEach((el) => {
+    el.addEventListener('click', () => {
+      root.querySelectorAll('[data-dim-dir]').forEach((p) => p.classList.remove('active'));
+      el.classList.add('active');
+      yesBetter = el.dataset.dimDir === 'better';
+    });
+  });
+  directionField.style.display = 'none'; // hidden until Yes/No is picked
+
+  root.querySelector<HTMLButtonElement>('#ad-save')!.addEventListener('click', () => {
+    const label = (root.querySelector<HTMLInputElement>('#ad-label')?.value ?? '').trim();
+    if (!label) return;
+    compareStore.addDimension(groupId, label, dimType, dimType === 'boolean' ? yesBetter : true);
+    modal.close();
+  });
 }
 
 /* ── Render dispatch ─────────────────────────────────────────────────────── */

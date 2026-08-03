@@ -19,6 +19,9 @@ export type StoredGroup = WithMeta<CompareGroup>;
 // Special dimension id for price — its score is derived from fields.price
 // (parsed as a number) rather than manually entered via the star/toggle UI.
 export const PRICE_DIM_ID = 'price';
+// Same deal for duration on flight/train candidates — auto-scored from
+// fields.duration ("2h45m" / "3:30" / "165") rather than a manual star rating.
+export const DURATION_DIM_ID = 'duration';
 
 function store() {
   return createCollectionStore(currentTripId(), 'compares', CompareGroupSchema);
@@ -41,19 +44,19 @@ export function defaultDimensions(type: CompareType): CompareDimension[] {
       return [
         { id: PRICE_DIM_ID, label: 'Price',            type: 'number',  weight: 3, higherIsBetter: false, builtin: true },
         { id: genId(),      label: 'Direct flight',    type: 'boolean', weight: 3, higherIsBetter: true,  builtin: true },
-        { id: genId(),      label: 'Departure time',   type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
-        { id: genId(),      label: 'Arrival time',     type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
-        { id: genId(),      label: 'Flight duration',  type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
-        { id: genId(),      label: 'Baggage included', type: 'boolean', weight: 2, higherIsBetter: true,  builtin: true },
+        { id: genId(),        label: 'Departure time', type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
+        { id: genId(),        label: 'Arrival time',   type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
+        { id: DURATION_DIM_ID,label: 'Flight duration',type: 'number',  weight: 2, higherIsBetter: false, builtin: true },
+        { id: genId(),        label: 'Baggage included', type: 'boolean', weight: 2, higherIsBetter: true, builtin: true },
         { id: genId(),      label: 'Airline quality',  type: 'rating',  weight: 1, higherIsBetter: true,  builtin: true },
       ];
     case 'train':
       return [
         { id: PRICE_DIM_ID, label: 'Price',            type: 'number',  weight: 3, higherIsBetter: false, builtin: true },
-        { id: genId(),      label: 'Departure time',   type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
-        { id: genId(),      label: 'Arrival time',     type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
-        { id: genId(),      label: 'Journey duration', type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
-        { id: genId(),      label: 'Direct route',     type: 'boolean', weight: 2, higherIsBetter: true,  builtin: true },
+        { id: genId(),        label: 'Departure time', type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
+        { id: genId(),        label: 'Arrival time',   type: 'rating',  weight: 2, higherIsBetter: true,  builtin: true },
+        { id: DURATION_DIM_ID,label: 'Journey duration',type: 'number', weight: 2, higherIsBetter: false, builtin: true },
+        { id: genId(),        label: 'Direct route',   type: 'boolean', weight: 2, higherIsBetter: true,  builtin: true },
         { id: genId(),      label: 'Seat comfort',     type: 'rating',  weight: 1, higherIsBetter: true,  builtin: true },
       ];
     case 'shopping':
@@ -74,24 +77,67 @@ export function defaultDimensions(type: CompareType): CompareDimension[] {
 
 /* ── Scoring helpers (pure) ──────────────────────────────────────────────── */
 
-/** Numeric price from fields.price string, or null if absent/unparseable. */
+/** Strip thousands separators, keeping only the final . or , as the decimal
+ *  point (whichever appears last) — handles both "1,200.50" and "1.200,50". */
+function parseLocaleNumber(raw: string): number {
+  const cleaned = raw.replace(/[^0-9.,]/g, '');
+  const lastDot = cleaned.lastIndexOf('.');
+  const lastComma = cleaned.lastIndexOf(',');
+  const decimalAt = Math.max(lastDot, lastComma);
+  if (decimalAt === -1) return parseFloat(cleaned);
+  const intPart = cleaned.slice(0, decimalAt).replace(/[.,]/g, '');
+  const fracPart = cleaned.slice(decimalAt + 1).replace(/[.,]/g, '');
+  return parseFloat(`${intPart}.${fracPart}`);
+}
+
+/** Numeric price from fields.price string, or null if absent/unparseable.
+ *  A leading minus is treated as an invalid entry (not silently made
+ *  positive) — a stray "-5" almost certainly means "unset", not "€5". */
 export function fieldPrice(c: CompareCandidate): number | null {
   const raw = c.fields['price'];
-  if (!raw) return null;
-  const n = parseFloat(raw.replace(/[^0-9.]/g, ''));
+  if (!raw || raw.trim().startsWith('-')) return null;
+  const n = parseLocaleNumber(raw);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Minutes from fields.duration — accepts "2h45m", "2h", "45m", "3:30" (h:mm),
+ *  or a bare number of minutes. Returns null if absent/unparseable. */
+export function fieldDurationMin(c: CompareCandidate): number | null {
+  const raw = c.fields['duration']?.trim();
+  if (!raw) return null;
+
+  const hm = raw.match(/^(\d+)\s*h(?:ours?)?\s*(?:(\d+)\s*m(?:in)?)?$/i);
+  if (hm) return parseInt(hm[1], 10) * 60 + (hm[2] ? parseInt(hm[2], 10) : 0);
+
+  const mOnly = raw.match(/^(\d+)\s*m(?:in)?$/i);
+  if (mOnly) return parseInt(mOnly[1], 10);
+
+  const colon = raw.match(/^(\d+):(\d{2})$/);
+  if (colon) return parseInt(colon[1], 10) * 60 + parseInt(colon[2], 10);
+
+  const bare = Number(raw);
+  return Number.isFinite(bare) && bare > 0 ? bare : null;
 }
 
 /** Raw value for a candidate on a dimension. */
 export function rawValue(c: CompareCandidate, dim: CompareDimension): number | null {
   if (dim.id === PRICE_DIM_ID) return fieldPrice(c);
+  if (dim.id === DURATION_DIM_ID) return fieldDurationMin(c);
   const v = c.scores[dim.id];
   return v == null ? null : v;
 }
 
+// Neutral score for a candidate with no value on a dimension. Excluding blank
+// cells from the denominator let a sparsely-filled candidate outscore a fully
+// scored one on the dimensions it *did* answer; a flat midpoint keeps missing
+// data from being a free ride without needing a "did they even try" penalty.
+const UNFILLED_NORM = 0.5;
+
 export interface DimResult {
   norm: number | null;
   isWinner: boolean;
+  /** False when this cell had no value and fell back to the neutral score. */
+  filled: boolean;
 }
 
 export interface ScoreResult {
@@ -99,6 +145,39 @@ export interface ScoreResult {
   cells: Record<string, Record<string, DimResult>>;
   dimWinners: Record<string, string | null>;
   ranking: string[];
+}
+
+/** Normalize one dimension's raw values to 0–1, "better" always meaning higher.
+ *  Numbers use a ratio to the best value rather than min-max, so a €5 gap
+ *  between two hotels doesn't score identically to a €500 gap — magnitude
+ *  survives the normalization instead of collapsing to 1.0/0.0. */
+function normalizeDimension(
+  dim: CompareDimension,
+  present: { id: string; v: number }[],
+): Record<string, number> {
+  const norms: Record<string, number> = {};
+
+  if (dim.type === 'number') {
+    const nums = present.map((x) => x.v);
+    if (dim.higherIsBetter) {
+      const best = Math.max(...nums);
+      for (const x of present) norms[x.id] = best > 0 ? x.v / best : 1;
+    } else {
+      const best = Math.min(...nums);
+      for (const x of present) norms[x.id] = x.v > 0 ? best / x.v : 1;
+    }
+    return norms; // direction already applied — skip the flip below
+  }
+
+  if (dim.type === 'rating') {
+    for (const x of present) norms[x.id] = Math.max(0, Math.min(1, x.v / 5));
+  } else {
+    for (const x of present) norms[x.id] = x.v ? 1 : 0;
+  }
+  if (!dim.higherIsBetter) {
+    for (const id of Object.keys(norms)) norms[id] = 1 - norms[id];
+  }
+  return norms;
 }
 
 export function scoreGroup(group: CompareGroup): ScoreResult {
@@ -113,22 +192,7 @@ export function scoreGroup(group: CompareGroup): ScoreResult {
   for (const dim of dimensions) {
     const vals = candidates.map((c) => ({ id: c.id, v: rawValue(c, dim) }));
     const present = vals.filter((x) => x.v != null) as { id: string; v: number }[];
-
-    const norms: Record<string, number> = {};
-    if (dim.type === 'number') {
-      const nums = present.map((x) => x.v);
-      const min = Math.min(...nums), max = Math.max(...nums);
-      for (const x of present) {
-        norms[x.id] = max === min ? 1 : (x.v - min) / (max - min);
-      }
-    } else if (dim.type === 'rating') {
-      for (const x of present) norms[x.id] = Math.max(0, Math.min(1, x.v / 5));
-    } else {
-      for (const x of present) norms[x.id] = x.v ? 1 : 0;
-    }
-    if (!dim.higherIsBetter) {
-      for (const id of Object.keys(norms)) norms[id] = 1 - norms[id];
-    }
+    const norms = normalizeDimension(dim, present);
 
     let bestId: string | null = null, best = -Infinity;
     for (const id of Object.keys(norms)) {
@@ -137,13 +201,14 @@ export function scoreGroup(group: CompareGroup): ScoreResult {
     dimWinners[dim.id] = present.length >= 2 && bestId != null ? bestId : null;
 
     for (const c of candidates) {
-      const n = norms[c.id];
-      const has = n != null;
+      const filled = norms[c.id] != null;
+      const n = filled ? norms[c.id] : UNFILLED_NORM;
       cells[c.id][dim.id] = {
-        norm: has ? n : null,
-        isWinner: has && dimWinners[dim.id] === c.id && best > 0,
+        norm: n,
+        isWinner: filled && dimWinners[dim.id] === c.id && best > 0,
+        filled,
       };
-      if (has && dim.weight > 0) {
+      if (dim.weight > 0) {
         weightSum[c.id] += dim.weight;
         weightedAcc[c.id] += n * dim.weight;
       }

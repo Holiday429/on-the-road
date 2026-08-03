@@ -227,6 +227,11 @@
 }
 .cmp-mini-input:focus { outline: none; border-color: var(--amber-400); }
 
+/* Marks a cell that fell back to the neutral score — no value was entered. */
+.cmp-unfilled {
+  color: var(--ink-faint); font-size: 16px; line-height: 1; cursor: help;
+}
+
 /* ── Actions ─────────────────────────────────────────────────────────────── */
 .cmp-actions { display: flex; gap: var(--sp-3); margin-top: var(--sp-4); flex-wrap: wrap; }
 
@@ -245,6 +250,13 @@
 .cmp-verdict-champs ul { list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .cmp-verdict-champs li { font-size: var(--fs-sm); color: var(--ink-soft); }
 .cmp-champ-dim { color: var(--ink-muted); }
+.cmp-verdict-why {
+  grid-column: 1 / -1; font-size: var(--fs-sm); color: var(--ink-soft); line-height: 1.5;
+}
+.cmp-verdict-sensitive {
+  grid-column: 1 / -1; font-size: var(--fs-sm); color: var(--warning);
+  background: var(--warning-bg); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3);
+}
 .cmp-verdict-hint {
   grid-column: 1 / -1; font-size: var(--fs-sm); color: var(--ink-faint);
   border-top: 1px solid var(--rule-soft); padding-top: var(--sp-3); font-style: italic;
