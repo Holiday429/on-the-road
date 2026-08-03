@@ -9,9 +9,10 @@
   z-index: 400;
   min-height: 100dvh;
   padding: clamp(4px, 1vw, 12px) clamp(20px, 4vw, 48px) clamp(24px, 4vw, 40px);
-  background:
-    radial-gradient(circle at top left, rgba(249, 184, 48, 0.24), transparent 34%),
-    linear-gradient(180deg, #fffaf0 0%, #f7f3ea 100%);
+  /* --surface-2 is near-black in dark mode (fine behind cards elsewhere, but
+     this screen has no cards breaking it up) — --surface-3 reads as the same
+     "dark" family without going to the darkest value in the palette. */
+  background: var(--surface-3);
   overflow: auto;
 }
 
