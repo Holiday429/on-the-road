@@ -8,18 +8,18 @@
      2. AI generation   — /api/safety serverless (DeepSeek + Tavily)
         → used when country not in static library, or to enrich embassy/hospitals
      3. Mock fallback   — generic sensible defaults when offline / API down
+
+   Moved out of views/safety/ (that view was folded into Guide's Safety tab —
+   see guide-safety-tab.ts) since this is data/resolution logic, not UI.
    ========================================================================== */
 
-import type { CitySafety } from '../../data/schema.ts';
-import { postJson } from '../../core/api.ts';
-import { aiLanguage } from '../../core/i18n.ts';
-import { currentTripId } from '../../data/trip-context.ts';
-import { staticSafetyForCountry } from '../../data/safety-static/countries.ts';
+import type { GeneratedSafety } from './schema.ts';
+import { postJson } from '../core/api.ts';
+import { aiLanguage } from '../core/i18n.ts';
+import { currentTripId } from './trip-context.ts';
+import { staticSafetyForCountry } from './safety-static/countries.ts';
 
-export type GeneratedSafety = Omit<
-  CitySafety,
-  'id' | 'createdAt' | 'updatedAt' | 'schemaVersion' | 'source'
->;
+export type { GeneratedSafety };
 
 /**
  * Resolves safety data for a city.
@@ -77,7 +77,7 @@ async function fetchFromApi(
       tripId: currentTripId(),
     });
   } catch (e) {
-    const { handleAiError } = await import('../../core/paywall.ts');
+    const { handleAiError } = await import('../core/paywall.ts');
     if (handleAiError(e)) return null; // paywall shown, caller checks for null
     console.error('[Safety] generation error — using mock data:', e);
     return mockSafety(city, country, nationality);

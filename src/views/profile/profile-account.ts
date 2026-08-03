@@ -1,0 +1,102 @@
+/* ==========================================================================
+   On the Road · Profile — account & billing section
+   Ported from core/account.ts's modal (now folded into the Profile page as
+   an inline section instead of a separate modal). Plan/quota still come
+   from quota-store (live); purchase records still read users/{uid}/purchases.
+   ========================================================================== */
+
+import { currentUser } from '../../firebase/auth.ts';
+import { quotaStore } from '../../data/quota-store.ts';
+import { showPaywall } from '../../core/paywall.ts';
+import { escHtml } from '../../core/utils.ts';
+import { LIFETIME_QUOTA } from '../../data/schema.ts';
+
+interface PurchaseRow { id: string; plan?: string; amount?: number | null; at?: number }
+
+async function loadPurchases(uid: string): Promise<PurchaseRow[]> {
+  try {
+    const { collection, getDocs, query, orderBy } = await import('firebase/firestore');
+    const { db } = await import('../../firebase/config.ts');
+    const snap = await getDocs(query(collection(db, `users/${uid}/purchases`), orderBy('at', 'desc')));
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<PurchaseRow, 'id'>) }));
+  } catch {
+    return [];
+  }
+}
+
+function planLabel(): string {
+  switch (quotaStore.tripQuota >= LIFETIME_QUOTA ? 'lifetime' : (quotaStore.tripQuota > 1 ? 'trip_pass' : 'free')) {
+    case 'lifetime':  return 'Lifetime — unlimited trips';
+    case 'trip_pass': return `Trip Pass — ${quotaStore.tripQuota} trips`;
+    default:          return 'Free — 1 trip';
+  }
+}
+
+function fmtDate(ms?: number): string {
+  if (!ms) return '';
+  try { return new Date(ms).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
+  catch { return ''; }
+}
+
+export function renderAccountSection(): string {
+  const user = currentUser();
+  if (!user) return '';
+
+  const unlimited = quotaStore.tripQuota >= LIFETIME_QUOTA;
+  const used = quotaStore.usedSlots;
+  const total = unlimited ? '∞' : String(quotaStore.tripQuota);
+
+  return `
+    <div class="account-body">
+      <div class="account-row">
+        <span class="account-label">Signed in as</span>
+        <span class="account-value">${escHtml(user.email ?? user.displayName ?? 'Traveler')}</span>
+      </div>
+      <div class="account-row">
+        <span class="account-label">Plan</span>
+        <span class="account-value">${escHtml(planLabel())}</span>
+      </div>
+      <div class="account-row">
+        <span class="account-label">Trips</span>
+        <span class="account-value">${used} / ${total} used</span>
+      </div>
+
+      ${unlimited ? '' : `<button class="btn btn-primary account-upgrade" id="account-upgrade">Get more trips</button>`}
+
+      <div class="account-section-head">Purchase history</div>
+      <div class="account-purchases" id="account-purchases">
+        <div class="account-loading">Loading…</div>
+      </div>
+
+      <p class="account-support">
+        Billing questions or a refund? Email
+        <a href="mailto:support@easy-on-the-road.app">support@easy-on-the-road.app</a>.
+      </p>
+    </div>`;
+}
+
+export function wireAccountSection(root: HTMLElement): void {
+  const user = currentUser();
+  if (!user) return;
+
+  root.querySelector('#account-upgrade')?.addEventListener('click', () => showPaywall());
+
+  void loadPurchases(user.uid).then((rows) => {
+    const el = root.querySelector<HTMLElement>('#account-purchases');
+    if (!el) return;
+    if (!rows.length) {
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
+      el.innerHTML = `<div class="account-empty">No purchases yet.</div>`;
+      return;
+    }
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
+    el.innerHTML = rows.map((r) => {
+      const label = r.plan === 'lifetime' ? 'Lifetime' : r.plan === 'trip_pass' ? 'Trip Pass' : escHtml(r.plan ?? '—');
+      const amount = typeof r.amount === 'number' ? `$${(r.amount / 100).toFixed(2)}` : '';
+      return `<div class="account-purchase-row">
+        <span>${label}</span>
+        <span class="account-purchase-meta">${fmtDate(r.at)}${amount ? ` · ${amount}` : ''}</span>
+      </div>`;
+    }).join('');
+  });
+}

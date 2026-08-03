@@ -10,7 +10,7 @@ import { openTripPopover, closeTripPopover, wireTripCalendarHover, cancelCalenda
 import { openNewTripModal } from './trip-modals.ts';
 import profileIcon from '../../icon/profile.png';
 
-export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'safety' | 'journal' | 'map' | 'nomad' | 'calendar';
+export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'calendar' | 'profile';
 
 export interface NavItem {
   id: ViewId;
@@ -254,9 +254,9 @@ export function buildSidebar() {
     host!.sessionPrimaryAction();
   });
 
-  // Signed-in profile header → account & billing.
+  // Signed-in profile header → Profile view (account/billing + emergency card + prefs).
   sidebar.querySelector<HTMLElement>('#sidebar-account-trigger')?.addEventListener('click', () => {
-    import('./account.ts').then(({ openAccountModal }) => openAccountModal());
+    host!.navigateTo('profile');
   });
 
   sidebar.querySelectorAll('.nav-item').forEach(item => {
@@ -334,11 +334,11 @@ export function buildMobileNav() {
   });
 
   mobileNav.querySelector<HTMLElement>('#mobile-account-item')?.addEventListener('click', () => {
-    // Real signed-in user → account & billing; guest (anonymous) or no user →
+    // Real signed-in user → Profile view; guest (anonymous) or no user →
     // the sign-in flow (which upgrades a guest in place).
     const user = host!.sessionUser();
     if (user && !user.isAnonymous) {
-      import('./account.ts').then(({ openAccountModal }) => openAccountModal());
+      host!.navigateTo('profile');
     } else {
       host!.sessionPrimaryAction();
     }

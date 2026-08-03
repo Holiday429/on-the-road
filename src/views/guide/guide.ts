@@ -21,10 +21,10 @@ import { apiUrl, authHeaders } from '../../core/api.ts';
 import { handleAiError, renderAiCreditPill, wireAiCreditPill } from '../../core/paywall.ts';
 import { quotaStore } from '../../data/quota-store.ts';
 import { emptyState } from '../../core/empty-state.ts';
-import { prefetchSafetyForCity } from '../safety/safety.ts';
 import { nomadStore } from '../../data/stores/nomad-store.ts';
 import { renderNomadStrip, wireNomadStrip, nomadOwnerId } from './guide-nomad-strip.ts';
 import { mapsUrl, walkRouteUrlByName } from './guide-urls.ts';
+import { renderSafetyTab, wireSafetyTab, subscribeSafetyTab, applyGuidePipelineSafety } from './guide-safety-tab.ts';
 import { track } from '../../core/analytics.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -35,6 +35,8 @@ let _activeCityId: string | null = null;
 let _activeTab: TabKey = 'intro';
 let _unsubCities: (() => void) | null = null;
 let _unsubLegs: (() => void) | null = null;
+let _unsubSafety: (() => void) | null = null;
+let _safetyCityId: string | null = null;
 let _wired = false;
 // Selected city from autocomplete (before generate is pressed)
 let _selectedCity: { label: string; country: string } | null = null;
@@ -48,7 +50,7 @@ let _generating = false;
 // over the Firestore snapshot, which lags behind by an async save round-trip.
 let _liveIntel: (Partial<CityIntel> & { id: string }) | null = null;
 
-type TabKey = 'intro' | 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'know' | 'moneyTips';
+type TabKey = 'intro' | 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'know' | 'moneyTips' | 'safety';
 
 interface Tab { key: TabKey; label: string; icon: string; isDo: boolean; }
 
@@ -61,6 +63,7 @@ const TABS: Tab[] = [
   { key: 'experiences', label: 'Experiences', icon: '✨',  isDo: true  },
   { key: 'know',        label: 'Culture',     icon: '💡',  isDo: false },
   { key: 'moneyTips',   label: 'Budget',      icon: '💸',  isDo: false },
+  { key: 'safety',      label: 'Safety',      icon: '🛡️',  isDo: false },
 ];
 
 function tabLabel(key: TabKey): string {
@@ -73,6 +76,7 @@ function tabLabel(key: TabKey): string {
     experiences: t('guide.tabExperiences'),
     know:        t('guide.tabKnow'),
     moneyTips:   t('guide.tabMoneyTips'),
+    safety:      t('guide.tabSafety'),
   };
   return map[key];
 }
@@ -133,6 +137,12 @@ async function generateGuide(city: string, country: string, query: string): Prom
         const msg = (parsed.payload as { message?: string })?.message ?? 'generation failed';
         throw new Error(msg);
       }
+      // 'safety' isn't a CityIntel field — it's persisted to its own
+      // citySafety doc (see guide-safety-tab.ts), not merged into intel.
+      if (parsed.section === 'safety') {
+        void applyGuidePipelineSafety(city, parsed.payload as Parameters<typeof applyGuidePipelineSafety>[1]);
+        return;
+      }
       applySection(intel, parsed.section, parsed.payload);
       _activeCityId = id;
 
@@ -185,11 +195,6 @@ async function generateGuide(city: string, country: string, query: string): Prom
     if (!_overviewShown) renderCityDetail(root);
     // Hand off to the Firestore snapshot now that the stream is complete.
     _liveIntel = null;
-    // Background-prefetch a safety card — OFF by default to avoid an extra
-    // silent LLM call. Opt in with VITE_PREFETCH_CROSS=1.
-    if (import.meta.env.VITE_PREFETCH_CROSS === '1') {
-      void prefetchSafetyForCity(city, country);
-    }
   } catch (err) {
     _generating = false;
     _liveIntel = null;
@@ -213,56 +218,6 @@ async function generateGuide(city: string, country: string, query: string): Prom
     _activeCityId = id;
     renderHistoryBar(root);
     renderCityDetail(root);
-  }
-}
-
-/**
- * Headless guide generation for cross-module prefetch (called by Safety after
- * it generates a city). Persists to cityStore without touching the DOM, and
- * does nothing if an intel doc for this city already exists. Fire-and-forget.
- */
-export async function prefetchGuideForCity(city: string, country: string): Promise<void> {
-  const id = slugId(city);
-  if (_cities.some((c) => c.id === id)) return;
-
-  try {
-    const res = await fetch(apiUrl('/api/guide'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ city, country, query: '', lang: aiLanguage() }),
-    });
-    if (!res.ok) return;
-
-    const intel: Partial<CityIntel> & { id: string } = {
-      id, city, country, bannerColor: '#fde68a', generatedQuery: '',
-    };
-    const applyLine = async (line: string) => {
-      if (!line.startsWith('data: ')) return;
-      let parsed: { section: string; payload: unknown };
-      try { parsed = JSON.parse(line.slice(6)); } catch { return; }
-      applySection(intel, parsed.section, parsed.payload);
-      try { await cityStore.save(intel as CityIntel & { id: string }); } catch { /* chunk */ }
-    };
-
-    if (res.body) {
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split('\n');
-        buf = lines.pop() ?? '';
-        for (const line of lines) await applyLine(line);
-      }
-      if (buf.trim()) await applyLine(buf.trim());
-    } else {
-      const text = await res.text();
-      for (const line of text.split('\n').filter((l) => l.startsWith('data: '))) await applyLine(line);
-    }
-  } catch {
-    // Silent — background prefetch, failures acceptable.
   }
 }
 
@@ -415,6 +370,23 @@ function renderCityDetail(_root: HTMLElement) {
   }
 
   detail.classList.add('active');
+
+  // The Safety tab's data lives in its own store (citySafety), not on intel —
+  // subscribe once per city so a store update (static-library seed, or the
+  // SSE safety section landing) re-renders the tab content if it's active.
+  if (_safetyCityId !== intel.id) {
+    _unsubSafety?.();
+    _safetyCityId = intel.id;
+    _unsubSafety = subscribeSafetyTab(intel.city, () => {
+      if (_activeTab !== 'safety') return;
+      const content = document.querySelector<HTMLElement>('#guide-tab-content');
+      if (!content) return;
+      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
+      content.innerHTML = renderTabContent(intel);
+      wireTabContent(detail, intel);
+    });
+  }
+
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   detail.innerHTML = `
     <div class="guide-detail-header">
@@ -474,6 +446,7 @@ function renderTabContent(intel: StoredCityIntel): string {
     case 'experiences': return renderCardGrid(intel.experiences ?? [], intel.city, 'experience');
     case 'know':        return renderKnowTab(intel);
     case 'moneyTips':   return renderMoneyTab(intel.moneyTips ?? []);
+    case 'safety':      return renderSafetyTab(intel.city, intel.country);
     default: return '';
   }
 }
@@ -705,6 +678,16 @@ const TYPE_LABEL: Record<string, string> = {
 
 function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
   if (_activeTab === 'cafes') wireNomadStrip(detail, intel.city);
+  if (_activeTab === 'safety') {
+    wireSafetyTab(detail, intel.city, intel.country, () => {
+      const content = detail.querySelector<HTMLElement>('#guide-tab-content');
+      if (content) {
+        // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
+        content.innerHTML = renderTabContent(intel);
+        wireTabContent(detail, intel);
+      }
+    });
+  }
   // Open detail modal when the card body is clicked.
   detail.querySelectorAll<HTMLElement>('[data-open-detail]').forEach(el => {
     el.addEventListener('click', () => {
@@ -1234,7 +1217,7 @@ function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'cr
  * If the city has a saved intel record, open it; otherwise pre-fill the search
  * input so the user can trigger generation with one click.
  */
-export function openGuideCity(city: string): void {
+export function openGuideCity(city: string, openTab?: TabKey): void {
   const id = slugId(city);
   const root = document.getElementById('view-cities');
   if (!root) return;
@@ -1242,6 +1225,7 @@ export function openGuideCity(city: string): void {
   const existing = _cities.find((c) => c.id === id);
   if (existing) {
     _activeCityId = id;
+    if (openTab) _activeTab = openTab;
     const detail = root.querySelector<HTMLElement>('.guide-detail');
     if (detail) renderCityDetail(root);
     return;
@@ -1262,6 +1246,8 @@ export function openGuideCity(city: string): void {
 export function initCities() {
   _unsubCities?.();
   _unsubLegs?.();
+  _unsubSafety?.();
+  _safetyCityId = null;
   _cities = [];
   _activeCityId = null;
 

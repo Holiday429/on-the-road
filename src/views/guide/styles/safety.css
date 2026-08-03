@@ -1,0 +1,81 @@
+/* ==========================================================================
+   On the Road · Guide — Safety tab
+   Ported from views/safety/safety.css's .sfym-* city-modal styles, adapted
+   for inline tab content (no modal chrome) with collapsible <details> sections.
+   ========================================================================== */
+
+.guide-safety-sos {
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+}
+.guide-safety-sos-btn {
+  display: inline-flex; align-items: center; gap: var(--sp-3);
+  background: linear-gradient(135deg, var(--danger-bg-soft), var(--warning-bg-soft));
+  border: 1.5px solid var(--coral-400); border-radius: var(--r-xl);
+  padding: var(--sp-4) var(--sp-5);
+  font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700;
+  color: var(--ink); width: 100%;
+}
+.guide-safety-sos-label { font-size: var(--fs-xs); color: var(--ink-muted); font-weight: 400; margin-left: auto; }
+
+.guide-safety-numgrid-wrap { margin-top: var(--sp-4); }
+.guide-safety-numgrid-label {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.04em; color: var(--ink-muted); margin-bottom: var(--sp-3);
+}
+.guide-safety-numgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: var(--sp-2); }
+.guide-safety-numchip {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-radius: var(--r-md); padding: 10px 12px;
+  transition: transform var(--dur-fast), box-shadow var(--dur-fast);
+}
+.guide-safety-numchip:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.guide-safety-numchip-label { font-size: 10px; color: var(--ink-muted); letter-spacing: 0.04em; }
+.guide-safety-numchip-num { font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 700; }
+
+.guide-safety-section {
+  border: 1px solid var(--rule-soft); border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3);
+}
+.guide-safety-section summary {
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
+  color: var(--ink-muted); letter-spacing: 0.02em; cursor: pointer;
+}
+.guide-safety-section[open] summary { margin-bottom: var(--sp-3); }
+
+.guide-safety-place { background: var(--surface-2); border-radius: var(--r-lg); padding: var(--sp-4); margin-bottom: var(--sp-3); }
+.guide-safety-place:last-child { margin-bottom: 0; }
+.guide-safety-place-name { font-size: var(--fs-sm); font-weight: 700; margin-bottom: var(--sp-2); }
+.guide-safety-place-line { font-size: var(--fs-sm); color: var(--ink-soft); display: block; margin-bottom: 2px; }
+.guide-safety-link { color: var(--sky-500); }
+.guide-safety-maps-btn {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  margin-top: var(--sp-2); font-size: var(--fs-xs); font-weight: 600;
+  color: var(--info); background: var(--info-bg); border-radius: var(--r-md);
+  padding: 4px 10px;
+}
+.guide-safety-tag-24h {
+  font-size: 9px; background: var(--success-bg); color: var(--success);
+  padding: 1px 6px; border-radius: var(--r-full); font-weight: 700; vertical-align: middle;
+}
+
+.guide-safety-list { display: flex; flex-direction: column; gap: var(--sp-2); padding: 0; margin: 0; }
+.guide-safety-list li { display: flex; gap: var(--sp-2); font-size: var(--fs-sm); line-height: 1.5; list-style: none; }
+.guide-safety-list li::before { content: '·'; color: var(--amber-500); font-weight: 700; flex-shrink: 0; }
+
+.guide-safety-phrase { padding: var(--sp-2) 0; border-bottom: 1px solid var(--rule-soft); }
+.guide-safety-phrase:last-child { border-bottom: none; }
+.guide-safety-phrase-en { font-size: var(--fs-sm); font-weight: 600; }
+.guide-safety-phrase-local { font-size: var(--fs-sm); color: var(--ink-soft); }
+.guide-safety-muted { color: var(--ink-faint); }
+
+.guide-safety-loading { color: var(--ink-muted); font-size: var(--fs-sm); padding: var(--sp-4) 0; }
+
+.guide-safety-enrich-btn { margin-top: var(--sp-2); width: 100%; justify-content: center; }
+
+.guide-safety-footer {
+  margin-top: var(--sp-4); padding-top: var(--sp-3);
+  font-size: var(--fs-xs); color: var(--ink-faint);
+  border-top: 1px solid var(--rule-soft);
+}

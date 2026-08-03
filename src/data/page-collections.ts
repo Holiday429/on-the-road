@@ -20,15 +20,15 @@ export const PAGE_COLLECTIONS: Record<PageId, string[]> = {
   prep:     ['prepTasks', 'checklists'],
   pack:     ['packLists'],
   budget:   ['compares'],
-  // Guide now also renders the Nomad cafe strip (folded in — see
-  // product-restructure P3), so it needs nomadSpots too.
-  cities:   ['cityIntel', 'nomadSpots'],
-  safety:   ['citySafety'],
+  // Guide now also renders the Nomad cafe strip and the Safety tab (both
+  // folded in — see product-restructure P3/P4), so it needs those too.
+  cities:   ['cityIntel', 'nomadSpots', 'citySafety'],
   expenses: ['expenses', 'expenseCategories'],
   journal:  ['journalEntries', 'journalStories', 'journalTemplates'],
   map:      ['legs'],           // Map renders from leg geo data (shares with route)
   today:    [],                 // Dashboard aggregates other pages — not shareable alone
   calendar: [],                 // Calendar aggregates other pages — not shareable alone
+  profile:  [],                 // User-level data (account/emergency card) — not trip-shareable
 };
 
 /** The pages an owner can pick when creating a view link (those with data). */

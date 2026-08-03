@@ -105,3 +105,10 @@ export const CitySafetySchema = doc({
   source: z.enum(['ai', 'edited']).default('ai'),      // 'edited' = curated, don't overwrite
 });
 export type CitySafety = z.infer<typeof CitySafetySchema>;
+
+// The AI/static-library-resolved shape before it's saved as a doc — every
+// CitySafety field except the doc metadata (id/timestamps/schemaVersion) and
+// `source` (the caller stamps that on save). Used by both the static country
+// library (src/data/safety-static/countries.ts) and the Guide safety-tab
+// fetch/generate path.
+export type GeneratedSafety = Omit<CitySafety, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion' | 'source'>;

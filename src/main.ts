@@ -32,7 +32,7 @@ const VIEW_CHUNK_LOADERS = [
   () => import('./views/map/map.ts'),
   () => import('./views/compare/compare.ts'),
   () => import('./views/pack/pack.ts'),
-  () => import('./views/safety/safety.ts'),
+  () => import('./views/profile/profile.ts'),
 ];
 setViewChunkLoaders(VIEW_CHUNK_LOADERS);
 
@@ -49,6 +49,6 @@ registerView('journal',  () => import('./views/journal/index.ts').then(m => m.in
 registerView('map',      () => import('./views/map/map.ts').then(m => m.initMap));
 registerView('budget',   () => import('./views/compare/compare.ts').then(m => m.initCompare));
 registerView('pack',     () => import('./views/pack/pack.ts').then(m => m.initPack));
-registerView('safety',   () => import('./views/safety/safety.ts').then(m => m.initSafety));
+registerView('profile',  () => import('./views/profile/profile.ts').then(m => m.initProfile));
 
 startBoot();

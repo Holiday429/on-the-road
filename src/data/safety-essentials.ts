@@ -2,6 +2,11 @@
    On the Road · Solo-female travel essentials (static, trip-wide)
    Non-AI, not stored. Calm and empowering in tone — "you've got this",
    not "the world is dangerous".
+
+   Moved out of views/safety/ (that view was folded into Guide — see
+   product-restructure P4). The essentials-sheet UI that let users check
+   these off is retired along with it; this data still seeds
+   safetyContentStore's Firestore collection for any other consumer.
    ========================================================================== */
 
 export interface EssentialGroup {

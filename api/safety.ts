@@ -183,6 +183,10 @@ IMPORTANT: Use real, accurate phone numbers. If you are not certain of a number,
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
+// The generate-mode DeepSeek call has no max_tokens cap (unlike guide.ts), so
+// it can run long enough to exceed Vercel's 10s default — allow up to 30s.
+export const config = { maxDuration: 30 };
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
