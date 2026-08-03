@@ -39,7 +39,7 @@ import {
   convert, addExpenseWithDefaults, COUNTRY_CURRENCY,
 } from './expense-defaults.ts';
 import {
-  type Category, BUILTIN_CATEGORIES, UNCLASSIFIED,
+  type Category, BUILTIN_CATEGORIES, UNCLASSIFIED, categoryDisplayColor,
   type AnalysisDim, type BudgetTab, ANALYSIS_DIMS, nightCount,
 } from './expense-helpers.ts';
 
@@ -524,8 +524,8 @@ function dayLabel(iso: string): string {
 
 function filterBtnStyle(catId: string | null): string {
   if (catId === null || catId === 'all') return '';
-  const cat = categoryById(catId);
-  return cat?.color ? `background:${cat.color};border-color:${cat.color}` : '';
+  const raw = categoryById(catId)?.color;
+  return raw ? `background:${categoryDisplayColor(raw)};border-color:${categoryDisplayColor(raw)}` : '';
 }
 
 function renderRecordsScrollContent(scroll: HTMLElement) {
@@ -657,7 +657,7 @@ function renderRecordsPanel() {
  *  colour-filled by category, click to open, ✕ to delete. */
 function renderRecordTag(e: StoredExpense): string {
   const cat = categoryById(e.category);
-  const color = cat?.color ?? '#f3f4f6';
+  const color = categoryDisplayColor(cat?.color ?? '#f3f4f6');
   const baseStr = e.currency !== baseCurrency() ? ` · ${fmt(inBase(e))}` : '';
   const place = [e.city, e.country].filter(Boolean).join(', ');
   const tip = [cat?.label ?? 'Unsorted', place].filter(Boolean).join(' · ');
@@ -815,12 +815,12 @@ function analysisRows(): Row[] {
       .map((cat) => ({
         label: `${cat.icon} ${cat.label}`,
         sum: expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0),
-        color: cat.color === '#f3f4f6' ? '#d1d5db' : cat.color,
+        color: categoryDisplayColor(cat.color === '#f3f4f6' ? '#d1d5db' : cat.color),
         catId: cat.id,
         budget: caps[cat.id],
       }));
     const unsorted = expenses.filter((e) => e.category === UNCLASSIFIED).reduce((s, e) => s + inBase(e), 0);
-    if (unsorted > 0) rows.push({ label: '🗂️ Unsorted', sum: unsorted, color: '#d1d5db' });
+    if (unsorted > 0) rows.push({ label: '🗂️ Unsorted', sum: unsorted, color: categoryDisplayColor('#d1d5db') });
     // Keep a row if it has spend OR a budget cap (so you can watch an empty cap fill up).
     return rows
       .filter((r) => r.sum > 0 || (r.budget ?? 0) > 0)

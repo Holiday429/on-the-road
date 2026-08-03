@@ -84,6 +84,13 @@ export function firstAllowedView(): ViewId {
   return 'today';
 }
 
+/** Whether `id` names a real, mounted view — including one with no
+ *  NAV_ITEMS entry (calendar, profile). Ground truth is the DOM: every view
+ *  has a static #view-<id> shell in app.html regardless of nav visibility. */
+function isRoutableView(id: string): id is ViewId {
+  return !!document.getElementById(`view-${id}`);
+}
+
 // Each view registers an idempotent init fn — either eager (already imported)
 // or a lazy loader that dynamic-imports the view module on first navigation
 // and returns its init fn. We keep the resolved fn (never delete it) and track
@@ -223,7 +230,7 @@ export function renderSession(user: User | null, onPrimaryAction: () => void) {
   applyRoleState();
   if (!user) {
     const hash = resolveLegacyView(window.location.hash.replace('#', ''));
-    navigateTo(NAV_ITEMS.find((item) => item.id === hash) ? hash : firstAllowedView());
+    navigateTo(isRoutableView(hash) ? hash : firstAllowedView());
   }
 }
 
@@ -310,16 +317,21 @@ export function initApp() {
   });
 
   // Route from hash (navigateTo applies the page-level access guard).
+  // Validate against the DOM (any registered #view-<id>), not NAV_ITEMS —
+  // views like 'calendar' and 'profile' are intentionally routable without
+  // a nav entry, and NAV_ITEMS-only validation would reject their own hash.
   const hash = resolveLegacyView(window.location.hash.replace('#', ''));
-  const validHash = NAV_ITEMS.find(n => n.id === hash);
-  navigateTo(validHash ? hash : firstAllowedView());
+  navigateTo(isRoutableView(hash) ? hash : firstAllowedView());
 
   window.addEventListener('hashchange', () => {
     const h = resolveLegacyView(window.location.hash.replace('#', ''));
     // A hash that matches no view (including one with no legacy mapping)
     // used to be a silent no-op, leaving the previously-active view on
-    // screen with a dead URL. Route it to the default instead.
-    navigateTo(NAV_ITEMS.find(n => n.id === h) ? h : firstAllowedView());
+    // screen with a dead URL. Route it to the default instead. Note:
+    // navigateTo() itself sets window.location.hash, which re-fires this
+    // listener — isRoutableView (not NAV_ITEMS) must accept nav-less views
+    // like 'profile', or navigating to one immediately bounces to Dashboard.
+    navigateTo(isRoutableView(h) ? h : firstAllowedView());
   });
 
   initOfflineBanner();
