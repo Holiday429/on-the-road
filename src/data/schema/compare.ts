@@ -11,8 +11,10 @@ export const COMPARE_TYPES = ['accommodation', 'flight', 'train', 'shopping', 'o
 export type CompareType = typeof COMPARE_TYPES[number];
 
 // A scoring dimension (one row in the matrix).
-// type='number': raw numeric (min-max normalised); 'rating': 1–5 stars (/5);
-// 'boolean': yes/no toggle (0|1). higherIsBetter=false flips normalisation.
+// type='number': raw numeric, normalised as a ratio to the group's best value
+// (see normalizeDimension in compare-store.ts); 'rating': 1–5 stars (/5);
+// 'boolean': yes/no toggle (0|1). higherIsBetter picks which end of a number
+// dimension counts as "best" (false for price/duration).
 // builtin=true means the row cannot be deleted, only reweighted.
 export const CompareDimensionSchema = z.object({
   id: z.string(),
