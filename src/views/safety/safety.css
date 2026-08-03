@@ -51,9 +51,9 @@
   display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px;
   border-radius: var(--r-full); margin-top: 2px;
 }
-.sos-loc-badge-gps { background: #dcfce7; color: #15803d; }
-.sos-loc-badge-itinerary { background: #e0f2fe; color: #0369a1; }
-.sos-loc-badge-manual { background: #fef9c3; color: #854d0e; }
+.sos-loc-badge-gps { background: var(--success-bg); color: var(--success); }
+.sos-loc-badge-itinerary { background: var(--info-bg); color: var(--info); }
+.sos-loc-badge-manual { background: var(--warning-bg); color: var(--warning); }
 
 .sos-city-edit-btn {
   background: none; border: none; cursor: pointer; padding: 0 4px;
@@ -71,13 +71,13 @@
   cursor: pointer; text-align: left; transition: border-color var(--dur-fast), background var(--dur-fast);
 }
 .sos-picker-item:hover { border-color: var(--accent); background: var(--surface-2); }
-.sos-picker-item.active { border-color: var(--coral-500); background: #fff1f2; }
+.sos-picker-item.active { border-color: var(--coral-500); background: var(--danger-bg-soft); }
 .sos-picker-flag { font-size: 22px; }
 .sos-picker-city { font-weight: 600; flex: 1; }
 .sos-picker-dates { font-size: var(--fs-xs); color: var(--ink-muted); }
 
 .sos-share {
-  background: var(--coral-500); color: #fff; white-space: nowrap;
+  background: var(--coral-500); color: var(--surface); white-space: nowrap;
   box-shadow: 0 4px 14px rgba(239,68,68,0.28);
 }
 .sos-share:hover { background: var(--coral-400); }
@@ -118,8 +118,8 @@
   font-size: var(--fs-xs); font-weight: 600; padding: 3px 8px;
   border-radius: var(--r-full); white-space: nowrap;
 }
-.sfy-loc-badge-gps { background: #dcfce7; color: #15803d; }
-.sfy-loc-badge-itinerary { background: #e0f2fe; color: #0369a1; }
+.sfy-loc-badge-gps { background: var(--success-bg); color: var(--success); }
+.sfy-loc-badge-itinerary { background: var(--info-bg); color: var(--info); }
 .sfy-loc-hint { font-size: var(--fs-xs); color: var(--ink-faint); }
 
 .sfy-loc-links { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
@@ -366,11 +366,11 @@
 .sfym-maps-btn {
   display: inline-flex; align-items: center; gap: var(--sp-2);
   margin-top: var(--sp-2); font-size: var(--fs-xs); font-weight: 600;
-  color: var(--sky-600); background: #e0f2fe; border-radius: var(--r-md);
+  color: var(--sky-600); background: var(--info-bg); border-radius: var(--r-md);
   padding: 4px 10px;
 }
 .sfym-tag-24h {
-  font-size: 9px; background: #dcfce7; color: #15803d;
+  font-size: 9px; background: var(--success-bg); color: var(--success);
   padding: 1px 6px; border-radius: var(--r-full); font-weight: 700; vertical-align: middle;
 }
 
@@ -438,4 +438,11 @@
   .sfyp-form-grid { grid-template-columns: 1fr; }
   .sfym-overlay { padding: var(--sp-2); }
   .sfym-panel { max-height: 95dvh; }
+}
+
+/* ── Dark theme ──────────────────────────────────────────────────────────── */
+:root[data-theme='dark'] .sos-bar,
+:root[data-theme='dark'] .sfym-sos-btn {
+  background: linear-gradient(135deg, #2c181c, #2a2014);
+  border-color: #4c2a30;
 }

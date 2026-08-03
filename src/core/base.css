@@ -43,6 +43,38 @@
   --accent-deep:   var(--amber-600);
   --accent-bg:     var(--amber-50);
   --accent-light:  var(--amber-100);
+  --border:        var(--rule);
+
+  /* Text sitting directly on a saturated amber fill (--accent/--amber-400/500).
+     Those three tokens are NOT re-themed below — they're brand amber in both
+     modes — so their text needs a color that's likewise fixed, not var(--ink)
+     (which flips light in dark mode and would put light text on light amber). */
+  --on-accent: #1c1917;
+
+  /* Status colours — text-on-light-tint pairs. `-bg` is the chip/badge tint,
+     `-bg-soft` the barely-there panel wash. */
+  --success:      #15803d;
+  --success-bg:   #dcfce7;
+  --success-bg-soft: #f0fdf4;
+  --success-on-ink: #4ade80; /* readable on the dark var(--ink) chip/toast bg in light mode */
+  --danger:       #b91c1c;
+  --danger-bg:    #fee2e2;
+  --danger-bg-soft: #fef2f2;
+  --warning:      #92400e;
+  --warning-bg:   #fef3c7;
+  --warning-bg-soft: #fffbeb;
+  --info:         #0369a1;
+  --info-bg:      #e0f2fe;
+
+  /* Sticky-note tints (see src/data/palette.ts noteColorVar) */
+  --note-0: #ece2f3;
+  --note-1: #e2edf3;
+  --note-2: #f3ede2;
+  --note-3: #e2f3ec;
+  --note-4: #f3e6e6;
+  --note-5: #e6f3e6;
+
+  color-scheme: light;
 
   /* ── Typography ────────────────────────────────────────────────────── */
   --font-ui:      'Sora', system-ui, sans-serif;
@@ -102,6 +134,68 @@
   --topbar-h:    56px;
   --content-max: 1100px;
   --gutter:      clamp(16px, 3vw, 32px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Dark theme — set by the inline <head> script (no-flash) and core/theme.ts.
+   `data-theme` is always the *resolved* theme ('light'|'dark'); the 'system'
+   preference is resolved before it reaches the DOM, so CSS never needs a
+   prefers-color-scheme branch.
+   Warm stone scale to stay in the amber brand family: page < card < hover.
+   ══════════════════════════════════════════════════════════════════════════ */
+:root[data-theme='dark'] {
+  /* Amber tints that act as *backgrounds* in light mode become deep ambers.
+     The 300–700 range (used as fills/accents) stays untouched. */
+  --amber-50:  #2e2513;
+  --amber-100: #3b2f16;
+  --amber-200: #55431d;
+
+  --ink:       #f0ebe2;
+  --ink-soft:  #cfc8bc;
+  --ink-muted: #9c9486;
+  --ink-faint: #6e675c;
+
+  --surface:   #262320;
+  --surface-2: #191714;
+  --surface-3: #322e29;
+  --surface-4: #423d36;
+
+  --rule:      rgba(240,235,226,0.10);
+  --rule-soft: rgba(240,235,226,0.06);
+
+  --success:      #4ade80;
+  --success-bg:   #143321;
+  --success-bg-soft: #10281b;
+  --success-on-ink: #15803d; /* --ink flips light in dark mode — needs a dark green instead */
+  --danger:       #f87171;
+  --danger-bg:    #3b1b1b;
+  --danger-bg-soft: #2e1616;
+  --warning:      #fbbf24;
+  --warning-bg:   #37290f;
+  --warning-bg-soft: #2a2110;
+  --info:         #38bdf8;
+  --info-bg:      #122a3a;
+
+  --note-0: #322b3a;
+  --note-1: #2b333a;
+  --note-2: #3a342b;
+  --note-3: #2b3a33;
+  --note-4: #3a2e2e;
+  --note-5: #2e3a2e;
+
+  /* Depth reads through borders + darker shadows, not glow. */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);
+  --shadow-lg:  0 8px 24px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.4);
+  --shadow-amber: 0 4px 16px rgba(249,184,48,0.12);
+
+  color-scheme: dark;
+}
+
+/* OSM raster tiles have no dark variant — invert the tile pane only.
+   Applies to every Leaflet instance (itinerary, guide walk-map, journal). */
+:root[data-theme='dark'] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) saturate(0.7) brightness(0.9) contrast(0.9);
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────── */
@@ -170,7 +264,7 @@ img, svg { display: block; }
 
 .btn-primary {
   background: var(--accent);
-  color: var(--ink);
+  color: var(--on-accent);
   box-shadow: var(--shadow-amber);
 }
 .btn-primary:hover { background: var(--amber-500); }
@@ -183,10 +277,10 @@ img, svg { display: block; }
 .btn-ghost:hover { background: var(--surface-3); }
 
 .btn-danger {
-  background: #fef2f2;
+  background: var(--danger-bg-soft);
   color: var(--coral-500);
 }
-.btn-danger:hover { background: #fee2e2; }
+.btn-danger:hover { background: var(--danger-bg); }
 
 .card {
   background: var(--surface);
@@ -204,9 +298,9 @@ img, svg { display: block; }
   font-weight: 600;
 }
 .badge-amber { background: var(--amber-100); color: var(--amber-700); }
-.badge-green { background: #dcfce7; color: #15803d; }
-.badge-blue  { background: #e0f2fe; color: #0369a1; }
-.badge-red   { background: #fee2e2; color: #b91c1c; }
+.badge-green { background: var(--success-bg); color: var(--success); }
+.badge-blue  { background: var(--info-bg); color: var(--info); }
+.badge-red   { background: var(--danger-bg); color: var(--danger); }
 .badge-gray  { background: var(--surface-3); color: var(--ink-muted); }
 
 /* ── View container ────────────────────────────────────────────────────── */
@@ -412,7 +506,7 @@ body.otr-modal-open { overflow: hidden; }
 /* Post-payment success toast */
 .otr-pay-toast {
   position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
-  background: #16a34a; color: #fff;
+  background: #16a34a; color: #fff; /* fixed green pill — white text stays in both themes */
   padding: .7rem 1.4rem; border-radius: var(--r-full);
   font-size: .9rem; font-weight: 600;
   z-index: 10000; box-shadow: 0 6px 20px rgba(0,0,0,.25);
@@ -439,7 +533,7 @@ body.otr-modal-open { overflow: hidden; }
   transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
 }
 .ai-credit-pill--low { border-color: var(--amber-400); background: var(--amber-50); color: var(--amber-600); }
-.ai-credit-pill--empty { border-color: var(--danger, #e53e3e); background: #fff5f5; color: var(--danger, #e53e3e); cursor: pointer; }
+.ai-credit-pill--empty { border-color: var(--danger); background: var(--danger-bg-soft); color: var(--danger); cursor: pointer; }
 .ai-credit-pill--unlimited { border-color: var(--border); color: var(--ink-faint); }
 .ai-credit-pill .ai-credit-dot {
   width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0;

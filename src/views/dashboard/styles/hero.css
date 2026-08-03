@@ -36,7 +36,8 @@
   flex-shrink: 0;
 }
 
-/* ── Language picker ──────────────────────────────────────────────────────── */
+/* ── Language picker + theme toggle ──────────────────────────────────────── */
+.pref-controls { display: flex; align-items: center; gap: var(--sp-2); }
 .lang-picker { position: relative; flex-shrink: 0; }
 .lang-picker-btn {
   display: inline-flex;
@@ -60,7 +61,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-4);
-  background: linear-gradient(135deg, var(--amber-50) 0%, #ffffff 75%);
+  background: linear-gradient(135deg, var(--amber-50) 0%, var(--surface) 75%);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-2xl);
   padding: var(--sp-4) var(--sp-6);
@@ -149,7 +150,7 @@
   padding: 3px 10px; line-height: 1.3;
 }
 .td-hero-chip-transport { background: var(--amber-50); color: var(--amber-700); border: 1px solid var(--amber-200); }
-.td-hero-chip-acc       { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.td-hero-chip-acc       { background: var(--success-bg-soft); color: var(--success); border: 1px solid #bbf7d0; }
 .td-hero-logo {
   width: 68px; height: 68px;
   object-fit: contain;

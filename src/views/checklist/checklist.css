@@ -43,8 +43,8 @@
   transform: translateY(-2px);
 }
 .checklist-card.is-complete {
-  border-color: #86efac;
-  background: #f0fdf4;
+  border-color: var(--sage-400);
+  background: var(--success-bg-soft);
 }
 
 .checklist-card-top {
@@ -90,7 +90,7 @@
   border-radius: var(--r-full);
   transition: width var(--dur-slow) var(--ease-out);
 }
-.mini-progress-fill.complete { background: #22c55e; }
+.mini-progress-fill.complete { background: var(--sage-500); }
 
 .mini-progress-label {
   font-family: var(--font-ui);
@@ -106,8 +106,8 @@
   align-items: center;
   padding: 4px 10px;
   border-radius: var(--r-full);
-  background: #dcfce7;
-  color: #15803d;
+  background: var(--success-bg);
+  color: var(--success);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   font-weight: 700;
@@ -214,7 +214,7 @@
 .tag-filter.active {
   background: var(--amber-400);
   border-color: var(--amber-400);
-  color: var(--ink);
+  color: var(--on-accent);
 }
 
 /* ── Modals ──────────────────────────────────────────────────────────────── */
@@ -382,7 +382,7 @@
   border-radius: var(--r-full);
   transition: width var(--dur-slow) var(--ease-out);
 }
-.detail-progress-fill.complete { background: #22c55e; }
+.detail-progress-fill.complete { background: var(--sage-500); }
 
 .detail-progress-label {
   font-family: var(--font-ui);
@@ -463,7 +463,7 @@
   font-family: var(--font-ui);
   font-size: var(--fs-base);
   font-weight: 700;
-  color: #161b26;
+  color: var(--ink);
   line-height: 1.2;
 }
 
@@ -528,13 +528,13 @@
 .prep-item.done .item-checkbox {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--ink);
+  color: var(--on-accent);
 }
 
 .item-body { flex: 1; }
 .item-text {
   font-size: var(--fs-base);
-  color: #1f2430;
+  color: var(--ink);
   font-weight: 500;
   line-height: 1.4;
 }
@@ -694,7 +694,7 @@
 
 /* ── AI panel ────────────────────────────────────────────────────────────── */
 .ai-panel {
-  background: #fafaf9;
+  background: var(--surface-2);
   border: 1.5px solid var(--amber-200);
   border-radius: var(--r-lg);
   margin-top: var(--sp-6);
@@ -777,11 +777,11 @@
 }
 
 .ai-no-suggestions {
-  color: #15803d;
+  color: var(--success);
   font-size: var(--fs-base);
   padding: var(--sp-3) var(--sp-4);
-  background: #f0fdf4;
-  border: 1px solid #86efac;
+  background: var(--success-bg-soft);
+  border: 1px solid var(--sage-400);
   border-radius: var(--r-md);
 }
 
@@ -795,8 +795,8 @@
   color: var(--coral-500);
   font-size: var(--fs-sm);
   padding: var(--sp-3) var(--sp-4);
-  background: #fef2f2;
-  border: 1px solid #fca5a5;
+  background: var(--danger-bg-soft);
+  border: 1px solid var(--coral-400);
   border-radius: var(--r-md);
 }
 
@@ -809,7 +809,7 @@
   justify-content: center;
   overflow: hidden;
   border-radius: var(--r-xl);
-  background: linear-gradient(135deg, #fffbf0, #fef3c7);
+  background: linear-gradient(135deg, var(--amber-50), var(--amber-100));
   border: 2px solid var(--amber-200);
 }
 
@@ -877,7 +877,7 @@
   left: 50%;
   transform: translateX(-50%);
   background: var(--ink);
-  color: #fff;
+  color: var(--surface-2);
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
   font-weight: 600;

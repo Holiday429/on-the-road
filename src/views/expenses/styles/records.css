@@ -5,7 +5,7 @@ body.exp-records-lock { overflow: hidden; }
 .exp-records-overlay {
   position: fixed; inset: 0; z-index: 120;
   display: flex; flex-direction: column;
-  background: var(--surface-2, #fafaf9);
+  background: var(--surface-2, var(--surface-2));
   animation: expRecordsIn var(--dur-mid) var(--ease-out);
 }
 @keyframes expRecordsIn { from { opacity: 0; transform: translateY(14px) } to { opacity: 1; transform: none } }
@@ -103,7 +103,7 @@ body.exp-records-lock { overflow: hidden; }
 .exp-tag-item[data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute; bottom: calc(100% + 6px); left: 12px;
-  background: rgba(30,30,30,0.92); color: #fff;
+  background: rgba(30,30,30,0.92); color: var(--surface);
   font-size: 11px; font-weight: 500; line-height: 1.45;
   padding: 5px 9px; border-radius: 6px;
   white-space: pre-wrap; max-width: 240px;
@@ -155,5 +155,5 @@ body.exp-records-lock { overflow: hidden; }
   font-size: var(--fs-sm); font-weight: 600;
   color: var(--ink-muted);
 }
-.exp-budget-flex.over { background: #fef2f2; color: var(--coral-500); }
+.exp-budget-flex.over { background: var(--danger-bg-soft); color: var(--coral-500); }
 

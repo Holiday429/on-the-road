@@ -10,7 +10,7 @@
   padding: var(--sp-4);
 }
 .trip-modal {
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--r-lg);
   padding: var(--sp-5);
   width: 100%;
@@ -59,7 +59,7 @@
 .trip-style-btn:hover { border-color: var(--amber-500); }
 .trip-style-btn.is-active {
   border-color: var(--amber-500);
-  background: var(--amber-50, #fffbeb);
+  background: var(--amber-50, var(--warning-bg-soft));
   color: var(--amber-700);
   font-weight: 600;
 }
@@ -81,8 +81,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  background: var(--amber-50, #fffbeb);
-  border: 1px solid var(--amber-300, #fcd34d);
+  background: var(--amber-50, var(--warning-bg-soft));
+  border: 1px solid var(--amber-300, var(--amber-300));
   border-radius: 999px;
   padding: 2px 10px 2px 12px;
   font-size: var(--fs-xs);
@@ -167,7 +167,7 @@
 }
 .pk-scope-option:has(input:checked) {
   border-color: var(--amber-500);
-  background: var(--amber-50, #fffbeb);
+  background: var(--amber-50, var(--warning-bg-soft));
 }
 .pk-scope-option input[type="radio"] { margin-top: 3px; accent-color: var(--amber-500); }
 .pk-scope-label { display: flex; flex-direction: column; gap: 2px; }

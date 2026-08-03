@@ -66,7 +66,7 @@
 .exp-budget-footer {
   display: flex; align-items: center; justify-content: space-between;
 }
-.exp-budget-remain { font-size: var(--fs-sm); font-weight: 600; color: #15803d; }
+.exp-budget-remain { font-size: var(--fs-sm); font-weight: 600; color: var(--success); }
 .exp-budget-over   { font-size: var(--fs-sm); font-weight: 600; color: var(--coral-500); }
 .exp-budget-pct {
   font-family: var(--font-ui);
@@ -124,9 +124,9 @@
   font-size: var(--fs-sm);
   border: 1px solid transparent;
 }
-.exp-country-reminder.ok   { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
-.exp-country-reminder.warn { background: #fffbeb; border-color: #fde68a; color: #b45309; }
-.exp-country-reminder.over { background: #fef2f2; border-color: #fecaca; color: var(--coral-500); }
+.exp-country-reminder.ok   { background: var(--success-bg-soft); border-color: #bbf7d0; color: var(--success); }
+.exp-country-reminder.warn { background: var(--warning-bg-soft); border-color: var(--amber-200); color: var(--amber-700); }
+.exp-country-reminder.over { background: var(--danger-bg-soft); border-color: #fecaca; color: var(--coral-500); }
 .exp-country-reminder-place { font-weight: 700; }
 .exp-country-reminder-figs { color: var(--ink-muted); }
 .exp-country-reminder.over .exp-country-reminder-figs,

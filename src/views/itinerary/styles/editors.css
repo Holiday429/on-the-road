@@ -15,7 +15,7 @@
   display: block;
   overflow-wrap: anywhere;
 }
-a.rd-clip-title:hover { color: #0369a1; text-decoration: underline; }
+a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
 .rd-clip-text { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; overflow-wrap: anywhere; }
 .rd-clip-actions { display: flex; gap: 2px; flex-shrink: 0; }
 
@@ -141,7 +141,7 @@ a.rd-clip-title:hover { color: #0369a1; text-decoration: underline; }
   transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .rd-pmap-item:hover { background: var(--surface-2); border-color: var(--day-colour, var(--rule-soft)); }
-.rd-pmap-item.is-highlighted { background: #fffbf0; border-color: var(--amber-300); }
+.rd-pmap-item.is-highlighted { background: var(--amber-50); border-color: var(--amber-300); }
 .rd-pmap-item-dot {
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px;
 }

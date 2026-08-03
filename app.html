@@ -17,6 +17,23 @@
   <meta name="apple-mobile-web-app-title" content="On the Road">
   <meta name="theme-color" content="#E8940A">
 
+  <!-- Theme bootstrap — must run before any CSS paints to avoid a light/dark
+       flash. Resolves the stored preference ('light'|'dark'|'system', key
+       otr_theme) to a concrete data-theme; core/theme.ts takes over after
+       boot. Keep the storage key + colors in sync with src/core/theme.ts. -->
+  <script>
+    (function () {
+      try {
+        var s = localStorage.getItem('otr_theme');
+        var dark = s === 'dark' ||
+          (s !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', dark ? '#191714' : '#E8940A');
+      } catch (e) { /* private mode — default light */ }
+    })();
+  </script>
+
   <!-- Apple touch icons -->
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png">

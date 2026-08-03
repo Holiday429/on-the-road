@@ -94,7 +94,7 @@
   padding: 0 8px;
   border-radius: var(--r-full);
   background: var(--ink);
-  color: #fff;
+  color: var(--surface-2);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   font-weight: 700;

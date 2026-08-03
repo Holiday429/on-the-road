@@ -6,7 +6,12 @@ import './core/base.css';
 import './core/app.css';
 
 import { registerView } from './core/app.ts';
+import { initTheme } from './core/theme.ts';
 import { setViewChunkLoaders, startBoot } from './boot-shell.ts';
+
+// Take over from app.html's inline pre-paint script: wire the system-theme
+// listener and keep data-theme / meta theme-color current from here on.
+initTheme();
 // Dashboard is the default landing view (see currentViewOrDefault) — kept as
 // a static import so the first paint doesn't wait on a dynamic import. Every
 // other view is lazy: its module (and CSS) is fetched on first navigation,

@@ -17,7 +17,7 @@
   transition: all var(--dur-fast);
 }
 .exp-cat-chip:hover { border-color: var(--amber-300); }
-.exp-cat-chip.selected { background: var(--amber-400); border-color: var(--amber-400); color: var(--ink); }
+.exp-cat-chip.selected { background: var(--amber-400); border-color: var(--amber-400); color: var(--on-accent); }
 .exp-cat-chip.exp-cat-manage {
   border-style: dashed;
   color: var(--ink-muted);

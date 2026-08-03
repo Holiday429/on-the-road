@@ -38,6 +38,13 @@ export const zh: StringTable = {
   'lang.button':  '语言',
   'lang.title':   '选择语言',
 
+  // Theme toggle
+  'theme.button': '外观',
+  'theme.title':  '外观',
+  'theme.light':  '浅色',
+  'theme.dark':   '深色',
+  'theme.system': '跟随系统',
+
   'dash.greeting.morning':   '早上好',
   'dash.greeting.afternoon': '下午好',
   'dash.greeting.evening':   '晚上好',

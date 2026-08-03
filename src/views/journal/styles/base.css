@@ -39,20 +39,20 @@
   font-family: var(--font-ui); font-size: var(--fs-base); font-weight: 700;
   color: var(--ink); flex-shrink: 0;
 }
-.journal-topbar-title.is-story { color: var(--amber-600, #92400e); }
+.journal-topbar-title.is-story { color: var(--amber-600, var(--warning)); }
 .journal-story-btn { flex-shrink: 0; font-size: var(--fs-sm); }
 
 /* ── First-time guide banner ─────────────────────────────────────────────── */
 .journal-first-guide {
   display: flex; align-items: center; gap: var(--sp-3);
-  background: linear-gradient(135deg, #fffbeb, #fef3c7);
-  border: 1.5px dashed #fcd34d;
+  background: linear-gradient(135deg, var(--warning-bg-soft), var(--amber-100));
+  border: 1.5px dashed var(--amber-300);
   border-radius: var(--r-xl); padding: var(--sp-4) var(--sp-5);
   font-size: var(--fs-sm); color: var(--ink-soft);
 }
 .journal-first-guide-icon { font-size: 28px; flex-shrink: 0; }
 .journal-first-guide-text strong { color: var(--ink); }
-.journal-first-guide-text em { font-style: normal; font-weight: 600; color: var(--amber-700, #92400e); }
+.journal-first-guide-text em { font-style: normal; font-weight: 600; color: var(--amber-700, var(--warning)); }
 
 /* This trip / All memories scope toggle */
 .journal-scope {
@@ -189,10 +189,10 @@
 .journal-stamp:hover {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
-  background: #fff;
+  background: var(--surface);
 }
 .journal-stamp.active {
-  background: #fff;
+  background: var(--surface);
   border-color: var(--rule);
   box-shadow: var(--shadow-md);
 }
@@ -306,8 +306,8 @@
 /* ── Composer ────────────────────────────────────────────────────────────── */
 .journal-composer {
   padding: var(--sp-5);
-  background: color-mix(in srgb, var(--tint) 10%, #fff);
-  border-top: 3px solid color-mix(in srgb, var(--tint) 55%, #fff);
+  background: color-mix(in srgb, var(--tint) 10%, var(--surface));
+  border-top: 3px solid color-mix(in srgb, var(--tint) 55%, var(--surface));
 }
 .journal-composer-head {
   display: flex; align-items: center; gap: var(--sp-3);
@@ -342,7 +342,7 @@
   padding: 12px 16px;
   border-radius: var(--r-lg);
   border: 1.5px dashed color-mix(in srgb, var(--tint) 50%, #ccc);
-  background: color-mix(in srgb, var(--tint) 8%, #fff);
+  background: color-mix(in srgb, var(--tint) 8%, var(--surface));
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
   font-weight: 600;
@@ -352,7 +352,7 @@
 }
 .journal-image-placeholder:hover {
   border-color: color-mix(in srgb, var(--tint) 70%, #ccc);
-  background: color-mix(in srgb, var(--tint) 14%, #fff);
+  background: color-mix(in srgb, var(--tint) 14%, var(--surface));
 }
 .journal-image-placeholder-icon { font-size: 20px; }
 .journal-image-input { display: none; }
@@ -389,7 +389,7 @@
   padding: 12px 14px;
   border: 1.5px solid color-mix(in srgb, var(--tint) 40%, #e8e8e8);
   border-radius: var(--r-lg);
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: var(--fs-md);
@@ -442,7 +442,7 @@
   font-size: var(--fs-sm); transition: background var(--dur-fast);
 }
 .journal-guide-place-item:hover { background: var(--surface-2); }
-.journal-guide-place-item.is-linked { background: #fef3c7; }
+.journal-guide-place-item.is-linked { background: var(--amber-100); }
 .journal-guide-place-item input[type="checkbox"] { flex-shrink: 0; accent-color: var(--amber-500); }
 .journal-guide-place-icon { font-size: 14px; }
 .journal-guide-place-title { flex: 1; }
@@ -456,7 +456,7 @@
   display: grid; place-items: center;
   width: 38px; height: 38px;
   border-radius: var(--r-md);
-  background: #fff;
+  background: var(--surface);
   border: 1.5px solid var(--surface-4);
   font-size: 17px;
   cursor: pointer;
@@ -466,7 +466,7 @@
 .journal-mood-chip:hover { transform: translateY(-1px); }
 .journal-mood-chip.active {
   border-color: color-mix(in srgb, var(--tint) 80%, var(--ink));
-  background: color-mix(in srgb, var(--tint) 25%, #fff);
+  background: color-mix(in srgb, var(--tint) 25%, var(--surface));
 }
 
 /* ── Per-type quick chips ────────────────────────────────────────────────── */
@@ -489,7 +489,7 @@
   align-items: center;
   padding: 5px 11px;
   border-radius: var(--r-full);
-  background: color-mix(in srgb, var(--tint) 14%, #fff);
+  background: color-mix(in srgb, var(--tint) 14%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--tint) 40%, #ddd);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
@@ -499,7 +499,7 @@
   transition: background var(--dur-fast), transform var(--dur-fast);
 }
 .journal-quick-chip:hover {
-  background: color-mix(in srgb, var(--tint) 28%, #fff);
+  background: color-mix(in srgb, var(--tint) 28%, var(--surface));
   transform: translateY(-1px);
 }
 
@@ -543,8 +543,8 @@
 .journal-filter-pin { padding: 6px 11px; }
 .journal-filter-chip:hover { transform: translateY(-1px); }
 .journal-filter-chip.active {
-  background: color-mix(in srgb, var(--tint, var(--amber-300)) 26%, #fff);
-  border-color: color-mix(in srgb, var(--tint, var(--amber-400)) 70%, #fff);
+  background: color-mix(in srgb, var(--tint, var(--amber-300)) 26%, var(--surface));
+  border-color: color-mix(in srgb, var(--tint, var(--amber-400)) 70%, var(--surface));
   color: var(--ink);
 }
 .journal-dest-select { width: auto; padding: 6px 30px 6px 13px; font-size: var(--fs-sm); border-radius: var(--r-full); }
@@ -594,7 +594,7 @@
   gap: 8px;
   padding: 10px 14px;
   border-radius: var(--r-full);
-  background: #fff;
+  background: var(--surface);
   border: 1.5px solid var(--surface-4);
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
@@ -603,8 +603,8 @@
   cursor: pointer;
 }
 .journal-template-kind-chip.active {
-  background: color-mix(in srgb, var(--tint) 18%, #fff);
-  border-color: color-mix(in srgb, var(--tint) 55%, #fff);
+  background: color-mix(in srgb, var(--tint) 18%, var(--surface));
+  border-color: color-mix(in srgb, var(--tint) 55%, var(--surface));
   color: var(--ink);
 }
 .journal-template-kind-chip input { display: none; }
@@ -629,8 +629,8 @@
 .journal-template-preview-card {
   padding: var(--sp-4);
   border-radius: var(--r-xl);
-  background: color-mix(in srgb, var(--tint) 14%, #fff);
-  border: 1px solid color-mix(in srgb, var(--tint) 36%, #fff);
+  background: color-mix(in srgb, var(--tint) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--tint) 36%, var(--surface));
 }
 .journal-template-preview-title {
   font-family: var(--font-ui);
@@ -678,7 +678,7 @@
   transform: translateX(-50%) translateY(12px);
   padding: 10px 18px;
   border-radius: var(--r-full);
-  background: var(--ink); color: #fff;
+  background: var(--ink); color: var(--surface);
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600;
   box-shadow: var(--shadow-lg);
   opacity: 0; pointer-events: none;

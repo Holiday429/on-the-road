@@ -27,7 +27,7 @@
 .journal-gallery-media {
   position: relative;
   width: 100%;
-  background: radial-gradient(120% 90% at 30% 0%, color-mix(in srgb, var(--tint) 40%, #fff), color-mix(in srgb, var(--tint) 18%, #fff));
+  background: radial-gradient(120% 90% at 30% 0%, color-mix(in srgb, var(--tint) 40%, var(--surface)), color-mix(in srgb, var(--tint) 18%, var(--surface)));
 }
 .journal-gallery-media-inner {
   position: absolute;
