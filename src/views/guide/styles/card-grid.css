@@ -43,7 +43,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 50% 40%, var(--tint), color-mix(in srgb, var(--tint) 55%, #fff));
+  background: radial-gradient(circle at 50% 40%, var(--tint), color-mix(in srgb, var(--tint) 55%, var(--surface)));
 }
 .guide-card-tint-emoji {
   font-size: 56px;
@@ -143,7 +143,7 @@ a.guide-icon-btn { text-decoration: none; }
 .guide-commit-btn:hover {
   background: var(--accent);
   border-color: var(--accent-deep);
-  color: var(--ink);
+  color: var(--on-accent);
 }
 .guide-nomad-btn:hover {
   background: #fef3e2;
@@ -156,3 +156,8 @@ a.guide-icon-btn { text-decoration: none; }
   color: #14532d;
 }
 
+
+/* ── Dark theme ──────────────────────────────────────────────────────────── */
+:root[data-theme='dark'] .guide-map-btn:hover { background: var(--info-bg); border-color: var(--info); color: var(--info); }
+:root[data-theme='dark'] .guide-nomad-btn:hover { background: var(--amber-50); }
+:root[data-theme='dark'] .guide-nomad-btn.saved { color: #14532d; }

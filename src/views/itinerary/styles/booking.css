@@ -74,15 +74,15 @@
 .rd-map-btn {
   font-size: var(--fs-xs);
   font-weight: 600;
-  color: #0369a1;
-  background: #e0f2fe;
+  color: var(--info);
+  background: var(--info-bg);
   padding: 5px 10px;
   border-radius: var(--r-full);
   text-decoration: none;
   white-space: nowrap;
   transition: background var(--dur-fast);
 }
-.rd-map-btn:hover { background: #bae6fd; }
+.rd-map-btn:hover { background: var(--info-bg); }
 
 .rd-icon-btn {
   width: 28px; height: 28px;
@@ -125,11 +125,11 @@
   cursor: pointer;
   flex-shrink: 0;
   font-size: 12px; line-height: 1;
-  color: #fff;
+  color: transparent;
   display: flex; align-items: center; justify-content: center;
   margin-top: 1px;
 }
-.rd-plan.done .rd-plan-check { background: var(--route-active); border-color: var(--route-active); }
+.rd-plan.done .rd-plan-check { background: var(--route-active); border-color: var(--route-active); color: #fff; }
 .rd-plan-body { flex: 1; min-width: 0; }
 .rd-plan-title { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
 .rd-plan-note { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; }

@@ -251,8 +251,8 @@
 
 /* ── Unassigned panel (fixed right column, distinct from bags) ───────────── */
 .pack-unassigned-panel {
-  background: #fffbf0;                   /* warm cream — visually "holding area" */
-  border: 2px dashed #d97706;            /* amber dashed border */
+  background: var(--amber-50);                   /* warm cream — visually "holding area" */
+  border: 2px dashed var(--amber-600);            /* amber dashed border */
   border-radius: var(--r-lg);
   display: flex; flex-direction: column;
   height: 100%;                          /* fills the layout row height */
@@ -260,19 +260,19 @@
 }
 .pack-unassigned-head {
   display: flex; align-items: center; gap: var(--sp-2);
-  padding: 8px var(--sp-3); border-bottom: 1px dashed #f59e0b;
-  background: #fef3c7;                   /* amber-100 header */
+  padding: 8px var(--sp-3); border-bottom: 1px dashed var(--amber-500);
+  background: var(--amber-100);                   /* amber-100 header */
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   flex-shrink: 0;
 }
 .pack-unassigned-title {
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
-  color: #92400e; flex: 1;              /* amber-900 text */
+  color: var(--warning); flex: 1;              /* amber-900 text */
 }
-.pack-unassigned-note { font-size: var(--fs-xs); color: #b45309; }
+.pack-unassigned-note { font-size: var(--fs-xs); color: var(--amber-700); }
 .pack-unassigned-badge {
   font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
-  background: #d97706; color: #fff;
+  background: var(--amber-600); color: var(--surface);
   border-radius: var(--r-full);
   padding: 2px 7px;
 }
@@ -310,7 +310,7 @@
 .pack-item-tag::after {
   content: attr(data-tooltip);
   position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
-  background: var(--ink); color: #fff; border-radius: var(--r-sm);
+  background: var(--ink); color: var(--surface); border-radius: var(--r-sm);
   font-size: 11px; white-space: nowrap; padding: 4px 8px;
   pointer-events: none; opacity: 0; transition: opacity 0.12s;
   z-index: 50;
@@ -371,7 +371,7 @@
 /* ── Drag ghost ──────────────────────────────────────────────────────────── */
 .pk-drag-ghost {
   position: fixed; z-index: 9999; pointer-events: none;
-  padding: 6px 12px; background: var(--ink); color: #fff;
+  padding: 6px 12px; background: var(--ink); color: var(--surface);
   border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: 600;
   box-shadow: 0 8px 24px rgba(0,0,0,0.22);
   transform: rotate(-2deg);
@@ -420,7 +420,7 @@
 
 .pack-check-done {
   display: flex; align-items: center; gap: var(--sp-4);
-  background: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--r-lg);
+  background: var(--success-bg-soft); border: 1.5px solid var(--sage-400); border-radius: var(--r-lg);
   padding: var(--sp-4) var(--sp-5); margin-bottom: var(--sp-4);
   animation: packFadeUp var(--dur-mid) var(--ease-spring);
 }
@@ -461,8 +461,8 @@
   font-size: var(--fs-xs); padding: 3px 9px; border-radius: var(--r-full);
   border: 1.5px solid; cursor: default;
 }
-.pk-bl-chip--add { background: #f0fdf4; border-color: #86efac; color: #166534; }
-.pk-bl-chip--drop { background: #fff5f5; border-color: #fca5a5; color: #dc2626; }
+.pk-bl-chip--add { background: var(--success-bg-soft); border-color: var(--sage-400); color: #166534; }
+.pk-bl-chip--drop { background: var(--danger-bg-soft); border-color: var(--coral-400); color: var(--danger); }
 
 /* ── Drop modal checklist ────────────────────────────────────────────────── */
 .pk-drop-checklist { display: flex; flex-direction: column; gap: 2px; margin-top: var(--sp-2); }

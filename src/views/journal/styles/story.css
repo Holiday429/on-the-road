@@ -11,7 +11,7 @@
 .journal-story-error {
   padding: 12px 14px;
   border-radius: var(--r-lg);
-  background: #fef2f2;
+  background: var(--danger-bg-soft);
   color: var(--coral-500);
   border: 1px solid #fecaca;
   font-size: var(--fs-sm);
@@ -179,7 +179,7 @@
   margin-top: var(--sp-3);
   padding: 10px 12px;
   border-radius: var(--r-md);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--rule-soft);
 }
 .journal-story-source-label {
@@ -209,7 +209,7 @@
   align-items: center;
   padding: 5px 10px;
   border-radius: var(--r-full);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--rule-soft);
   font-size: var(--fs-xs);
   color: var(--ink-soft);

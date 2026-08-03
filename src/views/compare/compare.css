@@ -52,9 +52,9 @@
 }
 .cmp-group-del:hover { color: var(--ink); background: var(--surface-3); border-color: var(--rule-soft); }
 .cmp-group-del.is-confirming {
-  color: #fff; background: #e53e3e; border-color: #c53030;
+  color: var(--surface); background: var(--coral-500); border-color: var(--danger);
 }
-.cmp-group-del.is-confirming:hover { background: #c53030; }
+.cmp-group-del.is-confirming:hover { background: var(--danger); }
 .cmp-group-arrow { font-size: 20px; color: var(--ink-faint); }
 
 /* ── New-group form ──────────────────────────────────────────────────────── */
@@ -156,7 +156,7 @@
 .cmp-col.is-top .cmp-col-head { border-color: var(--amber-400); background: var(--amber-50); }
 .cmp-rank-badge {
   position: absolute; top: -11px; left: 50%; transform: translateX(-50%);
-  white-space: nowrap; background: var(--amber-400); color: var(--ink);
+  white-space: nowrap; background: var(--amber-400); color: var(--on-accent);
   font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: var(--r-full);
 }
 .cmp-name-input {
@@ -214,7 +214,7 @@
   font-size: var(--fs-xs); font-weight: 700; padding: 4px 14px; border-radius: var(--r-full);
   background: var(--surface-3); color: var(--ink-muted);
 }
-.cmp-toggle.on { background: var(--amber-400); color: var(--ink); }
+.cmp-toggle.on { background: var(--amber-400); color: var(--on-accent); }
 
 .cmp-price-cell { gap: 6px; }
 .cmp-price-display { font-family: var(--font-ui); font-weight: 800; font-size: var(--fs-md); color: var(--ink); }

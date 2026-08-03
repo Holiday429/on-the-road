@@ -34,7 +34,7 @@
   color: var(--ink-faint);
   white-space: nowrap;
 }
-.journal-timeline-date-label.is-today { color: var(--amber-600, #b45309); }
+.journal-timeline-date-label.is-today { color: var(--amber-600, var(--amber-700)); }
 
 .journal-timeline-entries { display: flex; flex-direction: column; gap: var(--sp-2); }
 
@@ -59,7 +59,7 @@
 .journal-timeline-card {
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--r-xl);
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--rule-soft);
   box-shadow: var(--shadow-sm);
   transition: box-shadow var(--dur-fast), transform var(--dur-fast), border-color var(--dur-fast);
@@ -67,7 +67,7 @@
 .journal-timeline-entry:hover .journal-timeline-card {
   box-shadow: var(--shadow-md);
   transform: translateX(2px);
-  border-color: color-mix(in srgb, var(--tint) 40%, #fff);
+  border-color: color-mix(in srgb, var(--tint) 40%, var(--surface));
 }
 .journal-timeline-entry.is-editing .journal-timeline-card {
   border-color: color-mix(in srgb, var(--tint) 70%, var(--ink));
@@ -137,7 +137,7 @@
 .journal-card {
   position: relative;
   padding: var(--sp-3);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition: transform var(--dur-fast), box-shadow var(--dur-fast);
   transform: rotate(var(--card-tilt, 0deg));
@@ -161,12 +161,12 @@
   font-size: 13px; line-height: 1; color: var(--ink-soft);
   transition: transform var(--dur-fast), background var(--dur-fast);
 }
-.journal-icon-btn:hover { transform: scale(1.1); background: #fff; }
+.journal-icon-btn:hover { transform: scale(1.1); background: var(--surface); }
 .journal-icon-btn.is-on { background: var(--amber-100); }
 
 .journal-card-frame {
   border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--tint) 22%, #fff);
+  background: color-mix(in srgb, var(--tint) 22%, var(--surface));
   padding: var(--sp-4);
   min-height: 96px;
   display: flex; align-items: center;
@@ -222,8 +222,8 @@
 /* ── Postcard ────────────────────────────────────────────────────────────── */
 .journal-fmt-postcard.journal-card {
   border-radius: var(--r-md);
-  border: 1px solid color-mix(in srgb, var(--tint) 45%, #fff);
-  background: color-mix(in srgb, var(--tint) 8%, #fff);
+  border: 1px solid color-mix(in srgb, var(--tint) 45%, var(--surface));
+  background: color-mix(in srgb, var(--tint) 8%, var(--surface));
   box-shadow: var(--shadow-sm);
 }
 .journal-postcard-grid {
@@ -241,7 +241,7 @@
   font-family: var(--font-hand);
   font-size: 20px; line-height: 1.35;
   color: var(--ink-soft);
-  border-right: 1.5px dashed color-mix(in srgb, var(--tint) 55%, #fff);
+  border-right: 1.5px dashed color-mix(in srgb, var(--tint) 55%, var(--surface));
   padding-right: var(--sp-3);
 }
 .journal-postcard-side { display: flex; flex-direction: column; gap: 8px; }
@@ -249,21 +249,21 @@
   width: 46px; height: 54px;
   display: grid; place-items: center;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--tint) 40%, #fff);
-  border: 2px dashed color-mix(in srgb, var(--tint) 75%, #fff);
+  background: color-mix(in srgb, var(--tint) 40%, var(--surface));
+  border: 2px dashed color-mix(in srgb, var(--tint) 75%, var(--surface));
   font-family: var(--font-ui); font-weight: 700; font-size: var(--fs-sm); color: var(--ink-soft);
   transform: rotate(3deg);
 }
 .journal-postcard-lines { display: flex; flex-direction: column; gap: 7px; margin-top: 4px; }
-.journal-postcard-lines span { height: 1.5px; background: color-mix(in srgb, var(--tint) 55%, #fff); border-radius: 2px; }
+.journal-postcard-lines span { height: 1.5px; background: color-mix(in srgb, var(--tint) 55%, var(--surface)); border-radius: 2px; }
 .journal-postcard-lines span:nth-child(2) { width: 80%; }
 .journal-postcard-lines span:nth-child(3) { width: 60%; }
 
 /* ── Ticket ──────────────────────────────────────────────────────────────── */
 .journal-fmt-ticket.journal-card {
   border-radius: var(--r-md);
-  background: color-mix(in srgb, var(--tint) 12%, #fff);
-  border: 1px solid color-mix(in srgb, var(--tint) 40%, #fff);
+  background: color-mix(in srgb, var(--tint) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--tint) 40%, var(--surface));
   box-shadow: var(--shadow-sm);
   padding: 0;
   overflow: hidden;
@@ -272,8 +272,8 @@
 .journal-ticket-stub {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   padding: var(--sp-3) 6px;
-  background: color-mix(in srgb, var(--tint) 34%, #fff);
-  border-right: 2px dashed color-mix(in srgb, var(--tint) 60%, #fff);
+  background: color-mix(in srgb, var(--tint) 34%, var(--surface));
+  border-right: 2px dashed color-mix(in srgb, var(--tint) 60%, var(--surface));
   text-align: center;
 }
 .journal-ticket-stub-label {
@@ -307,7 +307,7 @@
 /* ── Sticky ──────────────────────────────────────────────────────────────── */
 .journal-fmt-sticky.journal-card {
   border-radius: 2px;
-  background: color-mix(in srgb, var(--tint) 38%, #fff);
+  background: color-mix(in srgb, var(--tint) 38%, var(--surface));
   box-shadow: 2px 4px 10px rgba(0,0,0,0.12);
 }
 .journal-fmt-sticky .journal-card-frame {

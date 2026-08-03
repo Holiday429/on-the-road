@@ -2,7 +2,7 @@
 
 import { loadAmCharts } from './amcharts-loader.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
-import { MAP_COLORS, EUROPE_ROUTE, countryColor } from './map-shared.ts';
+import { mapColors, EUROPE_ROUTE, countryColor } from './map-shared.ts';
 import { DEFAULT_ROUTE_LEGS } from '../../data/default-route.ts';
 import { cityLocationsFor } from './geo.ts';
 
@@ -74,9 +74,9 @@ export async function initLandingMap(container: HTMLElement) {
   }));
   world.mapPolygons.template.setAll({
     interactive: false,
-    fill:        am5.color(MAP_COLORS.land),
+    fill:        am5.color(mapColors().land),
     fillOpacity: 0,
-    stroke:      am5.color(MAP_COLORS.landStroke),
+    stroke:      am5.color(mapColors().landStroke),
     strokeWidth: 0.8,
     strokeOpacity: 0.18,
     nonScalingStroke: true,
@@ -207,9 +207,9 @@ export async function initLandingMap(container: HTMLElement) {
       const id = poly.dataItem?.get('id');
       const isRouteCountry = Boolean(id && EUROPE_ROUTE.includes(id));
       poly.setAll({
-        fill:         am5.color(MAP_COLORS.land),
+        fill:         am5.color(mapColors().land),
         fillOpacity:  isRouteCountry ? 0.05 : 0,
-        stroke:       am5.color(MAP_COLORS.landStroke),
+        stroke:       am5.color(mapColors().landStroke),
         strokeWidth:  isRouteCountry ? 1.2 : 0.7,
         strokeOpacity: isRouteCountry ? 0.9 : 0.12,
       });

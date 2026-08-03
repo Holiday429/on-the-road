@@ -78,8 +78,8 @@
 }
 .rd-plan-sidebar {
   display: flex; flex-direction: column;
-  background: #fffbf0;
-  border: 2px dashed #d97706;
+  background: var(--amber-50);
+  border: 2px dashed var(--amber-600);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
@@ -88,18 +88,18 @@
 .rd-plan-unassigned-head {
   display: flex; align-items: center; gap: var(--sp-2);
   padding: 8px var(--sp-3);
-  background: #fef3c7;
-  border-bottom: 1px dashed #f59e0b;
+  background: var(--amber-100);
+  border-bottom: 1px dashed var(--amber-500);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   flex-shrink: 0;
 }
 .rd-plan-unassigned-title {
   font-family: var(--font-ui); font-size: var(--fs-sm);
-  font-weight: 700; color: #92400e; flex: 1;
+  font-weight: 700; color: var(--warning); flex: 1;
 }
 .rd-plan-unassigned-badge {
   font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
-  background: #d97706; color: #fff;
+  background: var(--amber-600); color: var(--surface);
   border-radius: var(--r-full); padding: 2px 7px; flex-shrink: 0;
 }
 .rd-plan-unassigned-items {
@@ -154,11 +154,11 @@
   border-radius: var(--r-sm);
   background: rgba(255,255,255,0.55);
   cursor: pointer;
-  font-size: 11px; color: #fff;
+  font-size: 11px; color: transparent;
   display: flex; align-items: center; justify-content: center;
 }
 .rd-plan-tag.is-done .rd-plan-tag-check,
-.rd-plan-tag-check.is-done { background: var(--route-active); border-color: var(--route-active); }
+.rd-plan-tag-check.is-done { background: var(--route-active); border-color: var(--route-active); color: #fff; }
 .rd-plan-tag-name {
   flex: 1; min-width: 0;
   font-size: var(--fs-xs); font-weight: 600; color: var(--ink);
@@ -177,12 +177,12 @@
   line-height: 1;
 }
 .rd-plan-tag:hover .rd-plan-tag-del { opacity: 1; }
-.rd-plan-tag-del:hover { color: var(--badge-red, #b91c1c); }
+.rd-plan-tag-del:hover { color: var(--badge-red, var(--danger)); }
 
 /* ── Plan drag ghost ─────────────────────────────────────────────────────── */
 .rd-plan-drag-ghost {
   position: fixed; z-index: 500; pointer-events: none;
-  background: var(--ink); color: #fff;
+  background: var(--ink); color: var(--surface);
   font-size: var(--fs-xs); font-weight: 600;
   padding: 5px 10px; border-radius: var(--r-full);
   transform: rotate(-2deg);
@@ -310,13 +310,13 @@
   letter-spacing: 0.05em;
   color: var(--ink-soft);
 }
-.rd-feed-day--active .rd-feed-day-label { color: #15803d; }
+.rd-feed-day--active .rd-feed-day-label { color: var(--success); }
 .rd-feed-day--past   .rd-feed-day-label { color: var(--ink-faint); }
 .rd-feed-day--unassigned .rd-feed-day-label { color: var(--ink-faint); }
 .rd-feed-day-date {
   font-size: var(--fs-xs); color: var(--ink-faint);
 }
-.rd-feed-day--active .rd-feed-day-date { color: #15803d; font-weight: 600; }
+.rd-feed-day--active .rd-feed-day-date { color: var(--success); font-weight: 600; }
 
 .rd-feed-items {
   display: flex; flex-direction: column; gap: var(--sp-2);
@@ -394,7 +394,7 @@
   background: var(--surface-2);
 }
 .rd-cal-grid-cell--other .rd-cal-grid-num { color: var(--ink-faint); }
-.rd-cal-grid-cell.in-leg { background: #fffbf0; }
+.rd-cal-grid-cell.in-leg { background: var(--amber-50); }
 .rd-cal-grid-cell.is-today { outline: 2px solid var(--amber-400); outline-offset: -2px; border-radius: 2px; }
 .rd-cal-grid-num {
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
@@ -402,7 +402,7 @@
 }
 .rd-cal-grid-num.is-today-num {
   background: var(--ink);
-  color: #fff;
+  color: var(--surface-2);
   width: 20px; height: 20px;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -474,19 +474,19 @@
 
 /* ── City-sharing: "from your other visits" (plan sidebar) ───────────────── */
 .rd-share-history {
-  border-top: 1px dashed #f59e0b;
+  border-top: 1px dashed var(--amber-500);
   padding: var(--sp-2);
   display: flex; flex-direction: column; gap: 6px;
-  background: #fffdf5;
+  background: var(--accent-bg);
 }
 .rd-share-history-head {
   font-family: var(--font-ui); font-size: 10px; font-weight: 700;
   letter-spacing: 0.06em; text-transform: uppercase;
-  color: #b45309; padding: 0 2px 2px;
+  color: var(--amber-700); padding: 0 2px 2px;
 }
 .rd-share-group { border-radius: var(--r-md); }
 .rd-share-group-head {
-  font-size: var(--fs-xs); font-weight: 600; color: #92400e;
+  font-size: var(--fs-xs); font-weight: 600; color: var(--warning);
   cursor: pointer; padding: 4px 2px; list-style: none;
 }
 .rd-share-group-head::-webkit-details-marker { display: none; }
@@ -494,7 +494,7 @@
 .rd-share-item {
   display: flex; align-items: center; gap: 6px;
   padding: 4px 6px; border-radius: var(--r-md);
-  font-size: var(--fs-xs); background: #fff;
+  font-size: var(--fs-xs); background: var(--surface);
   border: 1px solid var(--rule-soft);
 }
 .rd-share-item--visited { opacity: 0.6; }
@@ -505,3 +505,9 @@
 .rd-share-item-meta { color: var(--ink-faint); font-size: 10px; flex-shrink: 0; }
 .rd-share-item-add { flex-shrink: 0; }
 
+
+/* ── Dark theme — sticky-note tags carry dark tints, lighten their glyphs ── */
+:root[data-theme='dark'] .rd-plan-tag-check { border-color: rgba(255,255,255,0.25); background: rgba(0,0,0,0.3); }
+:root[data-theme='dark'] .rd-plan-tag-open { color: rgba(255,255,255,0.4); }
+:root[data-theme='dark'] .rd-plan-tag:hover .rd-plan-tag-open { color: rgba(255,255,255,0.65); }
+:root[data-theme='dark'] .rd-plan-tag-del { color: rgba(255,255,255,0.35); }

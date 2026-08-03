@@ -120,6 +120,11 @@ export function reinitForTripChange() {
   }
 }
 
+// A theme switch is a repaint of the same data: JS-drawn colors (amCharts map
+// fills, inline sticky-note tints) only refresh on re-render, so reuse the
+// trip-switch re-init — the visible view redraws now, the rest lazily.
+window.addEventListener('otr:theme-change', () => reinitForTripChange());
+
 /* ── Navigation intent ──────────────────────────────────────────────────────
    A lightweight "deep-link payload" passed alongside navigateTo so an aggregator
    page (Today) can ask a destination view to scroll to / open a specific record

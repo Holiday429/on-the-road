@@ -118,6 +118,12 @@ export async function runPostEntryTasks(migrationsAlreadyRan: boolean): Promise<
     await loadLocaleFromProfile();
   } catch (e) { console.warn('Locale load skipped:', e); }
 
+  // Same deal for the saved theme preference (light/dark/system).
+  try {
+    const { loadThemeFromProfile } = await import('./core/theme.ts');
+    await loadThemeFromProfile();
+  } catch (e) { console.warn('Theme load skipped:', e); }
+
   // If we just came back from a successful checkout, confirm + refresh quota.
   try {
     const { handlePaymentReturn } = await import('./core/payment-return.ts');

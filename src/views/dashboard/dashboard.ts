@@ -26,7 +26,7 @@ import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-sto
 import { BUILTIN_CATEGORIES } from '../itinerary/itinerary-shared.ts';
 import { openModal } from '../../core/modal.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
-import { createLanguagePicker, type LanguagePickerInstance } from '../../core/language-picker.ts';
+import { mountPrefControls } from '../../core/pref-mounts.ts';
 // Lazy (see call site below) — journal/index.ts pulls in Leaflet via capture.ts,
 // which Dashboard shouldn't eagerly load just to wire up a click handler.
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
@@ -47,7 +47,6 @@ let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency(
 let _rateTo    = '';          // selected "to" currency (empty = auto localCurrency())
 let _mapCanvas: HTMLElement | null = null; // tracks which canvas element the map was booted on
 let _unsubs: Array<() => void> = [];
-let _langPicker: LanguagePickerInstance | null = null;
 let _weather: { icon: string; tempHigh: string; tempLow: string } | null = null;
 let _weatherCity = '';
 let _nomadSpots: StoredNomadSpot[] = [];
@@ -1251,13 +1250,9 @@ function wire(body: HTMLElement): void {
     openNewTrip();
   });
 
-  // Language picker (top-right of the greeting row). innerHTML wiped the old
-  // node, so dispose the previous instance before mounting a fresh one.
+  // Language + theme controls (top-right of the greeting row).
   const langMount = body.querySelector<HTMLElement>('[data-lang-mount]');
-  if (langMount) {
-    _langPicker?.destroy();
-    _langPicker = createLanguagePicker(langMount);
-  }
+  if (langMount) mountPrefControls(langMount);
 
   // Dashboard map zoom controls.
   body.querySelector('#tdMapZoomIn')?.addEventListener('click', e => {

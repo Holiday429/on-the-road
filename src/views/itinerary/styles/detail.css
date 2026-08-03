@@ -61,7 +61,7 @@
   border-radius: var(--r-full);
   background: var(--amber-100); color: var(--amber-700);
 }
-.rd-status-pill.status-active { background: #dcfce7; color: #15803d; }
+.rd-status-pill.status-active { background: var(--success-bg); color: var(--success); }
 .rd-status-pill.status-past   { background: var(--surface-3); color: var(--ink-muted); }
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
@@ -116,8 +116,8 @@
   margin-top: var(--sp-3);
 }
 .rd-sm { font-size: var(--fs-sm); padding: 6px 12px; }
-.rd-danger { color: var(--badge-red, #b91c1c); }
-.rd-danger:hover { color: #b91c1c; }
+.rd-danger { color: var(--badge-red, var(--danger)); }
+.rd-danger:hover { color: var(--danger); }
 
 .rd-placeholder {
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
@@ -133,7 +133,7 @@
 /* ── Plans onboarding banner ─────────────────────────────────────────────── */
 .rd-plans-onboard {
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
-  background: #fffbeb; border: 1.5px dashed #fcd34d; border-radius: var(--r-lg);
+  background: var(--warning-bg-soft); border: 1.5px dashed var(--amber-300); border-radius: var(--r-lg);
   padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3);
   font-size: var(--fs-sm); color: var(--ink-soft);
 }
@@ -217,7 +217,7 @@
   opacity: 0; transition: opacity var(--dur-fast), color var(--dur-fast);
 }
 .rd-note-card:hover .rd-note-del { opacity: 1; }
-.rd-note-del:hover { color: var(--badge-red, #b91c1c); }
+.rd-note-del:hover { color: var(--badge-red, var(--danger)); }
 .rd-note-body-wrap {
   position: relative;
   max-height: 150px;
@@ -271,8 +271,8 @@
   display: flex; align-items: center; gap: var(--sp-2);
   padding: 8px var(--sp-3);
   margin-bottom: var(--sp-4);
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--warning-bg-soft);
+  border: 1px solid var(--amber-200);
   border-radius: var(--r-md);
   font-size: var(--fs-sm); color: #78350f;
 }
@@ -284,10 +284,10 @@
 .rd-share-tag {
   font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
   padding: 1px 6px; border-radius: var(--r-full);
-  background: #fef3c7; color: #92400e; white-space: nowrap;
+  background: var(--amber-100); color: var(--warning); white-space: nowrap;
   flex-shrink: 0;
 }
 /* Subtle dashed outline so shared cards read as "from elsewhere" but stay editable. */
 .rd-clip-card--shared,
-.rd-note-card--shared { box-shadow: inset 0 0 0 1px #fcd34d; }
+.rd-note-card--shared { box-shadow: inset 0 0 0 1px var(--amber-300); }
 

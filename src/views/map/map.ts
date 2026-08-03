@@ -17,7 +17,7 @@ import { renderViewTitleMarkup, navigateTo } from '../../core/app.ts';
 import { resolveCityLocations, isoFor, EUROPE_CENTER } from './geo.ts';
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
-import { MAP_COLORS as C, countryColor } from './map-shared.ts';
+import { mapColors as C, countryColor } from './map-shared.ts';
 import {
   type GeoPt, arcPoints, chainWaypoints,
   expandBounds, geoDist, fmtRange, nights, wrapMapLabel, heatColor,
@@ -725,8 +725,8 @@ async function bootIdleChart() {
   }));
   world.mapPolygons.template.setAll({
     interactive: false,
-    fill: am5.color('#f7f5f0'),
-    stroke: am5.color('#d8d0c0'),
+    fill: am5.color(C().miniLand),
+    stroke: am5.color(C().miniStroke),
     strokeWidth: 0.7,
     nonScalingStroke: true,
   });
@@ -935,10 +935,10 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   }));
   _worldSeries = world;
   world.mapPolygons.template.setAll({
-    interactive:true, fill:am5.color(C.land),
-    stroke:am5.color(C.landStroke), strokeWidth:0.6, nonScalingStroke:true,
+    interactive:true, fill:am5.color(C().land),
+    stroke:am5.color(C().landStroke), strokeWidth:0.6, nonScalingStroke:true,
   });
-  world.mapPolygons.template.states.create('hover', { fill:am5.color(C.hover) });
+  world.mapPolygons.template.states.create('hover', { fill:am5.color(C().hover) });
   world.events.on('datavalidated', () => {
     _polyById.clear();
     world.mapPolygons.each((poly:any) => {
@@ -977,7 +977,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   if (_outboundChain || _returnChain) {
     const flightSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
     flightSeries.mapLines.template.setAll({
-      stroke:am5.color('#7b9bbf'), strokeWidth:2, strokeOpacity:0.65, strokeDasharray:[5,7],
+      stroke:am5.color(C().flightArc), strokeWidth:2, strokeOpacity:0.65, strokeDasharray:[5,7],
     });
     for (const chain of [_outboundChain, _returnChain]) {
       if (!chain) continue;
@@ -989,7 +989,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   /* Trip route arcs */
   const lineSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
   lineSeries.mapLines.template.setAll({
-    stroke:am5.color(C.route), strokeWidth:2.5, strokeOpacity:0.85, strokeDasharray:[4,6],
+    stroke:am5.color(C().route), strokeWidth:2.5, strokeOpacity:0.85, strokeDasharray:[4,6],
   });
   const routeCoords: [number,number][] = [];
   for (let i = 0; i < legs.length-1; i++) {
@@ -1004,10 +1004,10 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   pinSeries.bullets.push((bRoot:any, _s:any, dataItem:any) => {
     const idx = dataItem.dataContext.index;
     const c = am5.Container.new(bRoot, {});
-    c.children.push(am5.Circle.new(bRoot, { radius:9, fill:am5.color('#fff'), stroke:am5.color(C.route), strokeWidth:3 }));
+    c.children.push(am5.Circle.new(bRoot, { radius:9, fill:am5.color('#fff'), stroke:am5.color(C().route), strokeWidth:3 }));
     c.children.push(am5.Label.new(bRoot, {
       text:String(idx+1), centerX:am5.p50, centerY:am5.p50,
-      fontSize:10, fontWeight:'700', fill:am5.color(C.route), populateText:false,
+      fontSize:10, fontWeight:'700', fill:am5.color(C().route), populateText:false,
     }));
     return am5.Bullet.new(bRoot, { sprite:c });
   });
@@ -1181,11 +1181,11 @@ async function drillCountry(code: string, name: string, legs: PlottedLeg[], worl
     stroke:am5.color('#ffffff'),
     strokeWidth:1.2,
     nonScalingStroke:true,
-    shadowColor:am5.color(C.ink), shadowBlur:6, shadowOpacity:0.12,
+    shadowColor:am5.color(C().ink), shadowBlur:6, shadowOpacity:0.12,
     tooltipText: '',
   });
   series.mapPolygons.template.states.create('hover', {
-    fill:am5.color(C.hover), stroke:am5.color('#ffffff'), strokeWidth:1.5,
+    fill:am5.color(C().hover), stroke:am5.color('#ffffff'), strokeWidth:1.5,
   });
 
   const tooltip = document.getElementById('mapTooltip')!;
@@ -1260,7 +1260,7 @@ function backToOverview() {
 function paintCountry(iso: string, color: string) {
   const poly = _polyById.get(iso); if (!poly) return;
   poly.set('fill', am5.color(color));
-  poly.states.create('hover', { fill:am5.color(C.hover) });
+  poly.states.create('hover', { fill:am5.color(C().hover) });
 }
 /** The fill a lit country should have right now — heat tint if the expense layer
  *  is on and we have spend for it, otherwise its normal visited colour. */
@@ -1279,7 +1279,7 @@ function lightCountry(iso: string|null) {
   poly.animate({ key:'fillOpacity', from:0.4, to:1, duration:700, easing:am5.ease.out(am5.ease.cubic) });
 }
 function resetLit() {
-  _lit.forEach((iso) => { const p = _polyById.get(iso); if (p) p.set('fill', am5.color(C.land)); });
+  _lit.forEach((iso) => { const p = _polyById.get(iso); if (p) p.set('fill', am5.color(C().land)); });
   _lit.clear();
 }
 

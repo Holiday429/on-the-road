@@ -59,7 +59,7 @@
 .td-whereto-tint {
   width: 100%; height: 96px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 50% 40%, var(--wtg-tint), color-mix(in srgb, var(--wtg-tint) 55%, #fff));
+  background: radial-gradient(circle at 50% 40%, var(--wtg-tint), color-mix(in srgb, var(--wtg-tint) 55%, var(--surface)));
 }
 .td-whereto-tint-emoji { font-size: 40px; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.10)); }
 
@@ -78,7 +78,7 @@
 }
 .td-whereto-cost {
   font-size: 10px; font-weight: 700; color: var(--accent-deep);
-  background: var(--amber-100, #fef3c7); border-radius: var(--r-sm);
+  background: var(--amber-100, var(--amber-100)); border-radius: var(--r-sm);
   padding: 1px 6px; align-self: flex-start;
 }
 .td-whereto-highlight {
@@ -131,8 +131,8 @@
   font-size: var(--fs-sm);
   border: 1px solid transparent;
 }
-.td-budget-alert.is-over    { background: #fef2f2; border-color: #fecaca; color: var(--coral-700, #b91c1c); }
-.td-budget-alert.is-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.td-budget-alert.is-over    { background: var(--danger-bg-soft); border-color: #fecaca; color: var(--coral-700, var(--danger)); }
+.td-budget-alert.is-warning { background: var(--warning-bg-soft); border-color: var(--amber-200); color: var(--warning); }
 .td-budget-alert:hover { filter: brightness(0.97); }
 .td-ba-flag { font-size: 1.1em; }
 .td-ba-text { flex: 1; }

@@ -5,7 +5,7 @@
    ========================================================================== */
 
 import { loadAmCharts } from '../map/amcharts-loader.ts';
-import { MAP_COLORS, countryColor } from '../map/map-shared.ts';
+import { mapColors, countryColor } from '../map/map-shared.ts';
 import { coordsFor } from '../map/geo.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 
@@ -65,9 +65,9 @@ export async function initDashboardMap(
   }));
   world.mapPolygons.template.setAll({
     interactive:      false,
-    fill:             am5.color(MAP_COLORS.land),
+    fill:             am5.color(mapColors().land),
     fillOpacity:      0.9,
-    stroke:           am5.color(MAP_COLORS.landStroke),
+    stroke:           am5.color(mapColors().landStroke),
     strokeWidth:      1,
     strokeOpacity:    1,
     nonScalingStroke: true,

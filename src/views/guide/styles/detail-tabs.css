@@ -73,7 +73,7 @@
 .guide-tab.tab-do.active {
   background: var(--amber-400);
   border-color: var(--amber-600);
-  color: var(--ink);
+  color: var(--on-accent);
 }
 .guide-tab.tab-know.active {
   background: var(--surface-3);

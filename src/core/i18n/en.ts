@@ -41,6 +41,13 @@ export const en: StringTable = {
   'lang.button':  'Language',
   'lang.title':   'Choose language',
 
+  // Theme toggle
+  'theme.button': 'Appearance',
+  'theme.title':  'Appearance',
+  'theme.light':  'Light',
+  'theme.dark':   'Dark',
+  'theme.system': 'Auto',
+
   // ── Dashboard ──────────────────────────────────────────────────────────────
   'dash.greeting.morning':   'Good morning',
   'dash.greeting.afternoon': 'Good afternoon',

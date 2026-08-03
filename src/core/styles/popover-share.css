@@ -9,7 +9,7 @@
   position: fixed;
   z-index: 200;
   width: 280px;
-  background: #fff;
+  background: var(--surface);
   border: 1.5px solid var(--amber-200);
   border-radius: var(--r-lg);
   padding: var(--sp-1);
@@ -57,8 +57,8 @@
 }
 .trip-menu-share:hover { color: var(--ink-1); background: var(--surface-2); }
 .trip-menu-edit:hover { color: var(--ink-1); background: var(--surface-2); }
-.trip-menu-leave:hover { color: #b45309; background: #fef3c7; }
-.trip-menu-delete:hover { color: #b91c1c; background: #fee2e2; }
+.trip-menu-leave:hover { color: var(--amber-700); background: var(--amber-100); }
+.trip-menu-delete:hover { color: var(--danger); background: var(--danger-bg); }
 
 /* ── Share modal ──────────────────────────────────────────────────────── */
 .share-section { margin-bottom: var(--sp-5); }
@@ -74,9 +74,9 @@
 .share-member-row { display: flex; align-items: center; gap: var(--sp-2); }
 .share-member-uid { flex: 1; font-size: var(--fs-sm); }
 .share-member-role { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: var(--r-full); text-transform: capitalize; }
-.share-role-owner  { background: #fef3c7; color: #92400e; }
-.share-role-editor { background: #dbeafe; color: #1e40af; }
-.share-role-viewer { background: #f3f4f6; color: #4b5563; }
+.share-role-owner  { background: var(--amber-100); color: var(--warning); }
+.share-role-editor { background: var(--info-bg); color: var(--info); }
+.share-role-viewer { background: var(--surface-3); color: var(--ink-soft); }
 
 /* Wide, two-column Share modal that fits without vertical scrolling */
 .otr-modal.share-modal-wide { max-width: 880px; }
@@ -114,14 +114,14 @@
 .share-email-row .share-email-input { flex: 1; min-width: 0; }
 .share-email-row .btn { white-space: nowrap; }
 .share-page-chip {
-  font-size: 10px; font-weight: 600; color: #4b5563;
+  font-size: 10px; font-weight: 600; color: var(--ink-soft);
   background: #f3f4f6; border-radius: var(--r-full); padding: 2px 8px;
 }
 
 /* Pending edit requests */
 .share-badge {
   display: inline-block; min-width: 18px; text-align: center;
-  font-size: 11px; font-weight: 700; color: #fff; background: #ef4444;
+  font-size: 11px; font-weight: 700; color: var(--surface); background: var(--coral-500);
   border-radius: var(--r-full); padding: 1px 6px; margin-left: 4px;
 }
 .share-request-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); }

@@ -7,7 +7,7 @@
 /* Status palette (shared by list + detail). */
 :root {
   --route-upcoming: var(--amber-400);
-  --route-active:   #22c55e;
+  --route-active:   var(--sage-500);
   --route-past:     var(--ink-faint);
 }
 
@@ -176,8 +176,8 @@
 }
 .route-sum-transport { color: var(--ink-soft); }
 .route-sum-hotel {
-  color: #0369a1;
-  background: #e0f2fe;
+  color: var(--info);
+  background: var(--info-bg);
   border-color: transparent;
   transition: background var(--dur-fast);
 }

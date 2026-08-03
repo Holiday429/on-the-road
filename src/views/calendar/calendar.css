@@ -89,7 +89,7 @@
 .cal-cell.is-today  { border-color: var(--amber-400); background: var(--amber-50); }
 .cal-cell.is-selected { border-color: var(--accent-deep); background: var(--amber-100); }
 .cal-cell.cal-empty { pointer-events: none; background: transparent; }
-.cal-cell.has-leg { background: linear-gradient(135deg, #fffbf0, #ffffff); }
+.cal-cell.has-leg { background: linear-gradient(135deg, var(--amber-50), var(--surface)); }
 
 .cal-cell-top {
   display: flex; align-items: center; justify-content: space-between;
@@ -104,7 +104,7 @@
 }
 .cal-cell.is-today .cal-daynum {
   background: var(--accent);
-  color: var(--ink);
+  color: var(--on-accent);
   width: 22px; height: 22px;
   border-radius: 50%;
   display: inline-flex;
@@ -135,8 +135,8 @@
   max-width: 100%; line-height: 1.4;
 }
 .cal-chip.is-done { opacity: 0.45; text-decoration: line-through; }
-.cal-chip-plan { background: #ede9fe; color: #6d28d9; }
-.cal-chip-todo { background: #fee2e2; color: #b91c1c; }
+.cal-chip-plan { background: var(--note-0); color: #6d28d9; }
+.cal-chip-todo { background: var(--danger-bg); color: var(--danger); }
 .cal-chip-more {
   font-size: 9px; color: var(--ink-faint); font-weight: 600;
   padding: 0 2px; margin-top: 1px;
@@ -284,12 +284,12 @@
   border: 1.5px solid var(--surface-4);
   flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700; color: #fff;
+  font-size: 12px; font-weight: 700; color: transparent;
   background: transparent;
   transition: background var(--dur-fast), border-color var(--dur-fast);
   margin-top: 1px;
 }
-.is-done .cal-todo-check { background: var(--sage-500); border-color: var(--sage-500); }
+.is-done .cal-todo-check { background: var(--sage-500); border-color: var(--sage-500); color: #fff; }
 .cal-todo-check:hover { border-color: var(--sage-400); }
 .cal-todo-meta {
   display: flex;
@@ -300,7 +300,7 @@
 .cal-overdue-tag {
   font-size: 10px;
   font-weight: 700;
-  background: #fee2e2;
+  background: var(--danger-bg);
   color: var(--coral-600);
   border-radius: var(--r-sm);
   padding: 1px 6px;
@@ -397,7 +397,7 @@
   font-size: 10px; color: var(--ink-faint);
   background: var(--surface-3); border-radius: var(--r-sm); padding: 1px 6px;
 }
-.cal-todo-due.is-overdue { background: #fee2e2; color: var(--coral-600); font-weight: 700; }
+.cal-todo-due.is-overdue { background: var(--danger-bg); color: var(--coral-600); font-weight: 700; }
 
 /* ── Phone / narrow PWA: keep the 7-col grid fitting without horizontal scroll
    by tightening cell chrome. The cells stay equal-width (min-width:0 above);

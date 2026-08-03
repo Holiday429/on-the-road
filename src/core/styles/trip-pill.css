@@ -32,8 +32,8 @@
   color: var(--amber-700);
   line-height: 1;
 }
-.trip-pill-date--pre { color: #dc2626; } /* red: days until departure */
-.trip-pill-date--on  { color: #16a34a; } /* green: days into trip */
+.trip-pill-date--pre { color: var(--danger); } /* red: days until departure */
+.trip-pill-date--on  { color: var(--success); } /* green: days into trip */
 .trip-pill-date--new { color: var(--amber-600); font-size: 26px; }
 .trip-pill-days {
   font-size: var(--fs-xs);
@@ -62,7 +62,7 @@
   position: fixed;
   z-index: 210;
   width: 272px;
-  background: #fff;
+  background: var(--surface);
   border: 1.5px solid var(--amber-200);
   border-radius: var(--r-lg);
   padding: var(--sp-3);
@@ -168,7 +168,7 @@
   bottom: calc(100% + 4px);
   transform: translateX(-50%);
   background: var(--ink);
-  color: #fff;
+  color: var(--surface-2);
   border-radius: var(--r-sm);
   padding: 6px 8px;
   font-size: 10px;

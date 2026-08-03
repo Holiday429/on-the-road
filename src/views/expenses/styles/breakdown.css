@@ -98,7 +98,7 @@
 }
 .exp-daily-budget-line {
   position: absolute; top: -3px; bottom: -3px; width: 2px;
-  background: #f59e0b; border-radius: 1px; pointer-events: none; z-index: 1;
+  background: var(--amber-500); border-radius: 1px; pointer-events: none; z-index: 1;
 }
 .exp-daily-budget-legend {
   display: flex; align-items: center; gap: var(--sp-2);
@@ -106,7 +106,7 @@
 }
 .exp-daily-budget-swatch {
   display: inline-block; width: 12px; height: 3px;
-  background: #f59e0b; border-radius: 1px;
+  background: var(--amber-500); border-radius: 1px;
 }
 .exp-cat-amount {
   font-family: var(--font-ui);

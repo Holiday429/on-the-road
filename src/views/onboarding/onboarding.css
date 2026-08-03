@@ -15,7 +15,7 @@
   background:
     radial-gradient(circle at 20% 10%, rgba(249,184,48,0.18), transparent 40%),
     radial-gradient(circle at 80% 90%, rgba(249,184,48,0.10), transparent 40%),
-    linear-gradient(160deg, #fffaf0 0%, #f7f3ea 100%);
+    linear-gradient(160deg, var(--amber-50) 0%, var(--surface-3) 100%);
   padding:
     max(clamp(18px, 4vw, 40px), env(safe-area-inset-top))
     max(clamp(12px, 3vw, 28px), env(safe-area-inset-right))
@@ -36,7 +36,7 @@
   margin: auto;
   flex-shrink: 0;
   padding: 24px 32px 18px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 22px;
   box-shadow: 0 24px 64px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
   position: relative;
@@ -227,7 +227,7 @@
   font-size: var(--fs-sm);
   font-family: var(--font-ui);
   font-weight: 500;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   color: var(--ink-soft);
   transition: border-color 0.15s, background 0.15s, color 0.15s;
@@ -327,7 +327,7 @@
 .ob-error {
   flex: 1;
   font-size: var(--fs-sm);
-  color: #b91c1c;
+  color: var(--danger);
   min-height: 1.2em;
 }
 
