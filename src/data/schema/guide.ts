@@ -22,6 +22,10 @@ export const GuideCardSchema = z.object({
   photographer: z.string().default(''),  // Unsplash attribution name
   photographerUrl: z.string().default(''),
   saved: z.boolean().default(false),   // user bookmark
+  // Café-only: a one-line laptop-friendliness note (wifi/outlets/vibe), filled
+  // by cafesPrompt only when the AI judges the place work-suitable. Absent for
+  // every other category. See guide-nomad-strip.ts for the "my check-ins" row.
+  work: z.string().optional(),
 });
 export type GuideCard = z.infer<typeof GuideCardSchema>;
 

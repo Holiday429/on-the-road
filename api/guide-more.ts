@@ -170,7 +170,8 @@ category must be "food"`,
     prompt: (c, ctx, q, ex) => `Recommend 4 MORE cafés in ${c}, DIFFERENT from those already listed.
 Already listed (do NOT repeat): ${ex || 'none'}.
 ${q ? `User interest: "${q}"\n` : ''}${ctx ? `Recent web context:\n${ctx}\n` : ''}
-Return ONLY a valid JSON array of ${SHAPE_CARD}
+Return ONLY a valid JSON array of items shaped like ${SHAPE_CARD} plus one more field:
+"work": a short laptop-friendliness note (e.g. "Fast wifi, plenty of outlets") ONLY if the café is genuinely work-suitable — empty string otherwise, don't pad every café with one.
 category must be "cafe"`,
   },
   experiences: {

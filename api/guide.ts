@@ -263,7 +263,8 @@ Return ONLY a JSON array. highlight 1 line, detail 2 sentences, background 1 sho
 function cafesPrompt(city: string, searchContext: string, query: string) {
   return `Café expert. 4 cafés in ${city}.${query ? ` Focus: "${query}".` : ''}${searchContext ? `\nContext:\n${searchContext}` : ''}
 Return ONLY a JSON array. highlight 1 line, detail 2 sentences, background 1 short line.
-[{"title":"","highlight":"vibe + signature drink","detail":"","background":"","address":"neighbourhood","cost":"e.g. €3-6","category":"cafe"}]`;
+For "work": ONLY fill this in if the café is genuinely good for working (reliable wifi, outlets, allows lingering) — one short phrase like "Fast wifi, plenty of outlets" or "Quiet upstairs seating". Leave it as an empty string for a place that's not laptop-friendly (tiny espresso bar, always packed, no seating) — do not guess or pad every café with a work note.
+[{"title":"","highlight":"vibe + signature drink","detail":"","background":"","address":"neighbourhood","cost":"e.g. €3-6","category":"cafe","work":""}]`;
 }
 
 function experiencesPrompt(city: string, searchContext: string, query: string) {

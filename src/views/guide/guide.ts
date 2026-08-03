@@ -23,6 +23,8 @@ import { quotaStore } from '../../data/quota-store.ts';
 import { emptyState } from '../../core/empty-state.ts';
 import { prefetchSafetyForCity } from '../safety/safety.ts';
 import { nomadStore } from '../../data/stores/nomad-store.ts';
+import { renderNomadStrip, wireNomadStrip, nomadOwnerId } from './guide-nomad-strip.ts';
+import { mapsUrl, walkRouteUrlByName } from './guide-urls.ts';
 import { track } from '../../core/analytics.ts';
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -519,32 +521,14 @@ function moreFooter(label: string): string {
 }
 
 function renderCardGrid(cards: GuideCard[], city: string, type: string): string {
-  if (!cards.length) return renderSectionLoading(t('guide.loadingRecs', { tab: type }));
-  return `
+  const strip = type === 'cafe' ? renderNomadStrip(city) : '';
+  if (!cards.length) return strip + renderSectionLoading(t('guide.loadingRecs', { tab: type }));
+  return `${strip}
     <div class="guide-card-grid">${cards.map((c, i) => renderFlipCard(c, city, type, i)).join('')}</div>
     ${moreFooter(t('guide.btnGenerateMore'))}
   `;
 }
 
-// Build a Google Maps search/place URL for a card (view details + navigate).
-function mapsUrl(card: { title: string; address?: string }, city: string): string {
-  const q = [card.title, card.address, city].filter(Boolean).join(' ');
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
-}
-
-// Multi-stop Google Maps walking-directions URL built from waypoint NAMES (no
-// coordinates needed) — always valid, used as the initial link before geocoding
-// upgrades it to a precise lat/lng version.
-function walkRouteUrlByName(waypoints: Waypoint[], city: string): string {
-  const pts = waypoints.map(w => encodeURIComponent(`${w.name}, ${city}`));
-  if (pts.length < 2) return `https://www.google.com/maps/search/?api=1&query=${pts[0] ?? ''}`;
-  const origin = pts[0];
-  const destination = pts[pts.length - 1];
-  const mids = pts.slice(1, -1).join('|');
-  let url = `https://www.google.com/maps/dir/?api=1&travelmode=walking&origin=${origin}&destination=${destination}`;
-  if (mids) url += `&waypoints=${mids}`;
-  return url;
-}
 
 // Inline Google "G" mark for buttons.
 function googleIcon(): string {
@@ -575,6 +559,7 @@ function renderFlipCard(card: GuideCard, city: string, type: string, idx: number
         <div class="guide-card-meta">
           ${card.duration ? `<span>⏱ ${escHtml(card.duration)}</span>` : ''}
           ${card.cost ? `<span>💰 ${escHtml(card.cost)}</span>` : ''}
+          ${card.work ? `<span title="${escHtml(card.work)}">💻 ${escHtml(card.work)}</span>` : ''}
         </div>
       </div>
       <div class="guide-card-actions">
@@ -719,6 +704,7 @@ const TYPE_LABEL: Record<string, string> = {
 // ── Interactions ──────────────────────────────────────────────────────────────
 
 function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
+  if (_activeTab === 'cafes') wireNomadStrip(detail, intel.city);
   // Open detail modal when the card body is clicked.
   detail.querySelectorAll<HTMLElement>('[data-open-detail]').forEach(el => {
     el.addEventListener('click', () => {
@@ -768,7 +754,7 @@ function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
         address: c.address || '',
         mapsUrl: mapsUrl(c, intel.city),
         visibility: 'private',
-        ownerId: '',
+        ownerId: nomadOwnerId(),
       });
       btn.textContent = t('guide.btnSaved');
       btn.classList.add('saved');
