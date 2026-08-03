@@ -1,0 +1,8 @@
+# Vercel treats every top-level .ts/.js file under api/ as its own
+# Serverless Function (regardless of vercel.json's `functions` block, which
+# only sets options for functions it already found). Test files have no
+# default export and were never meant to be routes, but without this
+# exclusion they still count against the Hobby plan's 12-function-per-
+# deployment cap — see https://vercel.link/function-count-limit.
+# (api/_*.ts helpers are excluded automatically by Vercel's own convention.)
+api/**/*.test.ts
