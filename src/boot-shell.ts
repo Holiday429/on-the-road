@@ -76,9 +76,14 @@ function nextFrame(): Promise<void> {
   });
 }
 
+// Kept in sync with core/app.ts's LEGACY_VIEW_MAP — nomad no longer has its
+// own view (folded into Guide's cafe tab), so a stale #nomad hash lands there.
+const LEGACY_VIEW: Partial<Record<string, ViewId>> = { nomad: 'cities' };
+
 function currentViewOrDefault(): ViewId {
-  const hash = window.location.hash.replace('#', '') as ViewId;
-  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'pack', 'cities', 'budget', 'safety', 'journal', 'map', 'nomad', 'calendar'];
+  const raw = window.location.hash.replace('#', '');
+  const hash = (LEGACY_VIEW[raw] ?? raw) as ViewId;
+  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'pack', 'cities', 'budget', 'safety', 'journal', 'map', 'calendar'];
   return valid.includes(hash) ? hash : 'today';
 }
 

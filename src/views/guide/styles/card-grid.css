@@ -1,3 +1,24 @@
+/* ── "My check-ins" strip (Cafés tab — see guide-nomad-strip.ts) ──────────── */
+.guide-nomad-strip { margin-bottom: var(--sp-4); }
+.guide-nomad-strip-label {
+  font-size: var(--fs-xs); font-weight: 700; color: var(--ink-muted);
+  letter-spacing: .04em; text-transform: uppercase; margin-bottom: var(--sp-2);
+}
+.guide-nomad-strip-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.guide-nomad-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--rule-soft);
+  border-radius: var(--r-full); padding: 6px 12px;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast);
+}
+.guide-nomad-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+.guide-nomad-chip-icon { font-size: var(--fs-base); }
+.guide-nomad-chip-score {
+  font-size: var(--fs-xs); font-weight: 700; border-radius: var(--r-full);
+  padding: 2px 7px; line-height: 1.3;
+}
+
 /* ── Image-led card grid ─────────────────────────────────────────────────── */
 .guide-card-grid {
   display: grid;

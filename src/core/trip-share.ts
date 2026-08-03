@@ -25,7 +25,7 @@ import type { Trip } from '../data/schema.ts';
 const PAGE_LABELS: Record<string, string> = {
   route: 'Itinerary', prep: 'Checklist', pack: 'Pack', budget: 'Compare',
   cities: 'Guide', safety: 'Safety', expenses: 'Expenses', journal: 'Journal',
-  map: 'Map', nomad: 'Nomad',
+  map: 'Map',
 };
 function pageLabel(id: string): string { return PAGE_LABELS[id] ?? id; }
 

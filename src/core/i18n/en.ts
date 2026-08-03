@@ -243,6 +243,7 @@ export const en: StringTable = {
   'guide.aiNotice':         '✦ AI-generated · verify details before travel',
   'guide.loadingOverview':  'Overview is being generated…',
   'guide.funFacts':         '💡 Did you know?',
+  'guide.myCheckins':       '☕ Your check-ins here',
   'guide.loadingRecs':      'Loading {tab} recommendations…',
   'guide.btnGenerateMore':  '✨ Generate more',
   'guide.loadingWalks':     'City walk routes are being generated…',

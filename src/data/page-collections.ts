@@ -20,12 +20,13 @@ export const PAGE_COLLECTIONS: Record<PageId, string[]> = {
   prep:     ['prepTasks', 'checklists'],
   pack:     ['packLists'],
   budget:   ['compares'],
-  cities:   ['cityIntel'],
+  // Guide now also renders the Nomad cafe strip (folded in — see
+  // product-restructure P3), so it needs nomadSpots too.
+  cities:   ['cityIntel', 'nomadSpots'],
   safety:   ['citySafety'],
   expenses: ['expenses', 'expenseCategories'],
   journal:  ['journalEntries', 'journalStories', 'journalTemplates'],
   map:      ['legs'],           // Map renders from leg geo data (shares with route)
-  nomad:    ['nomadSpots'],
   today:    [],                 // Dashboard aggregates other pages — not shareable alone
   calendar: [],                 // Calendar aggregates other pages — not shareable alone
 };

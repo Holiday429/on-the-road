@@ -122,7 +122,11 @@ function buildGuestPanel(): string {
 }
 
 export function renderViewTitleMarkup(id: ViewId, title?: string): string {
-  const item = host!.navItems().find((navItem) => navItem.id === id)!;
+  // Views can be routable (ViewId) without a NAV_ITEMS entry (calendar,
+  // and now nomad) — fall back to a bare translated label rather than
+  // asserting non-null, which would throw for any nav-less view.
+  const item = host!.navItems().find((navItem) => navItem.id === id);
+  if (!item) return escapeHtml(title ?? t(`nav.${id}`) ?? id);
   return `
     <span class="view-title-icon" aria-hidden="true">${renderNavIcon(item)}</span>
     <span>${escapeHtml(title?.trim() || navLabel(item))}</span>

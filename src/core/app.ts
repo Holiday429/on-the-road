@@ -15,7 +15,6 @@ import paymentIcon from '../../icon/payment.png';
 import safetyIcon from '../../icon/Safety.png';
 import stayIcon from '../../icon/stay.png';
 import mapsIcon from '../../icon/maps.png';
-import nomadIcon from '../../icon/Nomad.png';
 import {
   type ViewId, type NavItem,
   initSidebar, buildSidebar, buildMobileNav, decorateViewTitles,
@@ -39,12 +38,22 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'route',    label: 'Itinerary', iconSrc: itineraryIcon, section: 'during' },
   { id: 'cities',   label: 'Guide',     iconSrc: guideIcon,     section: 'during' },
   { id: 'map',      label: 'Map',       iconSrc: mapsIcon,      section: 'during' },
-  { id: 'nomad',    label: 'Nomad',     iconSrc: nomadIcon,     section: 'during' },
   { id: 'safety',   label: 'Safety',    iconSrc: safetyIcon,    section: 'during' },
   // After
   { id: 'expenses', label: 'Expenses',  iconSrc: paymentIcon,   section: 'after'  },
   { id: 'journal',  label: 'Journal',   iconSrc: journalIcon,   section: 'after'  },
 ];
+
+// Views that used to have their own NAV_ITEMS entry and are now folded into
+// another view. A stale hash, bookmark, or share-link page id resolves here
+// before anything else, so old links keep working instead of dead-ending.
+const LEGACY_VIEW_MAP: Partial<Record<string, ViewId>> = {
+  nomad: 'cities',
+};
+
+function resolveLegacyView(id: string): ViewId {
+  return (LEGACY_VIEW_MAP[id] ?? id) as ViewId;
+}
 
 // Page-level view restriction. When non-null, the nav + router only allow these
 // view ids — used by viewer share links that expose a subset of pages. null =
@@ -54,8 +63,11 @@ let _allowedViews: ViewId[] | null = null;
 /** Restrict (or clear, with null) the views the current session may see. */
 export function setAllowedViews(ids: ViewId[] | null) {
   // Keep only known view ids; ignore unknowns. Empty array → treat as no data.
-  _allowedViews = ids && ids.length
-    ? ids.filter((id) => NAV_ITEMS.some((n) => n.id === id))
+  // Old invites may carry a since-removed page id (e.g. "nomad") — remap it
+  // to its replacement so those invites don't silently lose the page.
+  const mapped = ids?.map(resolveLegacyView);
+  _allowedViews = mapped && mapped.length
+    ? mapped.filter((id) => NAV_ITEMS.some((n) => n.id === id))
     : (ids === null ? null : []);
 }
 
@@ -211,8 +223,8 @@ export function renderSession(user: User | null, onPrimaryAction: () => void) {
   buildMobileNav();
   applyRoleState();
   if (!user) {
-    const hash = window.location.hash.replace('#', '') as ViewId;
-    navigateTo(NAV_ITEMS.find((item) => item.id === hash) ? hash : 'prep');
+    const hash = resolveLegacyView(window.location.hash.replace('#', ''));
+    navigateTo(NAV_ITEMS.find((item) => item.id === hash) ? hash : firstAllowedView());
   }
 }
 
@@ -299,13 +311,16 @@ export function initApp() {
   });
 
   // Route from hash (navigateTo applies the page-level access guard).
-  const hash = window.location.hash.replace('#', '') as ViewId;
+  const hash = resolveLegacyView(window.location.hash.replace('#', ''));
   const validHash = NAV_ITEMS.find(n => n.id === hash);
   navigateTo(validHash ? hash : firstAllowedView());
 
   window.addEventListener('hashchange', () => {
-    const h = window.location.hash.replace('#', '') as ViewId;
-    if (NAV_ITEMS.find(n => n.id === h)) navigateTo(h);
+    const h = resolveLegacyView(window.location.hash.replace('#', ''));
+    // A hash that matches no view (including one with no legacy mapping)
+    // used to be a silent no-op, leaving the previously-active view on
+    // screen with a dead URL. Route it to the default instead.
+    navigateTo(NAV_ITEMS.find(n => n.id === h) ? h : firstAllowedView());
   });
 
   initOfflineBanner();

@@ -235,6 +235,7 @@ export const zh: StringTable = {
   'guide.aiNotice':         '✦ AI 生成 · 出行前请核实',
   'guide.loadingOverview':  '概览生成中…',
   'guide.funFacts':         '💡 你知道吗？',
+  'guide.myCheckins':       '☕ 你在这里的打卡记录',
   'guide.loadingRecs':      '加载 {tab} 推荐…',
   'guide.btnGenerateMore':  '✨ 生成更多',
   'guide.loadingWalks':     '城市漫步路线生成中…',
