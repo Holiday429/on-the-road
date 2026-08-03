@@ -1,6 +1,9 @@
 /* ==========================================================================
-   On the Road · Safety profile sheet — emergency card drawer (view + edit)
-   Fixed PDF/medical upload: upload first, await URL, then save to Firestore.
+   On the Road · Profile — emergency card section (view + edit)
+   Ported from views/safety/profile-sheet.ts, which was a self-attached
+   overlay sheet; here it's an inline section painted into the Profile page's
+   own container instead of document.body. Upload-then-save ordering is
+   unchanged: files upload first, URLs are awaited, then Firestore is written.
    ========================================================================== */
 
 import { safetyProfileStore, type StoredSafetyProfile } from '../../data/stores/safety-profile-store.ts';
@@ -35,14 +38,14 @@ function dialOptions(selected: string): string {
 }
 
 function phoneRow(dialId: string, localId: string, dialVal: string, localVal: string): string {
-  return `<div class="sfy-phone-row">
-    <select class="input select sfy-dial-select" id="${dialId}">${dialOptions(dialVal)}</select>
-    <input class="input sfy-phone-local" id="${localId}" type="tel" value="${esc(localVal)}" placeholder="number">
+  return `<div class="profile-phone-row">
+    <select class="input select profile-dial-select" id="${dialId}">${dialOptions(dialVal)}</select>
+    <input class="input profile-phone-local" id="${localId}" type="tel" value="${esc(localVal)}" placeholder="number">
   </div>`;
 }
 
 function field(id: string, val: string, ph: string, label: string, type = 'text'): string {
-  return `<div class="sfy-field">
+  return `<div class="profile-field">
     <label class="field-label" for="${id}">${label}</label>
     <input class="input" id="${id}" type="${type}" value="${esc(val)}" placeholder="${esc(ph)}">
   </div>`;
@@ -50,17 +53,17 @@ function field(id: string, val: string, ph: string, label: string, type = 'text'
 
 function docUploadRow(inputId: string, labelId: string, statusId: string, currentUrl: string, currentName: string, label: string): string {
   const existing = currentUrl
-    ? `<a class="sfy-doc-link" href="${esc(currentUrl)}" target="_blank" rel="noopener">📄 ${esc(currentName || 'View file')}</a>`
+    ? `<a class="profile-doc-link" href="${esc(currentUrl)}" target="_blank" rel="noopener">📄 ${esc(currentName || 'View file')}</a>`
     : '';
-  return `<div class="sfy-field">
+  return `<div class="profile-field">
     <label class="field-label">${label}</label>
     ${existing}
-    <div class="sfy-upload-row">
-      <label class="sfy-upload-btn" for="${inputId}">
+    <div class="profile-upload-row">
+      <label class="profile-upload-btn" for="${inputId}">
         <span id="${labelId}">📎 ${currentUrl ? 'Replace…' : 'Upload…'}</span>
         <input type="file" id="${inputId}" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*" style="display:none">
       </label>
-      <span class="sfy-upload-status" id="${statusId}"></span>
+      <span class="profile-upload-status" id="${statusId}"></span>
     </div>
   </div>`;
 }
@@ -74,10 +77,10 @@ function renderView(p: StoredSafetyProfile | null): string {
 
   if (!hasAny) {
     return `
-      <div class="sfyp-empty">
-        <div class="sfyp-empty-icon">🆘</div>
+      <div class="profile-emergency-empty">
+        <div class="profile-emergency-empty-icon">🆘</div>
         <p>${t('safety.emptyHint')}<br>${t('safety.emptyHint2')}</p>
-        <button class="btn btn-primary" id="sfyp-edit">${t('safety.btnSetup')}</button>
+        <button class="btn btn-primary" id="pfe-edit">${t('safety.btnSetup')}</button>
       </div>`;
   }
 
@@ -85,9 +88,9 @@ function renderView(p: StoredSafetyProfile | null): string {
 
   const contacts = (p!.emergencyContacts ?? []).map((c) => {
     const phone = fullPhone(c.dialCode, c.phone);
-    return `<a class="sfyp-contact" href="${phone ? telHref(c.dialCode, c.phone) : '#'}">
-      <span class="sfyp-contact-name">${esc(c.name)}${c.relation ? ` · ${esc(c.relation)}` : ''}${c.isPrimary ? ' ⭐' : ''}</span>
-      <span class="sfyp-contact-phone">${esc(phone || '—')}</span>
+    return `<a class="profile-contact" href="${phone ? telHref(c.dialCode, c.phone) : '#'}">
+      <span class="profile-contact-name">${esc(c.name)}${c.relation ? ` · ${esc(c.relation)}` : ''}${c.isPrimary ? ' ⭐' : ''}</span>
+      <span class="profile-contact-phone">${esc(phone || '—')}</span>
     </a>`;
   }).join('');
 
@@ -105,40 +108,40 @@ function renderView(p: StoredSafetyProfile | null): string {
   ].filter(Boolean) as [string, string][];
 
   const facts = (rows: [string, string][]) => rows.map(([k, v]) =>
-    `<div class="sfyp-fact"><span class="sfyp-fact-k">${k}</span><span class="sfyp-fact-v">${esc(v)}</span></div>`,
+    `<div class="profile-fact"><span class="profile-fact-k">${k}</span><span class="profile-fact-v">${esc(v)}</span></div>`,
   ).join('');
 
   const docs = [
-    p!.insurancePdfUrl && `<a class="sfy-doc-link" href="${esc(p!.insurancePdfUrl)}" target="_blank" rel="noopener">📄 ${esc(p!.insurancePdfName || 'Insurance PDF')}</a>`,
-    p!.medicalDocUrl && `<a class="sfy-doc-link" href="${esc(p!.medicalDocUrl)}" target="_blank" rel="noopener">🩺 ${esc(p!.medicalDocName || 'Medical card')}</a>`,
+    p!.insurancePdfUrl && `<a class="profile-doc-link" href="${esc(p!.insurancePdfUrl)}" target="_blank" rel="noopener">📄 ${esc(p!.insurancePdfName || 'Insurance PDF')}</a>`,
+    p!.medicalDocUrl && `<a class="profile-doc-link" href="${esc(p!.medicalDocUrl)}" target="_blank" rel="noopener">🩺 ${esc(p!.medicalDocName || 'Medical card')}</a>`,
   ].filter(Boolean).join('');
 
   return `
-    <div class="sfyp-view">
-      <div class="sfyp-grid">
-        ${p!.nationality ? `<div class="sfyp-block">
-          <div class="sfyp-block-label">${t('safety.labelNationality')}</div>
-          <div class="sfyp-nat">${nationalityFlag(p!.nationality)} ${esc(nationalityLabel(p!.nationality))}</div>
+    <div class="profile-emergency-view">
+      <div class="profile-emergency-grid">
+        ${p!.nationality ? `<div class="profile-emergency-block">
+          <div class="profile-emergency-block-label">${t('safety.labelNationality')}</div>
+          <div class="profile-nat">${nationalityFlag(p!.nationality)} ${esc(nationalityLabel(p!.nationality))}</div>
         </div>` : ''}
-        ${contacts ? `<div class="sfyp-block">
-          <div class="sfyp-block-label">${t('safety.labelEmergency')}</div>
+        ${contacts ? `<div class="profile-emergency-block">
+          <div class="profile-emergency-block-label">${t('safety.labelEmergency')}</div>
           ${contacts}
         </div>` : ''}
-        ${medRows.length ? `<div class="sfyp-block">
-          <div class="sfyp-block-label">${t('safety.labelMedical')}</div>
+        ${medRows.length ? `<div class="profile-emergency-block">
+          <div class="profile-emergency-block-label">${t('safety.labelMedical')}</div>
           ${facts(medRows)}
         </div>` : ''}
-        ${(insRows.length || docs) ? `<div class="sfyp-block">
-          <div class="sfyp-block-label">${t('safety.labelInsurance')}</div>
+        ${(insRows.length || docs) ? `<div class="profile-emergency-block">
+          <div class="profile-emergency-block-label">${t('safety.labelInsurance')}</div>
           ${facts(insRows)}
           ${docs}
         </div>` : ''}
       </div>
-      ${p!.notes ? `<div class="sfyp-notes">${esc(p!.notes)}</div>` : ''}
-      ${primary ? `<a class="btn btn-primary sfyp-call" href="${telHref(primary.dialCode, primary.phone)}">
+      ${p!.notes ? `<div class="profile-emergency-notes">${esc(p!.notes)}</div>` : ''}
+      ${primary ? `<a class="btn btn-primary profile-emergency-call" href="${telHref(primary.dialCode, primary.phone)}">
         📞 Call ${esc(primary.name || 'emergency contact')}
       </a>` : ''}
-      <button class="btn btn-ghost sfyp-edit-btn" id="sfyp-edit">Edit</button>
+      <button class="btn btn-ghost profile-emergency-edit-btn" id="pfe-edit">Edit</button>
     </div>`;
 }
 
@@ -148,13 +151,13 @@ function renderForm(p: StoredSafetyProfile | null): string {
   const c1 = p?.emergencyContacts?.[1] ?? { name: '', relation: '', dialCode: '', phone: '', isPrimary: false };
 
   return `
-    <form class="sfyp-form" id="sfyp-form" autocomplete="off">
-      <div class="sfyp-form-grid">
+    <form class="profile-emergency-form" id="pfe-form" autocomplete="off">
+      <div class="profile-emergency-form-grid">
 
-        <div class="sfyp-form-col">
-          <div class="sfyp-col-head">${t('safety.formPersonal')}</div>
-          <div class="sfy-field">
-            <label class="field-label" for="pfn-nat">${t('safety.labelNationality')} <span class="sfy-muted">${t('safety.nationalityHint')}</span></label>
+        <div class="profile-emergency-form-col">
+          <div class="profile-emergency-col-head">${t('safety.formPersonal')}</div>
+          <div class="profile-field">
+            <label class="field-label" for="pfn-nat">${t('safety.labelNationality')} <span class="profile-muted">${t('safety.nationalityHint')}</span></label>
             <select class="input select" id="pfn-nat">${natOptions(p?.nationality ?? '')}</select>
           </div>
           ${field('pfn-blood', p?.bloodType ?? '', 'e.g. O+', 'Blood type')}
@@ -163,35 +166,35 @@ function renderForm(p: StoredSafetyProfile | null): string {
           ${field('pfn-cond', p?.conditions ?? '', 'asthma, diabetes…', 'Conditions')}
         </div>
 
-        <div class="sfyp-form-col">
-          <div class="sfyp-col-head">${t('safety.contact1Label')}</div>
+        <div class="profile-emergency-form-col">
+          <div class="profile-emergency-col-head">${t('safety.contact1Label')}</div>
           ${field('pfn-c0-name', c0.name, 'Name', 'Name')}
           ${field('pfn-c0-rel', c0.relation, 'mum / partner / friend', 'Relation')}
-          <div class="sfy-field">
+          <div class="profile-field">
             <label class="field-label">Phone</label>
             ${phoneRow('pfn-c0-dial', 'pfn-c0-phone', c0.dialCode, c0.phone)}
           </div>
-          <div class="sfyp-col-head" style="margin-top:var(--sp-4)">${t('safety.contact2Label')}</div>
+          <div class="profile-emergency-col-head" style="margin-top:var(--sp-4)">${t('safety.contact2Label')}</div>
           ${field('pfn-c1-name', c1.name, 'Name', 'Name')}
-          <div class="sfy-field">
+          <div class="profile-field">
             <label class="field-label">Phone</label>
             ${phoneRow('pfn-c1-dial', 'pfn-c1-phone', c1.dialCode, c1.phone)}
           </div>
         </div>
 
-        <div class="sfyp-form-col">
-          <div class="sfyp-col-head">${t('safety.insuranceSection')}</div>
+        <div class="profile-emergency-form-col">
+          <div class="profile-emergency-col-head">${t('safety.insuranceSection')}</div>
           ${field('pfn-ins-prov', p?.insuranceProvider ?? '', 'insurer name', 'Travel insurer')}
           ${field('pfn-ins-pol', p?.insurancePolicy ?? '', 'policy number', 'Policy number')}
           ${field('pfn-ins-hot', p?.insuranceHotline ?? '', '24h assistance line', 'Insurance hotline')}
           ${docUploadRow('pfn-ins-file', 'pfn-ins-label', 'pfn-ins-status',
             p?.insurancePdfUrl ?? '', p?.insurancePdfName ?? '', 'Insurance policy PDF')}
 
-          <div class="sfyp-col-head" style="margin-top:var(--sp-4)">${t('safety.medicalDocSection')}</div>
+          <div class="profile-emergency-col-head" style="margin-top:var(--sp-4)">${t('safety.medicalDocSection')}</div>
           ${docUploadRow('pfn-med-file', 'pfn-med-label', 'pfn-med-status',
             p?.medicalDocUrl ?? '', p?.medicalDocName ?? '', 'Medical card or summary')}
 
-          <div class="sfy-field">
+          <div class="profile-field">
             <label class="field-label" for="pfn-notes">${t('safety.notesForMedics')}</label>
             <textarea class="input" id="pfn-notes" rows="3" placeholder="anything a first responder should know">${esc(p?.notes ?? '')}</textarea>
           </div>
@@ -199,68 +202,40 @@ function renderForm(p: StoredSafetyProfile | null): string {
 
       </div>
 
-      <div class="sfyp-form-actions">
-        <button type="button" class="btn btn-ghost sfy-sm" id="sfyp-cancel">Cancel</button>
-        <button type="submit" class="btn btn-primary sfy-sm" id="sfyp-save">Save</button>
+      <div class="profile-emergency-form-actions">
+        <button type="button" class="btn btn-ghost" id="pfe-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="pfe-save">Save</button>
       </div>
     </form>`;
 }
 
-/* ── Sheet shell ──────────────────────────────────────────────────────────── */
-function createSheetDOM(): HTMLElement {
-  const el = document.createElement('div');
-  el.id = 'sfy-profile-sheet';
-  el.className = 'sfy-sheet-overlay';
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  el.innerHTML = `
-    <div class="sfy-sheet" role="dialog" aria-modal="true">
-      <div class="sfy-sheet-header">
-        <div class="sfy-sheet-title">${t('safety.profileHeader')}</div>
-        <button class="sfy-sheet-close" id="sfyp-close" aria-label="Close">×</button>
-      </div>
-      <div class="sfy-sheet-body" id="sfyp-body"></div>
-    </div>`;
-  return el;
-}
+/* ── Public API — inline section, not a self-attached overlay ────────────── */
 
-/* ── Public API ───────────────────────────────────────────────────────────── */
-
-let _sheet: HTMLElement | null = null;
 let _editing = false;
 let _profile: StoredSafetyProfile | null = null;
-let _unsub: (() => void) | null = null;
+let _host: HTMLElement | null = null;
 
-function bodyEl(): HTMLElement | null {
-  return document.getElementById('sfyp-body');
+export function renderEmergencySection(): string {
+  return `<div id="pfe-body">${_editing ? renderForm(_profile) : renderView(_profile)}</div>`;
 }
 
-function paint() {
-  const body = bodyEl();
+function repaint(): void {
+  const body = _host?.querySelector<HTMLElement>('#pfe-body');
   if (!body) return;
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = _editing ? renderForm(_profile) : renderView(_profile);
-  wireSheet();
+  wireEmergencySection(_host!);
 }
 
-function wireSheet() {
-  const sheet = _sheet;
-  if (!sheet) return;
+export function wireEmergencySection(host: HTMLElement): void {
+  _host = host;
 
-  sheet.querySelector('#sfyp-close')?.addEventListener('click', closeProfileSheet);
+  host.querySelector('#pfe-edit')?.addEventListener('click', () => { _editing = true; repaint(); });
+  host.querySelector('#pfe-cancel')?.addEventListener('click', () => { _editing = false; repaint(); });
 
-  sheet.querySelector('#sfyp-edit')?.addEventListener('click', () => {
-    _editing = true;
-    paint();
-  });
-  sheet.querySelector('#sfyp-cancel')?.addEventListener('click', () => {
-    _editing = false;
-    paint();
-  });
-
-  // File picker label updates
   const wirePicker = (inputId: string, labelId: string) => {
-    const input = sheet.querySelector<HTMLInputElement>(`#${inputId}`);
-    const label = sheet.querySelector<HTMLElement>(`#${labelId}`);
+    const input = host.querySelector<HTMLInputElement>(`#${inputId}`);
+    const label = host.querySelector<HTMLElement>(`#${labelId}`);
     if (input && label) {
       input.addEventListener('change', () => {
         if (input.files?.[0]) label.textContent = `📎 ${input.files[0].name}`;
@@ -270,13 +245,10 @@ function wireSheet() {
   wirePicker('pfn-ins-file', 'pfn-ins-label');
   wirePicker('pfn-med-file', 'pfn-med-label');
 
-  const form = sheet.querySelector<HTMLFormElement>('#sfyp-form');
-  if (form) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      void saveProfile();
-    });
-  }
+  host.querySelector<HTMLFormElement>('#pfe-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void saveProfile();
+  });
 }
 
 async function saveProfile() {
@@ -284,10 +256,9 @@ async function saveProfile() {
     (document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null)
       ?.value.trim() ?? '';
 
-  const saveBtn = document.getElementById('sfyp-save') as HTMLButtonElement | null;
+  const saveBtn = document.getElementById('pfe-save') as HTMLButtonElement | null;
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
 
-  // ── Upload documents first, await URLs before writing Firestore ────────────
   let insurancePdfUrl = _profile?.insurancePdfUrl ?? '';
   let insurancePdfName = _profile?.insurancePdfName ?? '';
   let medicalDocUrl = _profile?.medicalDocUrl ?? '';
@@ -326,7 +297,6 @@ async function saveProfile() {
     );
   }
 
-  // Wait for all uploads to finish before writing to Firestore
   await Promise.all(uploads);
 
   const contacts: SafetyProfile['emergencyContacts'] = [];
@@ -367,39 +337,14 @@ async function saveProfile() {
   });
 
   _editing = false;
-  // paint() will be called by the store subscriber when Firestore updates
+  // repaint() runs from the store subscriber below once Firestore updates.
 }
 
-export function openProfileSheet(): void {
-  if (_sheet) return;
-
-  _sheet = createSheetDOM();
-  document.body.appendChild(_sheet);
-
-  _editing = false;
-
-  // Subscribe to live profile updates
-  _unsub = safetyProfileStore.subscribe((p) => {
+/** Subscribe to live profile updates; call once from the Profile page's init.
+ *  Returns an unsubscribe fn. */
+export function subscribeEmergencySection(onChange: () => void): () => void {
+  return safetyProfileStore.subscribe((p) => {
     _profile = p;
-    if (!_editing) paint(); // don't overwrite form while user is editing
+    if (!_editing) onChange();
   });
-
-  // Close on overlay click
-  _sheet.addEventListener('click', (e) => { if (e.target === _sheet) closeProfileSheet(); });
-
-  // Esc key
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') { closeProfileSheet(); document.removeEventListener('keydown', onKey); }
-  };
-  document.addEventListener('keydown', onKey);
-
-  paint();
-}
-
-export function closeProfileSheet(): void {
-  _unsub?.();
-  _unsub = null;
-  _sheet?.remove();
-  _sheet = null;
-  _editing = false;
 }

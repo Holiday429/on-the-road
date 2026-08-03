@@ -1,0 +1,86 @@
+/* ==========================================================================
+   On the Road · Profile view
+   ========================================================================== */
+
+.profile-section {
+  background: var(--surface); border: 1px solid var(--rule-soft);
+  border-radius: var(--r-xl); padding: var(--sp-6);
+  margin-bottom: var(--sp-5);
+}
+.profile-section-title {
+  font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700;
+  color: var(--ink); margin-bottom: var(--sp-4);
+}
+
+.profile-prefs-mount { display: flex; }
+
+/* ── Emergency card — view mode ───────────────────────────────────────────── */
+.profile-emergency-empty { text-align: center; padding: var(--sp-8) var(--sp-6); }
+.profile-emergency-empty-icon { font-size: 48px; margin-bottom: var(--sp-4); }
+.profile-emergency-empty p { color: var(--ink-muted); font-size: var(--fs-base); max-width: 44ch; margin: 0 auto var(--sp-6); }
+
+.profile-emergency-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-5); margin-bottom: var(--sp-5);
+}
+.profile-emergency-block-label {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted); margin-bottom: var(--sp-2);
+}
+.profile-nat { font-size: var(--fs-md); font-weight: 600; }
+.profile-contact {
+  display: flex; flex-direction: column;
+  padding: 6px 0; border-bottom: 1px solid var(--rule-soft);
+}
+.profile-contact:last-child { border-bottom: none; }
+.profile-contact-name { font-size: var(--fs-sm); font-weight: 600; }
+.profile-contact-phone { font-size: var(--fs-sm); color: var(--sky-500); }
+.profile-fact { display: flex; justify-content: space-between; gap: var(--sp-3); padding: 3px 0; font-size: var(--fs-sm); }
+.profile-fact-k { color: var(--ink-muted); }
+.profile-fact-v { font-weight: 600; text-align: right; }
+.profile-emergency-notes { font-size: var(--fs-sm); color: var(--ink-soft); font-style: italic; margin-bottom: var(--sp-4); }
+.profile-emergency-call { display: block; text-align: center; margin-bottom: var(--sp-3); }
+.profile-emergency-edit-btn { display: block; width: 100%; text-align: center; }
+
+/* ── Emergency card — edit mode ────────────────────────────────────────────── */
+.profile-emergency-form-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-5); margin-bottom: var(--sp-5);
+}
+.profile-emergency-form-col { display: flex; flex-direction: column; gap: 0; }
+.profile-emergency-col-head {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted); margin-bottom: var(--sp-3);
+  padding-bottom: var(--sp-2); border-bottom: 1px solid var(--rule-soft);
+}
+.profile-field { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.profile-field:last-child { margin-bottom: 0; }
+.profile-muted { color: var(--ink-faint); font-weight: 400; }
+
+.profile-phone-row { display: flex; gap: var(--sp-2); }
+.profile-dial-select { width: 90px; flex-shrink: 0; }
+.profile-phone-local { flex: 1; }
+
+.profile-doc-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: var(--sky-500); font-size: var(--fs-sm); font-weight: 500;
+  margin-bottom: var(--sp-2);
+}
+.profile-upload-row { display: flex; align-items: center; gap: var(--sp-3); }
+.profile-upload-btn {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: 7px 12px; border: 1.5px dashed var(--surface-4);
+  border-radius: var(--r-md); font-size: var(--fs-sm); color: var(--ink-soft);
+  cursor: pointer; transition: border-color var(--dur-fast), background var(--dur-fast);
+  white-space: nowrap;
+}
+.profile-upload-btn:hover { border-color: var(--accent); background: var(--accent-bg); }
+.profile-upload-status { font-size: var(--fs-xs); color: var(--ink-muted); }
+
+.profile-emergency-form-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); padding-top: var(--sp-4); border-top: 1px solid var(--rule-soft); }
+
+@media (max-width: 600px) {
+  .profile-emergency-form-grid { grid-template-columns: 1fr; }
+}

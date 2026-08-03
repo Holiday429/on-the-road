@@ -11,7 +11,7 @@
      https://en.wikipedia.org/wiki/Emergency_telephone_number
    ========================================================================== */
 
-import type { GeneratedSafety } from '../../views/safety/generate.ts';
+import type { GeneratedSafety } from '../schema/safety.ts';
 
 type StaticCountry = Omit<
   GeneratedSafety,

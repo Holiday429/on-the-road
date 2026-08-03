@@ -12,7 +12,6 @@ import itineraryIcon from '../../icon/Itinerary.png';
 import journalIcon from '../../icon/Journal.png';
 import packIcon from '../../icon/Pack.png';
 import paymentIcon from '../../icon/payment.png';
-import safetyIcon from '../../icon/Safety.png';
 import stayIcon from '../../icon/stay.png';
 import mapsIcon from '../../icon/maps.png';
 import {
@@ -38,7 +37,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'route',    label: 'Itinerary', iconSrc: itineraryIcon, section: 'during' },
   { id: 'cities',   label: 'Guide',     iconSrc: guideIcon,     section: 'during' },
   { id: 'map',      label: 'Map',       iconSrc: mapsIcon,      section: 'during' },
-  { id: 'safety',   label: 'Safety',    iconSrc: safetyIcon,    section: 'during' },
   // After
   { id: 'expenses', label: 'Expenses',  iconSrc: paymentIcon,   section: 'after'  },
   { id: 'journal',  label: 'Journal',   iconSrc: journalIcon,   section: 'after'  },
@@ -49,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
 // before anything else, so old links keep working instead of dead-ending.
 const LEGACY_VIEW_MAP: Partial<Record<string, ViewId>> = {
   nomad: 'cities',
+  safety: 'cities',
 };
 
 function resolveLegacyView(id: string): ViewId {

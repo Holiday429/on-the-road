@@ -14,6 +14,7 @@
      "cafes"       → GuideCard[]
      "experiences" → GuideCard[]
      "moneyTips"   → GuideTip[]
+     "safety"      → CitySafety (client persists this into citySafety/{slugId}, not cityIntel)
      "done"        → {}
 
    Keys in .env (server-side only, no VITE_ prefix):
@@ -42,6 +43,15 @@ interface CityWalk {
 }
 
 interface GuideTip { id: string; text: string; }
+
+interface CitySafety {
+  generalEmergency: string;
+  emergencyNumbers: { label: string; number: string }[];
+  embassy: { nationality: string; name: string; address: string; phone: string; website: string };
+  hospitals: { name: string; address: string; phone: string; is24h: boolean }[];
+  areasToAvoid: string[];
+  commonScams: string[];
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -279,9 +289,34 @@ Return ONLY a JSON array. Each tip 1 sentence.
 [{"id":"tip-1","text":""}]`;
 }
 
+// Deliberately narrower than api/safety.ts's full safetyPrompt: no embassy (no
+// per-user nationality in this context — the client fills that in separately
+// from citySafety/{slugId} if a card already exists) and no generic "don't
+// walk alone at night" advice (knowPrompt's safetyTips already covers that).
+// Only city-specific, checkable facts: numbers, hospitals, areas, scams.
+function safetyForGuidePrompt(city: string, country: string, searchContext: string) {
+  return `Safety reference for ${city}, ${country}. ONLY include facts specific to this city — skip generic travel-safety advice a traveler would already know (e.g. "stay aware of your surroundings", "don't walk alone at night").
+${searchContext ? `Recent verified web context (use for real phone numbers and addresses):\n${searchContext}\n` : ''}
+Return ONLY valid JSON:
+{
+  "generalEmergency": "<single pan-emergency number for ${country}, e.g. 112>",
+  "emergencyNumbers": [
+    {"label": "Police", "number": "<real local number>"},
+    {"label": "Ambulance", "number": "<real local number>"},
+    {"label": "Fire", "number": "<real local number>"}
+  ],
+  "hospitals": [
+    {"name": "<hospital name>", "address": "<full address>", "phone": "<phone>", "is24h": true}
+  ],
+  "areasToAvoid": ["<specific neighbourhood/area + time of day, or omit if none notable>"],
+  "commonScams": ["<scam specific to ${city}, or omit if none notable>"]
+}
+IMPORTANT: Use real, accurate phone numbers for ${country}. If you are not certain of a number, use an empty string — do NOT guess.`;
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
-// Allow up to 60s — 8 parallel DeepSeek calls can exceed the 10s default.
+// Allow up to 60s — 9 parallel DeepSeek calls can exceed the 10s default.
 export const config = { maxDuration: 60 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -392,11 +427,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       emit(res, 'moneyTips', tips.map((t, i) => ({ ...t, id: t.id || `tip-${i}` })));
     })();
 
+    const safetyPipe = (async () => {
+      const ctx = await tavilySearch(`${city} ${country} emergency number police ambulance hospital 2024 2025`);
+      const raw = await deepseek(safetyForGuidePrompt(city, country, ctx), 600) as Partial<CitySafety>;
+      emit(res, 'safety', {
+        generalEmergency: raw.generalEmergency || '112',
+        emergencyNumbers: raw.emergencyNumbers ?? [],
+        hospitals: raw.hospitals ?? [],
+        areasToAvoid: raw.areasToAvoid ?? [],
+        commonScams: raw.commonScams ?? [],
+      });
+    })();
+
     // Wait for every pipeline; a single section failing must not abort the rest,
     // so use allSettled and surface any failures as a non-fatal error event.
     const results = await Promise.allSettled([
       metaPipe, knowPipe, attractionsPipe, cityWalksPipe,
-      restaurantsPipe, cafesPipe, experiencesPipe, moneyPipe,
+      restaurantsPipe, cafesPipe, experiencesPipe, moneyPipe, safetyPipe,
     ]);
     const failed = results.filter(r => r.status === 'rejected');
     if (failed.length === results.length) {

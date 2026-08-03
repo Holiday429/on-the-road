@@ -340,8 +340,7 @@ function clearDrillOverlays() {
   _countryPinOverlays = clearOverlayItems(_countryPinOverlays, 'mapCountryPins');
 }
 
-/* ── City action sheet (Guide / Safety / Itinerary) ───────────────────────── */
-/** Bottom sheet shown when a city pin is clicked — pick where to dive in. */
+/* ── City action sheet (Guide / Safety / Itinerary) — pick where to dive in ── */
 function openCityActionSheet(city: string): void {
   const m = openSheet({
     title: city,
@@ -365,12 +364,13 @@ function openCityActionSheet(city: string): void {
 
   m.root.querySelectorAll<HTMLElement>('.map-sheet-action').forEach((btn) => {
     btn.addEventListener('click', () => {
+      // 'safety' is now Guide's Safety tab, not its own view — route there too.
       const go = btn.dataset.go as 'cities' | 'safety' | 'route';
       m.close();
-      navigateTo(go);
-      // After the target view mounts, deep-link to this city where supported.
-      if (go === 'cities') {
-        setTimeout(() => import('../guide/guide.ts').then(({ openGuideCity }) => openGuideCity(city)), 80);
+      navigateTo(go === 'safety' ? 'cities' : go);
+      if (go === 'cities' || go === 'safety') {
+        setTimeout(() => import('../guide/guide.ts').then(({ openGuideCity }) =>
+          openGuideCity(city, go === 'safety' ? 'safety' : undefined)), 80);
       }
     });
   });
