@@ -11,6 +11,10 @@ import { expenseStore, type StoredExpense } from '../../data/stores/expense-stor
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
 import { currentTrip, baseCurrency, tripBudget, countryBudgets, onTripChange, currentTripId } from '../../data/trip-context.ts';
+import {
+  type Phase, todayIso as sharedTodayIso, daysBetween as sharedDaysBetween,
+  tripPhase as sharedTripPhase, currentLeg as sharedCurrentLeg,
+} from '../../data/trip-phase.ts';
 import { addExpenseWithDefaults, defaultPlace, defaultCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES } from '../../data/rates.ts';
 import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher } from '../../core/app.ts';
@@ -55,46 +59,15 @@ let _citySafety: StoredCitySafety[] = [];
 let _packLists: StoredPackList[] = [];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
-type Phase = 'before' | 'during' | 'after';
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-function daysBetween(a: string, b: string): number {
-  return Math.round((new Date(b + 'T00:00:00').getTime() - new Date(a + 'T00:00:00').getTime()) / 86400000);
-}
+// Phase/countdown math now lives in data/trip-phase.ts (shared with the
+// Prepare view's phase strip) — these wrap it against this module's own
+// _legs so the ~20 zero-arg call sites below don't all need touching.
+function todayIso(): string { return sharedTodayIso(); }
+function daysBetween(a: string, b: string): number { return sharedDaysBetween(a, b); }
+function tripPhase(): Phase { return sharedTripPhase(_legs); }
+function currentLeg(): StoredLeg | null { return sharedCurrentLeg(_legs); }
 function sortedLegs(): StoredLeg[] {
   return [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
-}
-function tripPhase(): Phase {
-  const trip = currentTrip();
-  const today = todayIso();
-  // The trip's own start/end are the single source of truth for the phase —
-  // legs only fill in when there's no trip loaded yet (guest/boot). Mixing the
-  // two (trip start + leg end) produced before/during/after disagreeing with
-  // the itinerary when a user moved trip dates without re-touching the legs.
-  let start: string | undefined;
-  let end: string | undefined;
-  if (trip) {
-    start = trip.startDate;
-    end = trip.endDate;
-  } else {
-    const legs = sortedLegs();
-    start = legs[0]?.dateFrom;
-    end = legs[legs.length - 1]?.dateTo;
-  }
-  if (!start) return 'before';
-  if (today < start) return 'before';
-  if (end && today > end) return 'after';
-  return 'during';
-}
-function currentLeg(): StoredLeg | null {
-  const sorted = sortedLegs();
-  if (!sorted.length) return null;
-  const today = todayIso();
-  return sorted.find(l => l.dateFrom <= today && l.dateTo >= today)
-    ?? sorted.find(l => l.dateFrom >= today)
-    ?? sorted[sorted.length - 1];
 }
 function inBase(e: StoredExpense): number {
   const target = baseCurrency();
