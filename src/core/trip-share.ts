@@ -23,11 +23,16 @@ import type { Trip } from '../data/schema.ts';
 // Human labels for the shareable pages (mirror of the app shell's NAV_ITEMS,
 // kept local so this module doesn't pull in the nav's icon assets).
 const PAGE_LABELS: Record<string, string> = {
-  route: 'Itinerary', prep: 'Checklist', pack: 'Pack', budget: 'Compare',
+  route: 'Itinerary', prep: 'Checklist', budget: 'Compare',
   cities: 'Guide', expenses: 'Expenses', journal: 'Journal',
   map: 'Map',
 };
-function pageLabel(id: string): string { return PAGE_LABELS[id] ?? id; }
+// Pre-P5 invites may still carry the old standalone 'pack' page id — display
+// it as what it now actually grants (see collectionsForPages' normalization).
+const LEGACY_PAGE_LABEL_MAP: Record<string, string> = { pack: 'prep' };
+function pageLabel(id: string): string {
+  return PAGE_LABELS[LEGACY_PAGE_LABEL_MAP[id] ?? id] ?? id;
+}
 
 /* ── Share modal (owner) ─────────────────────────────────────────────────── */
 

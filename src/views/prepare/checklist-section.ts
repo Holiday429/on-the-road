@@ -2,7 +2,7 @@
    On the Road · Prep Checklist (v2 — Firestore-backed)
    ========================================================================== */
 
-import './checklist.css';
+import './styles/checklist.css';
 import {
   checklistStore,
   templateStore,
@@ -17,6 +17,9 @@ import { escHtml } from '../../core/utils.ts';
 import { postJson } from '../../core/api.ts';
 import { aiLanguage, t } from '../../core/i18n.ts';
 import { handleAiError } from '../../core/paywall.ts';
+import { openModal } from '../../core/modal.ts';
+import { addToUnassigned, hasPackList } from './pack-section.ts';
+import { categoryForGroupName } from '../pack/pack-helpers.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -56,181 +59,61 @@ function startSubscriptions() {
   _unsubStandaloneChecklists?.();
   _unsubTemplates?.();
 
+  const push = () => { render(); _onDataChange?.(); };
+
   _unsubChecklists = checklistStore.subscribe((rows) => {
     _tripChecklists = rows;
     _checklists = [..._tripChecklists, ..._standaloneChecklists];
-    render();
+    push();
   });
 
   _unsubStandaloneChecklists = checklistStore.subscribe((rows) => {
     _standaloneChecklists = rows;
     _checklists = [..._tripChecklists, ..._standaloneChecklists];
-    render();
+    push();
   }, STANDALONE_TRIP_ID);
 
   _unsubTemplates = templateStore.subscribe((rows) => {
     _templates = rows;
-    render();
+    push();
   });
 }
 
 
 /* ── Root ────────────────────────────────────────────────────────────────── */
+// Renders into a zone handed in by the Prepare orchestrator (prepare.ts)
+// rather than owning the whole #view-prep body, so the landing page can show
+// this section's list alongside Pack's. onScreenChange lets the orchestrator
+// know when this section enters/leaves its own detail view, so it can hide
+// the other section's zone while this one takes over the full page (a normal
+// list→detail drill-down, not a second navigation layer).
+
+let _zone: HTMLElement | null = null;
+let _onScreenChange: ((s: Screen) => void) | null = null;
+// Fires after any store push, so the Prepare landing can repaint its rail
+// without opening a second set of subscriptions on the same collections.
+let _onDataChange: (() => void) | null = null;
 
 function getRoot(): HTMLElement | null {
-  return document.getElementById('view-prep');
+  return _zone;
 }
 
 function render() {
-  const root = getRoot();
-  if (!root) return;
-  const body = root.querySelector<HTMLElement>('.prep-body');
+  const body = getRoot();
   if (!body) return;
 
-  if (screen === 'list') renderListScreen(body);
-  else if (screen === 'detail') renderDetailScreen(body);
+  // A detail/celebrate screen whose checklist vanished falls back to 'list'
+  // BEFORE notifying, so the orchestrator restores the landing.
+  if (screen !== 'list' && !_checklists.some(c => c.id === activeChecklistId)) {
+    screen = 'list';
+    activeChecklistId = null;
+  }
+
+  _onScreenChange?.(screen);
+
+  if (screen === 'detail') renderDetailScreen(body);
   else if (screen === 'celebrate') renderCelebrate(body);
-}
-
-/* ── List screen ─────────────────────────────────────────────────────────── */
-
-function renderListScreen(container: HTMLElement) {
-  const checklists = _checklists;
-  const templates = _templates;
-
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  container.innerHTML = `
-    <div class="prep-list-screen">
-      <!-- Action bar -->
-      <div class="prep-action-bar">
-        <button class="btn btn-primary" id="create-blank-btn">${t('prep.btnNewChecklist')}</button>
-        <button class="btn btn-ghost" id="open-template-picker-btn">${t('prep.btnFromTemplate')}</button>
-      </div>
-
-      <!-- Checklists -->
-      ${checklists.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-icon">📋</div>
-          <p>${t('prep.emptyTitle')}</p>
-          <p style="font-size:var(--fs-sm);color:var(--ink-faint)">${t('prep.emptyText')}</p>
-        </div>
-      ` : `
-        <div class="checklist-grid">
-          ${checklists.map(cl => renderChecklistCard(cl)).join('')}
-        </div>
-      `}
-
-      <!-- Templates section -->
-      <div class="prep-templates-section">
-        <div class="prep-section-header" style="margin-bottom:var(--sp-4)">
-          <div class="prep-section-title" style="font-size:var(--fs-lg)">${t('prep.templatesSection')}</div>
-          <button class="btn btn-ghost" id="new-template-btn" style="font-size:var(--fs-sm);padding:6px 14px">${t('prep.btnNewTemplate')}</button>
-        </div>
-        <div class="templates-grid">
-          ${templates.map(t => renderTemplateCard(t)).join('')}
-        </div>
-      </div>
-
-      <!-- Template picker modal -->
-      <div class="modal-overlay" id="template-picker-modal" hidden>
-        <div class="modal-box">
-          <div class="modal-header">
-            <div class="modal-title">${t('prep.pickerTitle')}</div>
-            <button class="modal-close" id="close-template-picker">✕</button>
-          </div>
-          <div class="modal-body">
-            <div class="tag-filter-row" id="tag-filter-row">
-              ${renderTagFilters(templates)}
-            </div>
-            <div class="template-picker-list" id="template-picker-list">
-              ${templates.map(t => renderTemplatePickerItem(t)).join('')}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- New checklist modal -->
-      <div class="modal-overlay" id="new-checklist-modal" hidden>
-        <div class="modal-box">
-          <div class="modal-header">
-            <div class="modal-title">New Checklist</div>
-            <button class="modal-close" id="close-new-checklist">✕</button>
-          </div>
-          <div class="modal-body" id="new-checklist-body">
-            <!-- rendered dynamically in bindEvents -->
-          </div>
-        </div>
-      </div>
-
-      <!-- New template modal -->
-      <div class="modal-overlay" id="new-template-modal" hidden>
-        <div class="modal-box">
-          <div class="modal-header">
-            <div class="modal-title">Save as Template</div>
-            <button class="modal-close" id="close-new-template">✕</button>
-          </div>
-          <div class="modal-body">
-            <label class="field-label">Template Name</label>
-            <input class="input" id="new-template-name" placeholder="e.g. Summer Europe" autofocus>
-            <label class="field-label" style="margin-top:var(--sp-4)">Description (optional)</label>
-            <input class="input" id="new-template-desc" placeholder="Short note about this template">
-            <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
-              <button class="btn btn-ghost" id="cancel-new-template">Cancel</button>
-              <button class="btn btn-primary" id="confirm-new-template">Create Template</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  bindListScreen(container, templates);
-}
-
-function renderChecklistCard(cl: StoredChecklist): string {
-  const { done, total, pct } = progress(cl.groups);
-  const isComplete = total > 0 && done === total;
-  return `
-    <div class="checklist-card ${isComplete ? 'is-complete' : ''}" data-id="${cl.id}">
-      <div class="checklist-card-top">
-        <div class="checklist-card-name">${escHtml(cl.name)}</div>
-        <button class="icon-btn delete-cl-btn" data-id="${cl.id}" title="Delete">✕</button>
-      </div>
-      <div class="checklist-card-tags">
-        ${cl.tags.map(t => `<span class="tag-chip">${tagLabel(t)}</span>`).join('')}
-      </div>
-      <div class="checklist-card-progress">
-        <div class="mini-progress-track">
-          <div class="mini-progress-fill ${isComplete ? 'complete' : ''}" style="width:${pct}%"></div>
-        </div>
-        <span class="mini-progress-label">${done}/${total}</span>
-      </div>
-      ${isComplete ? '<div class="complete-badge">All done ✓</div>' : ''}
-    </div>
-  `;
-}
-
-function renderTemplateCard(tpl: StoredTemplate): string {
-  const groupCount = tpl.groups.length;
-  const itemCount = tpl.groups.reduce((n, g) => n + g.items.length, 0);
-  return `
-    <div class="template-card">
-      <div class="template-card-top">
-        <div class="template-card-name">${escHtml(tpl.name)}</div>
-        <button class="icon-btn delete-tpl-btn" data-id="${tpl.id}" title="Delete template">✕</button>
-      </div>
-      <div class="template-card-body">
-        ${tpl.description ? `<div class="template-card-desc">${escHtml(tpl.description)}</div>` : ''}
-        <div class="template-card-meta">${groupCount} groups · ${itemCount} items</div>
-        <div class="template-card-tags">
-          ${tpl.tags.map(tag => `<span class="tag-chip">${tagLabel(tag)}</span>`).join('')}
-        </div>
-      </div>
-      <button class="btn btn-ghost use-template-btn" data-id="${tpl.id}" style="width:100%;justify-content:center">
-        ${t('prep.btnUseTemplate')}
-      </button>
-    </div>
-  `;
+  else body.replaceChildren(); // 'list' → the Prepare landing owns this state
 }
 
 function renderTagFilters(templates: StoredTemplate[]): string {
@@ -251,6 +134,7 @@ function renderTemplatePickerItem(tpl: StoredTemplate): string {
   const tagKeys = tpl.tags.map(tag => `${tag.type}:${tag.value}`).join(' ');
   return `
     <div class="template-picker-item" data-id="${tpl.id}" data-tags="${escHtml(tagKeys)}">
+      <button class="icon-btn tpl-del-btn" data-id="${tpl.id}" title="${t('prep.deleteTemplate')}">✕</button>
       <div class="template-picker-name">${escHtml(tpl.name)}</div>
       ${tpl.description ? `<div class="template-picker-desc">${escHtml(tpl.description)}</div>` : ''}
       <div class="template-picker-meta">
@@ -260,154 +144,220 @@ function renderTemplatePickerItem(tpl: StoredTemplate): string {
   `;
 }
 
-function bindListScreen(container: HTMLElement, templates: StoredTemplate[]) {
-  // Open checklist
-  container.querySelectorAll<HTMLElement>('.checklist-card').forEach(card => {
-    card.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('.delete-cl-btn')) return;
-      activeChecklistId = card.dataset.id!;
-      screen = 'detail';
-      render();
-    });
+/* ── Landing (prepare.ts) entry points ───────────────────────────────────────
+   All of these open self-contained openModal() flows or switch this section
+   to a focused screen. openModal() appends to document.body, so a store
+   refresh mid-edit (Firestore snapshots fire often; Prepare keeps this
+   section mounted continuously) can't wipe a dialog out from under the user
+   the way the old in-container modals did. */
+
+/** Open one checklist's full-width detail editor (a Prepare rail row tap). */
+export function openChecklistDetail(id: string): void {
+  activeChecklistId = id;
+  screen = 'detail';
+  render();
+}
+
+export { openNewChecklistModal, openTemplatePickerModal };
+
+/** Live checklists for the Prepare landing's rail, with progress folded in. */
+export function peekChecklistRows(): { id: string; name: string; done: number; total: number; pct: number }[] {
+  return _checklists.map(cl => ({ id: cl.id, name: cl.name, ...progress(cl.groups) }));
+}
+
+/** Aggregate checklist progress across every list — the hero's readout. */
+export function checklistTotals(): { done: number; total: number; pct: number; lists: number } {
+  let done = 0, total = 0;
+  _checklists.forEach(cl => {
+    const p = progress(cl.groups);
+    done += p.done; total += p.total;
   });
+  return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0, lists: _checklists.length };
+}
 
-  // Delete checklist
-  container.querySelectorAll<HTMLElement>('.delete-cl-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (confirm(t('prep.confirmDelete'))) {
-        await checklistStore.remove(btn.dataset.id!);
-      }
-    });
-  });
+export async function deleteChecklist(id: string): Promise<void> {
+  await checklistStore.remove(id);
+}
 
-  // Use template from card
-  container.querySelectorAll<HTMLElement>('.use-template-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const tpl = templates.find(t => t.id === btn.dataset.id!);
-      if (!tpl) return;
-      const name = prompt(t('prep.namePrompt'), tpl.name);
-      if (!name?.trim()) return;
-      const id = await checklistStore.create({ name: name.trim(), templateId: tpl.id, tags: tpl.tags, groups: tpl.groups });
-      activeChecklistId = id;
-      screen = 'detail';
-      render();
-    });
-  });
+function openNewChecklistModal() {
+  const trip = currentTrip();
+  const tripOption = trip
+    ? `<label class="pk-scope-option">
+        <input type="radio" name="cl-scope" value="trip" checked>
+        <span class="pk-scope-label">
+          <span class="pk-scope-title">${t('prep.scopeTripPrefix')}<em>${escHtml(trip.name)}</em></span>
+          <span class="pk-scope-desc">${t('prep.scopeTripDesc')}</span>
+        </span>
+      </label>` : '';
 
-  // Delete template
-  container.querySelectorAll<HTMLElement>('.delete-tpl-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (confirm(t('prep.confirmDelete'))) {
-        await templateStore.remove(btn.dataset.id!);
-      }
-    });
-  });
-
-  // New checklist (blank)
-  const createBlankBtn = container.querySelector<HTMLElement>('#create-blank-btn');
-  const newModal = container.querySelector<HTMLElement>('#new-checklist-modal');
-  const newModalBody = container.querySelector<HTMLElement>('#new-checklist-body');
-
-  function renderNewChecklistBody() {
-    const trip = currentTrip();
-    const tripOption = trip
-      ? `<label class="pk-scope-option">
-          <input type="radio" name="cl-scope" value="trip" checked>
+  const m = openModal({
+    title: t('prep.newChecklistTitle'),
+    variant: 'sheet',
+    body: `
+      <label class="field-label">Name</label>
+      <input class="input" id="new-checklist-name" placeholder="e.g. Paris Weekend Prep">
+      ${trip ? `<div class="pk-scope-group">
+        ${tripOption}
+        <label class="pk-scope-option">
+          <input type="radio" name="cl-scope" value="standalone">
           <span class="pk-scope-label">
-            <span class="pk-scope-title">${t('prep.scopeTripPrefix')}<em>${escHtml(trip.name)}</em></span>
-            <span class="pk-scope-desc">${t('prep.scopeTripDesc')}</span>
+            <span class="pk-scope-title">${t('prep.scopeStandalone')}</span>
+            <span class="pk-scope-desc">${t('prep.scopeStandaloneDesc')}</span>
           </span>
-        </label>` : '';
-    if (newModalBody) {
-      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-      newModalBody.innerHTML = `
-        <label class="field-label">Name</label>
-        <input class="input" id="new-checklist-name" placeholder="e.g. Paris Weekend Prep" autofocus>
-        ${trip ? `<div class="pk-scope-group">
-          ${tripOption}
-          <label class="pk-scope-option">
-            <input type="radio" name="cl-scope" value="standalone">
-            <span class="pk-scope-label">
-              <span class="pk-scope-title">${t('prep.scopeStandalone')}</span>
-              <span class="pk-scope-desc">${t('prep.scopeStandaloneDesc')}</span>
-            </span>
-          </label>
-        </div>` : ''}
-        <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
-          <button class="btn btn-ghost" id="cancel-new-checklist">Cancel</button>
-          <button class="btn btn-primary" id="confirm-new-checklist">Create</button>
-        </div>
-      `;
-    }
-    container.querySelector<HTMLInputElement>('#new-checklist-name')?.focus();
-    container.querySelector('#cancel-new-checklist')?.addEventListener('click', () => newModal?.setAttribute('hidden', ''));
-    container.querySelector('#confirm-new-checklist')?.addEventListener('click', async () => {
-      const name = container.querySelector<HTMLInputElement>('#new-checklist-name')?.value.trim();
-      if (!name) return;
-      const scope = (container.querySelector<HTMLInputElement>('input[name="cl-scope"]:checked')?.value) ?? 'trip';
-      const tripId = scope === 'standalone' ? STANDALONE_TRIP_ID : undefined;
-      const id = await checklistStore.create({ name, tripId });
-      activeChecklistId = id;
-      screen = 'detail';
-      render();
-    });
-    container.querySelector<HTMLInputElement>('#new-checklist-name')?.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') container.querySelector<HTMLButtonElement>('#confirm-new-checklist')?.click();
-    });
-  }
-
-  createBlankBtn?.addEventListener('click', () => {
-    renderNewChecklistBody();
-    newModal?.removeAttribute('hidden');
+        </label>
+      </div>` : ''}
+    `,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm">Create</button>
+    `,
   });
-  container.querySelector('#close-new-checklist')?.addEventListener('click', () => newModal?.setAttribute('hidden', ''));
 
-  // Template picker modal
-  const pickerModal = container.querySelector<HTMLElement>('#template-picker-modal');
-  container.querySelector('#open-template-picker-btn')?.addEventListener('click', () => pickerModal?.removeAttribute('hidden'));
-  container.querySelector('#close-template-picker')?.addEventListener('click', () => pickerModal?.setAttribute('hidden', ''));
-  pickerModal?.addEventListener('click', (e) => { if (e.target === pickerModal) pickerModal.setAttribute('hidden', ''); });
+  requestAnimationFrame(() => m.root.querySelector<HTMLInputElement>('#new-checklist-name')?.focus());
 
-  // Tag filter
-  container.querySelectorAll<HTMLElement>('.tag-filter').forEach(chip => {
-    chip.addEventListener('click', () => {
-      container.querySelectorAll('.tag-filter').forEach(c => c.classList.remove('active'));
-      chip.classList.add('active');
-      const tag = chip.dataset.tag!;
-      container.querySelectorAll<HTMLElement>('.template-picker-item').forEach(item => {
-        item.style.display = (tag === 'all' || item.dataset.tags?.includes(tag)) ? '' : 'none';
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  const submit = async () => {
+    const name = m.root.querySelector<HTMLInputElement>('#new-checklist-name')?.value.trim();
+    if (!name) return;
+    const scope = (m.root.querySelector<HTMLInputElement>('input[name="cl-scope"]:checked')?.value) ?? 'trip';
+    const tripId = scope === 'standalone' ? STANDALONE_TRIP_ID : undefined;
+    const id = await checklistStore.create({ name, tripId });
+    m.close();
+    activeChecklistId = id;
+    screen = 'detail';
+    render();
+  };
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', submit);
+  m.root.querySelector<HTMLInputElement>('#new-checklist-name')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') void submit();
+  });
+}
+
+/** Template picker — also where templates are managed (created/deleted), so
+ *  the landing doesn't need a permanent templates grid taking up space for a
+ *  feature most users touch once. Repaints itself after any template edit. */
+function openTemplatePickerModal() {
+  const m = openModal({
+    title: t('prep.pickerTitle'),
+    body: `<div id="tpl-picker-body"></div>`,
+    footer: `<button class="btn btn-ghost" data-act="new-tpl">${t('prep.btnNewTemplate')}</button>`,
+  });
+
+  const paint = () => {
+    const body = m.root.querySelector<HTMLElement>('#tpl-picker-body');
+    if (!body) return;
+    const templates = _templates;
+
+    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
+    body.innerHTML = templates.length === 0
+      ? `<div class="empty-state">
+           <div class="empty-icon">📋</div>
+           <p>${t('prep.noTemplates')}</p>
+         </div>`
+      : `<div class="tag-filter-row">${renderTagFilters(templates)}</div>
+         <div class="template-picker-list">
+           ${templates.map(tpl => renderTemplatePickerItem(tpl)).join('')}
+         </div>`;
+
+    body.querySelectorAll<HTMLElement>('.tag-filter').forEach(chip => {
+      chip.addEventListener('click', () => {
+        body.querySelectorAll('.tag-filter').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        const tag = chip.dataset.tag!;
+        body.querySelectorAll<HTMLElement>('.template-picker-item').forEach(item => {
+          item.style.display = (tag === 'all' || item.dataset.tags?.includes(tag)) ? '' : 'none';
+        });
       });
     });
-  });
 
-  // Pick template from modal
-  container.querySelectorAll<HTMLElement>('.template-picker-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      const tpl = templates.find(t => t.id === item.dataset.id!);
-      if (!tpl) return;
-      pickerModal?.setAttribute('hidden', '');
-      const name = prompt(t('prep.namePrompt'), tpl.name);
-      if (!name?.trim()) return;
-      const id = await checklistStore.create({ name: name.trim(), templateId: tpl.id, tags: tpl.tags, groups: tpl.groups });
-      activeChecklistId = id;
-      screen = 'detail';
-      render();
+    body.querySelectorAll<HTMLElement>('.tpl-del-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm(t('prep.confirmDelete'))) return;
+        await templateStore.remove(btn.dataset.id!);
+        paint();
+      });
     });
+
+    body.querySelectorAll<HTMLElement>('.template-picker-item').forEach(item => {
+      item.addEventListener('click', async () => {
+        const tpl = _templates.find(tp => tp.id === item.dataset.id!);
+        if (!tpl) return;
+        const name = prompt(t('prep.namePrompt'), tpl.name);
+        if (!name?.trim()) return;
+        m.close();
+        const id = await checklistStore.create({ name: name.trim(), templateId: tpl.id, tags: tpl.tags, groups: tpl.groups });
+        activeChecklistId = id;
+        screen = 'detail';
+        render();
+      });
+    });
+  };
+
+  paint();
+  m.root.querySelector('[data-act="new-tpl"]')?.addEventListener('click', () => {
+    openNewTemplateModal(paint);
+  });
+}
+
+/** Save the open checklist as a reusable template. Reads the checklist fresh
+ *  at submit time so a concurrent edit isn't captured stale. */
+function openSaveTemplateModal(checklistId: string, defaultName: string) {
+  const m = openModal({
+    title: t('prep.saveAsTemplateTitle'),
+    variant: 'sheet',
+    body: `
+      <label class="field-label">Template Name</label>
+      <input class="input" id="save-tpl-name" value="${escHtml(defaultName)}" placeholder="Template name">
+      <label class="field-label" style="margin-top:var(--sp-4)">Description (optional)</label>
+      <input class="input" id="save-tpl-desc" placeholder="Short description">
+    `,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm">Save Template</button>
+    `,
   });
 
-  // New template (blank)
-  const tplModal = container.querySelector<HTMLElement>('#new-template-modal');
-  container.querySelector('#new-template-btn')?.addEventListener('click', () => { tplModal?.removeAttribute('hidden'); container.querySelector<HTMLInputElement>('#new-template-name')?.focus(); });
-  container.querySelector('#cancel-new-template')?.addEventListener('click', () => tplModal?.setAttribute('hidden', ''));
-  container.querySelector('#close-new-template')?.addEventListener('click', () => tplModal?.setAttribute('hidden', ''));
-  container.querySelector('#confirm-new-template')?.addEventListener('click', async () => {
-    const name = container.querySelector<HTMLInputElement>('#new-template-name')?.value.trim();
-    const desc = container.querySelector<HTMLInputElement>('#new-template-desc')?.value.trim();
+  requestAnimationFrame(() => m.root.querySelector<HTMLInputElement>('#save-tpl-name')?.select());
+
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const name = m.root.querySelector<HTMLInputElement>('#save-tpl-name')?.value.trim();
+    const desc = m.root.querySelector<HTMLInputElement>('#save-tpl-desc')?.value.trim();
+    if (!name) return;
+    const fresh = _checklists.find(c => c.id === checklistId);
+    if (fresh) await templateStore.create({ name, description: desc, tags: fresh.tags, groups: fresh.groups });
+    m.close();
+    showToast(t('prep.templateSaved'));
+  });
+}
+
+function openNewTemplateModal(onDone?: () => void) {
+  const m = openModal({
+    title: t('prep.saveAsTemplateTitle'),
+    variant: 'sheet',
+    body: `
+      <label class="field-label">Template Name</label>
+      <input class="input" id="new-template-name" placeholder="e.g. Summer Europe">
+      <label class="field-label" style="margin-top:var(--sp-4)">Description (optional)</label>
+      <input class="input" id="new-template-desc" placeholder="Short note about this template">
+    `,
+    footer: `
+      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
+      <button class="btn btn-primary" data-act="confirm">Create Template</button>
+    `,
+  });
+
+  requestAnimationFrame(() => m.root.querySelector<HTMLInputElement>('#new-template-name')?.focus());
+
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const name = m.root.querySelector<HTMLInputElement>('#new-template-name')?.value.trim();
+    const desc = m.root.querySelector<HTMLInputElement>('#new-template-desc')?.value.trim();
     if (!name) return;
     await templateStore.create({ name, description: desc });
-    tplModal?.setAttribute('hidden', '');
+    m.close();
+    onDone?.();
   });
 }
 
@@ -494,25 +444,6 @@ function renderDetailScreen(container: HTMLElement) {
         </div>
       </div>
 
-      <!-- Save as template modal -->
-      <div class="modal-overlay" id="save-tpl-modal" hidden>
-        <div class="modal-box">
-          <div class="modal-header">
-            <div class="modal-title">Save as Template</div>
-            <button class="modal-close" id="close-save-tpl">✕</button>
-          </div>
-          <div class="modal-body">
-            <label class="field-label">Template Name</label>
-            <input class="input" id="save-tpl-name" value="${escHtml(cl.name)}" placeholder="Template name">
-            <label class="field-label" style="margin-top:var(--sp-4)">Description (optional)</label>
-            <input class="input" id="save-tpl-desc" placeholder="Short description">
-            <div style="margin-top:var(--sp-5);display:flex;justify-content:flex-end;gap:var(--sp-3)">
-              <button class="btn btn-ghost" id="cancel-save-tpl">Cancel</button>
-              <button class="btn btn-primary" id="confirm-save-tpl">Save Template</button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   `;
 
@@ -551,7 +482,7 @@ function renderGroup(checklistId: string, group: ChecklistGroup): string {
         <button class="icon-btn delete-group-btn" data-group-id="${group.id}" title="Delete">✕</button>
       </div>
       <div class="prep-items" data-group-id="${group.id}">
-        ${group.items.sort((a, b) => a.order - b.order).map(item => renderItem(item)).join('')}
+        ${group.items.sort((a, b) => a.order - b.order).map(item => renderItem(item, group.name)).join('')}
       </div>
       <div class="add-item-row">
         <input class="input add-item-input" placeholder="Add item…" data-group-id="${group.id}">
@@ -561,7 +492,10 @@ function renderGroup(checklistId: string, group: ChecklistGroup): string {
   `;
 }
 
-function renderItem(item: ChecklistItem): string {
+function renderItem(item: ChecklistItem, groupName: string): string {
+  // "Send to Pack" only makes sense once there's a pack list to receive it,
+  // and only for things still outstanding.
+  const canPack = !item.done && hasPackList();
   return `
     <div class="prep-item ${item.done ? 'done' : ''}" data-item-id="${item.id}" draggable="true">
       <div class="item-checkbox">${item.done ? '✓' : ''}</div>
@@ -570,6 +504,9 @@ function renderItem(item: ChecklistItem): string {
         ${item.note ? `<div class="item-note">${escHtml(item.note)}</div>` : ''}
       </div>
       <div class="item-actions">
+        ${canPack
+          ? `<button class="icon-btn send-to-pack-btn" data-group-name="${escHtml(groupName)}" title="${t('prep.sendToPack')}">🎒</button>`
+          : ''}
         <button class="icon-btn delete-item-btn" title="Delete">✕</button>
       </div>
     </div>
@@ -652,6 +589,28 @@ function bindDetailScreen(container: HTMLElement, cl: StoredChecklist) {
     });
   });
 
+  // Send item to Pack: writes it into the pack list's Unassigned area, then
+  // ticks it off here — the checklist's job ("decide to bring it") is done
+  // once it's in the bag list.
+  container.querySelectorAll<HTMLElement>('.send-to-pack-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const itemEl = btn.closest<HTMLElement>('[data-item-id]');
+      const groupEl = btn.closest<HTMLElement>('[data-group-id]');
+      if (!itemEl || !groupEl) return;
+      const groupId = groupEl.dataset.groupId!;
+      const itemId = itemEl.dataset.itemId!;
+      const text = itemEl.querySelector('.item-text')?.textContent?.trim();
+      if (!text) return;
+
+      const listName = await addToUnassigned(text, categoryForGroupName(btn.dataset.groupName ?? ''));
+      if (!listName) return;                       // no pack list to receive it
+      const allDone = await checklistStore.toggleItem(cl.id, groupId, itemId);
+      showToast(t('prep.sentToPack', { list: listName }));
+      if (allDone) { screen = 'celebrate'; render(); }
+    });
+  });
+
   // Delete item
   container.querySelectorAll<HTMLElement>('.delete-item-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -724,19 +683,7 @@ function bindDetailScreen(container: HTMLElement, cl: StoredChecklist) {
   bindGroupDrag(container, cl.id);
 
   // Save as template
-  const saveTplModal = container.querySelector<HTMLElement>('#save-tpl-modal');
-  container.querySelector('#save-as-template-btn')?.addEventListener('click', () => saveTplModal?.removeAttribute('hidden'));
-  container.querySelector('#close-save-tpl')?.addEventListener('click', () => saveTplModal?.setAttribute('hidden', ''));
-  container.querySelector('#cancel-save-tpl')?.addEventListener('click', () => saveTplModal?.setAttribute('hidden', ''));
-  container.querySelector('#confirm-save-tpl')?.addEventListener('click', async () => {
-    const name = container.querySelector<HTMLInputElement>('#save-tpl-name')?.value.trim();
-    const desc = container.querySelector<HTMLInputElement>('#save-tpl-desc')?.value.trim();
-    if (!name) return;
-    const fresh = _checklists.find(c => c.id === cl.id);
-    if (fresh) await templateStore.create({ name, description: desc, tags: fresh.tags, groups: fresh.groups });
-    saveTplModal?.setAttribute('hidden', '');
-    showToast('Template saved!');
-  });
+  container.querySelector('#save-as-template-btn')?.addEventListener('click', () => openSaveTemplateModal(cl.id, cl.name));
 
   // AI check
   container.querySelector('#ai-check-btn')?.addEventListener('click', () => {
@@ -893,9 +840,22 @@ function showToast(msg: string) {
 
 /* ── Init ────────────────────────────────────────────────────────────────── */
 
-export function initPrep() {
+/** Mount this section into `zone` (a container the Prepare orchestrator
+ *  owns). `onScreenChange` fires whenever this section's internal screen
+ *  changes, so the orchestrator can hide the Pack zone while this one shows
+ *  its own detail/celebrate screen. */
+export function initPrep(
+  zone: HTMLElement,
+  onScreenChange?: (s: Screen) => void,
+  onDataChange?: () => void,
+): void {
+  _zone = zone;
+  _onScreenChange = onScreenChange ?? null;
+  _onDataChange = onDataChange ?? null;
   screen = 'list';
   activeChecklistId = null;
   editingGroupId = null;
   startSubscriptions();
 }
+
+export type { Screen as ChecklistScreen };

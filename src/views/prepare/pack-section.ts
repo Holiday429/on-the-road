@@ -1,9 +1,10 @@
 /* ==========================================================================
    On the Road · Pack — simple weight-aware packing
    --------------------------------------------------------------------------
-   Two screens:
-     list   → pack lists + the Core Kit template (your reusable must-bring gear)
+   The pack-list overview lives on the Prepare landing (prepare.ts); this
+   module owns the focused full-width screens:
      detail → containers (each with its own weight limit) + an Unassigned area
+     kit    → the Core Kit manager (your reusable must-bring gear)
 
    Mental model: add the bags you're taking, give each a weight limit, then drop
    items into them. Each container tallies its own weight live and warns when it
@@ -11,9 +12,9 @@
    until you commit them to a bag — or drop them to travel lighter.
    ========================================================================== */
 
-import './pack.css';
+import './styles/pack.css';
 import { packStore, STANDALONE_TRIP_ID, type StoredPackList } from '../../data/stores/pack-store.ts';
-import { currentTrip, currentTripId } from '../../data/trip-context.ts';
+import { currentTrip } from '../../data/trip-context.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { openModal } from '../../core/modal.ts';
 import { coreKitStore, type StoredCoreKitItem } from '../../data/stores/core-kit-store.ts';
@@ -28,24 +29,22 @@ import {
   type WeightUnit, WEIGHT_UNITS, toGrams, displayWeight,
   KINDS, PRIORITIES, priRank, kindLabel,
   num, genLocalId, containerWeight, listTotalWeight, isOver,
-} from './pack-helpers.ts';
+} from '../pack/pack-helpers.ts';
 
 // Re-export the public helpers other views import from this module.
 export { PACK_CATEGORIES, listTotalWeight };
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
-type Screen = 'list' | 'detail';
+// 'list' means "showing nothing of our own" — the Prepare landing (prepare.ts)
+// owns the pack-list overview now, so this section only paints its focused
+// screens: a list's detail editor, or the Core Kit manager.
+type Screen = 'list' | 'detail' | 'kit';
 
 let screen: Screen = 'list';
 let activeId: string | null = null;
 let packCheckMode = false;
 let weightUnit: WeightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
-
-// Weather card: which upcoming leg is selected, plus a per-city fetch cache.
-let weatherLegId: string | null = null;
-type WeatherInfo = { icon: string; tempHigh: string; tempLow: string; desc: string };
-const _weatherCache = new Map<string, WeatherInfo | 'loading'>();
 
 let _lists: StoredPackList[] = [];
 let _kit: StoredCoreKitItem[] = [];
@@ -61,8 +60,21 @@ let _standaloneLists: StoredPackList[] = [];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 
+// Renders into a zone handed in by the Prepare orchestrator (prepare.ts)
+// rather than owning the whole #view-prep body, so the landing page can show
+// this section's list alongside Checklist's. onScreenChange lets the
+// orchestrator know when this section enters/leaves its own detail view, so
+// it can hide the other section's zone while this one takes over the full
+// page (a normal list→detail drill-down, not a second navigation layer).
+
+let _zone: HTMLElement | null = null;
+let _onScreenChange: ((s: Screen) => void) | null = null;
+// Fires after any store push, so the Prepare landing can repaint its rail
+// without opening a second set of subscriptions on the same collections.
+let _onDataChange: (() => void) | null = null;
+
 function getRoot(): HTMLElement | null {
-  return document.getElementById('view-pack');
+  return _zone;
 }
 
 function activeList(): StoredPackList | undefined {
@@ -76,201 +88,39 @@ function startSubscriptions() {
   _unsubStandaloneLists?.();
   _unsubKit?.();
   _unsubLegs?.();
+  const push = () => { render(); _onDataChange?.(); };
   _unsubLists = packStore.subscribe(rows => {
     _tripLists = rows;
     _lists = [..._tripLists, ..._standaloneLists];
-    render();
+    push();
   });
   _unsubStandaloneLists = packStore.subscribe(rows => {
     _standaloneLists = rows;
     _lists = [..._tripLists, ..._standaloneLists];
-    render();
+    push();
   }, STANDALONE_TRIP_ID);
-  _unsubKit = coreKitStore.subscribe(rows => { _kit = rows; render(); });
+  _unsubKit = coreKitStore.subscribe(rows => { _kit = rows; push(); });
   _unsubLegs = routeStore.subscribe(rows => {
     _legs = [...rows].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
-    render();
+    push();
   });
 }
 
 /* ── Render dispatch ─────────────────────────────────────────────────────── */
 
 function render() {
-  const root = getRoot();
-  if (!root) return;
-  const body = root.querySelector<HTMLElement>('.pack-body');
+  const body = getRoot();
   if (!body) return;
-  if (screen === 'detail' && activeList()) renderDetail(body, activeList()!);
-  else { screen = 'list'; renderList(body); }
-}
 
-/* ── Weather (wttr.in JSON, shared icon table with dashboard) ─────────────── */
+  // A detail screen whose list vanished (deleted on another device) falls
+  // back to 'list' BEFORE notifying, so the orchestrator restores the landing.
+  if (screen === 'detail' && !activeList()) { screen = 'list'; activeId = null; }
 
-const WEATHER_ICONS: Record<string, string> = {
-  '113': '☀️', '116': '⛅', '119': '☁️', '122': '☁️',
-  '143': '🌫️', '176': '🌦️', '179': '🌨️', '182': '🌧️',
-  '185': '🌧️', '200': '⛈️', '227': '🌨️', '230': '❄️',
-  '248': '🌫️', '260': '🌫️', '263': '🌦️', '266': '🌦️',
-  '281': '🌧️', '284': '🌧️', '293': '🌦️', '296': '🌦️',
-  '299': '🌧️', '302': '🌧️', '305': '🌧️', '308': '🌧️',
-  '311': '🌧️', '314': '🌧️', '317': '🌧️', '320': '🌨️',
-  '323': '🌨️', '326': '🌨️', '329': '❄️', '332': '❄️',
-  '335': '❄️', '338': '❄️', '350': '🌧️', '353': '🌦️',
-  '356': '🌧️', '359': '🌧️', '362': '🌧️', '365': '🌧️',
-  '368': '🌨️', '371': '❄️', '374': '🌧️', '377': '🌧️',
-  '386': '⛈️', '389': '⛈️', '392': '⛈️', '395': '⛈️',
-};
+  _onScreenChange?.(screen);
 
-async function fetchWeather(city: string): Promise<void> {
-  if (!city || _weatherCache.has(city)) return;
-  _weatherCache.set(city, 'loading');
-  try {
-    const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) { _weatherCache.delete(city); return; }
-    const data = await res.json();
-    const cur  = data?.current_condition?.[0];
-    if (!cur) { _weatherCache.delete(city); return; }
-    const code = String(cur.weatherCode ?? '113');
-    const icon = WEATHER_ICONS[code] ?? '🌡️';
-    const todayForecast = data?.weather?.[0];
-    const tempHigh = todayForecast?.maxtempC != null ? `${todayForecast.maxtempC}°` : `${cur.temp_C ?? '?'}°`;
-    const tempLow  = todayForecast?.mintempC != null ? `${todayForecast.mintempC}°` : '';
-    const desc = cur.weatherDesc?.[0]?.value ?? '';
-    _weatherCache.set(city, { icon, tempHigh, tempLow, desc });
-    render();
-  } catch { _weatherCache.delete(city); /* silent — weather is decorative */ }
-}
-
-/* ── Upcoming-weather card ───────────────────────────────────────────────── */
-
-/** Upcoming legs (today onward) for the weather card; falls back to every leg
- *  if the trip is already over so the card still lists the whole itinerary. */
-function upcomingLegs(): StoredLeg[] {
-  const tripId = currentTripId();
-  if (!tripId) return [];
-  const today = new Date().toISOString().slice(0, 10);
-  const all = routeStore.peek()
-    .filter((l) => l.tripId === tripId)
-    .sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
-  const upcoming = all.filter((l) => l.dateTo >= today);
-  return upcoming.length ? upcoming : all;
-}
-
-function renderWeatherCard(): string {
-  const legs = upcomingLegs();
-  if (!legs.length) return '';
-
-  // Default to the first upcoming leg; keep selection valid if legs change.
-  if (!weatherLegId || !legs.some(l => l.id === weatherLegId)) {
-    weatherLegId = legs[0].id;
-  }
-  const active = legs.find(l => l.id === weatherLegId) ?? legs[0];
-
-  void fetchWeather(active.city);
-  const w = _weatherCache.get(active.city);
-
-  const main = w && w !== 'loading'
-    ? `<div class="pack-weather-icon">${w.icon}</div>
-       <div class="pack-weather-temps">
-         <span class="pack-weather-high">${escHtml(w.tempHigh)}</span>
-         ${w.tempLow ? `<span class="pack-weather-low">/ ${escHtml(w.tempLow)}</span>` : ''}
-       </div>
-       ${w.desc ? `<div class="pack-weather-desc">${escHtml(w.desc)}</div>` : ''}`
-    : `<div class="pack-weather-icon pack-weather-icon--loading">🌡️</div>
-       <div class="pack-weather-temps"><span class="pack-weather-high">…</span></div>`;
-
-  // Other upcoming cities collapse into a chip rail the user can tap to switch.
-  const others = legs.filter(l => l.id !== active.id);
-  const rail = others.length
-    ? `<div class="pack-weather-rail">
-        ${others.map(l => `
-          <button class="pack-weather-chip" data-weather-leg="${l.id}" title="Weather in ${escHtml(l.city)}">
-            <span class="pack-weather-chip-flag">${escHtml(l.flag || '🗺️')}</span>
-            <span class="pack-weather-chip-city">${escHtml(l.city)}</span>
-            <span class="pack-weather-chip-date">${escHtml(l.dateFrom.slice(5))}</span>
-          </button>`).join('')}
-      </div>`
-    : '';
-
-  return `<div class="pack-weather-card">
-    <div class="pack-weather-main">
-      <div class="pack-weather-place">
-        <span class="pack-weather-flag">${escHtml(active.flag || '🗺️')}</span>
-        <div class="pack-weather-place-text">
-          <span class="pack-weather-city">${escHtml(active.city)}</span>
-          <span class="pack-weather-date">${escHtml(active.dateFrom.slice(5))}${active.country ? ` · ${escHtml(active.country)}` : ''}</span>
-        </div>
-      </div>
-      <div class="pack-weather-readout">${main}</div>
-    </div>
-    ${rail}
-  </div>`;
-}
-
-/* ── List screen ─────────────────────────────────────────────────────────── */
-
-function renderList(c: HTMLElement) {
-  const kitTotal = _kit.reduce((s, k) => s + k.weightG, 0);
-  const weatherCard = renderWeatherCard();
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  c.innerHTML = `
-    <div class="pack-top-row${weatherCard ? '' : ' pack-top-row--no-weather'}">
-      ${weatherCard}
-      <div class="pack-top-actions">
-        ${_legs.length > 0 ? `<button class="btn btn-ghost pack-top-btn" id="pk-formula">${t('pack.btnFormula')}</button>` : ''}
-        <button class="btn btn-primary pack-top-btn" id="pk-new">${t('pack.btnNewList')}</button>
-      </div>
-    </div>
-
-    ${_lists.length === 0 ? `
-      <div class="empty-state">
-        <div class="empty-icon">🎒</div>
-        <p>${t('pack.emptyTitle')}</p>
-        <p style="font-size:var(--fs-sm);color:var(--ink-faint)">${t('pack.emptyText')}</p>
-      </div>
-    ` : `
-      <div class="pack-grid">
-        ${_lists.map(renderListCard).join('')}
-      </div>
-    `}
-
-    <div class="pack-kit-section">
-      <div class="pack-section-header">
-        <div class="pack-section-title">${t('pack.coreKitSection')}</div>
-        <div class="pack-kit-header-right">
-          ${_kit.length > 0 ? `<span class="pack-kit-total">${displayWeight(kitTotal, weightUnit)} ${t('pack.totalLabel')}</span>` : ''}
-          <select class="pack-unit-sel" id="pk-unit-sel">
-            ${WEIGHT_UNITS.map(u => `<option value="${u.value}" ${u.value === weightUnit ? 'selected' : ''}>${u.label}</option>`).join('')}
-          </select>
-        </div>
-      </div>
-      <p class="pack-kit-hint">${t('pack.coreKitHint')}</p>
-      <div class="pack-kit-table">
-        <div class="pack-kit-thead">
-          <span>${t('pack.colItem')}</span><span>${t('pack.colCategory')}</span><span>${t('pack.colWeight', { unit: weightUnit === 'jin' ? '斤' : weightUnit })}</span><span></span>
-        </div>
-        ${_kit.map(renderKitRow).join('')}
-        ${renderKitAddRow()}
-      </div>
-    </div>
-
-  `;
-  bindList(c);
-}
-
-function renderListCard(l: StoredPackList): string {
-  const total = listTotalWeight(l);
-  const over = l.containers.some(c => isOver(l, c));
-  return `
-    <div class="pack-card ${over ? 'is-over' : ''}" data-id="${l.id}">
-      <div class="pack-card-top">
-        <div class="pack-card-name">${escHtml(l.name)}</div>
-        <button class="pk-del-list" data-id="${l.id}" title="Delete">✕</button>
-      </div>
-      <div class="pack-card-meta">${l.containers.length} bags · ${l.items.length} items</div>
-      <div class="pack-card-weight ${over ? 'is-over' : ''}">${formatKg(total)}${over ? ` · ${t('pack.overLimit')}` : ''}</div>
-    </div>
-  `;
+  if (screen === 'detail') renderDetail(body, activeList()!);
+  else if (screen === 'kit') renderKit(body);
+  else body.replaceChildren(); // 'list' → the Prepare landing owns this state
 }
 
 function kitWeightDisplay(weightG: number): string {
@@ -306,6 +156,96 @@ function renderKitAddRow(): string {
       <span></span>
     </div>
   `;
+}
+
+/* ── Core Kit screen ─────────────────────────────────────────────────────────
+   Was a section of the old list screen; now a focused full-width screen
+   reached from the Prepare landing's Pack rail. Same table + inline editing,
+   with the subscription-driven re-render it always relied on. */
+
+function renderKit(c: HTMLElement) {
+  const kitTotal = _kit.reduce((s, k) => s + k.weightG, 0);
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
+  c.innerHTML = `
+    <div class="pack-detail-bar">
+      <button class="btn btn-ghost" id="pk-kit-back">${t('pack.btnBackAllLists')}</button>
+      <div class="pack-detail-title">${t('pack.coreKitSection')}</div>
+      <div class="pack-kit-header-right">
+        ${_kit.length > 0 ? `<span class="pack-kit-total">${displayWeight(kitTotal, weightUnit)} ${t('pack.totalLabel')}</span>` : ''}
+        <select class="pack-unit-sel" id="pk-unit-sel">
+          ${WEIGHT_UNITS.map(u => `<option value="${u.value}" ${u.value === weightUnit ? 'selected' : ''}>${u.label}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <p class="pack-kit-hint">${t('pack.coreKitHint')}</p>
+    <div class="pack-kit-table">
+      <div class="pack-kit-thead">
+        <span>${t('pack.colItem')}</span><span>${t('pack.colCategory')}</span><span>${t('pack.colWeight', { unit: weightUnit === 'jin' ? '斤' : weightUnit })}</span><span></span>
+      </div>
+      ${_kit.map(renderKitRow).join('')}
+      ${renderKitAddRow()}
+    </div>
+  `;
+  bindKit(c);
+}
+
+function bindKit(c: HTMLElement) {
+  c.querySelector('#pk-kit-back')?.addEventListener('click', () => { screen = 'list'; render(); });
+
+  /* Unit selector */
+  c.querySelector<HTMLSelectElement>('#pk-unit-sel')?.addEventListener('change', e => {
+    weightUnit = (e.target as HTMLSelectElement).value as WeightUnit;
+    localStorage.setItem('pk-weight-unit', weightUnit);
+    render();
+  });
+
+  /* Kit add: Enter on any field triggers save, focus moves to name */
+  const confirmKitAdd = async () => {
+    const nameEl = c.querySelector<HTMLInputElement>('#pk-kit-name');
+    const catEl  = c.querySelector<HTMLSelectElement>('#pk-kit-cat');
+    const wEl    = c.querySelector<HTMLInputElement>('#pk-kit-weight');
+    const name = (nameEl?.value || '').trim();
+    if (!name) { nameEl?.focus(); return; }
+    await coreKitStore.add({
+      name,
+      category: catEl?.value || DEFAULT_CATEGORY,
+      weightG: toGrams(num(wEl?.value || '0'), weightUnit),
+    });
+    if (nameEl) nameEl.value = '';
+    if (wEl) wEl.value = '';
+    nameEl?.focus();
+  };
+  ['#pk-kit-name', '#pk-kit-cat', '#pk-kit-weight'].forEach(sel => {
+    c.querySelector<HTMLInputElement>(sel)?.addEventListener('keydown', e => {
+      if ((e as KeyboardEvent).key === 'Enter') void confirmKitAdd();
+    });
+  });
+
+  /* Inline kit cell edits — inputs blur-to-save, selects change-to-save */
+  c.querySelectorAll<HTMLInputElement>('.pack-kit-row:not(.pack-kit-add-row) input.pack-kit-cell-input').forEach(inp => {
+    inp.addEventListener('blur', async () => {
+      const id = inp.dataset.id!;
+      const field = inp.dataset.field as 'name' | 'weightG';
+      if (field === 'weightG') {
+        await coreKitStore.update(id, { weightG: toGrams(num(inp.value), weightUnit) });
+      } else {
+        const val = inp.value.trim();
+        if (!val) return;
+        await coreKitStore.update(id, { name: val });
+      }
+    });
+    inp.addEventListener('keydown', e => {
+      if ((e as KeyboardEvent).key === 'Enter') inp.blur();
+    });
+  });
+  c.querySelectorAll<HTMLSelectElement>('.pack-kit-row:not(.pack-kit-add-row) select.pk-cat-sel').forEach(sel => {
+    sel.addEventListener('change', async () => {
+      await coreKitStore.update(sel.dataset.id!, { category: sel.value });
+    });
+  });
+  c.querySelectorAll<HTMLElement>('.pk-del-kit').forEach(b => {
+    b.addEventListener('click', async () => { await coreKitStore.remove(b.dataset.id!); });
+  });
 }
 
 /* ── Bag change summary strip (above containers) ─────────────────────────── */
@@ -881,90 +821,6 @@ function openFormulaModal() {
 
 /* ── Bind: list screen ───────────────────────────────────────────────────── */
 
-function bindList(c: HTMLElement) {
-  c.querySelector('#pk-new')?.addEventListener('click', () => openNewListModal());
-  c.querySelector('#pk-formula')?.addEventListener('click', () => openFormulaModal());
-
-  /* Weather card: tap a collapsed city chip to switch the shown forecast */
-  c.querySelectorAll<HTMLElement>('[data-weather-leg]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      weatherLegId = btn.dataset.weatherLeg!;
-      render();
-    });
-  });
-
-  /* Unit selector */
-  c.querySelector<HTMLSelectElement>('#pk-unit-sel')?.addEventListener('change', e => {
-    weightUnit = (e.target as HTMLSelectElement).value as WeightUnit;
-    localStorage.setItem('pk-weight-unit', weightUnit);
-    render();
-  });
-
-  /* Kit add: Enter on any field triggers save, focus moves to name */
-  const confirmKitAdd = async () => {
-    const nameEl = c.querySelector<HTMLInputElement>('#pk-kit-name');
-    const catEl  = c.querySelector<HTMLSelectElement>('#pk-kit-cat');
-    const wEl    = c.querySelector<HTMLInputElement>('#pk-kit-weight');
-    const name = (nameEl?.value || '').trim();
-    if (!name) { nameEl?.focus(); return; }
-    await coreKitStore.add({
-      name,
-      category: catEl?.value || DEFAULT_CATEGORY,
-      weightG: toGrams(num(wEl?.value || '0'), weightUnit),
-    });
-    if (nameEl) nameEl.value = '';
-    if (wEl) wEl.value = '';
-    nameEl?.focus();
-  };
-  ['#pk-kit-name', '#pk-kit-cat', '#pk-kit-weight'].forEach(sel => {
-    c.querySelector<HTMLInputElement>(sel)?.addEventListener('keydown', e => {
-      if ((e as KeyboardEvent).key === 'Enter') void confirmKitAdd();
-    });
-  });
-
-  /* Inline kit cell edits — inputs blur-to-save, selects change-to-save */
-  c.querySelectorAll<HTMLInputElement>('.pack-kit-row:not(.pack-kit-add-row) input.pack-kit-cell-input').forEach(inp => {
-    inp.addEventListener('blur', async () => {
-      const id = inp.dataset.id!;
-      const field = inp.dataset.field as 'name' | 'weightG';
-      if (field === 'weightG') {
-        await coreKitStore.update(id, { weightG: toGrams(num(inp.value), weightUnit) });
-      } else {
-        const val = inp.value.trim();
-        if (!val) return;
-        await coreKitStore.update(id, { name: val });
-      }
-    });
-    inp.addEventListener('keydown', e => {
-      if ((e as KeyboardEvent).key === 'Enter') inp.blur();
-    });
-  });
-  c.querySelectorAll<HTMLSelectElement>('.pack-kit-row:not(.pack-kit-add-row) select.pk-cat-sel').forEach(sel => {
-    sel.addEventListener('change', async () => {
-      await coreKitStore.update(sel.dataset.id!, { category: sel.value });
-    });
-  });
-
-  c.querySelectorAll<HTMLElement>('.pack-card').forEach(card => {
-    card.addEventListener('click', e => {
-      if ((e.target as HTMLElement).closest('.pk-del-list')) return;
-      activeId = card.dataset.id!;
-      screen = 'detail';
-      packCheckMode = false;
-      render();
-    });
-  });
-  c.querySelectorAll<HTMLElement>('.pk-del-list').forEach(b => {
-    b.addEventListener('click', async e => {
-      e.stopPropagation();
-      if (confirm('Delete this pack list?')) await packStore.remove(b.dataset.id!);
-    });
-  });
-  c.querySelectorAll<HTMLElement>('.pk-del-kit').forEach(b => {
-    b.addEventListener('click', async () => { await coreKitStore.remove(b.dataset.id!); });
-  });
-}
-
 /* ── Bind: detail screen ─────────────────────────────────────────────────── */
 
 function bindDetail(c: HTMLElement, l: PackList) {
@@ -1285,12 +1141,149 @@ function bindDetail(c: HTMLElement, l: PackList) {
 
 /* ── Init ────────────────────────────────────────────────────────────────── */
 
-export function initPack() {
-  const intent = consumeNavIntent('pack');
+function applyNavIntent() {
+  const intent = consumeNavIntent('prep');
+  if (!intent?.listId) return;
+  screen = 'detail';
+  activeId = intent.listId;
+  packCheckMode = false;
+  render();
+}
+
+let _navIntentBound = false;
+
+/** Mount this section into `zone` (a container the Prepare orchestrator
+ *  owns). `onScreenChange` fires whenever this section's internal screen
+ *  changes, so the orchestrator can hide the Checklist zone while this one
+ *  shows its own detail screen. */
+export function initPack(
+  zone: HTMLElement,
+  onScreenChange?: (s: Screen) => void,
+  onDataChange?: () => void,
+): void {
+  _zone = zone;
+  _onScreenChange = onScreenChange ?? null;
+  _onDataChange = onDataChange ?? null;
+  const intent = consumeNavIntent('prep');
   screen = intent?.listId ? 'detail' : 'list';
   activeId = intent?.listId ?? null;
   packCheckMode = false;
-  weatherLegId = null;
   weightUnit = (localStorage.getItem('pk-weight-unit') as WeightUnit) ?? 'kg';
   startSubscriptions();
+
+  // Prepare mounts once and stays mounted — a re-activation (e.g. a later
+  // Dashboard "Open Pack" tap) won't re-run this init, so listen for the
+  // event app.ts fires on an already-mounted view's re-navigation.
+  if (!_navIntentBound) {
+    _navIntentBound = true;
+    window.addEventListener('otr:nav-intent', (e) => {
+      if ((e as CustomEvent).detail?.view === 'prep') applyNavIntent();
+    });
+  }
+}
+
+export type { Screen as PackScreen };
+
+/* ── Landing (prepare.ts) entry points ───────────────────────────────────── */
+
+/** Open one pack list's full-width detail editor (a Prepare rail row tap). */
+export function openPackDetail(id: string): void {
+  activeId = id;
+  screen = 'detail';
+  packCheckMode = false;
+  render();
+}
+
+/** Open the Core Kit manager as a focused full-width screen. */
+export function openCoreKit(): void {
+  screen = 'kit';
+  render();
+}
+
+// The "+ New Pack List" and "✨ Pack Formula" modals, invoked from the
+// Prepare rail header (they're self-contained openModal() flows).
+export { openNewListModal as openNewPackListModal, openFormulaModal as openPackFormula };
+
+/** Whether there's a pack list to send a checklist item into. */
+export function hasPackList(): boolean {
+  return _lists.length > 0;
+}
+
+/**
+ * Send a checklist item into a pack list's Unassigned area (containerId null
+ * — the user decides which bag it goes in later, and its weight isn't counted
+ * against any limit until they do). Targets the most recently updated list,
+ * matching what the phase-strip chip does, and returns that list's name so
+ * the caller can say where the item landed.
+ */
+export function addToUnassigned(name: string, category: string): Promise<string | null> {
+  const list = [..._tripLists, ..._standaloneLists].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  if (!list) return Promise.resolve(null);
+  return packStore
+    .addItem(list.id, {
+      name,
+      category,
+      qty: 1,
+      unitWeightG: 0,
+      containerId: null,
+      priority: 'essential',
+      locked: false,
+      packed: false,
+      source: 'manual',
+      acquiredLegId: null,
+      droppedLegId: null,
+      consumable: false,
+    })
+    .then(() => list.name);
+}
+
+/** Live pack lists for the Prepare landing's rail. */
+export function peekPackRows(): {
+  id: string; name: string; bags: number; items: number; weightG: number; over: boolean;
+}[] {
+  return _lists.map(l => ({
+    id: l.id,
+    name: l.name,
+    bags: l.containers.length,
+    items: l.items.length,
+    weightG: listTotalWeight(l),
+    over: l.containers.some(c => isOver(l, c)),
+  }));
+}
+
+/** Aggregate pack state across every list — the hero's readout. */
+export function packTotals(): { lists: number; bags: number; weightG: number; over: boolean; kit: number } {
+  return {
+    lists: _lists.length,
+    bags: _lists.reduce((n, l) => n + l.containers.length, 0),
+    weightG: _lists.reduce((n, l) => n + listTotalWeight(l), 0),
+    over: _lists.some(l => l.containers.some(c => isOver(l, c))),
+    kit: _kit.length,
+  };
+}
+
+/** Whether the Pack Formula action is available (needs itinerary legs). */
+export function packFormulaAvailable(): boolean {
+  return _legs.length > 0;
+}
+
+export async function deletePackList(id: string): Promise<void> {
+  await packStore.remove(id);
+}
+
+export { formatKg };
+
+/** Jump straight into a list's detail screen and trigger a phase-driven
+ *  action (used by the phase strip's "imminent"/"traveling" chip so the
+ *  user doesn't have to open a list and find the toggle/button themselves).
+ *  Picks the most recently updated list (trip lists first, then standalone);
+ *  no-ops if there are no lists yet. */
+export function focusPackAction(action: 'check' | 'bagChange'): void {
+  const list = [..._tripLists, ..._standaloneLists].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  if (!list) return;
+  activeId = list.id;
+  screen = 'detail';
+  packCheckMode = action === 'check';
+  render();
+  if (action === 'bagChange') openBagChangeModal(list);
 }

@@ -2,7 +2,7 @@ import type { StringTable } from './types.ts';
 
 export const es: StringTable = {
   'nav.today':    'Inicio',
-  'nav.prep':     'Lista',
+  'nav.prep':     'Preparar',
   'nav.pack':     'Equipaje',
   'nav.budget':   'Comparar',
   'nav.route':    'Itinerario',
@@ -110,6 +110,7 @@ export const es: StringTable = {
   'safety.searchPh':      'Buscar ciudad…',
   'safety.locating':      'Localizando…',
 
+  'prep.checklistSectionTitle': 'Lista',
   'prep.btnNewChecklist': '+ Nueva lista',
   'prep.emptyTitle':      'Sin listas.',
   'prep.filterAll':       'Todo',

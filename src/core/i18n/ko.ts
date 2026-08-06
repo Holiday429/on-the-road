@@ -2,7 +2,7 @@ import type { StringTable } from './types.ts';
 
 export const ko: StringTable = {
   'nav.today':    '홈',
-  'nav.prep':     '체크리스트',
+  'nav.prep':     '준비',
   'nav.pack':     '짐 싸기',
   'nav.budget':   '비교',
   'nav.route':    '일정',
@@ -110,6 +110,7 @@ export const ko: StringTable = {
   'safety.searchPh':      '도시 검색…',
   'safety.locating':      '위치 확인 중…',
 
+  'prep.checklistSectionTitle': '체크리스트',
   'prep.btnNewChecklist': '+ 새 체크리스트',
   'prep.emptyTitle':      '체크리스트 없음.',
   'prep.filterAll':       '전체',

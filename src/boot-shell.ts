@@ -76,15 +76,16 @@ function nextFrame(): Promise<void> {
   });
 }
 
-// Kept in sync with core/app.ts's LEGACY_VIEW_MAP — nomad and safety no
-// longer have their own view (folded into Guide's cafe/safety tabs), so a
-// stale #nomad or #safety hash lands there instead.
-const LEGACY_VIEW: Partial<Record<string, ViewId>> = { nomad: 'cities', safety: 'cities' };
+// Kept in sync with core/app.ts's LEGACY_VIEW_MAP — nomad/safety no longer
+// have their own view (folded into Guide's cafe/safety tabs), and pack was
+// folded into Prepare (see product-restructure P5), so a stale #nomad,
+// #safety, or #pack hash lands on its replacement instead.
+const LEGACY_VIEW: Partial<Record<string, ViewId>> = { nomad: 'cities', safety: 'cities', pack: 'prep' };
 
 function currentViewOrDefault(): ViewId {
   const raw = window.location.hash.replace('#', '');
   const hash = (LEGACY_VIEW[raw] ?? raw) as ViewId;
-  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'pack', 'cities', 'budget', 'journal', 'map', 'calendar', 'profile'];
+  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'cities', 'budget', 'journal', 'map', 'calendar', 'profile'];
   return valid.includes(hash) ? hash : 'today';
 }
 

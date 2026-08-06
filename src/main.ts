@@ -24,14 +24,13 @@ import { initDashboard } from './views/dashboard/dashboard.ts';
 // SW cache so any view opens offline even if the user never visited it online first.
 const VIEW_CHUNK_LOADERS = [
   () => import('./views/calendar/calendar.ts'),
-  () => import('./views/checklist/checklist.ts'),
+  () => import('./views/prepare/prepare.ts'),
   () => import('./views/itinerary/itinerary.ts'),
   () => import('./views/expenses/expenses.ts'),
   () => import('./views/guide/guide.ts'),
   () => import('./views/journal/index.ts'),
   () => import('./views/map/map.ts'),
   () => import('./views/compare/compare.ts'),
-  () => import('./views/pack/pack.ts'),
   () => import('./views/profile/profile.ts'),
 ];
 setViewChunkLoaders(VIEW_CHUNK_LOADERS);
@@ -41,14 +40,13 @@ setViewChunkLoaders(VIEW_CHUNK_LOADERS);
 // first time the view is opened, then caches the resolved init fn.
 registerView('today',    initDashboard);
 registerView('calendar', () => import('./views/calendar/calendar.ts').then(m => m.initCalendar));
-registerView('prep',     () => import('./views/checklist/checklist.ts').then(m => m.initPrep));
+registerView('prep',     () => import('./views/prepare/prepare.ts').then(m => m.initPrepare));
 registerView('route',    () => import('./views/itinerary/itinerary.ts').then(m => m.initRoute));
 registerView('expenses', () => import('./views/expenses/expenses.ts').then(m => m.initExpenses));
 registerView('cities',   () => import('./views/guide/guide.ts').then(m => m.initCities));
 registerView('journal',  () => import('./views/journal/index.ts').then(m => m.initJournal));
 registerView('map',      () => import('./views/map/map.ts').then(m => m.initMap));
 registerView('budget',   () => import('./views/compare/compare.ts').then(m => m.initCompare));
-registerView('pack',     () => import('./views/pack/pack.ts').then(m => m.initPack));
 registerView('profile',  () => import('./views/profile/profile.ts').then(m => m.initProfile));
 
 startBoot();

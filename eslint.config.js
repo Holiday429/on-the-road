@@ -46,9 +46,11 @@ export default tseslint.config(
       // N10: remaining views audited + escaped, now error-tiered so new bare
       // innerHTML can't regress.
       'src/views/map/map.ts',
-      'src/views/checklist/checklist.ts',
+      'src/views/prepare/checklist-section.ts',
       'src/views/itinerary/itinerary-editors.ts',
-      'src/views/pack/pack.ts',
+      'src/views/prepare/pack-section.ts',
+      'src/views/prepare/prepare.ts',
+      'src/views/prepare/phase-strip.ts',
       'src/views/journal/card/card-preview.ts',
       'src/views/journal/index.ts',
       'src/views/safety/safety.ts',

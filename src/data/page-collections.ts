@@ -17,8 +17,10 @@ export type PageId = string;
 /** ViewId → the sub-collection names that page renders from. */
 export const PAGE_COLLECTIONS: Record<PageId, string[]> = {
   route:    ['legs', 'stays', 'todos'],
-  prep:     ['prepTasks', 'checklists'],
-  pack:     ['packLists'],
+  // Prepare now shows both the Checklist and Pack sections on one page (see
+  // product-restructure P5), so a viewer sharing this page needs both
+  // collections — pack no longer has its own routable page.
+  prep:     ['prepTasks', 'checklists', 'packLists'],
   budget:   ['compares'],
   // Guide now also renders the Nomad cafe strip and the Safety tab (both
   // folded in — see product-restructure P3/P4), so it needs those too.
@@ -36,7 +38,15 @@ export function shareablePages(): PageId[] {
   return Object.keys(PAGE_COLLECTIONS).filter((p) => PAGE_COLLECTIONS[p].length > 0);
 }
 
+// Pre-P5 invites may still carry the old standalone 'pack' page id (Pack had
+// its own route before it was folded into Prepare). Normalize it here so an
+// existing viewer link doesn't silently lose packLists access on next
+// recompute — this is the one chokepoint every stored `pages` array passes
+// through before becoming a collections list.
+const LEGACY_PAGE_MAP: Record<string, PageId> = { pack: 'prep' };
+
 /** Union of sub-collection names exposed by a set of pages. */
 export function collectionsForPages(pages: PageId[]): string[] {
-  return [...new Set(pages.flatMap((p) => PAGE_COLLECTIONS[p] ?? []))];
+  const normalised = pages.map((p) => LEGACY_PAGE_MAP[p] ?? p);
+  return [...new Set(normalised.flatMap((p) => PAGE_COLLECTIONS[p] ?? []))];
 }

@@ -2,7 +2,7 @@ import type { StringTable } from './types.ts';
 
 export const ja: StringTable = {
   'nav.today':    'ホーム',
-  'nav.prep':     'チェックリスト',
+  'nav.prep':     '準備',
   'nav.pack':     '荷造り',
   'nav.budget':   '比較',
   'nav.route':    '旅程',
@@ -113,6 +113,7 @@ export const ja: StringTable = {
   'safety.searchPh':      '都市を検索…',
   'safety.locating':      '位置情報を取得中…',
 
+  'prep.checklistSectionTitle': 'チェックリスト',
   'prep.btnNewChecklist': '+ 新しいチェックリスト',
   'prep.emptyTitle':      'チェックリストがまだありません。',
   'prep.filterAll':       'すべて',

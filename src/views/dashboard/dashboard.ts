@@ -833,7 +833,7 @@ function renderPackWidget(): string | null {
     <div class="td-widget td-w-pack">
       <div class="td-widget-header">
         <div class="td-widget-label">🎒 Pack <span class="td-pk-header-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</span></div>
-        <button class="td-link" data-nav="pack" data-intent='${esc(JSON.stringify({ listId: list.id }))}'>Open Pack ›</button>
+        <button class="td-link" data-nav="prep" data-intent='${esc(JSON.stringify({ listId: list.id }))}'>Open Pack ›</button>
       </div>
       ${allowanceBar}
       ${recentHtml}
