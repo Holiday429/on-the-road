@@ -217,70 +217,6 @@
   color: var(--on-accent);
 }
 
-/* ── Modals ──────────────────────────────────────────────────────────────── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(28, 25, 23, 0.4);
-  backdrop-filter: blur(4px);
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--sp-4);
-  animation: fadeIn var(--dur-fast) var(--ease-out);
-}
-.modal-overlay[hidden] { display: none !important; }
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-.modal-box {
-  background: var(--surface);
-  border-radius: var(--r-xl);
-  box-shadow: var(--shadow-lg);
-  width: 100%;
-  max-width: 480px;
-  max-height: 80dvh;
-  overflow-y: auto;
-  animation: slideUp var(--dur-mid) var(--ease-out);
-}
-
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--sp-5) var(--sp-6);
-  border-bottom: 1px solid var(--rule-soft);
-}
-
-.modal-title {
-  font-family: var(--font-ui);
-  font-size: var(--fs-lg);
-  font-weight: 700;
-  color: var(--ink);
-}
-
-.modal-close {
-  color: var(--ink-faint);
-  font-size: 16px;
-  padding: 4px 8px;
-  border-radius: var(--r-sm);
-  transition: background var(--dur-fast), color var(--dur-fast);
-}
-.modal-close:hover { background: var(--surface-3); color: var(--ink); }
-
-.modal-body {
-  padding: var(--sp-5) var(--sp-6) var(--sp-6);
-}
-
 /* ── Template picker modal ───────────────────────────────────────────────── */
 .template-picker-list {
   display: flex;
@@ -550,7 +486,26 @@
   opacity: 0;
   transition: opacity var(--dur-fast);
 }
-.prep-item:hover .item-actions { opacity: 1; }
+.prep-item:hover .item-actions,
+.prep-item:focus-within .item-actions { opacity: 1; }
+/* Touch devices never hover — keep the row's actions reachable. */
+@media (hover: none) {
+  .item-actions { opacity: 1; }
+}
+
+/* Send-to-Pack. An emoji ignores .icon-btn's `color`, so it would sit at full
+   saturation next to the muted ✕ and read as decoration rather than a
+   control; mute it to match, and let it come forward on hover. */
+.send-to-pack-btn {
+  filter: grayscale(0.75);
+  opacity: .75;
+  transition: filter var(--dur-fast), opacity var(--dur-fast), background var(--dur-fast);
+}
+.send-to-pack-btn:hover {
+  filter: none;
+  opacity: 1;
+  background: var(--accent-light);
+}
 
 /* ── Add item / group rows ───────────────────────────────────────────────── */
 .add-item-row {

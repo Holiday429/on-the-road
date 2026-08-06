@@ -153,7 +153,7 @@ export const checklistStore = {
   async removeGroup(checklistId: string, groupId: string): Promise<void> {
     const cl = await this.get(checklistId);
     if (!cl) return;
-    await clStore().update(checklistId, { groups: cl.groups.filter(g => g.id !== groupId) });
+    await this.storeFor(checklistId).update(checklistId, { groups: cl.groups.filter(g => g.id !== groupId) });
   },
 
   async reorderGroups(checklistId: string, orderedIds: string[]): Promise<void> {
@@ -191,7 +191,7 @@ export const checklistStore = {
     );
     const allDone = groups.every(g => g.items.length > 0 && g.items.every(it => it.done));
     const completedAt = allDone ? (cl.completedAt ?? Date.now()) : null;
-    await clStore().update(checklistId, { groups, completedAt });
+    await this.storeFor(checklistId).update(checklistId, { groups, completedAt });
     return allDone;
   },
 

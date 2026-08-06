@@ -65,6 +65,7 @@ vi.mock('../trip-context.ts', () => ({ currentTripId: () => _currentTripId }));
 
 import { routeStore } from './route-store.ts';
 import { todoStore } from './todo-store.ts';
+import { checklistStore, STANDALONE_TRIP_ID } from './checklist-store.ts';
 
 beforeEach(() => {
   docs.clear();
@@ -139,5 +140,44 @@ describe('todoStore.toggle', () => {
     await todoStore.toggle(id, true);
     expect(docs.get(`trips/t1/todos/${id}`)!.done).toBe(false);
     unsub();
+  });
+});
+
+describe('checklistStore — standalone-checklist routing (regression: removeGroup/toggleItem)', () => {
+  it('removeGroup writes to the standalone doc, not the current trip doc', async () => {
+    const unsubTrip = checklistStore.subscribe(() => {});
+    const unsubStandalone = checklistStore.subscribe(() => {}, STANDALONE_TRIP_ID);
+
+    const id = await checklistStore.create({
+      name: 'Solo list', tripId: STANDALONE_TRIP_ID,
+      groups: [{ id: 'g1', name: 'Docs', icon: '📋', order: 0, items: [] }],
+    });
+    await checklistStore.removeGroup(id, 'g1');
+
+    const standaloneDoc = docs.get(`trips/${STANDALONE_TRIP_ID}/checklists/${id}`);
+    const tripDoc = docs.get(`trips/t1/checklists/${id}`);
+    expect(tripDoc).toBeUndefined(); // must never have been created under the wrong trip
+    expect((standaloneDoc!.groups as unknown[]).length).toBe(0);
+
+    unsubTrip(); unsubStandalone();
+  });
+
+  it('toggleItem marks the standalone doc done, not the current trip doc', async () => {
+    const unsubTrip = checklistStore.subscribe(() => {});
+    const unsubStandalone = checklistStore.subscribe(() => {}, STANDALONE_TRIP_ID);
+
+    const id = await checklistStore.create({
+      name: 'Solo list', tripId: STANDALONE_TRIP_ID,
+      groups: [{ id: 'g1', name: 'Docs', icon: '📋', order: 0, items: [{ id: 'i1', text: 'Passport', done: false, order: 0 }] }],
+    });
+    const allDone = await checklistStore.toggleItem(id, 'g1', 'i1');
+    expect(allDone).toBe(true);
+
+    const standaloneDoc = docs.get(`trips/${STANDALONE_TRIP_ID}/checklists/${id}`);
+    const tripDoc = docs.get(`trips/t1/checklists/${id}`);
+    expect(tripDoc).toBeUndefined();
+    expect(standaloneDoc!.completedAt).not.toBeNull();
+
+    unsubTrip(); unsubStandalone();
   });
 });

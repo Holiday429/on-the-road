@@ -1,0 +1,356 @@
+/* ==========================================================================
+   On the Road · Prepare — readiness workspace
+   Hero (countdown + both sections' state) over two rails of real rows.
+   Focused editors take the page; see .prepare-zone.
+   ========================================================================== */
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+
+.prep-hero {
+  display: flex;
+  align-items: stretch;
+  gap: var(--sp-6);
+  padding: var(--sp-5) var(--sp-6);
+  margin-bottom: var(--sp-8);
+  background: var(--surface);
+  border: 1.5px solid var(--rule-soft);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Nothing prepared and no trip dates: one quiet line, no empty stat cells. */
+.prep-hero--bare {
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-6);
+  background: var(--surface-3);
+  border-style: solid;
+  box-shadow: none;
+}
+.prep-hero-bare-icon { font-size: 1.1em; line-height: 1; }
+.prep-hero-bare-text {
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.prep-hero-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  flex: 1;
+  min-width: 0;
+}
+
+.prep-hero-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  min-width: 68px;
+}
+.prep-hero-count-num {
+  font-family: var(--font-ui);
+  font-size: var(--fs-4xl);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent-deep);
+  font-variant-numeric: tabular-nums;
+}
+.prep-hero-count-label {
+  margin-top: var(--sp-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.prep-hero-copy { flex: 1; min-width: 0; }
+.prep-hero-eyebrow {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 2px;
+}
+.prep-hero-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.prep-hero-chip {
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--r-full);
+  padding: 9px 20px;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  background: var(--ink);
+  color: var(--surface);
+  cursor: pointer;
+  transition: opacity var(--dur-fast);
+}
+.prep-hero-chip:hover { opacity: .85; }
+
+/* Readiness stats — the two sections reporting into one place */
+.prep-hero-stats {
+  display: flex;
+  gap: var(--sp-5);
+  flex-shrink: 0;
+  padding-left: var(--sp-6);
+  border-left: 1.5px solid var(--rule-soft);
+}
+/* Both cells share a row grid so the label / value / bar / meta lines sit on
+   the same baselines even when only one cell has a progress bar. */
+.prep-hero-stat {
+  min-width: 116px;
+  display: grid;
+  grid-template-rows: auto auto 4px auto;
+  row-gap: 4px;
+  align-content: start;
+}
+.prep-hero-stat-label {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-muted);
+  margin-bottom: 2px;
+}
+.prep-hero-stat-value {
+  font-family: var(--font-ui);
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.prep-hero-stat.is-warn .prep-hero-stat-value { color: var(--danger); }
+.prep-hero-bar {
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--surface-4);
+  overflow: hidden;
+}
+/* Keeps the meta line aligned across cells when this one has no progress. */
+.prep-hero-bar.is-placeholder { background: transparent; }
+.prep-hero-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-full);
+  transition: width var(--dur-mid) var(--ease-out);
+}
+.prep-hero-stat-meta {
+  font-size: var(--fs-xs);
+  color: var(--ink-faint);
+}
+.prep-hero-stat.is-warn .prep-hero-stat-meta { color: var(--danger); }
+
+/* ── Rails ────────────────────────────────────────────────────────────────── */
+
+.prep-rail { margin-bottom: var(--sp-8); }
+
+.prep-rail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  flex-wrap: wrap;
+}
+.prep-rail-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ink);
+}
+.prep-rail-icon { font-size: 1.05em; line-height: 1; }
+.prep-rail-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.prep-rail-btn { font-size: var(--fs-sm); padding: 7px 16px; }
+
+.prep-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.prep-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--surface);
+  border: 1.5px solid var(--rule-soft);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast);
+}
+.prep-row:hover {
+  border-color: var(--amber-300);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.prep-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.prep-row.is-complete { border-color: var(--success); background: var(--success-bg-soft); }
+.prep-row.is-over { border-color: var(--danger); }
+
+.prep-row-main { flex: 1; min-width: 0; }
+.prep-row-name {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prep-row-sub {
+  margin-top: 3px;
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}
+.prep-row-bar {
+  margin-top: 7px;
+  height: 5px;
+  max-width: 320px;
+  border-radius: var(--r-full);
+  background: var(--surface-4);
+  overflow: hidden;
+}
+.prep-row-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-full);
+  transition: width var(--dur-mid) var(--ease-out);
+}
+.prep-row-bar-fill.is-complete { background: var(--success); }
+
+.prep-row-meta {
+  flex-shrink: 0;
+  min-width: 68px;
+  text-align: right;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.prep-row-meta.is-over { color: var(--danger); }
+
+/* Reserved so rows with and without a badge keep their figures in one column. */
+.prep-row-badge {
+  flex-shrink: 0;
+  min-width: 84px;
+  text-align: center;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  background: var(--success-bg);
+  color: var(--success);
+}
+.prep-row-badge.is-warn { background: var(--danger-bg); color: var(--danger); }
+.prep-row-badge.is-empty { background: transparent; }
+
+.prep-row-del {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
+}
+.prep-row:hover .prep-row-del,
+.prep-row:focus-within .prep-row-del { opacity: 1; }
+.prep-row-del:hover { background: var(--danger-bg); color: var(--danger); }
+/* Touch devices have no hover — keep the control reachable. */
+@media (hover: none) {
+  .prep-row-del { opacity: 1; }
+}
+
+/* Empty state carries the rail's call to action, so it reads as somewhere to
+   start rather than a notice that something is missing. */
+.prep-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--sp-10) var(--sp-6);
+  background: var(--surface);
+  border: 1.5px dashed var(--rule);
+  border-radius: var(--r-xl);
+}
+.prep-empty-icon {
+  font-size: 30px;
+  line-height: 1;
+  margin-bottom: var(--sp-3);
+  opacity: .9;
+}
+.prep-empty-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--ink);
+}
+.prep-empty-text {
+  margin: var(--sp-2) 0 0;
+  max-width: 46ch;
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+.prep-empty-actions {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--sp-5);
+}
+
+/* ── Landing ↔ focused editor ─────────────────────────────────────────────── */
+
+.prepare-landing.is-hidden,
+.prepare-zone.is-hidden { display: none; }
+
+@media (max-width: 720px) {
+  .prep-hero { flex-direction: column; gap: var(--sp-5); }
+  .prep-hero-stats {
+    padding-left: 0;
+    border-left: none;
+    padding-top: var(--sp-4);
+    border-top: 1.5px solid var(--rule-soft);
+  }
+  .prep-hero-stat { flex: 1; min-width: 0; }
+  .prep-hero-lead { flex-wrap: wrap; }
+  .prep-hero-chip { width: 100%; }
+
+  /* Reserved badge/figure columns are a desktop alignment device — on a phone
+     that space is better spent on the name. */
+  .prep-row-badge.is-empty { display: none; }
+  .prep-row-badge { min-width: 0; }
+  .prep-row-meta { min-width: 0; }
+  .prep-row { gap: var(--sp-3); padding: var(--sp-4); }
+}

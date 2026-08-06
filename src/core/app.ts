@@ -10,7 +10,6 @@ import checklistIcon from '../../icon/Checklist.png';
 import guideIcon from '../../icon/Guide.png';
 import itineraryIcon from '../../icon/Itinerary.png';
 import journalIcon from '../../icon/Journal.png';
-import packIcon from '../../icon/Pack.png';
 import paymentIcon from '../../icon/payment.png';
 import stayIcon from '../../icon/stay.png';
 import mapsIcon from '../../icon/maps.png';
@@ -30,8 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   // Pinned
   { id: 'today',    label: 'Dashboard', iconSrc: '🏠',  emoji: true, section: 'pinned' },
   // Before
-  { id: 'prep',     label: 'Checklist', iconSrc: checklistIcon, section: 'before' },
-  { id: 'pack',     label: 'Pack',      iconSrc: packIcon,      section: 'before' },
+  { id: 'prep',     label: 'Prepare',   iconSrc: checklistIcon, section: 'before' },
   { id: 'budget',   label: 'Compare',   iconSrc: stayIcon,      section: 'before' },
   // During
   { id: 'route',    label: 'Itinerary', iconSrc: itineraryIcon, section: 'during' },
@@ -48,6 +46,7 @@ const NAV_ITEMS: NavItem[] = [
 const LEGACY_VIEW_MAP: Partial<Record<string, ViewId>> = {
   nomad: 'cities',
   safety: 'cities',
+  pack: 'prep',
 };
 
 function resolveLegacyView(id: string): ViewId {

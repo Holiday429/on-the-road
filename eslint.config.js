@@ -46,9 +46,11 @@ export default tseslint.config(
       // N10: remaining views audited + escaped, now error-tiered so new bare
       // innerHTML can't regress.
       'src/views/map/map.ts',
-      'src/views/checklist/checklist.ts',
+      'src/views/prepare/checklist-section.ts',
       'src/views/itinerary/itinerary-editors.ts',
-      'src/views/pack/pack.ts',
+      'src/views/prepare/pack-section.ts',
+      'src/views/prepare/prepare.ts',
+      'src/views/prepare/phase-strip.ts',
       'src/views/journal/card/card-preview.ts',
       'src/views/journal/index.ts',
       'src/views/safety/safety.ts',
@@ -82,5 +84,5 @@ export default tseslint.config(
   { files: ['src/views/itinerary/itinerary.ts'], rules: { 'max-lines': ['error', { max: 1799, skipBlankLines: false, skipComments: false }] } },
   { files: ['src/views/expenses/expenses.ts'],   rules: { 'max-lines': ['error', { max: 1468, skipBlankLines: false, skipComments: false }] } },
   { files: ['src/views/guide/guide.ts'],         rules: { 'max-lines': ['error', { max: 1457, skipBlankLines: false, skipComments: false }] } },
-  { files: ['src/views/dashboard/dashboard.ts'], rules: { 'max-lines': ['error', { max: 1331, skipBlankLines: false, skipComments: false }] } },
+  { files: ['src/views/dashboard/dashboard.ts'], rules: { 'max-lines': ['error', { max: 1299, skipBlankLines: false, skipComments: false }] } },
 );

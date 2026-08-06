@@ -124,3 +124,27 @@ export function listTotalWeight(list: PackList): number {
 export function isOver(list: PackList, c: PackContainer): boolean {
   return c.limitG > 0 && containerWeight(list, c) > c.limitG;
 }
+
+/* ── Checklist → Pack ────────────────────────────────────────────────────────
+   Sending a checklist item to a pack list has to pick a category for it. The
+   checklist has no category field, but its group name is a strong hint (the
+   preset groups are Documents / Tech & Comms / Health / …), so match on that
+   and fall back to Other. Bilingual because groups are user-typed and this
+   app ships zh — an English-only table would silently drop every zh group. */
+const GROUP_CATEGORY_HINTS: { match: RegExp; category: string }[] = [
+  { match: /tech|electronic|comms|device|数码|电子|设备/i,       category: 'electronics' },
+  { match: /cloth|wear|outfit|apparel|衣|服装|穿/i,              category: 'clothing' },
+  { match: /toiletr|wash|shower|hygiene|洗漱|盥洗|个护/i,        category: 'toiletries' },
+  { match: /document|paper|visa|passport|证件|文件|签证/i,       category: 'documents' },
+  { match: /health|med|pharma|first.?aid|健康|药|医/i,           category: 'health' },
+  { match: /feminine|period|女性|生理/i,                         category: 'feminine' },
+  { match: /consumable|supplies|耗材|日用/i,                     category: 'consumables' },
+  { match: /food|snack|drink|食|零食|饮/i,                       category: 'food' },
+  { match: /gift|souvenir|礼物|手信|纪念/i,                      category: 'gifts' },
+];
+
+/** Best-guess pack category for a checklist item, from its group's name. */
+export function categoryForGroupName(groupName: string): string {
+  const hit = GROUP_CATEGORY_HINTS.find(h => h.match.test(groupName));
+  return hit ? hit.category : DEFAULT_CATEGORY;
+}
