@@ -82,7 +82,7 @@ export default tseslint.config(
   // to match — don't leave it at the old ceiling.
   { files: ['src/views/map/map.ts'],             rules: { 'max-lines': ['error', { max: 1803, skipBlankLines: false, skipComments: false }] } },
   { files: ['src/views/itinerary/itinerary.ts'], rules: { 'max-lines': ['error', { max: 1799, skipBlankLines: false, skipComments: false }] } },
-  { files: ['src/views/expenses/expenses.ts'],   rules: { 'max-lines': ['error', { max: 1468, skipBlankLines: false, skipComments: false }] } },
+  { files: ['src/views/expenses/expenses.ts'],   rules: { 'max-lines': ['error', { max: 1214, skipBlankLines: false, skipComments: false }] } },
   { files: ['src/views/guide/guide.ts'],         rules: { 'max-lines': ['error', { max: 1457, skipBlankLines: false, skipComments: false }] } },
   { files: ['src/views/dashboard/dashboard.ts'], rules: { 'max-lines': ['error', { max: 1299, skipBlankLines: false, skipComments: false }] } },
 );

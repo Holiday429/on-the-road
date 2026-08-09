@@ -23,8 +23,8 @@ import { escHtml } from '../../core/utils.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import {
-  baseCurrency, setBaseCurrency, tripBudget, setTripBudget,
-  categoryBudgets, setCategoryBudget, countryBudgets, setCountryBudget,
+  baseCurrency, setBaseCurrency, tripBudget,
+  categoryBudgets, countryBudgets,
   onTripChange, currentTripId,
 } from '../../data/trip-context.ts';
 import {
@@ -40,8 +40,11 @@ import {
 } from './expense-defaults.ts';
 import {
   type Category, BUILTIN_CATEGORIES, UNCLASSIFIED, categoryDisplayColor,
-  type AnalysisDim, type BudgetTab, ANALYSIS_DIMS, nightCount,
+  type AnalysisDim, ANALYSIS_DIMS, nightCount,
 } from './expense-helpers.ts';
+import {
+  initBudgetPage, openBudgetPage, closeBudgetPage, renderBudgetPage, isBudgetOpen,
+} from './budget-page.ts';
 
 /** Built-ins followed by the user's custom categories (sorted). */
 function categories(): Category[] {
@@ -77,8 +80,6 @@ let analysisDim: AnalysisDim = 'category';
 let calViewYear  = new Date().getFullYear();
 let calViewMonth = new Date().getMonth(); // 0-indexed
 let showRecords = false;          // is the full-ledger panel open?
-let showBudget = false;           // is the budget overlay page open?
-let budgetTab: BudgetTab = 'total';
 let unsub: (() => void) | null = null;
 let unsubLegs: (() => void) | null = null;
 let unsubCategories: (() => void) | null = null;
@@ -1124,288 +1125,19 @@ function renderBreakdown(el: HTMLElement) {
   });
 }
 
-/* ── Budget overview modal (total / country / category) ──────────────────── */
-
-/* ── Budget overlay page ─────────────────────────────────────────────────── */
-
-function onBudgetKey(ev: KeyboardEvent) { if (ev.key === 'Escape') closeBudgetPage(); }
-
-function openBudgetPage(tab: BudgetTab = 'total') {
-  budgetTab = tab;
-  showBudget = true;
-  document.body.classList.add('exp-records-lock');
-  document.addEventListener('keydown', onBudgetKey);
-  renderBudgetPage();
-}
-
-function closeBudgetPage() {
-  showBudget = false;
-  document.body.classList.remove('exp-records-lock');
-  document.removeEventListener('keydown', onBudgetKey);
-  renderBudgetPage();
-  renderSummaryRoot();
-}
-
-function renderBudgetPage() {
-  const panel = document.querySelector('.exp-budget-panel') as HTMLElement | null;
-  if (!panel) return;
-  panel.classList.toggle('open', showBudget);
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-  if (!showBudget) { panel.innerHTML = ''; return; }
-
-  const sym = currencySymbol(baseCurrency());
-  const tripTotal = tripBudget();
-  const sum = total(expenses);
-
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-  panel.innerHTML = `
-    <div class="exp-records-overlay exp-budget-overlay">
-      <div class="exp-records-bar">
-        <button class="exp-records-back" id="exp-budget-back">${t('expenses.btnBack')}</button>
-        <div class="exp-records-bar-title">${t('expenses.budgetTitle')}</div>
-      </div>
-      <div class="exp-records-scroll">
-        <!-- Compare section -->
-        <div class="exp-budget-compare">
-          <div class="exp-budget-compare-total">
-            ${tripTotal ? `
-              <div class="exp-budget-compare-row">
-                <span class="exp-bcp-label">${t('expenses.totalBudget')}</span>
-                <span class="exp-bcp-val">${sym}${Math.round(tripTotal).toLocaleString()}</span>
-              </div>
-              <div class="exp-budget-compare-row">
-                <span class="exp-bcp-label">${t('expenses.spentSoFar')}</span>
-                <span class="exp-bcp-val">${fmt(sum)}</span>
-              </div>
-              <div class="exp-budget-bar-track exp-budget-compare-bar">
-                ${(() => {
-                  const pct = Math.min(100, Math.round((sum / tripTotal) * 100));
-                  const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
-                  return `<div class="exp-budget-bar-fill" style="width:${pct}%;background:${color}"></div>`;
-                })()}
-              </div>
-              <div class="exp-budget-compare-foot">
-                ${sum > tripTotal
-                  ? `<span class="exp-budget-over">▲ ${fmt(sum - tripTotal)} ${t('expenses.overBudget')}</span>`
-                  : `<span class="exp-budget-remain">${fmt(tripTotal - sum)} ${t('expenses.remaining')} (${Math.round((sum / tripTotal) * 100)}%)</span>`}
-              </div>` : `
-              <p class="exp-modal-hint">${t('expenses.noBudgetHint')}</p>`}
-          </div>
-
-          <!-- Per-country compare rows -->
-          ${(() => {
-            const caps = countryBudgets();
-            const countriesList = [...new Set([...legCountries(legs), ...Object.keys(caps)])];
-            if (!countriesList.length) return '';
-            const hasCaps = countriesList.some((c) => caps[c]);
-            if (!hasCaps) return '';
-            return `
-              <div class="exp-budget-section-title">${t('expenses.byCountry')}</div>
-              ${countriesList.filter((c) => caps[c]).map((c) => {
-                const spent = countrySpend(c);
-                const cap = caps[c];
-                const pct = Math.min(100, Math.round((spent / cap) * 100));
-                const over = spent > cap;
-                const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
-                const flag = legs.find((l) => l.country === c)?.flag ?? '';
-                return `
-                  <div class="exp-budget-cmp-row">
-                    <div class="exp-budget-cmp-name">${flag} ${c}</div>
-                    <div class="exp-budget-cmp-bar-wrap">
-                      <div class="exp-budget-bar-track" style="flex:1">
-                        <div class="exp-budget-bar-fill" style="width:${pct}%;background:${color}"></div>
-                      </div>
-                    </div>
-                    <div class="exp-budget-cmp-nums">
-                      <span>${fmt(spent)}</span>
-                      <span class="exp-budget-cmp-sep">/</span>
-                      <span>${sym}${Math.round(cap).toLocaleString()}</span>
-                      ${over ? `<span class="exp-budget-over">${t('expenses.over')}</span>` : ''}
-                    </div>
-                  </div>`;
-              }).join('')}`;
-          })()}
-
-          <!-- Per-category compare rows -->
-          ${(() => {
-            const caps = categoryBudgets();
-            const hasCaps = categories().some((c) => caps[c.id]);
-            if (!hasCaps) return '';
-            return `
-              <div class="exp-budget-section-title">${t('expenses.byCategory')}</div>
-              ${categories().filter((cat) => caps[cat.id]).map((cat) => {
-                const spent = expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0);
-                const cap = caps[cat.id];
-                const pct = Math.min(100, Math.round((spent / cap) * 100));
-                const over = spent > cap;
-                const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
-                return `
-                  <div class="exp-budget-cmp-row">
-                    <div class="exp-budget-cmp-name">${escHtml(cat.icon)} ${escHtml(cat.label)}</div>
-                    <div class="exp-budget-cmp-bar-wrap">
-                      <div class="exp-budget-bar-track" style="flex:1">
-                        <div class="exp-budget-bar-fill" style="width:${pct}%;background:${color}"></div>
-                      </div>
-                    </div>
-                    <div class="exp-budget-cmp-nums">
-                      <span>${fmt(spent)}</span>
-                      <span class="exp-budget-cmp-sep">/</span>
-                      <span>${sym}${Math.round(cap).toLocaleString()}</span>
-                      ${over ? `<span class="exp-budget-over">${t('expenses.over')}</span>` : ''}
-                    </div>
-                  </div>`;
-              }).join('')}`;
-          })()}
-        </div>
-
-        <!-- Settings section -->
-        <div class="exp-budget-section-title exp-budget-settings-title">${t('expenses.settingsTitle')}</div>
-        <div class="exp-budget-tabs">
-          <button class="exp-budget-tab ${budgetTab === 'total' ? 'active' : ''}" data-tab="total">${t('expenses.budgetTabTotal')}</button>
-          <button class="exp-budget-tab ${budgetTab === 'country' ? 'active' : ''}" data-tab="country">${t('expenses.budgetTabCountry')}</button>
-          <button class="exp-budget-tab ${budgetTab === 'category' ? 'active' : ''}" data-tab="category">${t('expenses.budgetTabCategory')}</button>
-        </div>
-        <div class="exp-budget-settings-pane" id="exp-budget-settings-pane"></div>
-      </div>
-    </div>
-  `;
-
-  const settingsPane = panel.querySelector('#exp-budget-settings-pane') as HTMLElement;
-
-  const renderSettings = () => {
-    panel.querySelectorAll<HTMLElement>('.exp-budget-tab').forEach((b) =>
-      b.classList.toggle('active', b.dataset.tab === budgetTab));
-
-    if (budgetTab === 'total') {
-      const budget = tripBudget();
-      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-      settingsPane.innerHTML = `
-        <label class="field-label">Total trip budget (${sym}, ${baseCurrency()})</label>
-        <input class="input" type="number" id="bm-total" min="0" step="1" placeholder="e.g. 5000" value="${budget ?? ''}">
-        <p class="exp-modal-hint">${t('expenses.budgetTotalHint')}</p>`;
-      const input = settingsPane.querySelector('#bm-total') as HTMLInputElement;
-      const save = async () => {
-        const val = parseFloat(input.value);
-        await setTripBudget(val > 0 ? val : null);
-        renderBudgetPage();
-        renderSummaryRoot();
-      };
-      input.addEventListener('change', save);
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-      return;
-    }
-
-    if (budgetTab === 'country') {
-      const caps = countryBudgets();
-      const countriesList = [...new Set([...legCountries(legs), ...Object.keys(caps)])];
-      const totalCap = Object.values(caps).reduce((s, v) => s + v, 0);
-      const flex = tripTotal ? tripTotal - totalCap : null;
-
-      // Per-country day count from itinerary
-      const countryDays: Record<string, number> = {};
-      for (const leg of legs) {
-        if (!leg.country) continue;
-        const from = new Date(leg.dateFrom);
-        const to   = new Date(leg.dateTo);
-        const d = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000));
-        countryDays[leg.country] = (countryDays[leg.country] ?? 0) + d;
-      }
-
-      // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-      settingsPane.innerHTML = `
-        ${countriesList.length === 0 ? `<p class="exp-modal-hint">${t('expenses.noCountriesHint')}</p>` : `
-          <div class="exp-budget-auto-row">
-            <div class="exp-budget-auto-hint">Auto-estimate by itinerary days ×</div>
-            <input class="input exp-budget-daily-rate" type="number" id="bm-daily-rate" min="0" step="1" placeholder="daily rate" value="">
-            <span class="exp-budget-auto-unit">${sym}/day</span>
-            <button class="btn btn-ghost pk-sm" id="bm-apply-daily">Apply</button>
-          </div>`}
-        <div class="exp-budget-rows">
-          ${countriesList.map((c) => {
-            const flag = legs.find((l) => l.country === c)?.flag ?? '';
-            const spent = countrySpend(c);
-            const daysLabel = countryDays[c] ? ` · ${countryDays[c]}d` : '';
-            return `
-              <div class="exp-budget-row">
-                <div class="exp-budget-row-name">${escHtml(flag)} ${escHtml(c)}<span class="exp-budget-row-spent">${fmt(spent)} ${t('expenses.spentLabel')}${daysLabel}</span></div>
-                <input class="input exp-budget-row-input" type="number" min="0" step="1" data-country="${escHtml(c)}" data-days="${countryDays[c] ?? 0}" placeholder="no cap" value="${caps[c] ?? ''}">
-              </div>`;
-          }).join('')}
-        </div>
-        ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">${t('expenses.allocatedLabel')} ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} ${t('expenses.overTotal')}` : `${fmt(flex)} ${t('expenses.unallocated')}`}</p>` : ''}`;
-
-      // Auto-estimate: fill all inputs with days × daily rate
-      settingsPane.querySelector('#bm-apply-daily')?.addEventListener('click', async () => {
-        const rateEl = settingsPane.querySelector<HTMLInputElement>('#bm-daily-rate');
-        const rate = parseFloat(rateEl?.value ?? '');
-        if (!rate || rate <= 0) { rateEl?.focus(); return; }
-        const saves = [...settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input')]
-          .map(async (inp) => {
-            const d = parseInt(inp.dataset.days ?? '0', 10);
-            if (!d) return;
-            const est = Math.round(d * rate);
-            inp.value = String(est);
-            await setCountryBudget(inp.dataset.country!, est);
-          });
-        await Promise.all(saves);
-        renderBudgetPage();
-        renderSummaryRoot();
-        renderForm(document.querySelector('.exp-form-wrap') as HTMLElement);
-      });
-
-      settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
-        input.addEventListener('change', async () => {
-          const val = parseFloat(input.value);
-          await setCountryBudget(input.dataset.country!, val > 0 ? val : null);
-          renderBudgetPage();
-          renderSummaryRoot();
-          renderForm(document.querySelector('.exp-form-wrap') as HTMLElement);
-        });
-      });
-      return;
-    }
-
-    // category tab
-    const caps = categoryBudgets();
-    const totalCap = Object.values(caps).reduce((s, v) => s + v, 0);
-    const flex = tripTotal ? tripTotal - totalCap : null;
-    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-    settingsPane.innerHTML = `
-      <div class="exp-budget-rows">
-        ${categories().map((cat) => {
-          const spent = expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0);
-          return `
-            <div class="exp-budget-row">
-              <div class="exp-budget-row-name">${escHtml(cat.icon)} ${escHtml(cat.label)}<span class="exp-budget-row-spent">${fmt(spent)} ${t('expenses.spentLabel')}</span></div>
-              <input class="input exp-budget-row-input" type="number" min="0" step="1" data-cat="${cat.id}" placeholder="no cap" value="${caps[cat.id] ?? ''}">
-            </div>`;
-        }).join('')}
-      </div>
-      ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">${t('expenses.allocatedLabel')} ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} ${t('expenses.overTotal')}` : `${fmt(flex)} ${t('expenses.unallocated')}`}</p>` : ''}`;
-    settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
-      input.addEventListener('change', async () => {
-        const val = parseFloat(input.value);
-        await setCategoryBudget(input.dataset.cat!, val > 0 ? val : null);
-        renderBudgetPage();
-        renderSummaryRoot();
-      });
-    });
-  };
-
-  panel.querySelector('#exp-budget-back')?.addEventListener('click', () => closeBudgetPage());
-  panel.querySelectorAll<HTMLElement>('.exp-budget-tab').forEach((btn) => {
-    btn.addEventListener('click', () => { budgetTab = btn.dataset.tab as BudgetTab; renderSettings(); });
-  });
-
-  renderSettings();
-}
-
 /* ── Orchestration ───────────────────────────────────────────────────────── */
 
-function renderSummaryRoot() {
+/** Repaint the expenses summary card only. The budget cap editors use this
+ *  instead of renderSummaryRoot: rebuilding the budget page mid-edit would
+ *  detach the input the user just focused (see budget-page.ts). */
+function renderSummaryOnly() {
   const root = document.getElementById('view-expenses');
   if (root) renderSummary(root.querySelector('.exp-summary')!);
-  if (showBudget) renderBudgetPage();
+}
+
+function renderSummaryRoot() {
+  renderSummaryOnly();
+  if (isBudgetOpen()) renderBudgetPage();
 }
 
 function render() {
@@ -1420,12 +1152,26 @@ export function initExpenses() {
   const root = document.getElementById('view-expenses');
   if (!root) return;
 
+  // Hand the budget overlay live accessors into this module's state, plus the
+  // repaint callbacks it needs. Getters, not snapshots, so the store
+  // subscriptions below keep it current without re-initialising.
+  initBudgetPage({
+    expenses: () => expenses,
+    legs: () => legs,
+    categories,
+    inBase,
+    fmt,
+    renderSummaryOnly,
+    renderSummaryRoot,
+    renderForm: () => renderForm(root.querySelector('.exp-form-wrap') as HTMLElement),
+  });
+
   // Close fixed overlays when navigating away from expenses.
   window.addEventListener('hashchange', () => {
     const view = window.location.hash.replace('#', '');
     if (view !== 'expenses') {
       if (showRecords) closeRecords();
-      if (showBudget) closeBudgetPage();
+      if (isBudgetOpen()) closeBudgetPage();
     }
   });
 
