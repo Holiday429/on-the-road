@@ -11,6 +11,7 @@
 
 import {
   doc as fbDoc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, arrayUnion, deleteField,
+  FieldPath,
 } from 'firebase/firestore';
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
@@ -153,6 +154,16 @@ export function inviteUrl(tok: string): string {
 
 /* ── Email whitelist invites ─────────────────────────────────────────────── */
 
+/* Email addresses contain dots, and a dotted STRING field path is parsed by
+ * Firestore as nesting — writing `emailInvites.a.b@c.com` creates
+ * emailInvites → a → b@c → com instead of one flat key. That corrupts the map
+ * against its schema (a record of email → 'editor'), and because updateTrip()
+ * re-parses the WHOLE trip doc through TripSchema before writing, the bad shape
+ * then rejected every unrelated trip write — budget caps included. Always wrap
+ * an email key in a FieldPath, whose segments are taken literally. */
+const invitePath = (email: string) => new FieldPath('emailInvites', email);
+const invitePagesPath = (email: string) => new FieldPath('emailInvitePages', email);
+
 /** Add an email to the trip's editor whitelist with optional page restriction.
  *  Empty `pages` = full access. Owner only. */
 export async function addEmailInvite(tripId: string, email: string, pages: string[] = []): Promise<void> {
@@ -160,21 +171,23 @@ export async function addEmailInvite(tripId: string, email: string, pages: strin
   if (!u) throw new Error('Not signed in.');
   const normalised = email.trim().toLowerCase();
   if (!normalised) throw new Error('Invalid email.');
-  await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
-    [`emailInvites.${normalised}`]: 'editor',
-    [`emailInvitePages.${normalised}`]: pages,
-    updatedAt: Date.now(),
-  });
+  await updateDoc(
+    fbDoc(firestore, `trips/${tripId}`),
+    invitePath(normalised), 'editor',
+    invitePagesPath(normalised), pages,
+    'updatedAt', Date.now(),
+  );
 }
 
 /** Remove an email from the trip's editor whitelist. Owner only. */
 export async function removeEmailInvite(tripId: string, email: string): Promise<void> {
   const normalised = email.trim().toLowerCase();
-  await updateDoc(fbDoc(firestore, `trips/${tripId}`), {
-    [`emailInvites.${normalised}`]: deleteField(),
-    [`emailInvitePages.${normalised}`]: deleteField(),
-    updatedAt: Date.now(),
-  });
+  await updateDoc(
+    fbDoc(firestore, `trips/${tripId}`),
+    invitePath(normalised), deleteField(),
+    invitePagesPath(normalised), deleteField(),
+    'updatedAt', Date.now(),
+  );
 }
 
 /**
@@ -195,11 +208,12 @@ export async function acceptEmailInvite(tripId: string): Promise<boolean> {
   const pageMap = (trip as { emailInvitePages?: Record<string, string[]> }).emailInvitePages ?? {};
   const pages = pageMap[email] ?? [];
 
+  // uids are dot-free so string paths are fine for them, but the email keys
+  // must go through FieldPath (see invitePath above). Mixing the two forms in
+  // one call is not possible, so the email deletions ride the varargs form.
   const patch: Record<string, unknown> = {
     [`members.${u.uid}`]: 'editor',
     memberUids: arrayUnion(u.uid),
-    [`emailInvites.${email}`]: deleteField(),
-    [`emailInvitePages.${email}`]: deleteField(),
     updatedAt: Date.now(),
   };
   // Only set a restriction when pages were specified; full access = no entry.
@@ -207,6 +221,13 @@ export async function acceptEmailInvite(tripId: string): Promise<boolean> {
     patch[`memberPages.${u.uid}`] = pages;
     patch[`memberCollections.${u.uid}`] = collectionsForPages(pages);
   }
-  await updateDoc(fbDoc(firestore, `trips/${tripId}`), patch);
+  const ref = fbDoc(firestore, `trips/${tripId}`);
+  await updateDoc(ref, patch);
+  await updateDoc(
+    ref,
+    invitePath(email), deleteField(),
+    invitePagesPath(email), deleteField(),
+    'updatedAt', Date.now(),
+  );
   return true;
 }

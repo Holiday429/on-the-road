@@ -309,6 +309,52 @@ export async function createTrip(input: NewTripInput): Promise<string> {
   return id;
 }
 
+/**
+ * Repair email-invite maps that were corrupted by a dotted field path.
+ *
+ * `updateDoc` with the STRING path `emailInvites.a@b.com` makes Firestore treat
+ * each dot as nesting, so the flat `email -> 'editor'` map became
+ * `a@b -> { com: 'editor' }`. trip-invites.ts now writes these through
+ * FieldPath, but documents written before that fix still hold the bad shape —
+ * and since updateTrip re-parses the ENTIRE doc, one bad invite map made every
+ * later write to that trip throw a ZodError. That is what stopped budget caps
+ * from saving.
+ *
+ * Flatten the nesting back into single keys, dropping anything that still is
+ * not a valid entry. Invites are recoverable state (the invitee just gets
+ * re-invited), so discarding an unparseable one is preferable to leaving the
+ * whole trip document unwritable.
+ */
+function repairEmailInviteMaps(data: Record<string, unknown>): void {
+  for (const field of ['emailInvites', 'emailInvitePages'] as const) {
+    const raw = data[field];
+    if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) {
+      if (raw !== undefined) delete data[field];
+      continue;
+    }
+    const isValidLeaf = (v: unknown) => field === 'emailInvites'
+      ? v === 'editor'
+      : Array.isArray(v) && v.every((p) => typeof p === 'string');
+
+    const flat: Record<string, unknown> = {};
+    // Walk the accidental nesting, rebuilding the original dotted key.
+    const walk = (node: Record<string, unknown>, prefix: string) => {
+      for (const [k, v] of Object.entries(node)) {
+        const key = prefix ? `${prefix}.${k}` : k;
+        if (isValidLeaf(v)) flat[key] = v;
+        else if (v != null && typeof v === 'object' && !Array.isArray(v)) {
+          walk(v as Record<string, unknown>, key);
+        }
+        // Anything else is unrecoverable — drop it.
+      }
+    };
+    walk(raw as Record<string, unknown>, '');
+
+    if (Object.keys(flat).length) data[field] = flat;
+    else delete data[field];
+  }
+}
+
 /** Shallow-patch a trip document (name, dates, coverColor, etc.). */
 export async function updateTrip(id: string, patch: Partial<Omit<Trip, 'id' | 'createdAt' | 'schemaVersion'>>): Promise<void> {
   const u = currentUser();
@@ -317,7 +363,11 @@ export async function updateTrip(id: string, patch: Partial<Omit<Trip, 'id' | 'c
   const snap = await getDoc(ref);
   if (!snap.exists()) throw new Error('Trip not found.');
   const existing = snap.data() as Trip;
-  const updated = TripSchema.parse({ ...existing, ...patch, id, updatedAt: Date.now(), schemaVersion: SCHEMA_VERSION });
+  const merged = { ...existing, ...patch, id, updatedAt: Date.now(), schemaVersion: SCHEMA_VERSION } as Record<string, unknown>;
+  // Heal legacy corruption before validating, so a bad invite map written by an
+  // older client cannot block an unrelated write (e.g. a budget cap).
+  repairEmailInviteMaps(merged);
+  const updated = TripSchema.parse(merged);
   await setDoc(ref, stripUndefined(updated));
   if (id === _currentTripId) {
     _currentTrip = updated;
