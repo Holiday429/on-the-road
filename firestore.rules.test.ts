@@ -193,6 +193,63 @@ describe('trips/{tripId}', () => {
     await assertSucceeds(deleteDoc(doc(alice.firestore(), 'trips/t1')));
   });
 
+  /* ── Legacy pre-collaboration trips (N1 bug class) ──────────────────────
+     members/memberUids are optional in the schema, and Firestore rules THROW
+     on an absent field rather than returning null — failing the whole rule and
+     denying the request. A trip created before collaboration has only
+     ownerUid, so every one of these paths silently permission-denied for its
+     own owner. It surfaced as budget caps refusing to save (the client does
+     not surface write errors). Fall back to ownerUid when no members map
+     exists at all. */
+  const legacyTrip = { name: 'Euro Trip', ownerUid: 'alice' };
+
+  it('legacy: the owner can update a trip that has no members/memberUids', async () => {
+    await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/legacy'), legacyTrip); });
+    const alice = testEnv.authenticatedContext('alice');
+    await assertSucceeds(updateDoc(doc(alice.firestore(), 'trips/legacy'), {
+      countryBudgets: { Switzerland: 15000, France: 10000 },
+    }));
+  });
+
+  it('legacy: the owner can read a trip that has no members/memberUids', async () => {
+    await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/legacy'), legacyTrip); });
+    const alice = testEnv.authenticatedContext('alice');
+    await assertSucceeds(getDoc(doc(alice.firestore(), 'trips/legacy')));
+  });
+
+  it('legacy: the owner can write a sub-collection (expenses) on such a trip', async () => {
+    await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/legacy'), legacyTrip); });
+    const alice = testEnv.authenticatedContext('alice');
+    await assertSucceeds(setDoc(doc(alice.firestore(), 'trips/legacy/expenses/e1'), { amount: 10 }));
+  });
+
+  it('legacy: a NON-owner still cannot read or update such a trip', async () => {
+    await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/legacy'), legacyTrip); });
+    const bob = testEnv.authenticatedContext('bob');
+    await assertFails(getDoc(doc(bob.firestore(), 'trips/legacy')));
+    await assertFails(updateDoc(doc(bob.firestore(), 'trips/legacy'), { name: 'Nope' }));
+    await assertFails(setDoc(doc(bob.firestore(), 'trips/legacy/expenses/e1'), { amount: 10 }));
+  });
+
+  it('legacy: a doc with neither members nor ownerUid stays denied to everyone', async () => {
+    await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/orphan'), { name: 'Orphan' }); });
+    const alice = testEnv.authenticatedContext('alice');
+    await assertFails(getDoc(doc(alice.firestore(), 'trips/orphan')));
+    await assertFails(updateDoc(doc(alice.firestore(), 'trips/orphan'), { name: 'Nope' }));
+  });
+
+  // The modern membership path must not regress: a members map still wins, so
+  // an ownerUid that disagrees with it cannot escalate.
+  it('legacy fallback does not apply when a members map exists', async () => {
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'trips/t1'), baseTrip('alice', {
+        ownerUid: 'bob', members: { alice: 'viewer' }, memberUids: ['alice'],
+      }));
+    });
+    const bob = testEnv.authenticatedContext('bob');
+    await assertFails(updateDoc(doc(bob.firestore(), 'trips/t1'), { name: 'Escalated' }));
+  });
+
   it('update: an editor cannot change members/memberUids/ownerUid', async () => {
     await seed(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'trips/t1'), baseTrip('alice', { members: { alice: 'owner', bob: 'editor' }, memberUids: ['alice', 'bob'] }));

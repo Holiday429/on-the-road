@@ -21,6 +21,7 @@ let countryCaps: Record<string, number> = {};
 let categoryCaps: Record<string, number> = {};
 let totalBudget: number | null = null;
 let countryWrites = 0;
+let failNextCountryWrite = false;
 
 vi.mock('../../data/trip-context.ts', () => ({
   baseCurrency: () => 'EUR',
@@ -28,6 +29,10 @@ vi.mock('../../data/trip-context.ts', () => ({
   setTripBudget: async (n: number | null) => { totalBudget = n; },
   countryBudgets: () => countryCaps,
   setCountryBudget: async (country: string, amount: number | null) => {
+    if (failNextCountryWrite) {
+      failNextCountryWrite = false;
+      throw new Error('permission-denied');
+    }
     countryWrites++;
     if (amount != null && amount > 0) countryCaps[country] = amount;
     else delete countryCaps[country];
@@ -71,6 +76,7 @@ function setup() {
   categoryCaps = {};
   totalBudget = null;
   countryWrites = 0;
+  failNextCountryWrite = false;
   renderFormCalls = 0;
   renderSummaryOnlyCalls = 0;
   // eslint-disable-next-line no-restricted-syntax -- audited: static test fixture, no interpolation
@@ -278,6 +284,32 @@ describe('budget page · country caps', () => {
     for (let i = 0; i < 6; i++) await Promise.resolve();
 
     expect(countryCaps).toEqual({ France: 10000 });
+  });
+
+  it('surfaces a rejected write and retries it on the next commit', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      openBudgetPage('country');
+      const input = inputFor('country', 'France');
+
+      failNextCountryWrite = true;
+      input.value = '10000';
+      input.dispatchEvent(new Event('change'));
+      for (let i = 0; i < 6; i++) await Promise.resolve();
+
+      expect(countryCaps).toEqual({});                       // write rejected
+      expect(input.classList.contains('exp-budget-row-input-error')).toBe(true);
+      expect(input.title).toContain('Not saved');
+
+      // Same value again: must retry rather than skip it as unchanged.
+      input.dispatchEvent(new Event('change'));
+      for (let i = 0; i < 6; i++) await Promise.resolve();
+
+      expect(countryCaps).toEqual({ France: 10000 });
+      expect(input.classList.contains('exp-budget-row-input-error')).toBe(false);
+    } finally {
+      err.mockRestore();
+    }
   });
 
   it('does not write twice when debounce and blur both fire', async () => {

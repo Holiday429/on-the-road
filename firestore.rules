@@ -22,11 +22,27 @@ service cloud.firestore {
     function tripData(tripId) {
       return get(/databases/$(database)/documents/trips/$(tripId)).data;
     }
+    // Same legacy guard as selfIsMember below: memberUids/members are optional,
+    // and reading an absent field throws rather than returning null.
+    function subIsLegacyOwner(tripId) {
+      return !('memberUids' in tripData(tripId))
+        && !('members' in tripData(tripId))
+        && 'ownerUid' in tripData(tripId)
+        && tripData(tripId).ownerUid == uid();
+    }
     function subIsMember(tripId) {
-      return signedIn() && tripExists(tripId) && uid() in tripData(tripId).memberUids;
+      return signedIn() && tripExists(tripId) && (
+        ('memberUids' in tripData(tripId) && uid() in tripData(tripId).memberUids)
+        || subIsLegacyOwner(tripId)
+      );
+    }
+    function subRole(tripId) {
+      return ('members' in tripData(tripId) && uid() in tripData(tripId).members)
+        ? tripData(tripId).members[uid()]
+        : (subIsLegacyOwner(tripId) ? 'owner' : '');
     }
     function subCanEdit(tripId) {
-      return subIsMember(tripId) && tripData(tripId).members[uid()] in ['owner', 'editor'];
+      return subIsMember(tripId) && subRole(tripId) in ['owner', 'editor'];
     }
     // Page-restricted editors may only write sub-collections in their allow-list.
     // Owners and unrestricted editors (no memberCollections entry) write anything.
@@ -39,7 +55,7 @@ service cloud.firestore {
       // on an ordinary (non-page-restricted) trip was silently unable to
       // write ANY sub-collection.
       return subCanEdit(tripId)
-        && (t.members[uid()] == 'owner'
+        && (subRole(tripId) == 'owner'
             || !('memberCollections' in t)
             || t.memberCollections == null
             || !(uid() in t.memberCollections)
@@ -48,14 +64,38 @@ service cloud.firestore {
 
     // Membership read off THIS trip doc (update/delete operate on an existing
     // doc, so resource is always present there).
+    //
+    // LEGACY TRIPS (N1 bug class, again): members/memberUids are optional in
+    // the schema — trips created before collaboration have neither. Reading
+    // `resource.data.memberUids` on such a doc throws a Null value error,
+    // which fails the WHOLE rule and denies the owner every update to their
+    // own trip. The client has no error handling on those writes, so it
+    // presented as budget caps silently refusing to save. Guard the field's
+    // existence first, then fall back to ownerUid for pre-collaboration docs.
     function selfIsMember() {
-      return signedIn() && uid() in resource.data.memberUids;
+      return signedIn() && (
+        ('memberUids' in resource.data && uid() in resource.data.memberUids)
+        || isLegacyOwner()
+      );
+    }
+    // A trip with no members map at all is owned by ownerUid alone. Trips that
+    // predate even ownerUid are unreachable here and stay denied.
+    function isLegacyOwner() {
+      return !('memberUids' in resource.data)
+        && !('members' in resource.data)
+        && 'ownerUid' in resource.data
+        && resource.data.ownerUid == uid();
+    }
+    function selfRole() {
+      return ('members' in resource.data && uid() in resource.data.members)
+        ? resource.data.members[uid()]
+        : (isLegacyOwner() ? 'owner' : '');
     }
     function selfIsOwner() {
-      return selfIsMember() && resource.data.members[uid()] == 'owner';
+      return selfIsMember() && selfRole() == 'owner';
     }
     function selfCanEdit() {
-      return selfIsMember() && resource.data.members[uid()] in ['owner', 'editor'];
+      return selfIsMember() && selfRole() in ['owner', 'editor'];
     }
 
     function inviteFor(token) {
@@ -168,12 +208,18 @@ service cloud.firestore {
       // the field is ABSENT, not merely null. Most trips have neither field,
       // so both must be guarded by an `in` existence check first. Same bug
       // class as subCanEditCollection's memberCollections check (see N1).
+      // selfIsMember() covers both the modern memberUids path and legacy
+      // pre-collaboration docs that have only ownerUid (see its comment).
       allow get: if resource == null
-        || (signedIn() && uid() in resource.data.memberUids)
+        || selfIsMember()
         || ('publicView' in resource.data && resource.data.publicView != null && resource.data.publicView.enabled == true)
         || ('hasPublicView' in resource.data && resource.data.hasPublicView == true);
 
-      // Queries: only the canonical "my trips" query is provable.
+      // Queries: only the canonical "my trips" query is provable. This one
+      // stays a bare memberUids check on purpose — `list` is evaluated per
+      // candidate document against the query's constraint, and the app only
+      // ever issues the array-contains query, so a legacy fallback here would
+      // not be provable anyway. Legacy trips are reached by direct get().
       allow list: if signedIn() && uid() in resource.data.memberUids;
 
       // Create: as yourself, sole owner at creation.

@@ -214,12 +214,18 @@ function refreshBudgetCompare() {
  *
  * So commit on three signals, all funnelled through one idempotent save:
  *   - `input`, debounced — the value is safe ~400ms after typing stops, with
- *     no blur required at all. This is the one that actually fixes the bug.
+ *     no blur required at all.
  *   - `change` — immediate save on a normal blur, no debounce wait.
  *   - Enter — commits and drops focus, which is what users expect it to do.
  *
  * `last` makes repeat saves cheap: re-committing an unchanged value is skipped,
- * so the debounce and the blur firing back-to-back cost one write, not two.
+ * so the debounce and the blur firing back-to-back cost one write, not two. A
+ * failed write resets it, so the next attempt retries instead of being skipped.
+ *
+ * A rejected write is SHOWN, never swallowed. The root cause of the original
+ * "caps don't save" report was a Firestore rules denial on legacy trip docs
+ * (see firestore.rules selfIsMember), and it stayed invisible for two rounds of
+ * UI fixes precisely because this path had no error handling.
  */
 function bindCapInput(
   input: HTMLInputElement,
@@ -232,9 +238,22 @@ function bindCapInput(
     clearTimeout(timer);
     const raw = input.value.trim();
     if (raw === last) return; // nothing new to persist
+    const prev = last;
     last = raw;
     const val = parseFloat(raw);
-    await save(Number.isFinite(val) && val > 0 ? val : null);
+    try {
+      await save(Number.isFinite(val) && val > 0 ? val : null);
+      input.classList.remove('exp-budget-row-input-error');
+      input.title = '';
+    } catch (e) {
+      // Roll back so the next commit retries this value rather than skipping
+      // it as unchanged, and make the failure visible — a silently dropped
+      // write here is what made the original bug so hard to pin down.
+      last = prev;
+      input.classList.add('exp-budget-row-input-error');
+      input.title = `Not saved: ${e instanceof Error ? e.message : String(e)}`;
+      console.error('Budget cap failed to save:', e);
+    }
   };
 
   input.addEventListener('input', () => {
