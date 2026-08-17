@@ -20,6 +20,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 let countryCaps: Record<string, number> = {};
 let categoryCaps: Record<string, number> = {};
 let totalBudget: number | null = null;
+let countryWrites = 0;
 
 vi.mock('../../data/trip-context.ts', () => ({
   baseCurrency: () => 'EUR',
@@ -27,6 +28,7 @@ vi.mock('../../data/trip-context.ts', () => ({
   setTripBudget: async (n: number | null) => { totalBudget = n; },
   countryBudgets: () => countryCaps,
   setCountryBudget: async (country: string, amount: number | null) => {
+    countryWrites++;
     if (amount != null && amount > 0) countryCaps[country] = amount;
     else delete countryCaps[country];
   },
@@ -68,6 +70,7 @@ function setup() {
   countryCaps = {};
   categoryCaps = {};
   totalBudget = null;
+  countryWrites = 0;
   renderFormCalls = 0;
   renderSummaryOnlyCalls = 0;
   // eslint-disable-next-line no-restricted-syntax -- audited: static test fixture, no interpolation
@@ -226,9 +229,7 @@ describe('budget page · country caps', () => {
     openBudgetPage('country');
     (document.querySelector('#bm-daily-rate') as HTMLInputElement).value = '100';
     (document.querySelector('#bm-apply-daily') as HTMLElement).click();
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let i = 0; i < 12; i++) await Promise.resolve();
 
     // 7d / 4d / 7d × €100
     expect(countryCaps).toEqual({
@@ -236,6 +237,66 @@ describe('budget page · country caps', () => {
       Germany: 400,
       France: 700,
     });
+  });
+
+  /* ── Commit paths that `change` alone did not cover ────────────────────── */
+
+  it('saves on Enter without any blur', async () => {
+    openBudgetPage('country');
+    const input = inputFor('country', 'France');
+    input.focus();
+    input.value = '10000';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    for (let i = 0; i < 6; i++) await Promise.resolve();
+
+    expect(countryCaps).toEqual({ France: 10000 });
+  });
+
+  it('saves after typing stops, with the field still focused', async () => {
+    vi.useFakeTimers();
+    try {
+      openBudgetPage('country');
+      const input = inputFor('country', 'France');
+      input.focus();
+      input.value = '10000';
+      input.dispatchEvent(new Event('input'));
+
+      // Never blurred, never Entered — just stopped typing.
+      await vi.advanceTimersByTimeAsync(500);
+      expect(countryCaps).toEqual({ France: 10000 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('flushes a pending edit when Escape closes the panel', async () => {
+    openBudgetPage('country');
+    const input = inputFor('country', 'France');
+    input.focus();
+    input.value = '10000';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    for (let i = 0; i < 6; i++) await Promise.resolve();
+
+    expect(countryCaps).toEqual({ France: 10000 });
+  });
+
+  it('does not write twice when debounce and blur both fire', async () => {
+    vi.useFakeTimers();
+    try {
+      openBudgetPage('country');
+      const input = inputFor('country', 'France');
+      input.focus();
+      input.value = '10000';
+      input.dispatchEvent(new Event('input'));
+      await vi.advanceTimersByTimeAsync(500);   // debounce commits
+      input.dispatchEvent(new Event('change')); // blur follows
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(countryWrites).toBe(1);
+      expect(countryCaps).toEqual({ France: 10000 });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

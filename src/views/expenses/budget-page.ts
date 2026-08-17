@@ -202,6 +202,61 @@ function refreshBudgetCompare() {
   cmp.innerHTML = budgetCompareHtml();
 }
 
+/**
+ * Bind a cap <input> to its store write.
+ *
+ * `change` alone is not enough. It only fires when the field loses focus in a
+ * way the browser counts as a commit, so a value could be typed and then lost
+ * outright by: pressing Enter (no handler on these fields), hitting Escape
+ * (the panel closes and the DOM is thrown away), or leaving the page/tab while
+ * the field still has focus. Each of those is an ordinary thing to do after
+ * typing a number, and each silently discarded the edit.
+ *
+ * So commit on three signals, all funnelled through one idempotent save:
+ *   - `input`, debounced — the value is safe ~400ms after typing stops, with
+ *     no blur required at all. This is the one that actually fixes the bug.
+ *   - `change` — immediate save on a normal blur, no debounce wait.
+ *   - Enter — commits and drops focus, which is what users expect it to do.
+ *
+ * `last` makes repeat saves cheap: re-committing an unchanged value is skipped,
+ * so the debounce and the blur firing back-to-back cost one write, not two.
+ */
+function bindCapInput(
+  input: HTMLInputElement,
+  save: (amount: number | null) => Promise<void>,
+): { commit: () => Promise<void> } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let last = input.value.trim();
+
+  const commit = async () => {
+    clearTimeout(timer);
+    const raw = input.value.trim();
+    if (raw === last) return; // nothing new to persist
+    last = raw;
+    const val = parseFloat(raw);
+    await save(Number.isFinite(val) && val > 0 ? val : null);
+  };
+
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { void commit(); }, 400);
+  });
+  input.addEventListener('change', () => { void commit(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Commit explicitly rather than leaning on blur to raise `change` —
+      // whether it does is browser-dependent for a programmatic blur.
+      void commit().then(() => input.blur());
+      return;
+    }
+    // Escape tears the panel down (see onBudgetKey), so flush before that runs.
+    if (e.key === 'Escape') void commit();
+  });
+
+  return { commit };
+}
+
 /** Repaint the "Allocated X · Y unallocated" footer in place from the caps just
  *  persisted. Touches no input, so it is safe from a cap `change` handler. */
 function refreshAllocatedLine(pane: HTMLElement, caps: Record<string, number>) {
@@ -317,37 +372,34 @@ export function renderBudgetPage() {
         </div>
         ${flex != null ? `<p class="exp-budget-flex ${flex < 0 ? 'over' : ''}">${t('expenses.allocatedLabel')} ${fmt(totalCap)} · ${flex < 0 ? `${fmt(-flex)} ${t('expenses.overTotal')}` : `${fmt(flex)} ${t('expenses.unallocated')}`}</p>` : ''}`;
 
-      // Auto-estimate: fill all inputs with days × daily rate
+      // See the editing invariant at the top of this file: repaint the compare
+      // bars and the footer, never the inputs.
+      const bound = [...settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input')]
+        .map((input) => ({
+          input,
+          ...bindCapInput(input, async (amount) => {
+            await setCountryBudget(input.dataset.country!, amount);
+            refreshBudgetCompare();
+            refreshAllocatedLine(settingsPane, countryBudgets());
+            ctx.renderSummaryOnly();
+            ctx.renderForm();
+          }),
+        }));
+
+      // Auto-estimate: fill all inputs with days × daily rate. Goes through each
+      // field's own commit rather than writing the store behind its back, so the
+      // binding's last-committed value stays in step — otherwise a later manual
+      // edit back to the estimated number would look unchanged and be skipped.
       settingsPane.querySelector('#bm-apply-daily')?.addEventListener('click', async () => {
         const rateEl = settingsPane.querySelector<HTMLInputElement>('#bm-daily-rate');
         const rate = parseFloat(rateEl?.value ?? '');
         if (!rate || rate <= 0) { rateEl?.focus(); return; }
-        const saves = [...settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input')]
-          .map(async (inp) => {
-            const d = parseInt(inp.dataset.days ?? '0', 10);
-            if (!d) return;
-            const est = Math.round(d * rate);
-            inp.value = String(est);
-            await setCountryBudget(inp.dataset.country!, est);
-          });
-        await Promise.all(saves);
-        refreshBudgetCompare();
-        refreshAllocatedLine(settingsPane, countryBudgets());
-        ctx.renderSummaryOnly();
-        ctx.renderForm();
-      });
-
-      // See the editing invariant at the top of this file: repaint the compare
-      // bars and the footer, never the inputs.
-      settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
-        input.addEventListener('change', async () => {
-          const val = parseFloat(input.value);
-          await setCountryBudget(input.dataset.country!, val > 0 ? val : null);
-          refreshBudgetCompare();
-          refreshAllocatedLine(settingsPane, countryBudgets());
-          ctx.renderSummaryOnly();
-          ctx.renderForm();
-        });
+        for (const { input, commit } of bound) {
+          const d = parseInt(input.dataset.days ?? '0', 10);
+          if (!d) continue;
+          input.value = String(Math.round(d * rate));
+          await commit();
+        }
       });
       return;
     }
@@ -373,9 +425,8 @@ export function renderBudgetPage() {
 
     // Same invariant as the country tab: never re-render the inputs on blur.
     settingsPane.querySelectorAll<HTMLInputElement>('.exp-budget-row-input').forEach((input) => {
-      input.addEventListener('change', async () => {
-        const val = parseFloat(input.value);
-        await setCategoryBudget(input.dataset.cat!, val > 0 ? val : null);
+      bindCapInput(input, async (amount) => {
+        await setCategoryBudget(input.dataset.cat!, amount);
         refreshBudgetCompare();
         refreshAllocatedLine(settingsPane, categoryBudgets());
         ctx.renderSummaryOnly();
