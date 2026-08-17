@@ -22,24 +22,23 @@ service cloud.firestore {
     function tripData(tripId) {
       return get(/databases/$(database)/documents/trips/$(tripId)).data;
     }
-    // Same legacy guard as selfIsMember below: memberUids/members are optional,
-    // and reading an absent field throws rather than returning null.
-    function subIsLegacyOwner(tripId) {
-      return !('memberUids' in tripData(tripId))
-        && !('members' in tripData(tripId))
-        && 'ownerUid' in tripData(tripId)
-        && tripData(tripId).ownerUid == uid();
+    // Same legacy/partial-migration guard as selfIsMember below: members and
+    // memberUids are independently optional, and reading an absent field throws
+    // rather than returning null.
+    function subIsOwnerByField(tripId) {
+      return 'ownerUid' in tripData(tripId) && tripData(tripId).ownerUid == uid();
     }
     function subIsMember(tripId) {
       return signedIn() && tripExists(tripId) && (
         ('memberUids' in tripData(tripId) && uid() in tripData(tripId).memberUids)
-        || subIsLegacyOwner(tripId)
+        || ('members' in tripData(tripId) && uid() in tripData(tripId).members)
+        || subIsOwnerByField(tripId)
       );
     }
     function subRole(tripId) {
       return ('members' in tripData(tripId) && uid() in tripData(tripId).members)
         ? tripData(tripId).members[uid()]
-        : (subIsLegacyOwner(tripId) ? 'owner' : '');
+        : (subIsOwnerByField(tripId) ? 'owner' : '');
     }
     function subCanEdit(tripId) {
       return subIsMember(tripId) && subRole(tripId) in ['owner', 'editor'];
@@ -65,31 +64,34 @@ service cloud.firestore {
     // Membership read off THIS trip doc (update/delete operate on an existing
     // doc, so resource is always present there).
     //
-    // LEGACY TRIPS (N1 bug class, again): members/memberUids are optional in
-    // the schema — trips created before collaboration have neither. Reading
-    // `resource.data.memberUids` on such a doc throws a Null value error,
-    // which fails the WHOLE rule and denies the owner every update to their
-    // own trip. The client has no error handling on those writes, so it
-    // presented as budget caps silently refusing to save. Guard the field's
-    // existence first, then fall back to ownerUid for pre-collaboration docs.
+    // LEGACY / PARTIALLY-MIGRATED TRIPS (N1 bug class, again): members and
+    // memberUids are BOTH optional in the schema, and independently so — a doc
+    // can have neither (pre-collaboration), or one without the other (a
+    // half-applied migration). Reading an absent field throws a Null value
+    // error, which fails the WHOLE rule and denies the owner every update to
+    // their own trip. The client had no error handling on those writes, so it
+    // presented as budget caps silently refusing to save.
+    //
+    // So: never touch either field without an `in` guard, and treat ownerUid as
+    // the authority whenever the members map cannot answer the question. Do NOT
+    // require both fields to be absent — that was the first fix's mistake and it
+    // left the memberUids-without-members shape still denied.
+    function isOwnerByField() {
+      return 'ownerUid' in resource.data && resource.data.ownerUid == uid();
+    }
     function selfIsMember() {
       return signedIn() && (
         ('memberUids' in resource.data && uid() in resource.data.memberUids)
-        || isLegacyOwner()
+        || ('members' in resource.data && uid() in resource.data.members)
+        || isOwnerByField()
       );
     }
-    // A trip with no members map at all is owned by ownerUid alone. Trips that
-    // predate even ownerUid are unreachable here and stay denied.
-    function isLegacyOwner() {
-      return !('memberUids' in resource.data)
-        && !('members' in resource.data)
-        && 'ownerUid' in resource.data
-        && resource.data.ownerUid == uid();
-    }
+    // The members map wins when it has an entry for this user (so a demoted
+    // ownerUid cannot escalate); otherwise fall back to the ownerUid field.
     function selfRole() {
       return ('members' in resource.data && uid() in resource.data.members)
         ? resource.data.members[uid()]
-        : (isLegacyOwner() ? 'owner' : '');
+        : (isOwnerByField() ? 'owner' : '');
     }
     function selfIsOwner() {
       return selfIsMember() && selfRole() == 'owner';

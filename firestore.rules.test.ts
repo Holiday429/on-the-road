@@ -240,14 +240,93 @@ describe('trips/{tripId}', () => {
 
   // The modern membership path must not regress: a members map still wins, so
   // an ownerUid that disagrees with it cannot escalate.
-  it('legacy fallback does not apply when a members map exists', async () => {
+  // ownerUid is an authority field, so it grants owner rights when the members
+  // map has NO entry for that user — that shape is a half-migrated doc, not a
+  // demotion. Real demotion is an explicit members entry, which still wins; see
+  // 'members map wins over ownerUid' below.
+  it('ownerUid grants access when the members map has no entry for them', async () => {
     await seed(async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'trips/t1'), baseTrip('alice', {
         ownerUid: 'bob', members: { alice: 'viewer' }, memberUids: ['alice'],
       }));
     });
     const bob = testEnv.authenticatedContext('bob');
+    await assertSucceeds(updateDoc(doc(bob.firestore(), 'trips/t1'), { name: 'By owner field' }));
+    // A user who is in neither the map nor ownerUid is still denied.
+    const eve = testEnv.authenticatedContext('eve');
+    await assertFails(updateDoc(doc(eve.firestore(), 'trips/t1'), { name: 'Nope' }));
+  });
+
+  /* ── Partially-migrated trip docs ───────────────────────────────────────
+     members and memberUids are independently optional, so a doc can be missing
+     either or both. The owner must be able to write in every shape. */
+  const SHAPES = {
+    'neither members nor memberUids (pre-collaboration)':
+      { name: 'T', ownerUid: 'alice' },
+    'memberUids but no members map (half-migrated)':
+      { name: 'T', ownerUid: 'alice', memberUids: ['alice'] },
+    'members map but no memberUids (half-migrated)':
+      { name: 'T', ownerUid: 'alice', members: { alice: 'owner' } },
+    'members but no ownerUid':
+      { name: 'T', members: { alice: 'owner' }, memberUids: ['alice'] },
+  };
+
+  for (const [shape, docData] of Object.entries(SHAPES)) {
+    it(`legacy: owner can update a trip with ${shape}`, async () => {
+      await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/legacy'), docData); });
+      const alice = testEnv.authenticatedContext('alice');
+      await assertSucceeds(updateDoc(doc(alice.firestore(), 'trips/legacy'), {
+        countryBudgets: { Switzerland: 15000, France: 10000 },
+      }));
+    });
+
+    it(`legacy: owner can read and write sub-collections with ${shape}`, async () => {
+      await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/legacy'), docData); });
+      const alice = testEnv.authenticatedContext('alice');
+      await assertSucceeds(getDoc(doc(alice.firestore(), 'trips/legacy')));
+      await assertSucceeds(setDoc(doc(alice.firestore(), 'trips/legacy/expenses/e1'), { amount: 10 }));
+    });
+
+    it(`legacy: a stranger is still denied with ${shape}`, async () => {
+      await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/legacy'), docData); });
+      const eve = testEnv.authenticatedContext('eve');
+      await assertFails(getDoc(doc(eve.firestore(), 'trips/legacy')));
+      await assertFails(updateDoc(doc(eve.firestore(), 'trips/legacy'), { name: 'Nope' }));
+      await assertFails(setDoc(doc(eve.firestore(), 'trips/legacy/expenses/e1'), { amount: 10 }));
+    });
+  }
+
+  it('legacy: a doc with no members, memberUids or ownerUid stays denied', async () => {
+    await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/orphan'), { name: 'Orphan' }); });
+    const alice = testEnv.authenticatedContext('alice');
+    await assertFails(getDoc(doc(alice.firestore(), 'trips/orphan')));
+    await assertFails(updateDoc(doc(alice.firestore(), 'trips/orphan'), { name: 'Nope' }));
+  });
+
+  // The members map must remain authoritative: a user demoted there cannot
+  // regain owner rights just because ownerUid still names them.
+  it('members map wins over ownerUid — a demoted owner cannot escalate', async () => {
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'trips/t1'), {
+        name: 'T', ownerUid: 'bob', members: { bob: 'viewer', alice: 'owner' },
+        memberUids: ['alice', 'bob'],
+      });
+    });
+    const bob = testEnv.authenticatedContext('bob');
     await assertFails(updateDoc(doc(bob.firestore(), 'trips/t1'), { name: 'Escalated' }));
+    await assertFails(deleteDoc(doc(bob.firestore(), 'trips/t1')));
+  });
+
+  it('an editor in the members map can still edit, and cannot touch membership', async () => {
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'trips/t1'), {
+        name: 'T', ownerUid: 'alice', members: { alice: 'owner', bob: 'editor' },
+        memberUids: ['alice', 'bob'],
+      });
+    });
+    const bob = testEnv.authenticatedContext('bob');
+    await assertSucceeds(updateDoc(doc(bob.firestore(), 'trips/t1'), { countryBudgets: { France: 1 } }));
+    await assertFails(updateDoc(doc(bob.firestore(), 'trips/t1'), { ownerUid: 'bob' }));
   });
 
   it('update: an editor cannot change members/memberUids/ownerUid', async () => {
