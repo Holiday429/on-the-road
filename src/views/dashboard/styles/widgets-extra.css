@@ -127,25 +127,32 @@
 .td-bell-btn {
   position: relative;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px;
+  width: 34px; height: 34px;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
-  opacity: 0.9;
-  transition: opacity var(--dur-fast), transform var(--dur-fast);
+  transition: transform var(--dur-fast);
 }
-.td-bell-btn:hover { opacity: 1; transform: scale(1.08); }
-.td-bell-icon { font-size: 20px; line-height: 1; }
+.td-bell-btn:hover { transform: scale(1.08); }
+.td-bell-icon { font-size: 22px; line-height: 1; }
+/* iOS-style badge: a small dot clipped to the icon's top-right corner, sized
+   well under the glyph so it annotates rather than covers it. Sizes are fixed
+   px (not em) — it must not scale with the surrounding type. */
 .td-bell-badge {
-  position: absolute; top: -1px; right: -3px;
-  min-width: 16px; height: 16px; padding: 0 4px;
+  position: absolute; top: 0; right: 0;
+  min-width: 15px; height: 15px;
+  padding: 0 4px;
   display: inline-flex; align-items: center; justify-content: center;
+  box-sizing: border-box;
   border-radius: 999px;
+  font-family: var(--font-ui);
   font-size: 10px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
   color: #fff;
-  border: 2px solid var(--bg, var(--surface));
-  box-sizing: content-box;
+  /* Rings the badge in the page background so it reads as floating above the
+     glyph, the way a home-screen badge sits over an app icon. */
+  box-shadow: 0 0 0 2px var(--bg, var(--surface));
 }
 .td-alert-bell.is-over    .td-bell-badge { background: var(--danger); }
 .td-alert-bell.is-warning .td-bell-badge { background: var(--warning); }

@@ -164,7 +164,7 @@ export function renderAlertBell(ctx: AlertContext): string {
       <button type="button" class="td-bell-btn" aria-haspopup="dialog" aria-expanded="false"
               aria-label="${esc(label)}" title="${esc(label)}">
         <span class="td-bell-icon" aria-hidden="true">&#128276;</span>
-        <span class="td-bell-badge">${alerts.length}</span>
+        <span class="td-bell-badge">${alerts.length > 99 ? '99+' : alerts.length}</span>
       </button>
       <div class="td-bell-pop" role="dialog" aria-label="${esc(label)}">
         <div class="td-bell-pop-title">${esc(label)}</div>
