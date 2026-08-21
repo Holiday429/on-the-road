@@ -577,4 +577,7 @@ export const zh: StringTable = {
   'paywall.payThanks':      '🎉 支付成功，感谢支持！新行程已解锁。',
   'api.rateLimited':        '请求太频繁了，请稍后再试。',
   'sw.updateReady':         '新版本已就绪 — 点击刷新',
+  'dashboard.budgetAlertsCount': '{n} 条预算提醒',
+  'dashboard.budgetOverBy':      '超预算 — 超出 {amount}',
+  'dashboard.budgetAtPct':       '已用预算 {cap} 的 {pct}%',
 };

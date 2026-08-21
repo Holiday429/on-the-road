@@ -22,6 +22,7 @@ import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import type { PlanItem, PlanDay, ClipCategory } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
+import { renderBudgetBell } from './dashboard-budget-bell.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
@@ -161,6 +162,7 @@ function renderGreeting(): string {
     <div class="td-greeting-row">
       <div class="td-greeting">${greetingWord()}, ${esc(firstName())}! 👋</div>
       <div class="td-greeting-actions">
+        ${renderBudgetBell({ expenses: _expenses, legs: _legs, inBase })}
         <button class="btn btn-ghost td-new-trip-btn" data-action="new-trip">${esc(t('common.newTrip'))}</button>
         <div class="td-lang-mount" data-lang-mount></div>
       </div>
@@ -403,35 +405,6 @@ function renderCalendarWidget(): string {
         <span><span class="td-cal-dot" style="background:#a78bfa"></span>Plan</span>
       </div>
     </div>`;
-}
-
-/* ── Budget alerts ───────────────────────────────────────────────────────── */
-function renderBudgetAlerts(): string {
-  const caps = countryBudgets();
-  const sym  = currencySymbol(baseCurrency());
-  const alerts: string[] = [];
-
-  for (const [country, cap] of Object.entries(caps)) {
-    if (!cap) continue;
-    const spent = _expenses.filter(e => e.country === country).reduce((s, e) => s + inBase(e), 0);
-    const pct = spent / cap;
-    if (pct < 0.8) continue;
-    const over = spent > cap;
-    const flag = _legs.find(l => l.country === country)?.flag ?? '';
-    alerts.push(`
-      <div class="td-budget-alert ${over ? 'is-over' : 'is-warning'}" data-nav="expenses">
-        <span class="td-ba-flag">${flag}</span>
-        <span class="td-ba-text">
-          ${over
-            ? `<strong>${country}</strong> over budget — ${sym}${Math.round(spent - cap)} over`
-            : `<strong>${country}</strong> at ${Math.round(pct * 100)}% of ${sym}${Math.round(cap)} budget`}
-        </span>
-        <span class="td-ba-arrow">›</span>
-      </div>`);
-  }
-
-  if (!alerts.length) return '';
-  return `<div class="td-budget-alerts">${alerts.join('')}</div>`;
 }
 
 /* ── Spend widget ─────────────────────────────────────────────────────────── */
@@ -1052,7 +1025,7 @@ function render(): void {
   if (!body) return;
   const phase = tripPhase();
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  body.innerHTML = `${renderGreeting()}${renderHero(phase)}${renderBudgetAlerts()}${layout(phase)}`;
+  body.innerHTML = `${renderGreeting()}${renderHero(phase)}${layout(phase)}`;
   wire(body);
   bootMap();
 }
@@ -1222,6 +1195,31 @@ function wire(body: HTMLElement): void {
   body.querySelector<HTMLButtonElement>('[data-action="new-trip"]')?.addEventListener('click', () => {
     openNewTrip();
   });
+
+  // Budget alert bell: hover previews the popover, click pins it open.
+  const bell = body.querySelector<HTMLElement>('[data-budget-bell]');
+  if (bell) {
+    const btn = bell.querySelector<HTMLButtonElement>('.td-bell-btn');
+    const setPinned = (on: boolean) => {
+      bell.classList.toggle('is-open', on);
+      btn?.setAttribute('aria-expanded', String(on));
+    };
+    btn?.addEventListener('click', e => {
+      e.stopPropagation();
+      setPinned(!bell.classList.contains('is-open'));
+    });
+    // Clicking a row navigates (handled by [data-nav]) — unpin so the popover
+    // isn't left open behind the next view.
+    bell.querySelectorAll('.td-ba-row').forEach(row => {
+      row.addEventListener('click', () => setPinned(false));
+    });
+    document.addEventListener('click', e => {
+      if (!bell.contains(e.target as Node)) setPinned(false);
+    });
+    bell.addEventListener('keydown', e => {
+      if ((e as KeyboardEvent).key === 'Escape') { setPinned(false); btn?.focus(); }
+    });
+  }
 
   // Language + theme controls (top-right of the greeting row).
   const langMount = body.querySelector<HTMLElement>('[data-lang-mount]');
