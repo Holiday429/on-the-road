@@ -592,7 +592,10 @@ export const en: StringTable = {
   'paywall.payThanks':      '🎉 Payment received — thank you! Your new trip is unlocked.',
   'api.rateLimited':        'Too many requests — please slow down and try again in a moment.',
   'sw.updateReady':         'New version ready — tap to reload',
-  'dashboard.budgetAlertsCount': '{n} budget alerts',
+  'dashboard.alertsCount':       '{n} alerts',
   'dashboard.budgetOverBy':      'over budget — {amount} over',
   'dashboard.budgetAtPct':       'at {pct}% of {cap} budget',
+  'dashboard.todoOverdueDay':    '1 day overdue',
+  'dashboard.todoOverdueDays':   '{n} days overdue',
+  'dashboard.alertDismiss':      'Dismiss',
 };

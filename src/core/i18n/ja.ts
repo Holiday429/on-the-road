@@ -154,7 +154,10 @@ export const ja: StringTable = {
   'paywall.btnLifetime':  '生涯メンバーになる',
   'paywall.planAiTopup':  'AIトップアップ',
   'paywall.btnAiTopup':   'AIトップアップを取得',
-  'dashboard.budgetAlertsCount': '予算アラート {n} 件',
+  'dashboard.alertsCount':       '通知 {n} 件',
   'dashboard.budgetOverBy':      '予算超過 — {amount} 超過',
   'dashboard.budgetAtPct':       '予算 {cap} の {pct}%',
+  'dashboard.todoOverdueDay':    '1 日超過',
+  'dashboard.todoOverdueDays':   '{n} 日超過',
+  'dashboard.alertDismiss':      '閉じる',
 };

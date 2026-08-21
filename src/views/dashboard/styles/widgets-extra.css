@@ -121,39 +121,40 @@
 .td-pk-action-btn--nav { color: var(--accent-deep); }
 
 
-/* ── Budget alert bell (greeting row) ───────────────────────────────────── */
-.td-budget-bell { position: relative; flex-shrink: 0; }
+/* ── Alert bell (greeting row) ──────────────────────────────────────────── */
+/* Bare icon, no button chrome — the surrounding controls carry the borders. */
+.td-alert-bell { position: relative; flex-shrink: 0; }
 .td-bell-btn {
   position: relative;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 38px; height: 38px;
+  width: 32px; height: 32px;
   padding: 0;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 0;
+  background: none;
   cursor: pointer;
-  transition: border-color var(--dur-fast), background var(--dur-fast);
+  opacity: 0.9;
+  transition: opacity var(--dur-fast), transform var(--dur-fast);
 }
-.td-bell-btn:hover { background: var(--amber-50); border-color: var(--amber-200); }
-.td-bell-icon { font-size: 17px; line-height: 1; }
+.td-bell-btn:hover { opacity: 1; transform: scale(1.08); }
+.td-bell-icon { font-size: 20px; line-height: 1; }
 .td-bell-badge {
-  position: absolute; top: -3px; right: -3px;
-  min-width: 17px; height: 17px; padding: 0 4px;
+  position: absolute; top: -1px; right: -3px;
+  min-width: 16px; height: 16px; padding: 0 4px;
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 999px;
-  font-size: 11px; font-weight: 700; line-height: 1;
+  font-size: 10px; font-weight: 700; line-height: 1;
   color: #fff;
-  border: 2px solid var(--surface);
+  border: 2px solid var(--bg, var(--surface));
   box-sizing: content-box;
 }
-.td-budget-bell.is-over    .td-bell-badge { background: var(--danger); }
-.td-budget-bell.is-warning .td-bell-badge { background: var(--warning); }
-.td-budget-bell.is-over    .td-bell-btn { border-color: #fecaca; }
+.td-alert-bell.is-over    .td-bell-badge { background: var(--danger); }
+.td-alert-bell.is-warning .td-bell-badge { background: var(--warning); }
 
 /* Popover — opens on hover, or pinned open by click (.is-open). */
 .td-bell-pop {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 60;
-  width: min(320px, calc(100vw - var(--sp-5) * 2));
+  width: min(340px, calc(100vw - var(--sp-5) * 2));
+  max-height: min(420px, 60vh); overflow-y: auto;
   padding: var(--sp-2);
   display: flex; flex-direction: column; gap: 4px;
   border-radius: var(--r-md);
@@ -163,12 +164,12 @@
   opacity: 0; visibility: hidden; transform: translateY(-4px);
   transition: opacity var(--dur-fast), transform var(--dur-fast), visibility var(--dur-fast);
 }
-.td-budget-bell:hover .td-bell-pop,
-.td-budget-bell:focus-within .td-bell-pop,
-.td-budget-bell.is-open .td-bell-pop {
+.td-alert-bell:hover .td-bell-pop,
+.td-alert-bell:focus-within .td-bell-pop,
+.td-alert-bell.is-open .td-bell-pop {
   opacity: 1; visibility: visible; transform: translateY(0);
 }
-/* Bridges the gap between button and popover so hover doesn't drop out. */
+/* Bridges the gap between icon and popover so hover doesn't drop out. */
 .td-bell-pop::before { content: ''; position: absolute; inset: -8px 0 auto 0; height: 8px; }
 .td-bell-pop-title {
   font-size: var(--fs-xs); font-weight: 700;
@@ -183,11 +184,22 @@
   border: 1px solid transparent;
   font-size: var(--fs-sm);
   text-align: left;
-  cursor: pointer;
 }
 .td-ba-row.is-over    { background: var(--danger-bg-soft); border-color: #fecaca; color: var(--coral-700, var(--danger)); }
 .td-ba-row.is-warning { background: var(--warning-bg-soft); border-color: var(--amber-200); color: var(--warning); }
-.td-ba-row:hover { filter: brightness(0.97); }
-.td-ba-flag { font-size: 1.1em; }
-.td-ba-text { flex: 1; }
-.td-ba-arrow { color: currentColor; opacity: 0.5; }
+.td-ba-flag { font-size: 1.1em; flex-shrink: 0; }
+.td-ba-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.td-ba-dismiss {
+  flex-shrink: 0;
+  width: 20px; height: 20px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 0; border-radius: 999px;
+  background: none;
+  color: currentColor;
+  opacity: 0.45;
+  font-size: 15px; line-height: 1;
+  cursor: pointer;
+  transition: opacity var(--dur-fast), background var(--dur-fast);
+}
+.td-ba-dismiss:hover { opacity: 1; background: rgb(0 0 0 / 0.08); }

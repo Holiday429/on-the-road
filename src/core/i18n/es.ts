@@ -151,7 +151,10 @@ export const es: StringTable = {
   'paywall.btnLifetime':  'Obtener De por vida',
   'paywall.planAiTopup':  'Recarga IA',
   'paywall.btnAiTopup':   'Obtener recarga IA',
-  'dashboard.budgetAlertsCount': '{n} alertas de presupuesto',
+  'dashboard.alertsCount':       '{n} avisos',
   'dashboard.budgetOverBy':      'fuera de presupuesto — {amount} de más',
   'dashboard.budgetAtPct':       'al {pct}% del presupuesto de {cap}',
+  'dashboard.todoOverdueDay':    '1 día de retraso',
+  'dashboard.todoOverdueDays':   '{n} días de retraso',
+  'dashboard.alertDismiss':      'Descartar',
 };

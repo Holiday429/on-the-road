@@ -151,7 +151,10 @@ export const ko: StringTable = {
   'paywall.btnLifetime':  '평생 이용 구매',
   'paywall.planAiTopup':  'AI 충전',
   'paywall.btnAiTopup':   'AI 충전 구매',
-  'dashboard.budgetAlertsCount': '예산 알림 {n}건',
+  'dashboard.alertsCount':       '알림 {n}건',
   'dashboard.budgetOverBy':      '예산 초과 — {amount} 초과',
   'dashboard.budgetAtPct':       '예산 {cap}의 {pct}%',
+  'dashboard.todoOverdueDay':    '1일 지남',
+  'dashboard.todoOverdueDays':   '{n}일 지남',
+  'dashboard.alertDismiss':      '닫기',
 };
