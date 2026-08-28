@@ -66,7 +66,9 @@ function langInstruction(): string {
 
 // "Load more" is a follow-up to an already-generated guide, so it runs on the
 // lighter/cheaper model (DEEPSEEK_MODEL_LIGHT) to keep per-tap cost minimal.
-// Defaults to 'deepseek-chat'. Read inline to keep this function self-contained.
+// Defaults to 'deepseek-v4-flash'. Never the legacy 'deepseek-chat' alias —
+// DeepSeek retired it on 2026-07-24 and now routes it to a reasoning model that
+// ignores max_tokens. Read inline to keep this function self-contained.
 async function deepseek(prompt: string, maxTokens = 700): Promise<unknown> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY not set');
@@ -74,11 +76,13 @@ async function deepseek(prompt: string, maxTokens = 700): Promise<unknown> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
     body: JSON.stringify({
-      model: process.env.DEEPSEEK_MODEL_LIGHT || 'deepseek-chat',
+      model: process.env.DEEPSEEK_MODEL_LIGHT || 'deepseek-v4-flash',
       messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.9,   // a touch higher for variety on "more"
       max_tokens: maxTokens,
+      // Disable V4 "thinking" mode — see the note in api/guide.ts's deepseek().
+      thinking: { type: 'disabled' },
     }),
   });
   if (!res.ok) throw new Error(`DeepSeek ${res.status}: ${await res.text()}`);
@@ -214,7 +218,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   );
   if (!uid) return;
 
-  const limit = await checkRateLimit(`guide:${uid}`, 10, 60);
+  // "Load more" doesn't debit a credit (it refines an already-paid guide), so
+  // the rate limit is the only spend guard here. Keep it tight: a handful of
+  // top-ups per hour is plenty for real use, and it caps what a stuck client or
+  // a bored user tapping "more" on every tab can cost.
+  const limit = await checkRateLimit(`guide-more:${uid}`, 12, 3600);
   if (!limit.ok) { respondRateLimited(res, limit.retryAfter); return; }
 
   const { city, section, existingTitles = [], query = '', lang } = req.body as {

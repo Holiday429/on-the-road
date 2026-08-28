@@ -122,13 +122,13 @@ async function addPhotos<T extends { title: string }>(items: T[], city: string):
 
 // ── Tavily search ─────────────────────────────────────────────────────────────
 
-// Web search grounds the guide in real, current facts (the single biggest lever
-// against "generic" AI copy). It is the main input-token cost — every snippet is
-// injected into the prompt — so the context is trimmed hard to keep tokens
-// bounded. ON by default for the full guide (premium, paid feature); set
-// GUIDE_USE_TAVILY=0 to disable (e.g. to cut cost during load testing).
+// Web search grounds the guide in real, current facts (a lever against
+// "generic" AI copy). It is a real input-token cost — every snippet is injected
+// into the prompt — and DeepSeek V4 is strong enough on general city knowledge
+// that the guide reads fine without it, so it is OFF by default. Opt back in per
+// deployment with GUIDE_USE_TAVILY=1.
 async function tavilySearch(query: string): Promise<string> {
-  if (process.env.GUIDE_USE_TAVILY === '0') return '';
+  if (process.env.GUIDE_USE_TAVILY !== '1') return '';
   const key = process.env.TAVILY_API_KEY;
   if (!key) return '';
 
@@ -175,14 +175,18 @@ function langInstruction(): string {
 }
 
 // Model is env-driven so it can be tuned per environment without a redeploy.
-// DEEPSEEK_MODEL is the premium model used for the full guide (best quality —
-// this is the paid feature); defaults to 'deepseek-chat' (DeepSeek aliases this
-// to its current flagship). Set to e.g. 'deepseek-reasoner' / a v4-pro id to
-// upgrade quality. Read inline (not a shared module) to keep each serverless
-// function self-contained — the codebase avoids cross-endpoint imports that
-// trip Vercel's per-endpoint CJS/ESM bundling.
+// DEEPSEEK_MODEL defaults to 'deepseek-v4-flash' — the cheap, fast V4 model,
+// which is plenty for structured travel copy. Point it at 'deepseek-v4-pro' to
+// upgrade prose quality (roughly 6x the cost). Read inline (not a shared module)
+// to keep each serverless function self-contained — the codebase avoids
+// cross-endpoint imports that trip Vercel's per-endpoint CJS/ESM bundling.
+//
+// IMPORTANT: never fall back to the legacy 'deepseek-chat' / 'deepseek-reasoner'
+// aliases — DeepSeek retired them on 2026-07-24 and now routes them
+// unpredictably (often to a reasoning model that ignores max_tokens and burns
+// ~30x the tokens on hidden chain-of-thought).
 function guideModel(): string {
-  return process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+  return process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 }
 
 async function deepseek(prompt: string, maxTokens = 900): Promise<unknown> {
@@ -202,6 +206,11 @@ async function deepseek(prompt: string, maxTokens = 900): Promise<unknown> {
       temperature: 0.7,
       // Cap output so a single section can't run away and burn tokens.
       max_tokens: maxTokens,
+      // Disable V4 "thinking" mode. Reasoning tokens are billed as output, are
+      // NOT bounded by max_tokens, and inflate the prompt ~9x — a low cap just
+      // truncates the model mid-thought and yields broken JSON. We need fast,
+      // bounded, JSON-shaped answers, not chain-of-thought.
+      thinking: { type: 'disabled' },
     }),
   });
 

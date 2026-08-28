@@ -48,11 +48,15 @@ async function deepseek(prompt: string): Promise<unknown> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model: process.env.DEEPSEEK_MODEL_LIGHT || 'deepseek-chat',
+      // Never the legacy 'deepseek-chat' alias — DeepSeek retired it 2026-07-24
+      // and now routes it to a reasoning model that ignores max_tokens.
+      model: process.env.DEEPSEEK_MODEL_LIGHT || 'deepseek-v4-flash',
       messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.9,
       max_tokens: 1200,
+      // Disable V4 "thinking" mode — see the note in api/guide.ts's deepseek().
+      thinking: { type: 'disabled' },
     }),
   });
   if (!res.ok) throw new Error(`DeepSeek ${res.status}: ${await res.text()}`);

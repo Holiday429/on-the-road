@@ -68,10 +68,17 @@ async function deepseek(prompt: string): Promise<unknown> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model: process.env.DEEPSEEK_MODEL || 'deepseek-chat',
+      // Never the legacy 'deepseek-chat' alias — DeepSeek retired it 2026-07-24
+      // and now routes it to a reasoning model that ignores max_tokens.
+      model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash',
       messages: [{ role: 'user', content: prompt + langInstruction() }],
       response_format: { type: 'json_object' },
       temperature: 0.4,
+      // Cap output — the safety card is a bounded JSON object, ~600 tokens is
+      // plenty. Without this a single call can run long enough to time out.
+      max_tokens: 1000,
+      // Disable V4 "thinking" mode — see the note in api/guide.ts's deepseek().
+      thinking: { type: 'disabled' },
     }),
   });
   if (!res.ok) throw new Error(`DeepSeek ${res.status}: ${await res.text()}`);
@@ -183,8 +190,8 @@ IMPORTANT: Use real, accurate phone numbers. If you are not certain of a number,
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
-// The generate-mode DeepSeek call has no max_tokens cap (unlike guide.ts), so
-// it can run long enough to exceed Vercel's 10s default — allow up to 30s.
+// The generate-mode call chains a Tavily search then a DeepSeek completion, so
+// it can exceed Vercel's 10s default — allow up to 30s.
 export const config = { maxDuration: 30 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
