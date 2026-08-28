@@ -144,6 +144,9 @@ export const fr: StringTable = {
   'onboarding.btnSubmit':      "C'est parti →",
   'onboarding.creating':       'Création…',
 
+  'register.title':       'Créez votre premier voyage',
+  'register.desc':        'Connectez-vous avec Google pour créer votre voyage — gratuit, sans carte. Un voyage complet pour tout essayer, guides IA inclus.',
+  'register.error':       'Échec de la connexion. Veuillez réessayer.',
   'paywall.title':        'Planifiez votre prochain voyage',
   'paywall.planTrip':     'Pass Voyage',
   'paywall.planLifetime': 'À vie',

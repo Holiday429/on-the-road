@@ -3,7 +3,8 @@
    ========================================================================== */
 
 import './onboarding.css';
-import { createTrip, switchTrip, type NewTripInput } from '../../data/trip-context.ts';
+import { createTrip, switchTrip, AnonymousTripError, type NewTripInput } from '../../data/trip-context.ts';
+import { showRegisterPrompt } from '../../core/paywall.ts';
 import { retagLegacyData } from '../../data/migrate-retag.ts';
 import { createDestinationInput } from '../../core/destination-input.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../../data/schema.ts';
@@ -225,6 +226,12 @@ export function showOnboarding(onDone: () => void): void {
     } catch (e) {
       submitBtn.disabled = false;
       submitBtn.textContent = t('onboarding.btnSubmit');
+      // A guest reached onboarding (e.g. deep link) — prompt sign-in, then
+      // resubmit the form they already filled in.
+      if (e instanceof AnonymousTripError) {
+        showRegisterPrompt(() => submitBtn.click());
+        return;
+      }
       errorEl.textContent = e instanceof Error ? e.message : 'Could not create trip.';
     }
   });

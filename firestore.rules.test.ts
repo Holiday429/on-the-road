@@ -130,6 +130,21 @@ describe('trips/{tripId}', () => {
     }));
   });
 
+  it('create: an anonymous visitor cannot create a trip (must register first)', async () => {
+    // Anonymous auth stamps sign_in_provider:'anonymous' on the token.
+    const guest = testEnv.authenticatedContext('guest', {
+      firebase: { sign_in_provider: 'anonymous' },
+    });
+    await assertFails(setDoc(doc(guest.firestore(), 'trips/t1'), baseTrip('guest')));
+  });
+
+  it('create: a registered (Google) account can create a trip', async () => {
+    const alice = testEnv.authenticatedContext('alice', {
+      firebase: { sign_in_provider: 'google.com' },
+    });
+    await assertSucceeds(setDoc(doc(alice.firestore(), 'trips/t1'), baseTrip('alice')));
+  });
+
   it('get: a non-member cannot read a private trip', async () => {
     await seed(async (ctx) => { await setDoc(doc(ctx.firestore(), 'trips/t1'), baseTrip('alice')); });
     const bob = testEnv.authenticatedContext('bob');

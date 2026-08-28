@@ -31,6 +31,17 @@ export class TripQuotaError extends Error {
   }
 }
 
+/** Thrown by createTrip when an anonymous (guest) session tries to create a
+ *  trip. Anonymous visitors may browse but must sign in with Google to create
+ *  their (free) first trip. The UI catches this to trigger the sign-in flow
+ *  instead of a generic error. The firestore rules enforce the same. */
+export class AnonymousTripError extends Error {
+  constructor() {
+    super('Sign in to create your first trip.');
+    this.name = 'AnonymousTripError';
+  }
+}
+
 export type StoredTrip = Trip;
 
 let _currentTripId = DEFAULT_TRIP_ID;
@@ -268,10 +279,16 @@ export async function canCreateTrip(): Promise<boolean> {
 }
 
 /** Create a blank trip (metadata only — no seeded checklist/route). Returns id.
- *  Throws TripQuotaError if the user is out of owned-trip slots. */
+ *  Throws AnonymousTripError for guest sessions, TripQuotaError when out of
+ *  owned-trip slots. */
 export async function createTrip(input: NewTripInput): Promise<string> {
   const u = currentUser();
   if (!u) throw new Error('Not signed in.');
+
+  // Registration gate: anonymous visitors may browse but must sign in with
+  // Google to create a trip (the entry point to the whole product, AI included).
+  // The firestore rules enforce this too — this is the friendly client path.
+  if (u.isAnonymous) throw new AnonymousTripError();
 
   // Quota gate: count owned trips against the user's entitled slots. Both reads
   // are fresh (not from the store) so a rapid double-create can't slip past.

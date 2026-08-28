@@ -15,6 +15,16 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
+    // A "real" account — signed in with an identity provider, not the throwaway
+    // anonymous session every visitor gets on entry. Anonymous users may browse
+    // and read, but creating a trip (the gate to the whole paid product,
+    // including AI) requires registering. sign_in_provider is 'anonymous' only
+    // for anonymous auth; Google/password/etc. all report their real provider.
+    function isRegistered() {
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
     // Membership read off the parent trip doc (used by sub-collection rules).
     function tripExists(tripId) {
       return exists(/databases/$(database)/documents/trips/$(tripId));
@@ -224,8 +234,10 @@ service cloud.firestore {
       // not be provable anyway. Legacy trips are reached by direct get().
       allow list: if signedIn() && uid() in resource.data.memberUids;
 
-      // Create: as yourself, sole owner at creation.
-      allow create: if signedIn()
+      // Create: as yourself, sole owner at creation. Registered accounts only —
+      // an anonymous visitor must sign in with Google first (client mirrors this
+      // in trip-context.createTrip, this is the hard guard).
+      allow create: if isRegistered()
         && request.resource.data.ownerUid == uid()
         && request.resource.data.members[uid()] == 'owner'
         && uid() in request.resource.data.memberUids;

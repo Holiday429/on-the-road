@@ -5,10 +5,10 @@
 import {
   currentTripId, listTrips, createTrip, switchTrip,
   updateTrip, removeTrip, leaveTrip as leaveTripCtx,
-  TripQuotaError,
+  TripQuotaError, AnonymousTripError,
   type StoredTrip, type NewTripInput,
 } from '../data/trip-context.ts';
-import { requireTripSlot, showTripQuotaPaywall } from './paywall.ts';
+import { requireTripSlot, showTripQuotaPaywall, showRegisterPrompt } from './paywall.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../data/schema.ts';
 import { createDestinationInput, type DestinationInputInstance } from './destination-input.ts';
 import { escHtml as escapeHtml } from './utils.ts';
@@ -369,6 +369,14 @@ function openTripForm(opts: {
           showTripQuotaPaywall();
           return;
         }
+        // Anonymous session somehow reached the form — swap to the sign-in
+        // prompt and reopen the form once they register.
+        if (e instanceof AnonymousTripError) {
+          destPicker?.destroy();
+          backdrop.remove();
+          showRegisterPrompt(openNewTripModal);
+          return;
+        }
         btn.disabled = false;
         btn.textContent = t('app.btnCreateTrip');
         errorEl.textContent = e instanceof Error ? e.message : 'Could not create trip.';
@@ -386,8 +394,9 @@ function openTripForm(opts: {
 
 export function openNewTripModal() {
   host!.buildSidebar(); // close the menu first
-  // Pre-gate: out of owned-trip slots → show the paywall, not the form.
-  if (!requireTripSlot()) return;
+  // Pre-gate: anonymous visitor → sign-in prompt (then reopen); registered but
+  // out of owned-trip slots → paywall. Either way, don't show the form.
+  if (!requireTripSlot(openNewTripModal)) return;
   openTripForm({
     onCreated: () => { /* sidebar already rebuilt by switchTrip → onTripChange */ },
   });

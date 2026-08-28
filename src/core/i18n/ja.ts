@@ -147,6 +147,9 @@ export const ja: StringTable = {
   'onboarding.btnSubmit':      '出発 →',
   'onboarding.creating':       '作成中…',
 
+  'register.title':       '最初の旅行を作成',
+  'register.desc':        'Google でサインインすると旅行を作成できます — 無料、カード不要。AI ガイドを含むすべての機能を1つの旅行で試せます。',
+  'register.error':       'サインインに失敗しました。もう一度お試しください。',
   'paywall.title':        '次の旅行を計画しよう',
   'paywall.planTrip':     'トリップパス',
   'paywall.planLifetime': '生涯メンバー',

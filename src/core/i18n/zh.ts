@@ -539,6 +539,9 @@ export const zh: StringTable = {
   'onboarding.errorEndDate':'结束日期必须晚于开始日期。',
   'onboarding.creating':    '创建中…',
 
+  'register.title':         '创建你的第一个行程',
+  'register.desc':          '用 Google 登录即可创建行程 — 免费，无需绑卡。你可以完整体验一个行程的所有功能，包括 AI 攻略。',
+  'register.error':         '登录失败，请重试。',
   'paywall.title':          '规划你的下一次旅行',
   'paywall.badgePopular':   '最受欢迎',
   'paywall.badgeBestValue': '超值之选',

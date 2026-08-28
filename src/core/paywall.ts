@@ -15,7 +15,7 @@
 
 import { openModal } from './modal.ts';
 import { QuotaError, AuthError, apiUrl } from './api.ts';
-import { currentUser } from '../firebase/auth.ts';
+import { currentUser, isAnonymous, signInWithGoogle } from '../firebase/auth.ts';
 import { quotaStore } from '../data/quota-store.ts';
 import { t } from './i18n.ts';
 import { track } from './analytics.ts';
@@ -185,14 +185,68 @@ export function showAiTopupPaywall(desc?: string): void {
   });
 }
 
+// ── Registration gate ────────────────────────────────────────────────────────
+
+/**
+ * Shown when an anonymous visitor tries to create a trip. A guest can browse
+ * the whole app but must sign in with Google to create their (free) first trip
+ * — the entry point to the product, AI included. On successful sign-in, runs
+ * `onSuccess` so the original action (open the New-trip form) can continue.
+ */
+export function showRegisterPrompt(onSuccess?: () => void): void {
+  track('register_prompt_shown', { reason: 'trip_create' });
+  openModal({
+    title: t('register.title'),
+    body: `
+      <div class="paywall-body">
+        <p class="paywall-desc">${t('register.desc')}</p>
+        <button class="btn btn-primary paywall-btn" id="register-google">
+          ${t('common.signIn')}
+        </button>
+        <p class="paywall-error" hidden></p>
+      </div>
+    `,
+    className: 'paywall-modal',
+  });
+
+  const backdrop = document.querySelector('.otr-modal-backdrop:last-child') as HTMLElement;
+  if (!backdrop) return;
+  const btn = backdrop.querySelector<HTMLButtonElement>('#register-google')!;
+  const errEl = backdrop.querySelector<HTMLElement>('.paywall-error')!;
+
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    errEl.hidden = true;
+    try {
+      await signInWithGoogle();
+      track('signup_completed', { reason: 'trip_create' });
+      backdrop.querySelector<HTMLElement>('[data-otr-close]')?.click();
+      backdrop.remove();
+      onSuccess?.();
+    } catch (e) {
+      btn.disabled = false;
+      errEl.textContent = t('register.error');
+      errEl.hidden = false;
+      console.warn('Register-prompt sign-in failed:', e);
+    }
+  });
+}
+
 // ── Convenience: gate trip creation ───────────────────────────────────────────
 
 /**
- * Returns true if the user can create another owned trip.
- * If not, shows the trip-quota paywall and returns false.
- * Use this to short-circuit "+ New trip" handlers.
+ * Returns true if the user may create a trip right now.
+ * - Anonymous visitor → shows the sign-in prompt, returns false.
+ * - Registered but out of owned-trip slots → shows the quota paywall, false.
+ * - Otherwise → true.
+ * Use this to short-circuit "+ New trip" handlers. Pass `onRegistered` so the
+ * caller reopens itself after a guest signs in.
  */
-export function requireTripSlot(): boolean {
+export function requireTripSlot(onRegistered?: () => void): boolean {
+  if (isAnonymous()) {
+    showRegisterPrompt(onRegistered);
+    return false;
+  }
   if (quotaStore.canCreateTrip()) return true;
   showTripQuotaPaywall();
   return false;

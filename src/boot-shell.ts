@@ -244,10 +244,14 @@ async function bootAuthenticatedShell(user: User) {
     }
 
     // Minimal set needed to know WHICH trip to show — always awaited before entry.
+    // Anonymous visitors can't create trips (that needs a real account), so
+    // never push them into onboarding — they land on the app's empty state and
+    // browse, with a "sign in to create your first trip" CTA. A registered user
+    // with no trips still gets onboarding.
     let needsOnboarding = false;
     try {
       const trip = await ensureDefaultTrip();
-      needsOnboarding = trip === null;
+      needsOnboarding = trip === null && !user.isAnonymous;
     } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
     try { await restoreActiveTrip(); }

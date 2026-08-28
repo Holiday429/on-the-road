@@ -144,6 +144,9 @@ export const es: StringTable = {
   'onboarding.btnSubmit':      'Vamos →',
   'onboarding.creating':       'Creando…',
 
+  'register.title':       'Crea tu primer viaje',
+  'register.desc':        'Inicia sesión con Google para crear tu viaje — gratis, sin tarjeta. Un viaje completo para probarlo todo, incluidas las guías con IA.',
+  'register.error':       'Error al iniciar sesión. Inténtalo de nuevo.',
   'paywall.title':        'Planifica tu próximo viaje',
   'paywall.planTrip':     'Pase de Viaje',
   'paywall.planLifetime': 'De por vida',

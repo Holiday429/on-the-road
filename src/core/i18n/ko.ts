@@ -144,6 +144,9 @@ export const ko: StringTable = {
   'onboarding.btnSubmit':      '출발 →',
   'onboarding.creating':       '생성 중…',
 
+  'register.title':       '첫 여행 만들기',
+  'register.desc':        'Google로 로그인하면 여행을 만들 수 있어요 — 무료, 카드 불필요. AI 가이드를 포함한 모든 기능을 여행 하나로 체험해보세요.',
+  'register.error':       '로그인에 실패했어요. 다시 시도해주세요.',
   'paywall.title':        '다음 여행을 계획해봐요',
   'paywall.planTrip':     '트립 패스',
   'paywall.planLifetime': '평생 이용',

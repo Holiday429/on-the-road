@@ -554,6 +554,9 @@ export const en: StringTable = {
   'onboarding.creating':    'Creating…',
 
   // ── Paywall ────────────────────────────────────────────────────────────────
+  'register.title':         'Create your first trip',
+  'register.desc':          'Sign in with Google to create your trip — free, no card needed. You get one full trip to try everything, including AI guides.',
+  'register.error':         'Sign-in failed. Please try again.',
   'paywall.title':          'Plan your next trip',
   'paywall.badgePopular':   'Most popular',
   'paywall.badgeBestValue': 'Best value',
