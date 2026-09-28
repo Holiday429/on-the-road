@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { doc } from './base.ts';
 
+/** Max photos per journal entry (WeChat Moments caps at 9, and so do we). */
+export const MAX_JOURNAL_IMAGES = 9;
+
 
 /* ── Journal ─────────────────────────────────────────────────────────────── */
 // `template` is the card preset (see src/views/journal/templates.ts) and is the
@@ -24,8 +27,18 @@ export const JournalEntrySchema = doc({
   // Sharing — a public entry is readable via /#/s/{slug} without auth.
   visibility: z.enum(['private', 'public']).default('private'),
   slug: z.string().default(''),
-  coverImage: z.string().optional(), // data URL or remote URL
-  imageRatio: z.number().optional(),  // width / height, e.g. 1.5 for 3:2
+  // Photos, WeChat-Moments style: up to 9, in display order. Each is a remote
+  // Storage download URL (users/{uid}/journal/...), never a data URL — 9 inline
+  // data URLs would blow past Firestore's 1MB per-document ceiling.
+  images: z.array(z.string()).max(MAX_JOURNAL_IMAGES).default([]),
+  // Legacy single-photo field, kept so entries written before `images` existed
+  // still render. Readers should go through `entryImages()`, which prefers
+  // `images` and falls back to this. Writers set both: `images[0]` is mirrored
+  // here so an older client (or the share card) still finds a photo.
+  coverImage: z.string().optional(), // remote URL (legacy: may be a data URL)
+  // width / height of the FIRST image, e.g. 1.5 for 3:2. Drives the cover
+  // aspect ratio in the feed (portrait -> 3:4, landscape -> 4:3, else 1:1).
+  imageRatio: z.number().optional(),
   linkedPlaces: z.array(z.string()).optional(), // Guide card ids saved for this entry
 });
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;

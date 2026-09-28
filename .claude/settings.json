@@ -12,7 +12,8 @@
       "Bash(PROJ=\"/Users/Holiday_1/Desktop/Growth/On the Road/On the Road/On the Road.xcodeproj/project.pbxproj\" *)",
       "Bash(rm -rf OnTheRoad Package.swift .gitignore)",
       "Bash(rm -f GoogleService-Info.plist)",
-      "Bash(xcodebuild -project \"On the Road.xcodeproj\" -scheme \"On the Road\" -destination \"id=09D12CCF-8639-4FE2-8C23-5B3C3C119813\" build)"
+      "Bash(xcodebuild -project \"On the Road.xcodeproj\" -scheme \"On the Road\" -destination \"id=09D12CCF-8639-4FE2-8C23-5B3C3C119813\" build)",
+      "Bash(curl -s 'https://api.vercel.com/v6/deployments?projectId=prj_6M6Xrn3C8IdSkq9c0EvkbMnN8OWx&limit=1&target=production' -H 'Authorization: Bearer __TRACKED_VAR__')"
     ],
     "additionalDirectories": [
       "/Users/Holiday_1/Desktop/Growth/On the Road/OnTheRoad/App",

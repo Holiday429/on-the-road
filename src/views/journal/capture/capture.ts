@@ -18,9 +18,12 @@ import {
 import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type TagGroup, type TemplateGroup } from './render.ts';
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
+import { uploadJournalImage } from '../../../firebase/storage.ts';
 import {
+  MAX_JOURNAL_IMAGES,
   OTHER_DESTINATION,
   currentCity,
+  entryImages,
   currentMonthKey,
   monthKeyFromIso,
   parseTags,
@@ -256,9 +259,15 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const removeImageBtn = target.closest<HTMLElement>('[data-remove-image]');
       if (removeImageBtn) {
-        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
-        if (liveShell) syncDraftFromDom(liveShell);
-        state.draft.coverImage = '';
+        removeDraftImage(Number(removeImageBtn.dataset.removeImage ?? '0'));
+        deps.requestRender();
+        return;
+      }
+
+      const moveImageBtn = target.closest<HTMLElement>('[data-move-image]');
+      if (moveImageBtn) {
+        moveDraftImage(Number(moveImageBtn.dataset.moveImage ?? '0'),
+                       moveImageBtn.dataset.moveDir === 'back' ? -1 : 1);
         deps.requestRender();
         return;
       }
@@ -298,8 +307,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       }
 
       if (target.matches('#journal-image-input')) {
-        syncDraftFromDom(liveShell);
-        void loadDraftImage(target as HTMLInputElement);
+        void loadDraftImages(target as HTMLInputElement);
         return;
       }
 
@@ -463,8 +471,10 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       tagsText: '',
       mood: 'spark',
       happenedOn: new Date().toISOString().slice(0, 10),
-      coverImage: '',
+      images: [],
+      pendingFiles: [],
       imageRatio: undefined,
+      uploading: false,
       linkedPlaces: [],
     };
   }
@@ -507,10 +517,25 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       tagsText: entry.tags.join(', '),
       mood: entry.mood ?? 'spark',
       happenedOn: entry.happenedOn,
-      coverImage: entry.coverImage ?? '',
+      images: entryImages(entry),
+      // Already on Storage — nothing to re-upload unless the user adds more.
+      pendingFiles: entryImages(entry).map(() => null),
       imageRatio: entry.imageRatio,
+      uploading: false,
       linkedPlaces: entry.linkedPlaces ?? [],
     };
+  }
+
+  /**
+   * Sync the draft from whatever composer is currently mounted.
+   *
+   * The composer renders into a document-level overlay, so helpers that run
+   * outside `bind`'s closure can't use its `root`; they look the shell up here
+   * instead, the same way focusComposer/appendToComposerBody reach the DOM.
+   */
+  function syncDraftFromLiveShell() {
+    const liveShell = document.querySelector<HTMLElement>('.journal-shell');
+    if (liveShell) syncDraftFromDom(liveShell);
   }
 
   function syncDraftFromDom(root: HTMLElement) {
@@ -525,8 +550,10 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       tagsText: get<HTMLInputElement>('#journal-tags')?.value ?? state.draft.tagsText,
       mood: ((root.querySelector('input[name="journal-mood"]:checked') as HTMLInputElement | null)?.value as string) ?? state.draft.mood,
       happenedOn: get<HTMLInputElement>('#journal-date')?.value ?? state.draft.happenedOn,
-      coverImage: state.draft.coverImage,
+      images: state.draft.images,
+      pendingFiles: state.draft.pendingFiles,
       imageRatio: state.draft.imageRatio,
+      uploading: state.draft.uploading,
       linkedPlaces: linkedChecked.length ? linkedChecked : state.draft.linkedPlaces,
     };
   }
@@ -556,10 +583,25 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       destination: currentTemplate.fields.destination ? state.draft.destination.trim() : '',
       tags: currentTemplate.fields.tags ? parseTags(state.draft.tagsText) : [],
       happenedOn: state.draft.happenedOn || new Date().toISOString().slice(0, 10),
-      coverImage: state.draft.coverImage || '',
     };
+
+    // Upload any locally-picked photos before writing the doc, so the entry
+    // only ever references URLs Storage has actually accepted.
+    let images: string[];
+    try {
+      images = await uploadDraftImages();
+    } catch (error) {
+      console.error('Journal image upload failed:', error);
+      toast('Could not upload photos');
+      return;
+    }
+
+    payload.images = images;
+    // Mirror the first photo into the legacy field so older clients and the
+    // share-card renderer still find a cover.
+    payload.coverImage = images[0] ?? '';
     if (currentTemplate.fields.mood) payload.mood = state.draft.mood;
-    if (state.draft.coverImage && typeof state.draft.imageRatio === 'number') {
+    if (images.length && typeof state.draft.imageRatio === 'number') {
       payload.imageRatio = state.draft.imageRatio;
     }
     if (state.draft.linkedPlaces.length) payload.linkedPlaces = state.draft.linkedPlaces;
@@ -631,18 +673,73 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     await copyLink(shareUrl(slug));
   }
 
-  async function loadDraftImage(input: HTMLInputElement) {
-    const file = input.files?.[0];
-    if (!file) return;
-    try {
-      const dataUrl = await readFileAsDataUrl(file);
-      state.draft.coverImage = dataUrl;
-      state.draft.imageRatio = await measureImageRatio(dataUrl);
-      deps.requestRender();
-    } catch (error) {
-      console.error('Image load failed:', error);
-      toast('Could not load image');
+  /**
+   * Add picked files to the draft, up to MAX_JOURNAL_IMAGES.
+   *
+   * Files are only previewed here (via object URLs) — the actual upload happens
+   * on save, so abandoning a draft never leaves orphans in Storage.
+   */
+  async function loadDraftImages(input: HTMLInputElement) {
+    const picked = [...(input.files ?? [])];
+    // Clear the input so re-picking the same file still fires a change event.
+    input.value = '';
+    if (!picked.length) return;
+
+    const room = MAX_JOURNAL_IMAGES - state.draft.images.length;
+    if (room <= 0) {
+      toast(`Up to ${MAX_JOURNAL_IMAGES} photos`);
+      return;
     }
+    const files = picked.slice(0, room);
+    if (picked.length > room) toast(`Up to ${MAX_JOURNAL_IMAGES} photos`);
+
+    syncDraftFromLiveShell();
+
+    for (const file of files) {
+      state.draft.images.push(URL.createObjectURL(file));
+      state.draft.pendingFiles.push(file);
+    }
+    // The first photo drives the cover's aspect ratio, so re-measure whenever
+    // index 0 could have changed.
+    state.draft.imageRatio = await measureImageRatio(state.draft.images[0] ?? '');
+    deps.requestRender();
+  }
+
+  /** Upload every pending file; returns the draft's photos as Storage URLs. */
+  async function uploadDraftImages(): Promise<string[]> {
+    const { images, pendingFiles } = state.draft;
+    if (!pendingFiles.some(Boolean)) return images.filter(Boolean);
+
+    state.draft.uploading = true;
+    deps.requestRender();
+    try {
+      const urls = await Promise.all(images.map(async (current, index) => {
+        const file = pendingFiles[index];
+        if (!file) return current;             // already a Storage URL
+        const { url } = await uploadJournalImage(file, index);
+        return url;
+      }));
+      return urls.filter(Boolean);
+    } finally {
+      state.draft.uploading = false;
+    }
+  }
+
+  function removeDraftImage(index: number) {
+    syncDraftFromLiveShell();
+    const [removed] = state.draft.images.splice(index, 1);
+    state.draft.pendingFiles.splice(index, 1);
+    // Only object URLs are ours to revoke; Storage URLs must survive.
+    if (removed?.startsWith('blob:')) URL.revokeObjectURL(removed);
+  }
+
+  function moveDraftImage(index: number, delta: number) {
+    const next = index + delta;
+    const { images, pendingFiles } = state.draft;
+    if (next < 0 || next >= images.length) return;
+    syncDraftFromLiveShell();
+    [images[index], images[next]] = [images[next], images[index]];
+    [pendingFiles[index], pendingFiles[next]] = [pendingFiles[next], pendingFiles[index]];
   }
 
   function appendToComposerBody(append: string) {
@@ -844,15 +941,6 @@ async function copyLink(url: string) {
   } catch {
     toast(url);
   }
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (event) => resolve(String(event.target?.result ?? ''));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 function measureImageRatio(src: string): Promise<number | undefined> {

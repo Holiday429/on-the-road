@@ -357,17 +357,102 @@
 .journal-image-placeholder-icon { font-size: 20px; }
 .journal-image-input { display: none; }
 
-.journal-image-preview-wrap {
-  position: relative;
-  display: inline-block;
+/* ── Composer photo tray (up to 9) ──────────────────────────────────────── */
+.journal-image-tray {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
 }
-.journal-image-preview-large {
+.journal-image-thumb {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.journal-image-thumb img {
   width: 100%;
-  max-height: 200px;
-  border-radius: var(--r-lg);
+  height: 100%;
   object-fit: cover;
   display: block;
 }
+/* The first photo decides the feed hero and the card's aspect ratio, so it is
+   marked — the reorder arrows are how you pick a different one. */
+.journal-image-thumb.is-cover { outline: 2px solid var(--tint, var(--amber-500)); outline-offset: -2px; }
+.journal-image-cover-tag {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 2px 0;
+  text-align: center;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+}
+.journal-image-thumb-tools {
+  position: absolute;
+  inset: auto 0 18px 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity var(--dur-fast);
+}
+.journal-image-thumb:hover .journal-image-thumb-tools { opacity: 1; }
+@media (hover: none) { .journal-image-thumb-tools { opacity: 1; } }
+.journal-image-move {
+  width: 22px; height: 22px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.journal-image-move:only-child { margin-left: auto; }
+
+.journal-image-add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--r-md);
+  border: 1.5px dashed color-mix(in srgb, var(--tint) 50%, #ccc);
+  background: color-mix(in srgb, var(--tint) 8%, var(--surface));
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.journal-image-add:hover {
+  border-color: color-mix(in srgb, var(--tint) 70%, #ccc);
+  background: color-mix(in srgb, var(--tint) 14%, var(--surface));
+}
+.journal-image-add-icon { font-size: 20px; line-height: 1; }
+.journal-image-add-count {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+}
+.journal-image-placeholder-hint {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+.journal-image-uploading {
+  margin: var(--sp-2) 0 0;
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-muted);
+}
+
 .journal-image-remove {
   position: absolute;
   top: 8px; right: 8px;

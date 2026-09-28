@@ -2,7 +2,7 @@ import { genId } from '../../../firebase/db.ts';
 import type { JournalStoryModule, JournalStoryQuestion } from '../../../data/schema.ts';
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
-import { excerpt, titleFor } from '../shared/utils.ts';
+import { entryImages, excerpt, titleFor } from '../shared/utils.ts';
 import { postJson } from '../../../core/api.ts';
 import { aiLanguage } from '../../../core/i18n.ts';
 import { currentTripId } from '../../../data/trip-context.ts';
@@ -267,7 +267,7 @@ function scoreEntry(entry: StoredJournalEntry): number {
   if (entry.template === 'moment' || entry.template === 'spark') score += 2;
   if (entry.destination.trim()) score += 1.5;
   if (entry.tags.length) score += Math.min(entry.tags.length, 3);
-  if (entry.coverImage) score += 2;
+  score += Math.min(entryImages(entry).length, 3) * 2;
   score += Math.min(entry.body.trim().length / 120, 3);
   return score;
 }

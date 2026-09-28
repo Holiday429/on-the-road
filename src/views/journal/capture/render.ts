@@ -10,10 +10,15 @@ import {
 } from '../templates.ts';
 import type { CaptureState } from './types.ts';
 import {
+  MAX_JOURNAL_IMAGES,
   MOODS,
   OTHER_DESTINATION,
+  coverAspect,
+  entryCover,
+  entryImages,
   escHtml,
   excerpt,
+  photoGridColumns,
   prettyDate,
   suggestedDestinations,
   titleFor,
@@ -195,6 +200,50 @@ function renderTemplateBuilder(state: CaptureState): string {
   `;
 }
 
+/**
+ * Composer photo tray — a WeChat-Moments style thumbnail grid plus an add tile.
+ *
+ * The first thumbnail is marked as the cover because it decides both the feed
+ * hero and the card's aspect ratio, so the reorder arrows are how you choose it.
+ */
+function renderImageZone(state: CaptureState, imageLabel: string): string {
+  const photos = state.draft.images;
+  const full = photos.length >= MAX_JOURNAL_IMAGES;
+  return `
+    <div class="journal-image-zone">
+      ${photos.length ? `
+        <div class="journal-image-tray">
+          ${photos.map((src, index) => `
+            <figure class="journal-image-thumb${index === 0 ? ' is-cover' : ''}">
+              <img src="${escHtml(src)}" alt="Photo ${index + 1}" loading="lazy">
+              ${index === 0 ? '<figcaption class="journal-image-cover-tag">Cover</figcaption>' : ''}
+              <div class="journal-image-thumb-tools">
+                ${index > 0 ? `<button class="journal-image-move" data-move-image="${index}" data-move-dir="back" type="button" title="Move earlier" aria-label="Move photo ${index + 1} earlier">‹</button>` : ''}
+                ${index < photos.length - 1 ? `<button class="journal-image-move" data-move-image="${index}" data-move-dir="fwd" type="button" title="Move later" aria-label="Move photo ${index + 1} later">›</button>` : ''}
+              </div>
+              <button class="journal-image-remove" data-remove-image="${index}" type="button" title="Remove" aria-label="Remove photo ${index + 1}">✕</button>
+            </figure>
+          `).join('')}
+          ${full ? '' : `
+            <label class="journal-image-add" for="journal-image-input" title="Add photos">
+              <span class="journal-image-add-icon">＋</span>
+              <span class="journal-image-add-count">${photos.length}/${MAX_JOURNAL_IMAGES}</span>
+            </label>
+          `}
+        </div>
+      ` : `
+        <label class="journal-image-placeholder" for="journal-image-input">
+          <span class="journal-image-placeholder-icon">🖼</span>
+          <span>${escHtml(imageLabel)}</span>
+          <span class="journal-image-placeholder-hint">up to ${MAX_JOURNAL_IMAGES}</span>
+        </label>
+      `}
+      <input class="journal-image-input" type="file" id="journal-image-input" accept="image/*" multiple>
+      ${state.draft.uploading ? '<p class="journal-image-uploading">Uploading photos…</p>' : ''}
+    </div>
+  `;
+}
+
 function renderComposer(
   state: CaptureState,
   entries: StoredJournalEntry[],
@@ -220,22 +269,7 @@ function renderComposer(
         <button class="journal-icon-btn" data-journal-close type="button" title="Close">✕</button>
       </div>
 
-      ${item.fields.image ? `
-        <div class="journal-image-zone">
-          ${state.draft.coverImage ? `
-            <div class="journal-image-preview-wrap">
-              <img src="${escHtml(state.draft.coverImage)}" alt="Preview" class="journal-image-preview-large">
-              <button class="journal-image-remove" data-remove-image type="button" title="Remove">✕</button>
-            </div>
-          ` : `
-            <label class="journal-image-placeholder" for="journal-image-input">
-              <span class="journal-image-placeholder-icon">🖼</span>
-              <span>${escHtml(item.imageLabel)}</span>
-            </label>
-          `}
-          <input class="journal-image-input" type="file" id="journal-image-input" accept="image/*">
-        </div>
-      ` : ''}
+      ${item.fields.image ? renderImageZone(state, item.imageLabel) : ''}
 
       <div class="journal-write-area">
         <textarea class="journal-textarea" id="journal-body" placeholder="${escHtml(item.placeholder)}">${escHtml(state.draft.body)}</textarea>
@@ -392,65 +426,101 @@ function renderFeedWithFilters(model: CaptureRenderModel): string {
   if (model.visibleEntries.length === 0) {
     return filterBar + renderEmpty('Filtered', 'No entries match this filter', 'Try clearing a tag or place filter.');
   }
-  return filterBar + renderTimelineFeed(model.visibleEntries, model.state.editingId);
+  return filterBar + renderMagazineFeed(model.visibleEntries, model.state.editingId);
 }
 
-function renderTimelineFeed(entries: StoredJournalEntry[], editingId: string | null): string {
-  // Group by happenedOn date
-  const groups = new Map<string, StoredJournalEntry[]>();
-  for (const entry of entries) {
-    const day = entry.happenedOn;
-    const list = groups.get(day) ?? [];
-    list.push(entry);
-    groups.set(day, list);
-  }
+/**
+ * Magazine feed — a Xiaohongshu-style masonry of cards instead of one full-width
+ * strip per entry.
+ *
+ * Two things drive the look. The grid is column-based (CSS `columns`) so cards
+ * of different heights pack without gaps, and each card's hero is sized from its
+ * first photo's orientation — portrait shots get a tall 3:4 frame, landscape ones
+ * a wide 4:3 — so neither gets cropped into the other's shape. Date headers are
+ * dropped from the grid (they'd break the columns) and shown per-card instead.
+ */
+function renderMagazineFeed(entries: StoredJournalEntry[], editingId: string | null): string {
   const today = new Date().toISOString().slice(0, 10);
-
-  return `<div class="journal-timeline">
-    ${[...groups.entries()].map(([day, dayEntries]) => {
-      const isToday = day === today;
-      const dateLabel = isToday ? 'Today' : new Date(`${day}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      return `
-        <div class="journal-timeline-group">
-          <div class="journal-timeline-date">
-            <span class="journal-timeline-date-label ${isToday ? 'is-today' : ''}">${escHtml(dateLabel)}</span>
-          </div>
-          <div class="journal-timeline-entries">
-            ${dayEntries.map((entry) => renderTimelineEntry(entry, editingId)).join('')}
-          </div>
-        </div>
-      `;
-    }).join('')}
+  return `<div class="journal-mag-feed">
+    ${entries.map((entry) => renderMagazineCard(entry, editingId, today)).join('')}
   </div>`;
 }
 
-function renderTimelineEntry(entry: StoredJournalEntry, editingId: string | null): string {
+function dayLabel(iso: string, today: string): string {
+  if (iso === today) return 'Today';
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function renderMagazineCard(
+  entry: StoredJournalEntry,
+  editingId: string | null,
+  today: string,
+): string {
   const item = template(entry.template);
   const isEditing = entry.id === editingId;
-  const where = entry.destination || titleFor(entry);
   const isPublic = entry.visibility === 'public';
+  const photos = entryImages(entry);
+  const extra = photos.length - 1;
+  const title = titleFor(entry);
+  // With a photo the title carries the card, so the body is a short caption;
+  // a text-only card gets more room since it has nothing else to show.
+  const body = excerpt(entry.body, photos.length ? 80 : 190);
+  const hasTitle = entry.title.trim().length > 0;
 
   return `
-    <div class="journal-timeline-entry ${isEditing ? 'is-editing' : ''}" data-open-entry="${entry.id}" style="--tint:${item.tint}">
-      <div class="journal-timeline-dot" style="background:${item.tint}"></div>
-      <div class="journal-timeline-card">
-        <div class="journal-timeline-card-head">
-          <div class="journal-timeline-card-meta">
-            <span class="journal-timeline-badge" style="background:color-mix(in srgb,${item.tint} 22%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">${item.emoji} ${escHtml(item.label)}</span>
-            <span class="journal-timeline-where">${escHtml(where)}</span>
-          </div>
-          <div class="journal-timeline-actions">
-            <button class="journal-icon-btn" data-card-entry="${entry.id}" type="button" title="Generate share card">🖼</button>
-            <button class="journal-icon-btn ${isPublic ? 'is-on' : ''}" data-share-entry="${entry.id}" type="button" title="Share">↗</button>
-            <button class="journal-icon-btn ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${entry.id}" type="button" title="Pin">📌</button>
-            <button class="journal-icon-btn" data-delete-entry="${entry.id}" type="button" title="Delete">✕</button>
-          </div>
+    <article class="journal-mag-card${photos.length ? ' has-photo' : ' is-text'}${isEditing ? ' is-editing' : ''}"
+             data-open-entry="${entry.id}" style="--tint:${item.tint}">
+      ${photos.length ? `
+        <div class="journal-mag-cover" style="aspect-ratio:${coverAspect(entry.imageRatio)}">
+          <img src="${escHtml(photos[0])}" alt="${escHtml(title)}" class="journal-mag-cover-img" loading="lazy">
+          ${extra > 0 ? `<span class="journal-mag-count" title="${extra + 1} photos">▦ ${extra + 1}</span>` : ''}
+          ${entry.favorite ? '<span class="journal-mag-pin" title="Pinned">📌</span>' : ''}
         </div>
-        <p class="journal-timeline-body">${escHtml(excerpt(entry.body, 160))}</p>
-        ${entry.coverImage ? `<img src="${escHtml(entry.coverImage)}" alt="" class="journal-timeline-img">` : ''}
-        ${entry.tags.length ? `<div class="journal-timeline-tags">${entry.tags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
-        ${(entry.linkedPlaces?.length ?? 0) > 0 ? `<div class="journal-linked-places">📌 ${entry.linkedPlaces!.length} place${entry.linkedPlaces!.length > 1 ? 's' : ''} visited</div>` : ''}
+      ` : ''}
+
+      <div class="journal-mag-body">
+        ${hasTitle ? `<h3 class="journal-mag-title">${escHtml(title)}</h3>` : ''}
+        ${body ? `<p class="journal-mag-text">${escHtml(body)}</p>` : ''}
+
+        ${photos.length > 1 ? renderPhotoGrid(photos.slice(1), entry.id) : ''}
+
+        ${entry.tags.length ? `<div class="journal-mag-tags">${entry.tags.slice(0, 3).map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
+
+        <footer class="journal-mag-foot">
+          <span class="journal-mag-stamp" style="background:color-mix(in srgb,${item.tint} 22%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">${item.emoji}</span>
+          <span class="journal-mag-where">${escHtml(entry.destination || item.label)}</span>
+          <span class="journal-mag-date">${escHtml(dayLabel(entry.happenedOn, today))}</span>
+        </footer>
+
+        <div class="journal-mag-actions">
+          <button class="journal-icon-btn" data-card-entry="${entry.id}" type="button" title="Generate share card">🖼</button>
+          <button class="journal-icon-btn ${isPublic ? 'is-on' : ''}" data-share-entry="${entry.id}" type="button" title="Share">↗</button>
+          <button class="journal-icon-btn ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${entry.id}" type="button" title="Pin">📌</button>
+          <button class="journal-icon-btn" data-delete-entry="${entry.id}" type="button" title="Delete">✕</button>
+        </div>
       </div>
+    </article>
+  `;
+}
+
+/**
+ * The remaining photos as a WeChat-Moments grid: 2 side by side, 4 as 2x2,
+ * anything more in rows of 3. Tiles are square here — the hero above already
+ * shows the real shape, and a uniform grid reads calmer under it.
+ */
+function renderPhotoGrid(photos: string[], entryId: string): string {
+  const shown = photos.slice(0, MAX_JOURNAL_IMAGES - 1);
+  const cols = photoGridColumns(shown.length);
+  return `
+    <div class="journal-photo-grid" style="--cols:${cols}" data-photo-grid="${entryId}">
+      ${shown.map((src, index) => `
+        <div class="journal-photo-cell">
+          <img src="${escHtml(src)}" alt="Photo ${index + 2}" loading="lazy">
+        </div>
+      `).join('')}
     </div>
   `;
 }
@@ -462,14 +532,14 @@ function renderPlacesView(groups: PlaceGroup[]): string {
   return `
     <div class="journal-places-grid">
       ${groups.map((group) => {
-        const coverEntry = group.entries.find((e) => e.coverImage);
-        const hasImage = !!coverEntry?.coverImage;
+        const coverEntry = group.entries.find((e) => entryCover(e));
+        const hasImage = !!coverEntry && !!entryCover(coverEntry);
         const tmpl = template(group.entries[0].template);
         return `
           <article class="journal-place-tile" data-place-filter="${escHtml(group.label)}" style="--tint:${tmpl.tint}">
             <div class="journal-place-tile-cover">
               ${hasImage
-                ? `<img src="${escHtml(coverEntry!.coverImage!)}" alt="${escHtml(group.label)}" class="journal-place-tile-img">`
+                ? `<img src="${escHtml(entryCover(coverEntry!))}" alt="${escHtml(group.label)}" class="journal-place-tile-img">`
                 : `<div class="journal-place-tile-fallback">
                     ${group.entries.slice(0, 3).map((e) => `<span>${template(e.template).emoji}</span>`).join('')}
                   </div>`}
@@ -505,12 +575,12 @@ function renderCategoriesView(templateGroups: TemplateGroup[], tagGroups: TagGro
         <div class="journal-category-grid">
           ${templateGroups.map((group) => {
             const item = template(group.templateId);
-            const coverEntry = group.entries.find((e) => e.coverImage);
+            const coverEntry = group.entries.find((e) => entryCover(e));
             return `
               <article class="journal-category-tile" data-filter-template="${item.id}" style="--tint:${item.tint}">
                 <div class="journal-category-tile-cover">
-                  ${coverEntry?.coverImage
-                    ? `<img src="${escHtml(coverEntry.coverImage)}" alt="" class="journal-category-tile-img">`
+                  ${coverEntry && entryCover(coverEntry)
+                    ? `<img src="${escHtml(entryCover(coverEntry))}" alt="" class="journal-category-tile-img">`
                     : `<div class="journal-category-tile-bg"></div>`}
                   <div class="journal-category-tile-emoji">${item.emoji}</div>
                 </div>
@@ -588,11 +658,11 @@ function renderGalleryView(entries: StoredJournalEntry[], state: CaptureState): 
         const ratio = square ? 1 : (rawRatio ? closestPresetRatio(rawRatio) : 3 / 4);
         const paddingTop = `${(1 / ratio) * 100}%`;
         return `
-          <article class="journal-gallery-tile${entry.coverImage ? ' has-image' : ''}" data-open-entry="${entry.id}" style="--tint:${item.tint}">
+          <article class="journal-gallery-tile${entryCover(entry) ? ' has-image' : ''}" data-open-entry="${entry.id}" style="--tint:${item.tint}">
             <div class="journal-gallery-media" style="padding-top:${paddingTop}">
               <div class="journal-gallery-media-inner">
-                ${entry.coverImage
-                  ? `<img src="${escHtml(entry.coverImage)}" alt="${escHtml(titleFor(entry))}" class="journal-gallery-image">`
+                ${entryCover(entry)
+                  ? `<img src="${escHtml(entryCover(entry))}" alt="${escHtml(titleFor(entry))}" class="journal-gallery-image">`
                   : `<div class="journal-gallery-fallback"><span>${item.emoji}</span><p>${escHtml(excerpt(entry.body, 88))}</p></div>`}
               </div>
             </div>

@@ -17,8 +17,15 @@ export interface DraftState {
   tagsText: string;
   mood: string;
   happenedOn: string;
-  coverImage: string;
+  // Photos being composed, in display order (max MAX_JOURNAL_IMAGES). Local
+  // files are uploaded to Storage on save; `images` holds already-uploaded
+  // remote URLs (an entry loaded for editing) plus object-URL previews for
+  // files picked in this session, kept index-aligned with `pendingFiles`.
+  images: string[];
+  /** null at an index = already-uploaded URL; a File = needs uploading on save. */
+  pendingFiles: (File | null)[];
   imageRatio: number | undefined;
+  uploading: boolean;
   linkedPlaces: string[];
 }
 

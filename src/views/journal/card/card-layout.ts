@@ -17,7 +17,8 @@
 
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { template } from '../templates.ts';
-import { titleFor } from '../shared/utils.ts';
+import { entryCover,
+  titleFor } from '../shared/utils.ts';
 
 export type CardKind = 'moment' | 'note' | 'interesting' | 'place';
 
@@ -97,7 +98,7 @@ export function buildCardData(entry: StoredJournalEntry): CardData {
     destination: entry.destination.trim(),
     dateLabel: prettyDateLong(entry.happenedOn),
     tags: entry.tags.slice(0, 4),
-    coverImage: entry.coverImage || undefined,
+    coverImage: entryCover(entry) || undefined,
     paragraphs: [],
     listItems: [],
     loved: [],

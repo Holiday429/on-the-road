@@ -58,3 +58,25 @@ export async function uploadClipImage(file: File): Promise<UploadResult> {
   const url = await getDownloadURL(storageRef);
   return { url, name: file.name };
 }
+
+/**
+ * Upload one journal photo to `users/{uid}/journal/<timestamp>_<n>_<name>`.
+ *
+ * Journal photos go to Storage rather than inline data URLs in the Firestore
+ * doc: an entry can hold 9 of them, and 9 base64 images would run past the
+ * 1MB per-document limit and fail the write. The path matches what iOS uses
+ * (users/{uid}/journal/...) so both clients read each other's photos.
+ */
+export async function uploadJournalImage(file: File, index = 0): Promise<UploadResult> {
+  const user = currentUser();
+  if (!user) throw new Error('Not signed in.');
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `users/${user.uid}/journal/${Date.now()}_${index}_${safeName}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file, { contentType: file.type });
+  const url = await getDownloadURL(storageRef);
+  return { url, name: file.name };
+}
+
+/** Delete a journal photo by download URL (best-effort, same as safety docs). */
+export const deleteJournalImage = deleteSafetyDoc;
