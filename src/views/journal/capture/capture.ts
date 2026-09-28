@@ -984,8 +984,18 @@ function measureImageRatio(src: string): Promise<number | undefined> {
 
 function focusComposer(scroll = false) {
   queueMicrotask(() => {
+    // The composer renders inside `.journal-composer-overlay`, which is
+    // `position: fixed` and already centered in the viewport. Calling
+    // scrollIntoView on it doesn't bring it into view (it's never out of
+    // view) — it scrolls the PAGE BEHIND the overlay instead, which read as
+    // the journal "jumping back to the list" the moment the editor opened.
+    // Only scroll when the composer is actually in normal document flow.
     if (scroll) {
-      document.querySelector('.journal-composer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const composer = document.querySelector('.journal-composer');
+      const isFixedOverlay = !!composer?.closest('.journal-composer-overlay');
+      if (composer && !isFixedOverlay && typeof composer.scrollIntoView === 'function') {
+        composer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
     document.getElementById('journal-body')?.focus();
   });
