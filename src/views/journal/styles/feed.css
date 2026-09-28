@@ -35,7 +35,7 @@
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--tint) 40%, var(--surface));
 }
-.journal-mag-card.is-editing {
+.journal-mag-card.is-open {
   border-color: color-mix(in srgb, var(--tint) 70%, var(--ink));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tint) 20%, #fff);
 }
@@ -136,25 +136,6 @@
   white-space: nowrap;
 }
 .journal-mag-date { margin-left: auto; flex-shrink: 0; }
-
-.journal-mag-actions {
-  position: absolute;
-  top: var(--sp-2);
-  right: var(--sp-2);
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  border-radius: var(--r-full);
-  background: color-mix(in srgb, var(--surface) 85%, transparent);
-  backdrop-filter: blur(6px);
-  opacity: 0;
-  transition: opacity var(--dur-fast);
-}
-.journal-mag-card:hover .journal-mag-actions { opacity: 1; }
-/* Touch devices get no hover, so keep the actions visible there. */
-@media (hover: none) {
-  .journal-mag-actions { opacity: 1; }
-}
 
 /* ── Photo grid (WeChat Moments) ────────────────────────────────────────── */
 /*
@@ -407,3 +388,142 @@
 .journal-fmt-post .journal-card-body { font-size: var(--fs-md); color: var(--ink); }
 .journal-fmt-post .journal-card-foot { padding: 10px var(--sp-3) 0; }
 .journal-fmt-post .journal-card-tags { padding: 6px var(--sp-3) 12px; }
+
+/* ── Reader overlay (read-only entry view) ──────────────────────────────── */
+/*
+  Opened by tapping a card anywhere in the journal (feed/gallery/calendar).
+  Editing is reached only through the explicit "Edit" pill in the header —
+  tapping a card used to drop straight into the composer, which meant reading
+  an entry required an editable textarea.
+*/
+.journal-reader-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
+  z-index: 410;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+.journal-reader-drawer {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90dvh;
+  overflow-y: auto;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22), 0 4px 16px rgba(0, 0, 0, 0.12);
+  animation: scaleIn var(--dur-mid) var(--ease-out);
+}
+
+.journal-reader-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.journal-reader-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--r-full);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.journal-reader-head-actions { display: flex; align-items: center; gap: 6px; }
+
+.journal-reader-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-soft);
+  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+.journal-reader-pill:hover { background: var(--surface); border-color: color-mix(in srgb, var(--tint) 40%, var(--rule-soft)); }
+.journal-reader-pill.is-on { background: var(--amber-100); border-color: var(--amber-200); color: var(--amber-700); }
+.journal-reader-pill.is-danger { color: var(--danger); }
+.journal-reader-pill.is-danger:hover { background: var(--danger-bg-soft); border-color: var(--danger-bg); }
+
+/* Single photo: real aspect ratio (portrait 3:4 / landscape 4:3 / square),
+   not forced into a grid cell — this is the reading surface, so it should
+   show the picture the way it was actually framed. */
+.journal-reader-single {
+  width: 100%;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.journal-reader-single img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.journal-reader-grid { border-radius: 0; }
+
+.journal-reader-body {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.journal-reader-title {
+  margin: 0;
+  font-family: var(--font-display, var(--font-ui));
+  font-size: var(--fs-xl);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.journal-reader-text {
+  margin: 0;
+  font-size: var(--fs-md);
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.journal-reader-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--rule-soft);
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm);
+  color: var(--ink-muted);
+}
+.journal-reader-where { font-weight: 600; }
+.journal-reader-date { margin-left: auto; }
+.journal-reader-mood { font-size: var(--fs-md); }
+
+.journal-reader-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: var(--sp-2);
+}
+
+@media (max-width: 640px) {
+  .journal-reader-overlay { padding: 0; align-items: flex-end; }
+  .journal-reader-drawer { max-width: none; max-height: 94dvh; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+}

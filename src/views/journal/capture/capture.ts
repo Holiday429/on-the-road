@@ -49,6 +49,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     composerOpen: false,
     templateBuilderOpen: false,
     editingId: null,
+    readingId: null,
     promptIndex: 0,
     calendarMonth: currentMonthKey(),
     gallerySquare: false,
@@ -281,9 +282,30 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const entryTarget = target.closest<HTMLElement>('[data-open-entry]');
       if (entryTarget) {
-        loadEntryIntoDraft(entryTarget.dataset.openEntry!);
+        // Opens the read-only reader, not the composer — a tap on a feed
+        // card used to drop straight into edit mode, which meant reading an
+        // entry required going through an editable textarea. Editing is now
+        // a deliberate action from inside the reader (data-open-reader-edit).
+        state.readingId = entryTarget.dataset.openEntry!;
+        deps.requestRender();
+        return;
+      }
+
+      const readerCloseBtn = target.closest<HTMLElement>('[data-reader-close], [data-journal-reader-overlay]');
+      if (readerCloseBtn) {
+        state.readingId = null;
+        deps.requestRender();
+        return;
+      }
+
+      const readerEditBtn = target.closest<HTMLElement>('[data-open-reader-edit]');
+      if (readerEditBtn) {
+        const id = readerEditBtn.dataset.openReaderEdit!;
+        state.readingId = null;
+        loadEntryIntoDraft(id);
         deps.requestRender();
         focusComposer(true);
+        return;
       }
     });
 
@@ -658,6 +680,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   async function deleteEntry(id: string) {
     if (!confirm('Delete this note?')) return;
     if (state.editingId === id) resetDraft();
+    if (state.readingId === id) { state.readingId = null; deps.requestRender(); }
     await journalStore.remove(id);
   }
 

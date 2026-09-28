@@ -45,6 +45,10 @@ export interface CaptureState {
   composerOpen: boolean;
   templateBuilderOpen: boolean;
   editingId: string | null;
+  /** Entry shown in the read-only reader overlay, or null when it's closed.
+   *  Tapping a feed/gallery/calendar card opens this, NOT the composer —
+   *  editing is a separate action reached from inside the reader. */
+  readingId: string | null;
   promptIndex: number;
   calendarMonth: string;
   gallerySquare: boolean;

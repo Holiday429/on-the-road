@@ -18,6 +18,7 @@ import {
   entryImages,
   escHtml,
   excerpt,
+  moodEmoji,
   photoGridColumns,
   prettyDate,
   suggestedDestinations,
@@ -95,6 +96,10 @@ function renderFirstTimeGuide(): string {
 }
 
 export function renderCapture(model: CaptureRenderModel): string {
+  const readingEntry = model.state.readingId
+    ? model.allEntries.find((e) => e.id === model.state.readingId)
+    : undefined;
+
   return `
     <div class="journal-shell">
       ${renderStamps(model.state)}
@@ -102,6 +107,7 @@ export function renderCapture(model: CaptureRenderModel): string {
 
       ${model.state.templateBuilderOpen ? renderTemplateBuilder(model.state) : ''}
       ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs, model.savedGuidePlaces ?? [])}</div></div>` : ''}
+      ${readingEntry ? `<div class="journal-reader-overlay" data-journal-reader-overlay><div class="journal-reader-drawer">${renderReader(readingEntry)}</div></div>` : ''}
 
       <div class="journal-view-surface">
         ${renderActiveView(model)}
@@ -456,22 +462,23 @@ function dayLabel(iso: string, today: string): string {
 
 function renderMagazineCard(
   entry: StoredJournalEntry,
-  editingId: string | null,
+  readingId: string | null,
   today: string,
 ): string {
   const item = template(entry.template);
-  const isEditing = entry.id === editingId;
-  const isPublic = entry.visibility === 'public';
+  const isOpen = entry.id === readingId;
   const photos = entryImages(entry);
   const extra = photos.length - 1;
   const title = titleFor(entry);
-  // With a photo the title carries the card, so the body is a short caption;
-  // a text-only card gets more room since it has nothing else to show.
-  const body = excerpt(entry.body, photos.length ? 80 : 190);
   const hasTitle = entry.title.trim().length > 0;
 
+  // Feed cards are a preview tile, not a reading surface: cover + title +
+  // meta only. Body text and the extra-photos grid used to render here too,
+  // which made card height depend on how much someone wrote — a 3-line note
+  // sat next to a 40-word paragraph and the masonry lost its rhythm. Both now
+  // live in the reader that opens on tap (renderReaderOverlay).
   return `
-    <article class="journal-mag-card${photos.length ? ' has-photo' : ' is-text'}${isEditing ? ' is-editing' : ''}"
+    <article class="journal-mag-card${photos.length ? ' has-photo' : ' is-text'}${isOpen ? ' is-open' : ''}"
              data-open-entry="${entry.id}" style="--tint:${item.tint}">
       ${photos.length ? `
         <div class="journal-mag-cover" style="aspect-ratio:${coverAspect(entry.imageRatio)}">
@@ -482,46 +489,94 @@ function renderMagazineCard(
       ` : ''}
 
       <div class="journal-mag-body">
-        ${hasTitle ? `<h3 class="journal-mag-title">${escHtml(title)}</h3>` : ''}
-        ${body ? `<p class="journal-mag-text">${escHtml(body)}</p>` : ''}
-
-        ${photos.length > 1 ? renderPhotoGrid(photos.slice(1), entry.id) : ''}
-
-        ${entry.tags.length ? `<div class="journal-mag-tags">${entry.tags.slice(0, 3).map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
+        ${hasTitle
+          ? `<h3 class="journal-mag-title">${escHtml(title)}</h3>`
+          : `<p class="journal-mag-text">${escHtml(excerpt(entry.body, 90))}</p>`}
 
         <footer class="journal-mag-foot">
           <span class="journal-mag-stamp" style="background:color-mix(in srgb,${item.tint} 22%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">${item.emoji}</span>
           <span class="journal-mag-where">${escHtml(entry.destination || item.label)}</span>
           <span class="journal-mag-date">${escHtml(dayLabel(entry.happenedOn, today))}</span>
         </footer>
-
-        <div class="journal-mag-actions">
-          <button class="journal-icon-btn" data-card-entry="${entry.id}" type="button" title="Generate share card">🖼</button>
-          <button class="journal-icon-btn ${isPublic ? 'is-on' : ''}" data-share-entry="${entry.id}" type="button" title="Share">↗</button>
-          <button class="journal-icon-btn ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${entry.id}" type="button" title="Pin">📌</button>
-          <button class="journal-icon-btn" data-delete-entry="${entry.id}" type="button" title="Delete">✕</button>
-        </div>
       </div>
     </article>
   `;
 }
 
 /**
- * The remaining photos as a WeChat-Moments grid: 2 side by side, 4 as 2x2,
- * anything more in rows of 3. Tiles are square here — the hero above already
- * shows the real shape, and a uniform grid reads calmer under it.
+ * All of an entry's photos as a WeChat-Moments grid: a single photo gets its
+ * real aspect ratio (not forced square — this is the reading surface, so it
+ * should look like the actual picture), 2/3 sit in one row, 4 as 2x2, more in
+ * rows of 3 up to MAX_JOURNAL_IMAGES. Square tiles from the second photo on
+ * keep the grid calm; a lone photo skips that so a tall or wide shot isn't
+ * cropped into a square it was never framed for.
  */
-function renderPhotoGrid(photos: string[], entryId: string): string {
-  const shown = photos.slice(0, MAX_JOURNAL_IMAGES - 1);
+function renderReaderGallery(photos: string[], entryId: string, ratio: number | undefined): string {
+  const shown = photos.slice(0, MAX_JOURNAL_IMAGES);
+  if (shown.length === 0) return '';
+  if (shown.length === 1) {
+    return `
+      <div class="journal-reader-single" style="aspect-ratio:${coverAspect(ratio)}">
+        <img src="${escHtml(shown[0])}" alt="" loading="lazy">
+      </div>
+    `;
+  }
   const cols = photoGridColumns(shown.length);
   return `
-    <div class="journal-photo-grid" style="--cols:${cols}" data-photo-grid="${entryId}">
+    <div class="journal-photo-grid journal-reader-grid" style="--cols:${cols}" data-photo-grid="${entryId}">
       ${shown.map((src, index) => `
         <div class="journal-photo-cell">
-          <img src="${escHtml(src)}" alt="Photo ${index + 2}" loading="lazy">
+          <img src="${escHtml(src)}" alt="Photo ${index + 1}" loading="lazy">
         </div>
       `).join('')}
     </div>
+  `;
+}
+
+/**
+ * Read-only entry view — what opens when a feed/gallery/calendar card is
+ * tapped. Full photo gallery, then title, then body, then meta; editing is a
+ * single explicit button here rather than the default action, so opening an
+ * entry to read it never drops you into an editable textarea.
+ */
+function renderReader(entry: StoredJournalEntry): string {
+  const item = template(entry.template);
+  const photos = entryImages(entry);
+  const title = titleFor(entry);
+  const isPublic = entry.visibility === 'public';
+
+  return `
+    <article class="journal-reader" style="--tint:${item.tint}">
+      <header class="journal-reader-head">
+        <span class="journal-reader-stamp" style="background:color-mix(in srgb,${item.tint} 22%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">${item.emoji} ${escHtml(item.label)}</span>
+        <div class="journal-reader-head-actions">
+          <button class="journal-reader-pill" data-open-reader-edit="${entry.id}" type="button">✎ Edit</button>
+          <button class="journal-icon-btn" data-reader-close type="button" title="Close">✕</button>
+        </div>
+      </header>
+
+      ${photos.length ? renderReaderGallery(photos, entry.id, entry.imageRatio) : ''}
+
+      <div class="journal-reader-body">
+        ${entry.title.trim() ? `<h2 class="journal-reader-title">${escHtml(title)}</h2>` : ''}
+        ${entry.body.trim() ? `<p class="journal-reader-text">${escHtml(entry.body)}</p>` : ''}
+
+        ${entry.tags.length ? `<div class="journal-mag-tags">${entry.tags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
+
+        <footer class="journal-reader-meta">
+          ${entry.destination ? `<span class="journal-reader-where">📍 ${escHtml(entry.destination)}</span>` : ''}
+          <span class="journal-reader-date">${escHtml(prettyDate(entry.happenedOn))}</span>
+          ${entry.mood ? `<span class="journal-reader-mood">${moodEmoji(entry.mood)}</span>` : ''}
+        </footer>
+
+        <div class="journal-reader-actions">
+          <button class="journal-reader-pill" data-card-entry="${entry.id}" type="button">🖼 Card</button>
+          <button class="journal-reader-pill ${isPublic ? 'is-on' : ''}" data-share-entry="${entry.id}" type="button">↗ Share</button>
+          <button class="journal-reader-pill ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${entry.id}" type="button">📌 Pin</button>
+          <button class="journal-reader-pill is-danger" data-delete-entry="${entry.id}" type="button">✕ Delete</button>
+        </div>
+      </div>
+    </article>
   `;
 }
 
