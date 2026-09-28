@@ -291,13 +291,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
-      const readerCloseBtn = target.closest<HTMLElement>('[data-reader-close], [data-journal-reader-overlay]');
-      if (readerCloseBtn) {
-        state.readingId = null;
-        deps.requestRender();
-        return;
-      }
-
       const readerEditBtn = target.closest<HTMLElement>('[data-open-reader-edit]');
       if (readerEditBtn) {
         const id = readerEditBtn.dataset.openReaderEdit!;
@@ -305,6 +298,20 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         loadEntryIntoDraft(id);
         deps.requestRender();
         focusComposer(true);
+        return;
+      }
+
+      // `data-reader-close` is the explicit close (✕) button — closest() is
+      // right there, it should fire from anywhere inside that button.
+      // `data-journal-reader-overlay` is the backdrop itself: matches(), not
+      // closest(), because closest() would also match every click INSIDE the
+      // drawer (the overlay div is an ancestor of everything in it,
+      // including the Edit button above), which is what made Edit silently
+      // close the reader instead of opening the composer.
+      const readerCloseBtn = target.closest<HTMLElement>('[data-reader-close]');
+      if (readerCloseBtn || target.matches('[data-journal-reader-overlay]')) {
+        state.readingId = null;
+        deps.requestRender();
         return;
       }
     });
