@@ -392,7 +392,12 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     if (!templateIds.has(normalizeTemplateId(state.draft.template))) {
       state.draft.template = DEFAULT_TEMPLATE;
     }
-    if (state.editingId && !entries.some((entry) => entry.id === state.editingId)) {
+    // Close the editor if the entry being edited was genuinely deleted — but
+    // NOT on an empty result. Every store subscription emits cb([]) before its
+    // real rows (cold cache read, signed-out snapshot, trip re-subscribe), and
+    // any of those firing while the composer is open would otherwise discard
+    // the user's in-progress edit and drop them back on the feed.
+    if (state.editingId && entries.length > 0 && !entries.some((entry) => entry.id === state.editingId)) {
       resetDraft();
     }
     if (!state.composerOpen && !state.draft.destination) {
