@@ -1,11 +1,9 @@
 import './journal.css';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { journalStoryStore, type StoredJournalStory } from '../../data/stores/journal-story-store.ts';
-import { journalTemplateStore } from '../../data/stores/journal-template-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { createCaptureController } from './capture/capture.ts';
 import { createStoryController } from './story/story.ts';
-import { setCustomTemplates } from './templates.ts';
 
 type JournalMode = 'capture' | 'story';
 
@@ -19,7 +17,6 @@ let legs: StoredLeg[] = [];
 let _unsubEntries: (() => void) | null = null;
 let _unsubLegs: (() => void) | null = null;
 let _unsubStories: (() => void) | null = null;
-let _unsubTemplates: (() => void) | null = null;
 
 const capture = createCaptureController({
   getEntries: () => entries,
@@ -132,13 +129,13 @@ function renderJournal() {
 }
 
 /**
- * Open the journal capture composer for a specific template, navigating to
- * the journal view if needed. Called from the dashboard quick-entry buttons.
+ * Open the journal composer, navigating to the journal view if needed.
+ * Called from the dashboard's single quick-entry button.
  */
-export function openJournalComposerForTemplate(templateId: string): void {
+export function openJournalComposer(): void {
   // Switch to capture mode in case story mode is active
   mode = 'capture';
-  capture.openComposerForTemplate(templateId);
+  capture.openComposer();
   // Render so the composer appears immediately when the view is shown
   renderJournal();
 }
@@ -148,7 +145,7 @@ export function openJournalComposerForTemplate(templateId: string): void {
  * (e.g. dashboard), without navigating away. Uses a dedicated capture
  * controller instance so it doesn't interfere with the main journal view.
  */
-export function openJournalComposerOverlay(templateId: string): void {
+export function openJournalComposerOverlay(): void {
   // Remove any existing overlay first (idempotent).
   document.getElementById('jco-overlay-root')?.remove();
 
@@ -184,7 +181,7 @@ export function openJournalComposerOverlay(templateId: string): void {
   overlayEl = document.createElement('div');
   overlayEl.id = 'jco-overlay-root';
 
-  overlayCapture.openComposerForTemplate(templateId);
+  overlayCapture.openComposer();
   const html = overlayCapture.render();
 
   // Extract the overlay+drawer HTML from the full capture render
@@ -207,7 +204,6 @@ export function initJournal() {
   _unsubEntries?.();
   _unsubLegs?.();
   _unsubStories?.();
-  _unsubTemplates?.();
   entries = []; legs = []; stories = [];
 
   subscribeEntries(); // honours the current entryScope
@@ -222,12 +218,6 @@ export function initJournal() {
   _unsubStories = journalStoryStore.subscribe((rows) => {
     stories = rows;
     story.handleDataChange();
-    renderJournal();
-  });
-
-  _unsubTemplates = journalTemplateStore.subscribe((rows) => {
-    setCustomTemplates(rows);
-    capture.handleDataChange();
     renderJournal();
   });
 }

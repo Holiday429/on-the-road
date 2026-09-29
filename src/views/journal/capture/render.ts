@@ -1,11 +1,7 @@
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import {
-  BUILTIN_TEMPLATE_KINDS,
-  builtinTemplate,
-  templates,
   template,
-  type JournalTemplate,
   type TemplateId,
 } from '../templates.ts';
 import type { CaptureState } from './types.ts';
@@ -81,15 +77,11 @@ interface CaptureRenderModel {
 
 
 function renderFirstTimeGuide(): string {
-  // Find the Quick Log template (lightest one)
-  const quickLog = templates().find((t) => t.id === 'quick') ?? templates()[0];
-  if (!quickLog) return '';
   return `
     <div class="journal-first-guide">
-      <div class="journal-first-guide-icon">${quickLog.emoji}</div>
+      <div class="journal-first-guide-icon">✍️</div>
       <div class="journal-first-guide-text">
-        <strong>Start here</strong> — tap <em>${escHtml(quickLog.label)}</em> above to capture your first moment.
-        Pick any stamp that fits your mood.
+        <strong>从这里开始</strong> — 点「记一笔」，传张照片或写一句话就行，之后再整理。
       </div>
     </div>
   `;
@@ -102,10 +94,9 @@ export function renderCapture(model: CaptureRenderModel): string {
 
   return `
     <div class="journal-shell">
-      ${renderStamps(model.state)}
+      ${renderComposeButton()}
       ${model.allEntries.length === 0 && !model.state.composerOpen ? renderFirstTimeGuide() : ''}
 
-      ${model.state.templateBuilderOpen ? renderTemplateBuilder(model.state) : ''}
       ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs, model.savedGuidePlaces ?? [])}</div></div>` : ''}
       ${readingEntry ? `<div class="journal-reader-overlay" data-journal-reader-overlay><div class="journal-reader-drawer">${renderReader(readingEntry)}</div></div>` : ''}
 
@@ -125,84 +116,21 @@ function renderActiveView(model: CaptureRenderModel): string {
   return renderFeedWithFilters(model);
 }
 
-function renderStamps(state: CaptureState): string {
-  const items = templates();
+/**
+ * The single way into the composer.
+ *
+ * This used to be a row of category "stamps", which forced a classification
+ * decision before the user had written anything. Category is inferred on save
+ * now (see classify.ts), so there is one button and no decision.
+ */
+function renderComposeButton(): string {
   return `
-    <div class="journal-stamps">
-      ${items.map((item) => `
-        <button class="journal-stamp ${state.composerOpen && !state.editingId && state.draft.template === item.id ? 'active' : ''}"
-                data-stamp="${item.id}" type="button">
-          <span class="journal-stamp-emoji">${item.emoji}</span>
-          <span class="journal-stamp-label">${escHtml(item.label)}</span>
-          ${item.builtin ? '' : '<span class="journal-stamp-custom">custom</span>'}
-        </button>
-      `).join('')}
-      <button class="journal-stamp journal-stamp-add" data-open-template-builder type="button">
-        <span class="journal-stamp-emoji">＋</span>
-        <span class="journal-stamp-label">Custom</span>
+    <div class="journal-compose-bar">
+      <button class="journal-compose-btn" data-journal-new type="button">
+        <span class="journal-compose-icon">✍️</span>
+        <span class="journal-compose-label">记一笔</span>
       </button>
     </div>
-  `;
-}
-
-function renderTemplateBuilder(state: CaptureState): string {
-  const active = builtinTemplate(state.templateBuilder.kind);
-  return `
-    <section class="journal-template-builder card">
-      <div class="journal-template-builder-head">
-        <div>
-          <span class="journal-section-kicker">Custom Template</span>
-          <h4>Build from one of the four capture types.</h4>
-          <p>The functional fields stay anchored to the base type, while label, emoji, prompts, and placeholder become yours.</p>
-        </div>
-        <button class="journal-icon-btn" data-close-template-builder type="button" title="Close">✕</button>
-      </div>
-
-      <div class="journal-template-builder-grid">
-        <div class="journal-template-builder-main">
-          <div class="journal-template-kind-row">
-            ${BUILTIN_TEMPLATE_KINDS.map((kind) => {
-              const item = builtinTemplate(kind);
-              return `
-                <label class="journal-template-kind-chip ${state.templateBuilder.kind === kind ? 'active' : ''}" style="--tint:${item.tint}">
-                  <input type="radio" name="journal-template-kind" value="${kind}" ${state.templateBuilder.kind === kind ? 'checked' : ''}>
-                  <span>${item.emoji}</span>
-                  <span>${escHtml(item.label)}</span>
-                </label>
-              `;
-            }).join('')}
-          </div>
-
-          <div class="journal-template-builder-form">
-            <div class="journal-template-builder-row">
-              <input class="input" id="journal-template-label" maxlength="28" placeholder="Template label" value="${escHtml(state.templateBuilder.label)}">
-              <input class="input journal-template-emoji-input" id="journal-template-emoji" maxlength="4" placeholder="Emoji" value="${escHtml(state.templateBuilder.emoji)}">
-            </div>
-            <input class="input" id="journal-template-placeholder" maxlength="120" placeholder="Composer placeholder" value="${escHtml(state.templateBuilder.placeholder)}">
-            <textarea class="input journal-template-prompts" id="journal-template-prompts" placeholder="Prompts, one per line">${escHtml(state.templateBuilder.promptsText)}</textarea>
-          </div>
-        </div>
-
-        <aside class="journal-template-builder-side">
-          <div class="journal-subsection-title">Base behavior</div>
-          <div class="journal-template-preview-card" style="--tint:${active.tint}">
-            <div class="journal-template-preview-title">${active.emoji} ${escHtml(active.label)}</div>
-            <p>${escHtml(active.focus)}</p>
-            <div class="journal-template-preview-fields">
-              <span>${escHtml(active.bodyLabel)}</span>
-              ${active.fields.destination ? `<span>${escHtml(active.destinationLabel)}</span>` : ''}
-              ${active.fields.mood ? '<span>Mood</span>' : ''}
-              ${active.fields.tags ? `<span>${escHtml(active.tagsLabel)}</span>` : ''}
-              <span>${escHtml(active.imageLabel)}</span>
-            </div>
-          </div>
-          <div class="journal-template-builder-actions">
-            <button class="btn btn-primary" data-save-template type="button">Save template</button>
-            <button class="btn btn-ghost" data-close-template-builder type="button">Cancel</button>
-          </div>
-        </aside>
-      </div>
-    </section>
   `;
 }
 
@@ -257,7 +185,6 @@ function renderComposer(
   savedGuidePlaces: Array<{ id: string; title: string; type: string }> = [],
 ): string {
   const item = template(state.draft.template);
-  const prompt = item.prompts[state.promptIndex % item.prompts.length];
   const destinations = suggestedDestinations(entries, legs);
   const cities = tripCities(legs);
   const currentDestination = state.draft.destination.trim();
@@ -266,57 +193,74 @@ function renderComposer(
   return `
     <section class="journal-composer journal-fmt-${item.format}" style="--tint:${item.tint}">
       <div class="journal-composer-head">
-        <span class="journal-composer-emoji">${item.emoji}</span>
-        <div class="journal-composer-headings">
-          <span class="journal-composer-format">${escHtml(item.label)}</span>
-          <span class="journal-composer-prompt">${escHtml(prompt)}</span>
-        </div>
-        <button class="journal-icon-btn" data-journal-shuffle type="button" title="Another prompt">↻</button>
+        <span class="journal-composer-title">${state.editingId ? '编辑记录' : '记一笔'}</span>
         <button class="journal-icon-btn" data-journal-close type="button" title="Close">✕</button>
       </div>
 
-      ${item.fields.image ? renderImageZone(state, item.imageLabel) : ''}
+      ${renderImageZone(state, '加照片')}
 
       <div class="journal-write-area">
-        <textarea class="journal-textarea" id="journal-body" placeholder="${escHtml(item.placeholder)}">${escHtml(state.draft.body)}</textarea>
+        <textarea class="journal-textarea" id="journal-body" placeholder="写点什么，或只放张照片">${escHtml(state.draft.body)}</textarea>
       </div>
 
-      <div class="journal-composer-meta">
-        <div class="journal-meta-row">
-          <input class="input journal-meta-title" id="journal-title" maxlength="80" placeholder="Title (optional)" value="${escHtml(state.draft.title)}">
-          <input class="input journal-meta-date" type="date" id="journal-date" value="${escHtml(state.draft.happenedOn)}">
-        </div>
-        ${item.fields.destination ? `
-          <div class="journal-meta-row-single">
-            ${cities.length ? `
-              <select class="select input" id="journal-destination-select">
-                ${cities.map((city) => `<option value="${escHtml(city)}" ${!isCustomDestination && city === currentDestination ? 'selected' : ''}>${escHtml(city)}</option>`).join('')}
-                <option value="${OTHER_DESTINATION}" ${isCustomDestination ? 'selected' : ''}>Other place…</option>
-              </select>
-            ` : ''}
-            <input
-              class="input"
-              id="journal-destination"
-              list="journal-dest-list"
-              placeholder="${escHtml(item.destinationLabel)}"
-              value="${escHtml(state.draft.destination)}"
-              style="${cities.length && !isCustomDestination ? 'display:none' : ''}"
-            >
-            <datalist id="journal-dest-list">
-              ${destinations.map((destination) => `<option value="${escHtml(destination)}"></option>`).join('')}
-            </datalist>
-          </div>
-        ` : ''}
-      </div>
-
-      ${renderTypeExtras(item, state)}
-      ${savedGuidePlaces.length ? renderGuidePlacesPicker(savedGuidePlaces, state.draft.linkedPlaces) : ''}
+      ${renderComposerMeta(state, cities, destinations, currentDestination, isCustomDestination)}
+      ${renderMoreFields(state, savedGuidePlaces)}
 
       <div class="journal-composer-actions">
         <button class="btn btn-ghost" data-journal-cancel type="button">Cancel</button>
-        <button class="btn btn-primary" data-journal-save type="button">${state.editingId ? 'Save' : 'Add to capture'}</button>
+        <button class="btn btn-primary" data-journal-save type="button">保存</button>
       </div>
     </section>
+  `;
+}
+
+/**
+ * L2 of the composer: place + date.
+ *
+ * Both are pre-filled (current city, today), so by default they collapse to a
+ * single read-only line — the common case needs no interaction at all. Tapping
+ * it swaps in the real controls.
+ */
+function renderComposerMeta(
+  state: CaptureState,
+  cities: string[],
+  destinations: string[],
+  currentDestination: string,
+  isCustomDestination: boolean,
+): string {
+  if (!state.metaEditing) {
+    return `
+      <button class="journal-meta-summary" data-meta-edit type="button">
+        <span class="journal-meta-summary-place">📍 ${escHtml(currentDestination || '未定地点')}</span>
+        <span class="journal-meta-summary-sep">·</span>
+        <span class="journal-meta-summary-date">${escHtml(prettyDate(state.draft.happenedOn))}</span>
+      </button>
+    `;
+  }
+
+  return `
+    <div class="journal-composer-meta">
+      <div class="journal-meta-row-single">
+        ${cities.length ? `
+          <select class="select input" id="journal-destination-select">
+            ${cities.map((city) => `<option value="${escHtml(city)}" ${!isCustomDestination && city === currentDestination ? 'selected' : ''}>${escHtml(city)}</option>`).join('')}
+            <option value="${OTHER_DESTINATION}" ${isCustomDestination ? 'selected' : ''}>Other place…</option>
+          </select>
+        ` : ''}
+        <input
+          class="input"
+          id="journal-destination"
+          list="journal-dest-list"
+          placeholder="Where were you?"
+          value="${escHtml(state.draft.destination)}"
+          style="${cities.length && !isCustomDestination ? 'display:none' : ''}"
+        >
+        <datalist id="journal-dest-list">
+          ${destinations.map((destination) => `<option value="${escHtml(destination)}"></option>`).join('')}
+        </datalist>
+        <input class="input journal-meta-date" type="date" id="journal-date" value="${escHtml(state.draft.happenedOn)}">
+      </div>
+    </div>
   `;
 }
 
@@ -347,65 +291,41 @@ function renderGuidePlacesPicker(
   `;
 }
 
-function renderTypeExtras(item: JournalTemplate, state: CaptureState): string {
-  const parts: string[] = [];
-
-  if (item.fields.mood) {
-    parts.push(`
-      <div class="journal-extras-row">
-        <div class="journal-mood-row">
-          ${MOODS.map((mood) => `
-            <label class="journal-mood-chip ${state.draft.mood === mood.value ? 'active' : ''}" title="${mood.value}">
-              <input type="radio" name="journal-mood" value="${mood.value}" ${state.draft.mood === mood.value ? 'checked' : ''}>
-              <span>${mood.emoji}</span>
-            </label>
-          `).join('')}
+/**
+ * L3 of the composer: everything optional, behind one disclosure.
+ *
+ * Every field renders unconditionally now. They used to be gated on the chosen
+ * template's `fields` map, which meant picking a category silently took options
+ * away — a `place` entry could not carry a mood. Nothing is taken away here.
+ */
+function renderMoreFields(
+  state: CaptureState,
+  savedGuidePlaces: Array<{ id: string; title: string; type: string }>,
+): string {
+  return `
+    <details class="journal-composer-more" data-journal-more ${state.moreOpen ? 'open' : ''}>
+      <summary class="journal-composer-more-toggle">更多</summary>
+      <div class="journal-composer-extras">
+        <div class="journal-extras-row">
+          <input class="input journal-meta-title" id="journal-title" maxlength="80" placeholder="标题（可选）" value="${escHtml(state.draft.title)}">
         </div>
+        <div class="journal-extras-row">
+          <input class="input" id="journal-tags" placeholder="标签，逗号分隔" value="${escHtml(state.draft.tagsText)}">
+        </div>
+        <div class="journal-extras-row">
+          <div class="journal-mood-row">
+            ${MOODS.map((mood) => `
+              <label class="journal-mood-chip ${state.draft.mood === mood.value ? 'active' : ''}" title="${mood.value}">
+                <input type="radio" name="journal-mood" value="${mood.value}" ${state.draft.mood === mood.value ? 'checked' : ''}>
+                <span>${mood.emoji}</span>
+              </label>
+            `).join('')}
+          </div>
+        </div>
+        ${savedGuidePlaces.length ? renderGuidePlacesPicker(savedGuidePlaces, state.draft.linkedPlaces) : ''}
       </div>
-    `);
-  }
-
-  if (item.fields.tags) {
-    parts.push(`
-      <div class="journal-extras-row">
-        <input class="input" id="journal-tags" placeholder="${escHtml(item.tagsLabel)}" value="${escHtml(state.draft.tagsText)}">
-      </div>
-    `);
-  }
-
-  // Per-type quick chips
-  const quickChips = typeQuickChips(item.kind);
-  if (quickChips) {
-    parts.push(`<div class="journal-quick-chips">${quickChips}</div>`);
-  }
-
-  return parts.length ? `<div class="journal-composer-extras">${parts.join('')}</div>` : '';
-}
-
-function typeQuickChips(kind: string): string {
-  if (kind === 'moment') {
-    return `
-      <span class="journal-quick-label">时段</span>
-      ${['清晨','午后','傍晚','夜晚'].map((t) => `<button class="journal-quick-chip" data-append-body="${escHtml(t)}" type="button">${t}</button>`).join('')}
-    `;
-  }
-  if (kind === 'note') {
-    return `
-      ${[['💰','价格'],['🕐','开放时间'],['🎫','订票']].map(([icon, label]) => `<button class="journal-quick-chip" data-append-body="${escHtml(icon + ' ' + label + '：')}" type="button">${icon} ${label}</button>`).join('')}
-    `;
-  }
-  if (kind === 'interesting') {
-    return `
-      <span class="journal-quick-label">反差类型</span>
-      ${['意料之外','颠覆认知','想分享'].map((t) => `<button class="journal-quick-chip" data-append-body="${escHtml(t + '：')}" type="button">${t}</button>`).join('')}
-    `;
-  }
-  if (kind === 'place') {
-    return `
-      ${['☕ 咖啡','🏛 景点','🍜 餐厅','🛍 购物'].map((t) => `<button class="journal-quick-chip" data-append-body="${escHtml(t + ' ')}" type="button">${t}</button>`).join('')}
-    `;
-  }
-  return '';
+    </details>
+  `;
 }
 
 function renderFeedWithFilters(model: CaptureRenderModel): string {
@@ -607,12 +527,12 @@ function renderPlacesView(groups: PlaceGroup[]): string {
           </article>
         `;
       }).join('')}
-      <button class="journal-place-tile journal-place-tile-add" data-stamp="place" type="button">
+      <button class="journal-place-tile journal-place-tile-add" data-journal-new type="button">
         <div class="journal-place-tile-cover journal-place-tile-cover-add">
           <span>＋</span>
         </div>
         <div class="journal-place-tile-info">
-          <span class="journal-place-tile-name">Add Place</span>
+          <span class="journal-place-tile-name">记一笔</span>
         </div>
       </button>
     </div>
@@ -651,14 +571,6 @@ function renderCategoriesView(templateGroups: TemplateGroup[], tagGroups: TagGro
               </article>
             `;
           }).join('')}
-          <button class="journal-category-tile journal-category-tile-add" data-open-template-builder type="button">
-            <div class="journal-category-tile-cover journal-category-tile-cover-add">
-              <span>＋</span>
-            </div>
-            <div class="journal-category-tile-body">
-              <div class="journal-category-title">Create Category</div>
-            </div>
-          </button>
         </div>
       ` : ''}
 

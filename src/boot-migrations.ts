@@ -8,6 +8,7 @@ import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
 import { migrateCityShared } from './data/migrate-city-shared.ts';
+import { migrateJournalTemplatesToTags } from './data/migrate-journal-templates.ts';
 import { migrateCollab } from './data/migrate-collab.ts';
 import { migratePublicView } from './data/migrate-publicview.ts';
 
@@ -62,6 +63,12 @@ export async function runPreTripMigrations(): Promise<void> {
     const n = await migrateCityShared();
     if (n > 0) console.info(`Seeded ${n} shared-city doc(s) for repeated cities.`);
   } catch (e) { console.warn('City-shared migration skipped:', e); }
+
+  // Custom journal templates are gone from the UI; keep their labels as tags.
+  try {
+    const n = await migrateJournalTemplatesToTags();
+    if (n > 0) console.info(`Folded custom journal templates into tags on ${n} entr(ies).`);
+  } catch (e) { console.warn('Journal template migration skipped:', e); }
 }
 
 export interface PostEntryResult {
@@ -93,6 +100,7 @@ export async function runPostEntryTasks(migrationsAlreadyRan: boolean): Promise<
     try { if (await migrateExpensesToCloud() > 0) dataChanged = true; } catch (e) { console.warn('Expense migration (bg) skipped:', e); }
     try { if (await migrateStaysToCompares() > 0) dataChanged = true; } catch (e) { console.warn('Stay→compare migration (bg) skipped:', e); }
     try { if (await migrateCityShared() > 0) dataChanged = true; } catch (e) { console.warn('City-shared migration (bg) skipped:', e); }
+    try { if (await migrateJournalTemplatesToTags() > 0) dataChanged = true; } catch (e) { console.warn('Journal template migration (bg) skipped:', e); }
     try { await migrateMultiTrip(); } catch (e) { console.warn('Multi-trip migration (bg) skipped:', e); }
   }
 

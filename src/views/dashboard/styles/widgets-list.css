@@ -74,45 +74,23 @@
 .td-upcoming-empty { font-size: var(--fs-sm); color: var(--ink-faint); font-style: italic; }
 
 /* ── Journal quick-entry ──────────────────────────────────────────────────── */
-.td-jq-hint { font-size: var(--fs-xs); color: var(--ink-faint); }
-.td-jq-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  /* Equal-height rows so all four buttons are the same size even when the
-     widget is stretched taller than its content by the bento grid. */
-  grid-auto-rows: 1fr;
-  gap: var(--sp-2);
-}
 .td-jq-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
-  padding: var(--sp-3) var(--sp-2);
-  min-height: 64px;
-  background: var(--surface-3); border-radius: var(--r-md);
-  border: 1.5px solid transparent;
-  cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast);
-  text-align: center; width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 18px 12px;
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  cursor: pointer;
 }
 .td-jq-btn:hover { background: var(--amber-50); border-color: var(--amber-200); }
-.td-jq-icon  { font-size: 22px; line-height: 1; }
-.td-jq-label {
-  font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--ink-soft);
-  max-width: 100%;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* On wide-but-mobile-shell screens (unfolded foldables / tablet landscape, i.e.
-   bottom-nav active at ≤768px viewport) the 12-col journal column is too tight
-   for the labels — drop them and just center the icon so all four buttons stay
-   equal and clean. Scoped to the mobile shell so no desktop width loses labels. */
-@media (max-width: 768px) {
-  .td-w-journal .td-jq-label { display: none; }
-  .td-w-journal .td-jq-icon  { font-size: 28px; }
-}
+.td-jq-icon { font-size: 20px; line-height: 1; }
+.td-jq-label { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
+.td-jq-hint { font-size: var(--fs-xs); color: var(--ink-faint); }
 
 /* Journal composer modal */
 .td-compose-body { display: flex; flex-direction: column; gap: var(--sp-3); }

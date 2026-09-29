@@ -1,4 +1,4 @@
-import type { JournalTemplateKind, TemplateId } from '../templates.ts';
+import type { TemplateId } from '../templates.ts';
 
 export type CaptureView = 'feed' | 'places' | 'categories' | 'gallery' | 'map' | 'calendar';
 
@@ -29,27 +29,20 @@ export interface DraftState {
   linkedPlaces: string[];
 }
 
-export interface TemplateBuilderState {
-  kind: JournalTemplateKind;
-  label: string;
-  emoji: string;
-  placeholder: string;
-  promptsText: string;
-}
-
 export interface CaptureState {
   view: CaptureView;
   filter: CaptureFilter;
   draft: DraftState;
-  templateBuilder: TemplateBuilderState;
   composerOpen: boolean;
-  templateBuilderOpen: boolean;
+  /** L3 of the composer — title / tags / mood / linked places, collapsed by default. */
+  moreOpen: boolean;
+  /** L2 of the composer — false shows the place+date summary line, true its controls. */
+  metaEditing: boolean;
   editingId: string | null;
   /** Entry shown in the read-only reader overlay, or null when it's closed.
    *  Tapping a feed/gallery/calendar card opens this, NOT the composer —
    *  editing is a separate action reached from inside the reader. */
   readingId: string | null;
-  promptIndex: number;
   calendarMonth: string;
   gallerySquare: boolean;
 }
