@@ -587,8 +587,15 @@ function renderAlbumsView(model: CaptureRenderModel): string {
           <div class="journal-section-kicker">Albums</div>
           <p class="journal-album-hint">先随手记，之后把相关的几条放进一个 album。</p>
         </div>
-        <button class="btn btn-ghost" data-album-create type="button">＋ 新建 album</button>
+        <div class="journal-album-head-actions">
+          <button class="btn btn-ghost" data-album-tidy type="button" ${model.state.tidyLoading ? 'disabled' : ''}>
+            ${model.state.tidyLoading ? '整理中…' : '✨ AI 整理'}
+          </button>
+          <button class="btn btn-ghost" data-album-create type="button">＋ 新建 album</button>
+        </div>
       </div>
+
+      ${renderTidySuggestions(model)}
 
       ${model.albums.length ? `
         <div class="journal-album-grid">
@@ -622,6 +629,45 @@ function renderAlbumsView(model: CaptureRenderModel): string {
 
       ${renderAutoGroups(model.templateGroups, model.tagGroups)}
     </div>
+  `;
+}
+
+/**
+ * The AI tidy pass's output, as a review list.
+ *
+ * Every suggestion needs an explicit yes. Nothing here has been written — the
+ * point of grouping after the fact is that the user stays the one deciding
+ * what belongs together, and an AI that silently refiled things would take
+ * that back while looking helpful.
+ */
+function renderTidySuggestions(model: CaptureRenderModel): string {
+  const tidy = model.state.tidy;
+  if (!tidy) return '';
+  if (!tidy.albums.length) {
+    return `<div class="journal-tidy-empty">没找到明显可以成组的记录 —— 现在这样就挺好。</div>`;
+  }
+  return `
+    <section class="journal-tidy">
+      <div class="journal-tidy-head">
+        <span class="journal-section-kicker">建议的分组</span>
+        <button class="journal-icon-btn" data-tidy-dismiss type="button" title="Dismiss">✕</button>
+      </div>
+      ${tidy.albums.map((album, index) => `
+        <article class="journal-tidy-card">
+          <div class="journal-tidy-card-main">
+            <div class="journal-tidy-title">${escHtml(album.emoji)} ${escHtml(album.title)}</div>
+            <div class="journal-tidy-reason">${escHtml(album.reason)}</div>
+            <div class="journal-tidy-entries">
+              ${album.entryIds.map((id) => {
+                const entry = model.allEntries.find((e) => e.id === id);
+                return entry ? `<span class="journal-tag">${escHtml(titleFor(entry))}</span>` : '';
+              }).join('')}
+            </div>
+          </div>
+          <button class="btn btn-primary" data-tidy-accept="${index}" type="button">建立</button>
+        </article>
+      `).join('')}
+    </section>
   `;
 }
 

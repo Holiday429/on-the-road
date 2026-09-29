@@ -110,3 +110,36 @@
 .journal-album-chip-x { border: 0; background: none; cursor: pointer; color: var(--ink-faint); }
 .journal-album-chip-x:hover { color: var(--ink); }
 .journal-album-add { min-width: 130px; font-size: var(--fs-xs); }
+
+/* ── AI tidy suggestions ─────────────────────────────────────────────────── */
+.journal-album-head-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+
+.journal-tidy {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.journal-tidy-head { display: flex; align-items: center; justify-content: space-between; }
+.journal-tidy-card {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-md);
+}
+.journal-tidy-card-main { flex: 1; min-width: 0; }
+.journal-tidy-title {
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+}
+.journal-tidy-reason { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; }
+.journal-tidy-entries { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.journal-tidy-empty {
+  padding: var(--sp-4);
+  border: 1px dashed var(--rule-soft);
+  border-radius: var(--r-lg);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+}
