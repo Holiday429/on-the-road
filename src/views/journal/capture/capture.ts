@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { journalStore, type StoredJournalEntry } from '../../../data/stores/journal-store.ts';
+import { journalAlbumStore, type StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import { cityStore } from '../../../data/stores/city-store.ts';
 import type { GuideCard } from '../../../data/schema.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
@@ -35,6 +36,7 @@ import {
 interface CaptureControllerDeps {
   getEntries: () => StoredJournalEntry[];
   getLegs: () => StoredLeg[];
+  getAlbums?: () => StoredJournalAlbum[];
   requestRender: () => void;
 }
 
@@ -50,6 +52,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     readingId: null,
     calendarMonth: currentMonthKey(),
     gallerySquare: false,
+    selection: null,
+    openAlbumId: null,
   };
 
   function savedGuideCards(): { id: string; title: string; type: string }[] {
@@ -98,6 +102,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       }),
       legs: deps.getLegs(),
       savedGuidePlaces: savedGuideCards(),
+      albums: deps.getAlbums?.() ?? [],
     });
   }
 
@@ -175,6 +180,72 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
+
+      /* ── Albums ───────────────────────────────────────────────────────── */
+
+      const albumCreateBtn = target.closest<HTMLElement>('[data-album-create]');
+      if (albumCreateBtn) {
+        void createAlbum();
+        return;
+      }
+
+      const albumOpenBtn = target.closest<HTMLElement>('[data-open-album]');
+      if (albumOpenBtn) {
+        state.openAlbumId = albumOpenBtn.dataset.openAlbum ?? null;
+        deps.requestRender();
+        return;
+      }
+
+      const albumBackBtn = target.closest<HTMLElement>('[data-album-back]');
+      if (albumBackBtn) {
+        state.openAlbumId = null;
+        deps.requestRender();
+        return;
+      }
+
+      const albumRenameBtn = target.closest<HTMLElement>('[data-album-rename]');
+      if (albumRenameBtn) {
+        void renameAlbum(albumRenameBtn.dataset.albumRename ?? '');
+        return;
+      }
+
+      const albumDeleteBtn = target.closest<HTMLElement>('[data-album-delete]');
+      if (albumDeleteBtn) {
+        void deleteAlbum(albumDeleteBtn.dataset.albumDelete ?? '');
+        return;
+      }
+
+      const albumRemoveBtn = target.closest<HTMLElement>('[data-album-remove-entry]');
+      if (albumRemoveBtn) {
+        const [albumId, entryId] = (albumRemoveBtn.dataset.albumRemoveEntry ?? '').split(':');
+        void removeFromAlbum(albumId, entryId);
+        return;
+      }
+
+      /* ── Gallery multi-select ─────────────────────────────────────────── */
+
+      const selectToggle = target.closest<HTMLElement>('[data-gallery-select]');
+      if (selectToggle) {
+        state.selection = state.selection === null ? [] : null;
+        deps.requestRender();
+        return;
+      }
+
+      const selectCancel = target.closest<HTMLElement>('[data-gallery-select-cancel]');
+      if (selectCancel) {
+        state.selection = null;
+        deps.requestRender();
+        return;
+      }
+
+      const pickTile = target.closest<HTMLElement>('[data-gallery-pick]');
+      if (pickTile) {
+        const id = pickTile.dataset.galleryPick ?? '';
+        const picked = state.selection ?? [];
+        state.selection = picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id];
+        deps.requestRender();
+        return;
+      }
 
       const viewBtn = target.closest<HTMLElement>('[data-journal-view]');
       if (viewBtn) {
@@ -287,6 +358,21 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       const target = event.target as HTMLInputElement | HTMLSelectElement;
       const liveShell = root.querySelector<HTMLElement>('.journal-shell');
       if (!liveShell) return;
+
+      if (target.matches('[data-album-target]')) {
+        const value = target.value;
+        target.value = '';
+        void addSelectionToAlbum(value);
+        return;
+      }
+
+      if (target.matches('[data-album-add-entry]')) {
+        const entryId = (target as HTMLSelectElement).dataset.albumAddEntry ?? '';
+        const value = target.value;
+        target.value = '';
+        void addEntriesToAlbum(value, [entryId]);
+        return;
+      }
 
       if (target.matches('[data-filter-destination]')) {
         state.filter.destination = target.value;
@@ -600,6 +686,104 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
     resetDraft();
     deps.requestRender();
+  }
+
+  /* ── Album operations ───────────────────────────────────────────────────
+   * Albums are the user's own grouping, made after the fact — the counterpart
+   * to the inferred `template`. Membership lives on the album, so every one of
+   * these is a write to a single album document.
+   */
+
+  function albums(): StoredJournalAlbum[] {
+    return deps.getAlbums?.() ?? [];
+  }
+
+  /** Prompt for a title and create an album. Returns its id, or '' if cancelled. */
+  async function createAlbum(seedEntryIds: string[] = []): Promise<string> {
+    const title = prompt('Album 名字')?.trim();
+    if (!title) return '';
+    try {
+      const id = await journalAlbumStore.save({
+        title,
+        entryIds: seedEntryIds,
+        coverEntryId: seedEntryIds[0] ?? null,
+      });
+      deps.requestRender();
+      return typeof id === 'string' ? id : '';
+    } catch (error) {
+      console.error('Album create failed:', error);
+      toast('Could not create album');
+      return '';
+    }
+  }
+
+  async function renameAlbum(albumId: string) {
+    const album = albums().find((a) => a.id === albumId);
+    if (!album) return;
+    const title = prompt('Album 名字', album.title)?.trim();
+    if (!title || title === album.title) return;
+    try {
+      await journalAlbumStore.update(albumId, { title });
+      deps.requestRender();
+    } catch (error) {
+      console.error('Album rename failed:', error);
+      toast('Could not rename album');
+    }
+  }
+
+  async function deleteAlbum(albumId: string) {
+    const album = albums().find((a) => a.id === albumId);
+    if (!album) return;
+    // Deleting an album never deletes its entries — say so, because "delete
+    // album" reads as destructive and here it isn't.
+    if (!confirm(`删除 album「${album.title}」？里面的记录会保留。`)) return;
+    try {
+      await journalAlbumStore.remove(albumId);
+      if (state.openAlbumId === albumId) state.openAlbumId = null;
+      deps.requestRender();
+    } catch (error) {
+      console.error('Album delete failed:', error);
+      toast('Could not delete album');
+    }
+  }
+
+  /** Handle an album <select> value: '' = ignore, '__new__' = create, else add. */
+  async function addEntriesToAlbum(value: string, entryIds: string[]) {
+    if (!value || entryIds.length === 0) return;
+    if (value === '__new__') {
+      await createAlbum(entryIds);
+      return;
+    }
+    const album = albums().find((a) => a.id === value);
+    if (!album) return;
+    try {
+      await journalAlbumStore.addEntries(album, entryIds);
+      deps.requestRender();
+    } catch (error) {
+      console.error('Album add failed:', error);
+      toast('Could not add to album');
+    }
+  }
+
+  async function addSelectionToAlbum(value: string) {
+    const picked = state.selection ?? [];
+    if (!value || picked.length === 0) return;
+    await addEntriesToAlbum(value, picked);
+    // Leave select mode on success — the batch is done.
+    state.selection = null;
+    deps.requestRender();
+  }
+
+  async function removeFromAlbum(albumId: string, entryId: string) {
+    const album = albums().find((a) => a.id === albumId);
+    if (!album || !entryId) return;
+    try {
+      await journalAlbumStore.removeEntry(album, entryId);
+      deps.requestRender();
+    } catch (error) {
+      console.error('Album remove failed:', error);
+      toast('Could not remove from album');
+    }
   }
 
   async function toggleFavorite(id: string) {

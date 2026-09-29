@@ -21,6 +21,13 @@ const { save, update } = vi.hoisted(() => ({
 vi.mock('../../data/stores/journal-store.ts', () => ({
   journalStore: { save, update, remove: vi.fn() },
 }));
+vi.mock('../../data/stores/journal-album-store.ts', () => ({
+  journalAlbumStore: {
+    subscribe: () => () => {}, peek: () => [],
+    save: vi.fn(), update: vi.fn(), remove: vi.fn(),
+    addEntries: vi.fn(), removeEntry: vi.fn(),
+  },
+}));
 vi.mock('../../data/stores/city-store.ts', () => ({ cityStore: { peek: () => [] } }));
 vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '' }));
 vi.mock('./card/card-preview.ts', () => ({ openCardPreview: vi.fn() }));

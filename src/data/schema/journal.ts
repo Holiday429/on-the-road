@@ -56,6 +56,28 @@ export const JournalTemplateSchema = doc({
 });
 export type JournalTemplate = z.infer<typeof JournalTemplateSchema>;
 
+/* ── Albums ──────────────────────────────────────────────────────────────── */
+// A user-made grouping of entries, created AFTER the fact. This is the counter-
+// part to `template`: the template says what an entry is like (inferred, weak),
+// an album says the user decided these belong together (explicit, strong).
+//
+// Membership lives here rather than as `albumIds` on each entry because an
+// album is an ordered list the user arranges, and an entry can sit in several
+// albums at once — both are awkward to express from the entry side. Same shape
+// as JournalStory.entryIds, which already works this way.
+export const JournalAlbumSchema = doc({
+  tripId: z.string().nullable().default(null),
+  title: z.string(),
+  emoji: z.string().default('📁'),
+  // Entry shown on the album tile; null = fall back to the first entry's photo.
+  coverEntryId: z.string().nullable().default(null),
+  // Ordered. May reference entries that were since deleted — readers filter.
+  entryIds: z.array(z.string()).default([]),
+  visibility: z.enum(['private', 'public']).default('private'),
+  slug: z.string().default(''),
+});
+export type JournalAlbum = z.infer<typeof JournalAlbumSchema>;
+
 export const JournalStoryModuleSchema = z.object({
   id: z.string(),
   type: z.string().default('module'),

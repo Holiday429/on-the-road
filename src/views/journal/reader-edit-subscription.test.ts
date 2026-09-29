@@ -28,7 +28,7 @@ const entry: any = {
 // vi.hoisted, because vi.mock factories are hoisted above normal consts.
 const { subs, register } = vi.hoisted(() => {
   const subs: Record<string, ((rows: any[]) => void)[]> =
-    { entries: [], legs: [], stories: [], templates: [] };
+    { entries: [], legs: [], stories: [], albums: [] };
   const register = (bucket: string) => (cb: (rows: any[]) => void) => {
     subs[bucket].push(cb);
     return () => {};
@@ -50,8 +50,8 @@ vi.mock('../../data/stores/route-store.ts', () => ({
 vi.mock('../../data/stores/journal-story-store.ts', () => ({
   journalStoryStore: { subscribe: register('stories'), peek: () => [] },
 }));
-vi.mock('../../data/stores/journal-template-store.ts', () => ({
-  journalTemplateStore: { subscribe: register('templates'), peek: () => [] },
+vi.mock('../../data/stores/journal-album-store.ts', () => ({
+  journalAlbumStore: { subscribe: register('albums'), peek: () => [] },
 }));
 vi.mock('../../data/stores/city-store.ts', () => ({ cityStore: { peek: () => [] } }));
 // The journal stores are all faked above, so nothing here should reach Firebase.
@@ -89,7 +89,7 @@ describe('reader -> edit through the real subscription wiring', () => {
     emit('entries', []);
     emit('legs', []);
     emit('stories', []);
-    emit('templates', []);
+    emit('albums', []);
     emit('entries', [entry]);
 
     const body = document.querySelector('.journal-body') as HTMLElement;
@@ -103,7 +103,7 @@ describe('reader -> edit through the real subscription wiring', () => {
     // is open — this is what slammed the composer shut and bounced the user
     // back to the feed.
     emit('legs', []);
-    emit('templates', []);
+    emit('albums', []);
     expect(body.querySelector('.journal-composer'), 'composer survives sibling refresh').toBeTruthy();
 
     // The entries stream itself re-subscribing (trip switch / signed-out blip).
