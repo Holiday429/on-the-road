@@ -42,9 +42,7 @@ function buildHeuristicDraft(entries: StoredJournalEntry[], legs: StoredLeg[]): 
   const topEntries = rankEntries(entries).slice(0, 10);
   const topPlaces = topCounts(entries.map((entry) => entry.destination.trim()).filter(Boolean), 3);
   const topTags = topCounts(entries.flatMap((entry) => entry.tags), 4);
-  const templateCounts = topCounts(entries.map((entry) => entry.template), 5);
-  const dominantTemplate = templateCounts[0]?.value ?? 'moment';
-  const travelerMode = travelerModeFor(dominantTemplate, topTags.map((tag) => tag.value));
+  const travelerMode = travelerModeFor(entries, topTags.map((tag) => tag.value));
   const tripLabel = scopeLabelFor(legs, entries);
   const leadPlace = topPlaces[0]?.value ?? 'the trip';
   const line = recapLineFor(leadPlace, travelerMode, topTags.map((tag) => tag.value));
@@ -157,10 +155,10 @@ function buildModules(
   topTags: Array<{ value: string; count: number }>,
   travelerMode: string,
 ): JournalStoryModule[] {
-  const momentEntries = topEntries.filter((entry) => entry.template === 'moment' || entry.template === 'spark');
+  const momentEntries = topEntries.filter(isReflective);
   const placeEntries = topEntries.filter((entry) => entry.destination.trim());
-  const interestingEntries = topEntries.filter((entry) => entry.template === 'interesting');
-  const noteEntries = topEntries.filter((entry) => entry.template === 'note');
+  const photoEntries = topEntries.filter((entry) => entryImages(entry).length > 0);
+  const noteEntries = topEntries.filter(isPractical);
 
   return [
     {
@@ -190,8 +188,8 @@ function buildModules(
       id: genId(),
       type: 'tiny-things',
       title: 'Tiny Things, Big Memory',
-      summary: summaryFromEntries(noteEntries.length ? noteEntries : interestingEntries.slice(0, 2)),
-      entryIds: (noteEntries.length ? noteEntries : interestingEntries).slice(0, 3).map((entry) => entry.id),
+      summary: summaryFromEntries(noteEntries.length ? noteEntries : photoEntries.slice(0, 2)),
+      entryIds: (noteEntries.length ? noteEntries : photoEntries).slice(0, 3).map((entry) => entry.id),
     },
     {
       id: genId(),
@@ -236,19 +234,27 @@ function buildQuestions(
   return questions.slice(0, 5);
 }
 
+/**
+ * A question to ask back about one entry, chosen from the entry's own shape —
+ * a mood asks about feeling, a photo about what the frame left out, and so on.
+ * Previously keyed off `template`, which now means asking about a guess.
+ */
 function questionForEntry(entry: StoredJournalEntry): string {
   const label = titleFor(entry);
-  if (entry.template === 'interesting') {
-    return `You marked "${label}" as interesting. Why did it feel more revealing than random in hindsight?`;
-  }
-  if (entry.template === 'moment' || entry.template === 'spark') {
+  if (entry.mood?.trim()) {
     return `When you wrote "${label}", what feeling were you trying to catch before it disappeared?`;
   }
-  if (entry.template === 'place') {
-    return `${entry.destination || 'This place'} made it into capture. What did it say about the trip that another stop did not?`;
+  if (entryImages(entry).length > 1) {
+    return `"${label}" got several photos. What were you trying to hold onto that one frame missed?`;
   }
-  if (entry.template === 'note') {
+  if (entry.destination.trim()) {
+    return `${entry.destination} made it into capture. What did it say about the trip that another stop did not?`;
+  }
+  if (isPractical(entry)) {
     return `This practical note, "${label}", survived the trip. What made that detail stick?`;
+  }
+  if (entry.body.trim().length >= 60) {
+    return `You wrote at length about "${label}". What were you still working out?`;
   }
   return '';
 }
@@ -260,16 +266,34 @@ function rankEntries(entries: StoredJournalEntry[]): StoredJournalEntry[] {
     .map((item) => item.entry);
 }
 
+/**
+ * How much an entry deserves to lead the recap.
+ *
+ * Scored on what the entry IS, never on its `template`. The template used to
+ * add up to 3 points here, back when the user picked it by hand and the choice
+ * carried intent. It's inferred now (see classify.ts), so weighting by it would
+ * be the recap reacting to its own guess. Everything below is something the
+ * user actually did: pinned it, photographed it, wrote at length, tagged it.
+ */
 function scoreEntry(entry: StoredJournalEntry): number {
   let score = 1;
   if (entry.favorite) score += 4;
-  if (entry.template === 'interesting') score += 3;
-  if (entry.template === 'moment' || entry.template === 'spark') score += 2;
+  if (entry.mood?.trim()) score += 2;          // bothered to record a feeling
   if (entry.destination.trim()) score += 1.5;
   if (entry.tags.length) score += Math.min(entry.tags.length, 3);
   score += Math.min(entryImages(entry).length, 3) * 2;
   score += Math.min(entry.body.trim().length / 120, 3);
   return score;
+}
+
+/** An entry with a mood, or enough prose to be reflective rather than logged. */
+function isReflective(entry: StoredJournalEntry): boolean {
+  return Boolean(entry.mood?.trim()) || entry.body.trim().length >= 60;
+}
+
+/** A short entry with no mood — a jotted fact rather than a thought. */
+function isPractical(entry: StoredJournalEntry): boolean {
+  return !entry.mood?.trim() && entry.body.trim().length < 60;
 }
 
 function topCounts(values: string[], limit: number) {
@@ -281,12 +305,27 @@ function topCounts(values: string[], limit: number) {
     .slice(0, limit);
 }
 
-function travelerModeFor(templateId: string, tags: string[]) {
-  if (templateId === 'interesting') return 'Curious Observer';
-  if (templateId === 'note') return 'Sharp-Eyed Planner';
-  if (templateId === 'place') return 'Place Collector';
-  if (templateId === 'spark') return 'Internal Monologue Wanderer';
+/**
+ * A one-phrase read on how this traveller records.
+ *
+ * Derived from how the entries were WRITTEN, not from `template`. Labelling
+ * someone a "Curious Observer" because a regex guessed `interesting` on their
+ * entries is a persona assigned from the system's own inference — the tags
+ * and writing habits below are at least the user's own doing.
+ */
+function travelerModeFor(entries: StoredJournalEntry[], tags: string[]) {
   if (tags.includes('food') || tags.includes('cafe')) return 'Taste-First Rover';
+  if (entries.length === 0) return 'Feeling-First Wanderer';
+
+  const withMood = entries.filter((entry) => entry.mood?.trim()).length;
+  const withPhotos = entries.filter((entry) => entryImages(entry).length > 0).length;
+  const terse = entries.filter(isPractical).length;
+  const places = new Set(entries.map((entry) => entry.destination.trim()).filter(Boolean)).size;
+
+  if (terse / entries.length > 0.6) return 'Sharp-Eyed Planner';
+  if (withMood / entries.length > 0.5) return 'Feeling-First Wanderer';
+  if (withPhotos / entries.length > 0.7) return 'Frame-First Collector';
+  if (places >= 4) return 'Place Collector';
   return 'Feeling-First Wanderer';
 }
 

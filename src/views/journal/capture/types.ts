@@ -1,4 +1,5 @@
 import type { TemplateId } from '../templates.ts';
+import type { TidySuggestions } from '../ai-classify.ts';
 
 export type CaptureView = 'feed' | 'places' | 'albums' | 'gallery' | 'map' | 'calendar';
 
@@ -49,4 +50,7 @@ export interface CaptureState {
   selection: string[] | null;
   /** Album whose contents are being viewed, or null for the album grid. */
   openAlbumId: string | null;
+  /** AI tidy pass: suggestions awaiting the user's yes/no, plus its in-flight flag. */
+  tidy: TidySuggestions | null;
+  tidyLoading: boolean;
 }
