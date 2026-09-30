@@ -3,18 +3,16 @@ import 'leaflet/dist/leaflet.css';
 import { journalStore, type StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { cityStore } from '../../../data/stores/city-store.ts';
 import type { GuideCard } from '../../../data/schema.ts';
-import { journalTemplateStore } from '../../../data/stores/journal-template-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import { coordsFor, primaryCity } from '../../map/geo.ts';
 import {
   DEFAULT_TEMPLATE,
-  builtinTemplate,
   normalizeTemplateId,
   templates,
   template,
-  type JournalTemplateKind,
   type TemplateId,
 } from '../templates.ts';
+import { inferTemplate } from '../classify.ts';
 import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type TagGroup, type TemplateGroup } from './render.ts';
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
@@ -45,12 +43,11 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     view: 'feed',
     filter: { template: 'all', destination: 'all', tag: 'all', favoritesOnly: false },
     draft: defaultDraft(deps.getLegs()),
-    templateBuilder: defaultTemplateBuilder('moment'),
     composerOpen: false,
-    templateBuilderOpen: false,
+    moreOpen: false,
+    metaEditing: false,
     editingId: null,
     readingId: null,
-    promptIndex: 0,
     calendarMonth: currentMonthKey(),
     gallerySquare: false,
   };
@@ -153,22 +150,21 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
-      const shuffleBtn = target.closest<HTMLElement>('[data-journal-shuffle]');
-      if (shuffleBtn) {
-        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
-        if (liveShell) syncDraftFromDom(liveShell);
-        state.promptIndex += 1;
+      const newBtn = target.closest<HTMLElement>('[data-journal-new]');
+      if (newBtn) {
+        openComposer();
         deps.requestRender();
         focusComposer();
         return;
       }
 
-      const stampBtn = target.closest<HTMLElement>('[data-stamp]');
-      if (stampBtn) {
-        state.templateBuilderOpen = false;
-        openComposer(stampBtn.dataset.stamp as TemplateId);
+      // L2: swap the place+date summary line for its controls.
+      const metaEditBtn = target.closest<HTMLElement>('[data-meta-edit]');
+      if (metaEditBtn) {
+        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        if (liveShell) syncDraftFromDom(liveShell);
+        state.metaEditing = true;
         deps.requestRender();
-        focusComposer();
         return;
       }
 
@@ -179,28 +175,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
-      const openTemplateBuilderBtn = target.closest<HTMLElement>('[data-open-template-builder]');
-      if (openTemplateBuilderBtn) {
-        state.composerOpen = false;
-        state.editingId = null;
-        state.templateBuilderOpen = true;
-        deps.requestRender();
-        return;
-      }
-
-      const closeTemplateBuilderBtn = target.closest<HTMLElement>('[data-close-template-builder]');
-      if (closeTemplateBuilderBtn) {
-        state.templateBuilderOpen = false;
-        deps.requestRender();
-        return;
-      }
-
-      const saveTemplateBtn = target.closest<HTMLElement>('[data-save-template]');
-      if (saveTemplateBtn) {
-        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
-        if (liveShell) void saveTemplate(liveShell);
-        return;
-      }
 
       const viewBtn = target.closest<HTMLElement>('[data-journal-view]');
       if (viewBtn) {
@@ -273,13 +247,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
-      const quickChipBtn = target.closest<HTMLElement>('[data-append-body]');
-      if (quickChipBtn) {
-        const append = quickChipBtn.dataset.appendBody ?? '';
-        appendToComposerBody(append);
-        return;
-      }
-
       const entryTarget = target.closest<HTMLElement>('[data-open-entry]');
       if (entryTarget) {
         // Opens the read-only reader, not the composer — a tap on a feed
@@ -337,18 +304,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       if (target.matches('#journal-image-input')) {
         void loadDraftImages(target as HTMLInputElement);
-        return;
-      }
-
-      if (target.matches('input[name="journal-template-kind"]')) {
-        syncTemplateBuilderFromDom(liveShell);
-        const selectedKind = (target as HTMLInputElement).value as JournalTemplateKind;
-        const next = defaultTemplateBuilder(selectedKind);
-        state.templateBuilder = {
-          ...next,
-          label: state.templateBuilder.label,
-        };
-        deps.requestRender();
         return;
       }
 
@@ -481,8 +436,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     handleDataChange,
     afterRender,
     currentView: () => state.view,
-    openComposerForTemplate: (templateId: string) => {
-      openComposer(templateId as TemplateId);
+    openComposer: () => {
+      openComposer();
       deps.requestRender();
     },
   };
@@ -503,7 +458,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       template: DEFAULT_TEMPLATE,
       destination: currentCity(legs),
       tagsText: '',
-      mood: 'spark',
+      mood: '',
       happenedOn: new Date().toISOString().slice(0, 10),
       images: [],
       pendingFiles: [],
@@ -513,29 +468,20 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     };
   }
 
-  function defaultTemplateBuilder(kind: JournalTemplateKind) {
-    const base = builtinTemplate(kind);
-    return {
-      kind,
-      label: '',
-      emoji: base.emoji,
-      placeholder: base.placeholder,
-      promptsText: base.prompts.join('\n'),
-    };
-  }
-
-  function openComposer(templateId: TemplateId) {
+  function openComposer() {
     state.editingId = null;
     state.composerOpen = true;
+    state.moreOpen = false;
+    state.metaEditing = false;
     state.draft = defaultDraft(deps.getLegs());
-    state.draft.template = templateId;
   }
 
   function resetDraft() {
     state.editingId = null;
     state.composerOpen = false;
+    state.moreOpen = false;
+    state.metaEditing = false;
     state.draft = defaultDraft(deps.getLegs());
-    state.promptIndex += 1;
   }
 
   function loadEntryIntoDraft(id: string) {
@@ -592,30 +538,34 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     };
   }
 
-  function syncTemplateBuilderFromDom(root: HTMLElement) {
-    state.templateBuilder = {
-      kind: ((root.querySelector('input[name="journal-template-kind"]:checked') as HTMLInputElement | null)?.value as JournalTemplateKind) ?? state.templateBuilder.kind,
-      label: root.querySelector<HTMLInputElement>('#journal-template-label')?.value ?? state.templateBuilder.label,
-      emoji: root.querySelector<HTMLInputElement>('#journal-template-emoji')?.value ?? state.templateBuilder.emoji,
-      placeholder: root.querySelector<HTMLInputElement>('#journal-template-placeholder')?.value ?? state.templateBuilder.placeholder,
-      promptsText: root.querySelector<HTMLTextAreaElement>('#journal-template-prompts')?.value ?? state.templateBuilder.promptsText,
-    };
-  }
-
   async function saveDraft(root: HTMLElement) {
     syncDraftFromDom(root);
-    if (!state.draft.body.trim()) {
+    // A photo with no words is a complete entry — that's the whole point of the
+    // one-tap composer. Only a draft with neither text nor photos is empty.
+    // Checked against `pendingFiles`, not `images`: the upload happens below.
+    const hasPhotos = state.draft.images.length > 0 || state.draft.pendingFiles.some(Boolean);
+    if (!state.draft.body.trim() && !hasPhotos) {
       focusComposer();
       return;
     }
 
-    const currentTemplate = template(state.draft.template);
+    // Category is inferred from what was written, and only for NEW entries —
+    // editing preserves whatever the entry carries, so a correction sticks.
+    const resolvedTemplate = state.editingId
+      ? state.draft.template
+      : inferTemplate({
+          body: state.draft.body,
+          mood: state.draft.mood,
+          linkedPlaces: state.draft.linkedPlaces,
+        });
+
     const payload: Record<string, unknown> = {
       title: state.draft.title.trim(),
       body: state.draft.body.trim(),
-      template: state.draft.template,
-      destination: currentTemplate.fields.destination ? state.draft.destination.trim() : '',
-      tags: currentTemplate.fields.tags ? parseTags(state.draft.tagsText) : [],
+      template: resolvedTemplate,
+      destination: state.draft.destination.trim(),
+      tags: parseTags(state.draft.tagsText),
+      mood: state.draft.mood,
       happenedOn: state.draft.happenedOn || new Date().toISOString().slice(0, 10),
     };
 
@@ -634,7 +584,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     // Mirror the first photo into the legacy field so older clients and the
     // share-card renderer still find a cover.
     payload.coverImage = images[0] ?? '';
-    if (currentTemplate.fields.mood) payload.mood = state.draft.mood;
     if (images.length && typeof state.draft.imageRatio === 'number') {
       payload.imageRatio = state.draft.imageRatio;
     }
@@ -651,36 +600,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
     resetDraft();
     deps.requestRender();
-  }
-
-  async function saveTemplate(root: HTMLElement) {
-    syncTemplateBuilderFromDom(root);
-    const prompts = state.templateBuilder.promptsText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(0, 5);
-    if (!state.templateBuilder.label.trim()) {
-      toast('Template label needed');
-      return;
-    }
-
-    try {
-      await journalTemplateStore.save({
-        label: state.templateBuilder.label.trim(),
-        emoji: state.templateBuilder.emoji.trim() || builtinTemplate(state.templateBuilder.kind).emoji,
-        kind: state.templateBuilder.kind,
-        placeholder: state.templateBuilder.placeholder.trim() || builtinTemplate(state.templateBuilder.kind).placeholder,
-        prompts: prompts.length ? prompts : builtinTemplate(state.templateBuilder.kind).prompts,
-        tint: builtinTemplate(state.templateBuilder.kind).tint,
-      });
-      state.templateBuilder = defaultTemplateBuilder(state.templateBuilder.kind);
-      state.templateBuilderOpen = false;
-      deps.requestRender();
-    } catch (error) {
-      console.error('Template save failed:', error);
-      toast('Could not save template');
-    }
   }
 
   async function toggleFavorite(id: string) {
@@ -777,26 +696,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     [pendingFiles[index], pendingFiles[next]] = [pendingFiles[next], pendingFiles[index]];
   }
 
-  function appendToComposerBody(append: string) {
-    const textarea = document.getElementById('journal-body') as HTMLTextAreaElement | null;
-    if (!textarea) {
-      state.draft.body = state.draft.body ? `${state.draft.body}${append}` : append;
-      focusComposer();
-      return;
-    }
-
-    const start = textarea.selectionStart ?? textarea.value.length;
-    const end = textarea.selectionEnd ?? textarea.value.length;
-    const value = textarea.value;
-    const nextValue = `${value.slice(0, start)}${append}${value.slice(end)}`;
-
-    textarea.value = nextValue;
-    state.draft.body = nextValue;
-
-    const nextCursor = start + append.length;
-    textarea.focus();
-    textarea.setSelectionRange(nextCursor, nextCursor);
-  }
 }
 
 function collectTags(entries: StoredJournalEntry[]): string[] {

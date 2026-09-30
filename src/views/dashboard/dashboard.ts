@@ -646,26 +646,19 @@ function renderPlanFeed(leg: StoredLeg): string {
 
 /* ── Journal quick-entry widget ───────────────────────────────────────────── */
 function renderJournalWidget(_phase: Phase): string {
-  const ENTRY_TYPES: Array<{ template: string; icon: string; label: string; placeholder: string }> = [
-    { template: 'moment',      icon: '✨', label: 'Moment',      placeholder: 'A feeling, a scene, a flash of something real…' },
-    { template: 'note',        icon: '📝', label: 'Note',        placeholder: 'Practical info, tips, things to remember…' },
-    { template: 'interesting', icon: '💡', label: 'Interesting', placeholder: 'Something that surprised you, made you think…' },
-    { template: 'place',       icon: '📍', label: 'Place',       placeholder: 'What is this place beyond its name on a map…' },
-  ];
-
-  const buttons = ENTRY_TYPES.map(e => `
-    <button class="td-jq-btn" data-journal-template="${esc(e.template)}" data-journal-placeholder="${esc(e.placeholder)}">
-      <span class="td-jq-icon">${e.icon}</span>
-      <span class="td-jq-label">${e.label}</span>
-    </button>`).join('');
-
+  // One button, no category. Picking a type up front was the slowest part of
+  // capturing something on the road; the entry is classified after the fact.
   return `
     <div class="td-widget td-w-journal" data-widget-id="journal">
       <div class="td-widget-header">
         <div class="td-widget-label">📔 Journal</div>
         <button class="td-link" data-nav="journal">All entries ›</button>
       </div>
-      <div class="td-jq-grid">${buttons}</div>
+      <button class="td-jq-btn" data-journal-new>
+        <span class="td-jq-icon">✍️</span>
+        <span class="td-jq-label">记一笔</span>
+        <span class="td-jq-hint">照片或一句话都行</span>
+      </button>
     </div>`;
 }
 
@@ -1043,7 +1036,7 @@ function wire(body: HTMLElement): void {
   body.querySelectorAll<HTMLElement>('[data-nav]').forEach(el => {
     el.addEventListener('click', (e) => {
       const t = e.target as HTMLElement;
-      if (t.closest('a, button:not([data-nav]), [data-quickadd], [data-rate-input], [data-journal-template], [data-todo-add-modal]')) return;
+      if (t.closest('a, button:not([data-nav]), [data-quickadd], [data-rate-input], [data-journal-new], [data-todo-add-modal]')) return;
       const intent = el.dataset.intent ? (JSON.parse(el.dataset.intent) as NavIntent) : undefined;
       navigateTo(el.dataset.nav as ViewId, intent);
     });
@@ -1110,12 +1103,11 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Journal quick-entry template buttons — open the real journal composer.
-  body.querySelectorAll<HTMLElement>('[data-journal-template]').forEach(btn => {
+  // Journal quick-entry button — opens the real journal composer as an overlay.
+  body.querySelectorAll<HTMLElement>('[data-journal-new]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const template = btn.dataset.journalTemplate ?? 'moment';
-      import('../journal/index.ts').then(m => m.openJournalComposerOverlay(template));
+      import('../journal/index.ts').then(m => m.openJournalComposerOverlay());
     });
   });
 
