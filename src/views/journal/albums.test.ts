@@ -193,3 +193,122 @@ describe('reader album membership', () => {
     expect(options).not.toContain('a1');
   });
 });
+
+/**
+ * Create / rename / delete used to be window.prompt()/confirm() — blocking
+ * native dialogs that don't match the rest of the app. They're openModal()
+ * now: async, dismissible by ✕/backdrop/Esc, and (for create) the caller
+ * awaits a promise that has to resolve on every one of those exits, or a
+ * cancelled "add to album from a new album" flow would hang forever.
+ */
+describe('album create / rename / delete modals', () => {
+  it('opens a modal, not window.prompt, to create an album', () => {
+    const { body } = mount([], []);
+    gotoView(body, 'albums');
+
+    (body.querySelector('[data-album-create]') as HTMLElement).click();
+
+    const modal = document.querySelector('.otr-modal');
+    expect(modal, 'modal opened').toBeTruthy();
+    expect(document.querySelector('#ja-title'), 'title input present').toBeTruthy();
+  });
+
+  it('creates the album on submit and closes the modal', async () => {
+    const { body } = mount([], []);
+    gotoView(body, 'albums');
+    (body.querySelector('[data-album-create]') as HTMLElement).click();
+
+    const input = document.querySelector('#ja-title') as HTMLInputElement;
+    input.value = 'Kyoto week';
+    (document.querySelector('#ja-create') as HTMLElement).click();
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+
+    expect(albumSave).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Kyoto week' }),
+    );
+    expect(document.querySelector('.otr-modal'), 'modal closed after create').toBeFalsy();
+  });
+
+  it('refuses a blank title without closing, so the user can just try again', async () => {
+    const { body } = mount([], []);
+    gotoView(body, 'albums');
+    (body.querySelector('[data-album-create]') as HTMLElement).click();
+
+    (document.querySelector('#ja-create') as HTMLElement).click();
+    await Promise.resolve();
+
+    expect(albumSave).not.toHaveBeenCalled();
+    expect(document.querySelector('.otr-modal'), 'modal stays open on a blank title').toBeTruthy();
+  });
+
+  it('cancelling create resolves without ever calling save', async () => {
+    const { body } = mount([], []);
+    gotoView(body, 'albums');
+    (body.querySelector('[data-album-create]') as HTMLElement).click();
+
+    // [data-otr-close] is the Cancel button AND the ✕ — either tears the
+    // modal down via the same path.
+    (document.querySelector('[data-otr-close]') as HTMLElement).click();
+    await Promise.resolve();
+
+    expect(document.querySelector('.otr-modal')).toBeFalsy();
+    expect(albumSave).not.toHaveBeenCalled();
+  });
+
+  it('renames via a modal pre-filled with the current title', async () => {
+    const { body } = mount([], [mkAlbum('a1')]);
+    gotoView(body, 'albums');
+    (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
+    (body.querySelector('[data-album-rename="a1"]') as HTMLElement).click();
+
+    const input = document.querySelector('#ja-title') as HTMLInputElement;
+    expect(input.value, 'pre-filled with the existing title').toBe('Album a1');
+
+    input.value = 'Renamed';
+    (document.querySelector('#ja-save') as HTMLElement).click();
+    await Promise.resolve();
+
+    expect(albumUpdate).toHaveBeenCalledWith('a1', { title: 'Renamed' });
+  });
+
+  it('deletes only after an explicit confirm click, and the copy says entries are kept', async () => {
+    const { body } = mount([], [mkAlbum('a1')]);
+    gotoView(body, 'albums');
+    (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
+    (body.querySelector('[data-album-delete="a1"]') as HTMLElement).click();
+
+    const modal = document.querySelector('.otr-modal');
+    expect(modal?.textContent, 'reassures that entries are kept').toContain('kept');
+    expect(albumRemove, 'not deleted just from opening the confirm').not.toHaveBeenCalled();
+
+    (document.querySelector('#ja-delete') as HTMLElement).click();
+    await Promise.resolve();
+
+    expect(albumRemove).toHaveBeenCalledWith('a1');
+  });
+
+  it('gallery selection -> "new album…" opens the same create modal, seeded with the picks', async () => {
+    const { body } = mount([mkEntry('e1'), mkEntry('e2')], []);
+    gotoView(body, 'gallery');
+
+    (body.querySelector('[data-gallery-select]') as HTMLElement).click();
+    (body.querySelector('[data-gallery-pick="e1"]') as HTMLElement).click();
+    (body.querySelector('[data-gallery-pick="e2"]') as HTMLElement).click();
+
+    const select = body.querySelector('[data-album-target]') as HTMLSelectElement;
+    select.value = '__new__';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    await Promise.resolve();
+
+    const input = document.querySelector('#ja-title') as HTMLInputElement;
+    expect(input, 'create modal opened from the gallery select').toBeTruthy();
+
+    input.value = 'From gallery';
+    (document.querySelector('#ja-create') as HTMLElement).click();
+    for (let i = 0; i < 4; i++) await Promise.resolve();
+
+    expect(albumSave).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'From gallery', entryIds: ['e1', 'e2'] }),
+    );
+  });
+});

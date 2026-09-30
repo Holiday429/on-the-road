@@ -19,6 +19,7 @@ import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type 
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import { uploadJournalImage } from '../../../firebase/storage.ts';
+import { openModal } from '../../../core/modal.ts';
 import {
   MAX_JOURNAL_IMAGES,
   OTHER_DESTINATION,
@@ -32,6 +33,7 @@ import {
   shiftMonth,
   slugifyEntry,
   sortEntries,
+  escHtml,
 } from '../shared/utils.ts';
 
 interface CaptureControllerDeps {
@@ -720,53 +722,125 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     return deps.getAlbums?.() ?? [];
   }
 
-  /** Prompt for a title and create an album. Returns its id, or '' if cancelled. */
-  async function createAlbum(seedEntryIds: string[] = []): Promise<string> {
-    const title = prompt('Album 名字')?.trim();
-    if (!title) return '';
-    try {
-      const id = await journalAlbumStore.save({
-        title,
-        entryIds: seedEntryIds,
-        coverEntryId: seedEntryIds[0] ?? null,
+  /**
+   * Open the "new album" modal and create it. Resolves with the new album's
+   * id, or '' if the user cancelled or left the title blank — same contract
+   * the old prompt()-based version had, so callers (addEntriesToAlbum, the
+   * "new album" button) didn't need to change.
+   *
+   * `finish` is idempotent and fires from two places — a successful submit,
+   * and modal.ts's own `onClose` (which covers ✕, backdrop click, and Esc) —
+   * so cancelling by any of those paths still resolves the promise instead of
+   * leaving the caller awaiting forever.
+   */
+  function createAlbum(seedEntryIds: string[] = []): Promise<string> {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (id: string) => { if (!settled) { settled = true; resolve(id); } };
+
+      const m = openModal({
+        title: 'New album',
+        body: `
+          <label class="journal-modal-field">
+            <span>Album name</span>
+            <input id="ja-title" class="input" placeholder="Album name" autocomplete="off">
+          </label>`,
+        footer: `
+          <button class="btn" data-otr-close>Cancel</button>
+          <button class="btn btn-primary" id="ja-create">Create</button>`,
+        onClose: () => finish(''),
       });
-      deps.requestRender();
-      return typeof id === 'string' ? id : '';
-    } catch (error) {
-      console.error('Album create failed:', error);
-      toast('Could not create album');
-      return '';
-    }
+
+      const input = m.root.querySelector<HTMLInputElement>('#ja-title')!;
+      input.focus();
+
+      const submit = async () => {
+        const title = input.value.trim();
+        if (!title) { input.focus(); return; }
+        try {
+          const id = await journalAlbumStore.save({
+            title,
+            entryIds: seedEntryIds,
+            coverEntryId: seedEntryIds[0] ?? null,
+          });
+          deps.requestRender();
+          finish(typeof id === 'string' ? id : '');
+          m.close();
+        } catch (error) {
+          console.error('Album create failed:', error);
+          toast('Could not create album');
+          finish('');
+          m.close();
+        }
+      };
+
+      m.root.querySelector('#ja-create')!.addEventListener('click', () => { void submit(); });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } });
+    });
   }
 
-  async function renameAlbum(albumId: string) {
+  function renameAlbum(albumId: string): void {
     const album = albums().find((a) => a.id === albumId);
     if (!album) return;
-    const title = prompt('Album 名字', album.title)?.trim();
-    if (!title || title === album.title) return;
-    try {
-      await journalAlbumStore.update(albumId, { title });
-      deps.requestRender();
-    } catch (error) {
-      console.error('Album rename failed:', error);
-      toast('Could not rename album');
-    }
+
+    const m = openModal({
+      title: 'Rename album',
+      body: `
+        <label class="journal-modal-field">
+          <span>Album name</span>
+          <input id="ja-title" class="input" value="${escHtml(album.title)}" autocomplete="off">
+        </label>`,
+      footer: `
+        <button class="btn" data-otr-close>Cancel</button>
+        <button class="btn btn-primary" id="ja-save">Save</button>`,
+    });
+
+    const input = m.root.querySelector<HTMLInputElement>('#ja-title')!;
+    input.focus();
+    input.select();
+
+    const submit = async () => {
+      const title = input.value.trim();
+      if (!title || title === album.title) { m.close(); return; }
+      try {
+        await journalAlbumStore.update(albumId, { title });
+        deps.requestRender();
+      } catch (error) {
+        console.error('Album rename failed:', error);
+        toast('Could not rename album');
+      }
+      m.close();
+    };
+
+    m.root.querySelector('#ja-save')!.addEventListener('click', () => { void submit(); });
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } });
   }
 
-  async function deleteAlbum(albumId: string) {
+  function deleteAlbum(albumId: string): void {
     const album = albums().find((a) => a.id === albumId);
     if (!album) return;
+
     // Deleting an album never deletes its entries — say so, because "delete
     // album" reads as destructive and here it isn't.
-    if (!confirm(`删除 album「${album.title}」？里面的记录会保留。`)) return;
-    try {
-      await journalAlbumStore.remove(albumId);
-      if (state.openAlbumId === albumId) state.openAlbumId = null;
-      deps.requestRender();
-    } catch (error) {
-      console.error('Album delete failed:', error);
-      toast('Could not delete album');
-    }
+    const m = openModal({
+      title: 'Delete album',
+      body: `<p class="journal-modal-text">Delete “${escHtml(album.title)}”? Its entries are kept — only the album itself goes away.</p>`,
+      footer: `
+        <button class="btn" data-otr-close>Cancel</button>
+        <button class="btn btn-danger" id="ja-delete">Delete</button>`,
+    });
+
+    m.root.querySelector('#ja-delete')!.addEventListener('click', async () => {
+      try {
+        await journalAlbumStore.remove(albumId);
+        if (state.openAlbumId === albumId) state.openAlbumId = null;
+        deps.requestRender();
+      } catch (error) {
+        console.error('Album delete failed:', error);
+        toast('Could not delete album');
+      }
+      m.close();
+    });
   }
 
   /** Handle an album <select> value: '' = ignore, '__new__' = create, else add. */
