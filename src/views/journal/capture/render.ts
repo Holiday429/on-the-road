@@ -1,4 +1,5 @@
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
+import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import {
   template,
@@ -73,6 +74,7 @@ interface CaptureRenderModel {
   currentMonthLabel: string;
   legs: StoredLeg[];
   savedGuidePlaces?: Array<{ id: string; title: string; type: string }>;
+  albums: StoredJournalAlbum[];
 }
 
 
@@ -98,7 +100,7 @@ export function renderCapture(model: CaptureRenderModel): string {
       ${model.allEntries.length === 0 && !model.state.composerOpen ? renderFirstTimeGuide() : ''}
 
       ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs, model.savedGuidePlaces ?? [])}</div></div>` : ''}
-      ${readingEntry ? `<div class="journal-reader-overlay" data-journal-reader-overlay><div class="journal-reader-drawer">${renderReader(readingEntry)}</div></div>` : ''}
+      ${readingEntry ? `<div class="journal-reader-overlay" data-journal-reader-overlay><div class="journal-reader-drawer">${renderReader(readingEntry, model.albums)}</div></div>` : ''}
 
       <div class="journal-view-surface">
         ${renderActiveView(model)}
@@ -109,8 +111,8 @@ export function renderCapture(model: CaptureRenderModel): string {
 
 function renderActiveView(model: CaptureRenderModel): string {
   if (model.state.view === 'places') return renderPlacesView(model.placeGroups);
-  if (model.state.view === 'categories') return renderCategoriesView(model.templateGroups, model.tagGroups);
-  if (model.state.view === 'gallery') return renderGalleryView(model.visibleEntries, model.state);
+  if (model.state.view === 'albums') return renderAlbumsView(model);
+  if (model.state.view === 'gallery') return renderGalleryView(model.visibleEntries, model.state, model.albums);
   if (model.state.view === 'map') return renderMapView(model.mapPoints, model.mapRoute);
   if (model.state.view === 'calendar') return renderCalendarView(model.calendarCells, model.currentMonthLabel);
   return renderFeedWithFilters(model);
@@ -459,7 +461,7 @@ function renderReaderGallery(photos: string[], entryId: string, ratio: number | 
  * single explicit button here rather than the default action, so opening an
  * entry to read it never drops you into an editable textarea.
  */
-function renderReader(entry: StoredJournalEntry): string {
+function renderReader(entry: StoredJournalEntry, albums: StoredJournalAlbum[]): string {
   const item = template(entry.template);
   const photos = entryImages(entry);
   const title = titleFor(entry);
@@ -483,6 +485,8 @@ function renderReader(entry: StoredJournalEntry): string {
 
         ${entry.tags.length ? `<div class="journal-mag-tags">${entry.tags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
 
+        ${renderReaderAlbums(entry, albums)}
+
         <footer class="journal-reader-meta">
           ${entry.destination ? `<span class="journal-reader-where">📍 ${escHtml(entry.destination)}</span>` : ''}
           <span class="journal-reader-date">${escHtml(prettyDate(entry.happenedOn))}</span>
@@ -497,6 +501,28 @@ function renderReader(entry: StoredJournalEntry): string {
         </div>
       </div>
     </article>
+  `;
+}
+
+/** Album membership for one entry, editable inline — the per-entry way to file something. */
+function renderReaderAlbums(entry: StoredJournalEntry, albums: StoredJournalAlbum[]): string {
+  const inAlbums = albums.filter((album) => album.entryIds.includes(entry.id));
+  const available = albums.filter((album) => !album.entryIds.includes(entry.id));
+  return `
+    <div class="journal-reader-albums">
+      <span class="journal-reader-albums-label">Album</span>
+      ${inAlbums.length ? inAlbums.map((album) => `
+        <span class="journal-album-chip">
+          ${escHtml(album.emoji)} ${escHtml(album.title)}
+          <button class="journal-album-chip-x" data-album-remove-entry="${escHtml(album.id)}:${escHtml(entry.id)}" type="button" title="移出">✕</button>
+        </span>
+      `).join('') : '<span class="journal-reader-albums-none">—</span>'}
+      <select class="select input journal-album-add" data-album-add-entry="${escHtml(entry.id)}">
+        <option value="">＋ 加入…</option>
+        ${available.map((album) => `<option value="${escHtml(album.id)}">${escHtml(album.emoji)} ${escHtml(album.title)}</option>`).join('')}
+        <option value="__new__">＋ 新建 album…</option>
+      </select>
+    </div>
   `;
 }
 
@@ -539,57 +565,151 @@ function renderPlacesView(groups: PlaceGroup[]): string {
   `;
 }
 
-function renderCategoriesView(templateGroups: TemplateGroup[], tagGroups: TagGroup[]): string {
-  if (!templateGroups.length && !tagGroups.length) {
-    return renderEmpty('Categories', 'Nothing to group yet', 'Once you add a few entries and tags, this view will cluster them.');
-  }
+/**
+ * Albums: the groupings the user actually made.
+ *
+ * This replaced the Categories view. Categories showed the four inferred
+ * template buckets as if they were the user's own organisation — they never
+ * were, and now that the template is inferred rather than chosen they're an
+ * even weaker claim. They survive below the albums as "auto groups", which is
+ * what they always were.
+ */
+function renderAlbumsView(model: CaptureRenderModel): string {
+  const open = model.state.openAlbumId
+    ? model.albums.find((a) => a.id === model.state.openAlbumId)
+    : undefined;
+  if (open) return renderAlbumDetail(open, model.allEntries);
 
   return `
-    <div class="journal-category-shell">
-      ${templateGroups.length ? `
-        <div class="journal-category-grid">
-          ${templateGroups.map((group) => {
-            const item = template(group.templateId);
-            const coverEntry = group.entries.find((e) => entryCover(e));
+    <div class="journal-album-shell">
+      <div class="journal-album-head">
+        <div>
+          <div class="journal-section-kicker">Albums</div>
+          <p class="journal-album-hint">先随手记，之后把相关的几条放进一个 album。</p>
+        </div>
+        <button class="btn btn-ghost" data-album-create type="button">＋ 新建 album</button>
+      </div>
+
+      ${model.albums.length ? `
+        <div class="journal-album-grid">
+          ${model.albums.map((album) => {
+            const entries = albumEntries(album, model.allEntries);
+            const coverEntry =
+              entries.find((e) => e.id === album.coverEntryId && entryCover(e))
+              ?? entries.find((e) => entryCover(e));
+            const cover = coverEntry ? entryCover(coverEntry) : '';
             return `
-              <article class="journal-category-tile" data-filter-template="${item.id}" style="--tint:${item.tint}">
-                <div class="journal-category-tile-cover">
-                  ${coverEntry && entryCover(coverEntry)
-                    ? `<img src="${escHtml(entryCover(coverEntry))}" alt="" class="journal-category-tile-img">`
-                    : `<div class="journal-category-tile-bg"></div>`}
-                  <div class="journal-category-tile-emoji">${item.emoji}</div>
+              <article class="journal-album-tile" data-open-album="${escHtml(album.id)}">
+                <div class="journal-album-tile-cover">
+                  ${cover
+                    ? `<img src="${escHtml(cover)}" alt="" class="journal-album-tile-img" loading="lazy">`
+                    : `<div class="journal-album-tile-bg"></div>`}
+                  <div class="journal-album-tile-emoji">${escHtml(album.emoji)}</div>
                 </div>
-                <div class="journal-category-tile-body">
-                  <div class="journal-category-title">${escHtml(item.label)}</div>
-                  <div class="journal-category-meta">${group.entries.length} entries</div>
-                  ${group.topTags.length ? `
-                    <div class="journal-category-tags">
-                      ${group.topTags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}
-                    </div>
-                  ` : ''}
+                <div class="journal-album-tile-body">
+                  <div class="journal-album-title">${escHtml(album.title)}</div>
+                  <div class="journal-category-meta">${entries.length} entries</div>
                 </div>
               </article>
             `;
           }).join('')}
         </div>
-      ` : ''}
+      ` : `
+        <div class="journal-album-empty">
+          还没有 album。到 Gallery 里选几张，或点上面新建一个。
+        </div>
+      `}
 
-      ${tagGroups.length ? `
-        <div class="journal-tag-groups">
-          ${tagGroups.map((group) => `
-            <article class="card journal-tag-group">
-              <div class="journal-tag-group-head">
-                <button class="journal-filter-chip active" data-filter-tag="${escHtml(group.tag)}" type="button">#${escHtml(group.tag)}</button>
-                <span class="journal-category-meta">${group.entries.length} entries</span>
-              </div>
-              <div class="journal-mini-list">
-                ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
-              </div>
-            </article>
+      ${renderAutoGroups(model.templateGroups, model.tagGroups)}
+    </div>
+  `;
+}
+
+/** Entries of an album, in the album's order, skipping ones since deleted. */
+function albumEntries(album: StoredJournalAlbum, all: StoredJournalEntry[]): StoredJournalEntry[] {
+  return album.entryIds
+    .map((id) => all.find((e) => e.id === id))
+    .filter((e): e is StoredJournalEntry => Boolean(e));
+}
+
+function renderAlbumDetail(album: StoredJournalAlbum, all: StoredJournalEntry[]): string {
+  const entries = albumEntries(album, all);
+  return `
+    <div class="journal-album-shell">
+      <div class="journal-album-head">
+        <button class="btn btn-ghost" data-album-back type="button">← Albums</button>
+        <div class="journal-album-detail-actions">
+          <button class="btn btn-ghost" data-album-rename="${escHtml(album.id)}" type="button">重命名</button>
+          <button class="btn btn-ghost is-danger" data-album-delete="${escHtml(album.id)}" type="button">删除 album</button>
+        </div>
+      </div>
+
+      <h3 class="journal-album-detail-title">${escHtml(album.emoji)} ${escHtml(album.title)}</h3>
+      <div class="journal-category-meta">${entries.length} entries</div>
+
+      ${entries.length ? `
+        <div class="journal-album-entries">
+          ${entries.map((entry) => `
+            <div class="journal-album-entry">
+              ${renderMiniEntry(entry)}
+              <button class="journal-icon-btn" data-album-remove-entry="${escHtml(album.id)}:${escHtml(entry.id)}" type="button" title="从 album 移除">✕</button>
+            </div>
           `).join('')}
         </div>
-      ` : ''}
+      ` : `
+        <div class="journal-album-empty">这个 album 还是空的。到 Gallery 里选几张加进来。</div>
+      `}
     </div>
+  `;
+}
+
+/** The old Categories view, demoted: system groupings, below the user's own. */
+function renderAutoGroups(templateGroups: TemplateGroup[], tagGroups: TagGroup[]): string {
+  if (!templateGroups.length && !tagGroups.length) return '';
+  return `
+    <details class="journal-auto-groups">
+      <summary class="journal-auto-groups-toggle">自动分组（按类型 / 标签）</summary>
+      <div class="journal-category-shell">
+        ${templateGroups.length ? `
+          <div class="journal-category-grid">
+            ${templateGroups.map((group) => {
+              const item = template(group.templateId);
+              const coverEntry = group.entries.find((e) => entryCover(e));
+              return `
+                <article class="journal-category-tile" data-filter-template="${item.id}" style="--tint:${item.tint}">
+                  <div class="journal-category-tile-cover">
+                    ${coverEntry && entryCover(coverEntry)
+                      ? `<img src="${escHtml(entryCover(coverEntry))}" alt="" class="journal-category-tile-img">`
+                      : `<div class="journal-category-tile-bg"></div>`}
+                    <div class="journal-category-tile-emoji">${item.emoji}</div>
+                  </div>
+                  <div class="journal-category-tile-body">
+                    <div class="journal-category-title">${escHtml(item.label)}</div>
+                    <div class="journal-category-meta">${group.entries.length} entries</div>
+                  </div>
+                </article>
+              `;
+            }).join('')}
+          </div>
+        ` : ''}
+
+        ${tagGroups.length ? `
+          <div class="journal-tag-groups">
+            ${tagGroups.map((group) => `
+              <article class="card journal-tag-group">
+                <div class="journal-tag-group-head">
+                  <button class="journal-filter-chip active" data-filter-tag="${escHtml(group.tag)}" type="button">#${escHtml(group.tag)}</button>
+                  <span class="journal-category-meta">${group.entries.length} entries</span>
+                </div>
+                <div class="journal-mini-list">
+                  ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
+                </div>
+              </article>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </details>
   `;
 }
 
@@ -608,24 +728,57 @@ function closestPresetRatio(ratio: number): number {
   ).ratio;
 }
 
-function renderGalleryView(entries: StoredJournalEntry[], state: CaptureState): string {
+function renderGalleryView(
+  entries: StoredJournalEntry[],
+  state: CaptureState,
+  albums: StoredJournalAlbum[],
+): string {
   if (entries.length === 0) {
     return renderEmpty('Gallery', 'No gallery items yet', 'As you capture more moments, they will show up here as a richer wall.');
   }
   const square = state.gallerySquare;
+  const selection = state.selection;
+  const selecting = selection !== null;
   return `
     <div class="journal-gallery-header">
-      <button class="journal-filter-chip ${square ? '' : 'active'}" data-gallery-square type="button">Proportional</button>
-      <button class="journal-filter-chip ${square ? 'active' : ''}" data-gallery-square type="button">1:1</button>
+      ${selecting ? '' : `
+        <button class="journal-filter-chip ${square ? '' : 'active'}" data-gallery-square type="button">Proportional</button>
+        <button class="journal-filter-chip ${square ? 'active' : ''}" data-gallery-square type="button">1:1</button>
+      `}
+      <button class="journal-filter-chip ${selecting ? 'active' : ''}" data-gallery-select type="button">
+        ${selecting ? `已选 ${selection.length}` : '☑ 选择'}
+      </button>
     </div>
+
+    ${selecting ? `
+      <div class="journal-select-bar">
+        <span class="journal-select-count">选中 ${selection.length} 条</span>
+        <div class="journal-select-actions">
+          <select class="select input journal-select-album" data-album-target ${selection.length ? '' : 'disabled'}>
+            <option value="">加入 album…</option>
+            ${albums.map((album) => `<option value="${escHtml(album.id)}">${escHtml(album.emoji)} ${escHtml(album.title)}</option>`).join('')}
+            <option value="__new__">＋ 新建 album…</option>
+          </select>
+          <button class="btn btn-ghost" data-gallery-select-cancel type="button">取消</button>
+        </div>
+      </div>
+    ` : ''}
+
     <div class="journal-gallery-grid">
       ${entries.map((entry) => {
         const item = template(entry.template);
         const rawRatio = entry.imageRatio;
         const ratio = square ? 1 : (rawRatio ? closestPresetRatio(rawRatio) : 3 / 4);
         const paddingTop = `${(1 / ratio) * 100}%`;
+        const picked = selecting && selection.includes(entry.id);
+        // In select mode the tile toggles selection instead of opening the
+        // reader — two different actions can't share one tap.
+        const action = selecting
+          ? `data-gallery-pick="${entry.id}"`
+          : `data-open-entry="${entry.id}"`;
         return `
-          <article class="journal-gallery-tile${entryCover(entry) ? ' has-image' : ''}" data-open-entry="${entry.id}" style="--tint:${item.tint}">
+          <article class="journal-gallery-tile${entryCover(entry) ? ' has-image' : ''}${picked ? ' is-picked' : ''}" ${action} style="--tint:${item.tint}">
+            ${selecting ? `<span class="journal-gallery-check">${picked ? '✓' : ''}</span>` : ''}
             <div class="journal-gallery-media" style="padding-top:${paddingTop}">
               <div class="journal-gallery-media-inner">
                 ${entryCover(entry)

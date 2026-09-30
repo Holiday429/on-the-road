@@ -1,6 +1,7 @@
 import './journal.css';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { journalStoryStore, type StoredJournalStory } from '../../data/stores/journal-story-store.ts';
+import { journalAlbumStore, type StoredJournalAlbum } from '../../data/stores/journal-album-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { createCaptureController } from './capture/capture.ts';
 import { createStoryController } from './story/story.ts';
@@ -12,15 +13,18 @@ let mode: JournalMode = 'capture';
 let entryScope: 'trip' | 'all' = 'trip';
 let entries: StoredJournalEntry[] = [];
 let stories: StoredJournalStory[] = [];
+let albums: StoredJournalAlbum[] = [];
 let legs: StoredLeg[] = [];
 
 let _unsubEntries: (() => void) | null = null;
 let _unsubLegs: (() => void) | null = null;
 let _unsubStories: (() => void) | null = null;
+let _unsubAlbums: (() => void) | null = null;
 
 const capture = createCaptureController({
   getEntries: () => entries,
   getLegs: () => legs,
+  getAlbums: () => albums,
   requestRender: renderJournal,
 });
 
@@ -103,7 +107,7 @@ function renderJournal() {
         <div class="journal-topbar-right">
           ${mode === 'capture' ? `
             <div class="journal-layout-bar">
-              ${(['feed','places','categories','gallery','map','calendar'] as const).map((id) => `
+              ${(['feed','places','albums','gallery','map','calendar'] as const).map((id) => `
                 <button class="journal-layout-tab ${capture.currentView() === id ? 'active' : ''}" data-journal-view="${id}" type="button">${id.charAt(0).toUpperCase() + id.slice(1)}</button>
               `).join('')}
             </div>
@@ -151,12 +155,14 @@ export function openJournalComposerOverlay(): void {
 
   const overlayEntries = journalStore.peek();
   const overlayLegs    = routeStore.peek();
+  const overlayAlbums  = journalAlbumStore.peek();
 
   let overlayEl: HTMLElement | null = null;
 
   const overlayCapture = createCaptureController({
     getEntries: () => overlayEntries,
     getLegs:    () => overlayLegs,
+    getAlbums:  () => overlayAlbums,
     requestRender: renderOverlay,
   });
 
@@ -204,7 +210,8 @@ export function initJournal() {
   _unsubEntries?.();
   _unsubLegs?.();
   _unsubStories?.();
-  entries = []; legs = []; stories = [];
+  _unsubAlbums?.();
+  entries = []; legs = []; stories = []; albums = [];
 
   subscribeEntries(); // honours the current entryScope
 
@@ -218,6 +225,12 @@ export function initJournal() {
   _unsubStories = journalStoryStore.subscribe((rows) => {
     stories = rows;
     story.handleDataChange();
+    renderJournal();
+  });
+
+  _unsubAlbums = journalAlbumStore.subscribe((rows) => {
+    albums = rows;
+    capture.handleDataChange();
     renderJournal();
   });
 }

@@ -1,0 +1,112 @@
+/* ── Albums: the groupings the user made themselves ──────────────────────── */
+.journal-album-shell { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+.journal-album-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--sp-3); flex-wrap: wrap;
+}
+.journal-album-hint { font-size: var(--fs-sm); color: var(--ink-faint); margin: 2px 0 0; }
+.journal-album-detail-actions { display: flex; gap: var(--sp-2); }
+.journal-album-detail-title { margin: 0; font-size: var(--fs-lg); }
+
+.journal-album-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--sp-3);
+}
+.journal-album-tile {
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--surface);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast);
+}
+.journal-album-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.journal-album-tile-cover { position: relative; aspect-ratio: 4 / 3; overflow: hidden; }
+.journal-album-tile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.journal-album-tile-bg { width: 100%; height: 100%; background: var(--surface-2); }
+.journal-album-tile-emoji {
+  position: absolute; left: 8px; bottom: 8px;
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  font-size: 15px;
+}
+.journal-album-tile-body { padding: 10px 12px 12px; }
+.journal-album-title {
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+}
+
+.journal-album-empty {
+  padding: var(--sp-5);
+  border: 1px dashed var(--rule-soft);
+  border-radius: var(--r-lg);
+  text-align: center;
+  font-size: var(--fs-sm);
+  color: var(--ink-faint);
+}
+
+.journal-album-entries { display: flex; flex-direction: column; gap: var(--sp-2); }
+.journal-album-entry { display: flex; align-items: center; gap: var(--sp-2); }
+.journal-album-entry > :first-child { flex: 1; min-width: 0; }
+
+/* Auto groups (the old Categories view), demoted below the user's albums. */
+.journal-auto-groups { margin-top: var(--sp-2); }
+.journal-auto-groups-toggle {
+  cursor: pointer; padding: 6px 0; list-style: none;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600;
+  color: var(--ink-muted);
+}
+.journal-auto-groups-toggle::-webkit-details-marker { display: none; }
+.journal-auto-groups-toggle::before { content: '⌄ '; }
+.journal-auto-groups[open] .journal-auto-groups-toggle::before { content: '⌃ '; }
+
+/* ── Gallery multi-select ────────────────────────────────────────────────── */
+.journal-select-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-3); flex-wrap: wrap;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-md);
+}
+.journal-select-count { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; }
+.journal-select-actions { display: flex; align-items: center; gap: var(--sp-2); }
+.journal-select-album { min-width: 160px; }
+
+/* The tile itself isn't positioned in gallery.css; the check needs it to be. */
+.journal-gallery-tile { position: relative; }
+.journal-gallery-tile.is-picked { outline: 2px solid var(--tint); outline-offset: 2px; }
+.journal-gallery-check {
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-full);
+  border: 1.5px solid var(--rule);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  font-size: 13px; font-weight: 700; color: var(--ink);
+}
+
+/* ── Album membership inside the reader ──────────────────────────────────── */
+.journal-reader-albums {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin-top: var(--sp-3);
+}
+.journal-reader-albums-label {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
+  color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em;
+}
+.journal-reader-albums-none { font-size: var(--fs-sm); color: var(--ink-faint); }
+.journal-album-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  border: 1px solid var(--rule-soft);
+  font-size: var(--fs-xs);
+}
+.journal-album-chip-x { border: 0; background: none; cursor: pointer; color: var(--ink-faint); }
+.journal-album-chip-x:hover { color: var(--ink); }
+.journal-album-add { min-width: 130px; font-size: var(--fs-xs); }

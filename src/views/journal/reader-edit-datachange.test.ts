@@ -17,7 +17,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../../data/stores/journal-store.ts', () => ({ journalStore: { update: vi.fn(), remove: vi.fn(), save: vi.fn() } }));
 vi.mock('../../data/stores/city-store.ts', () => ({ cityStore: { peek: () => [] } }));
-vi.mock('../../data/stores/journal-template-store.ts', () => ({ journalTemplateStore: { peek: () => [] } }));
+vi.mock('../../data/stores/journal-album-store.ts', () => ({ journalAlbumStore: { subscribe: () => () => {}, peek: () => [], save: vi.fn(), update: vi.fn(), remove: vi.fn(), addEntries: vi.fn(), removeEntry: vi.fn() } }));
 vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '' }));
 vi.mock('./card/card-preview.ts', () => ({ openCardPreview: vi.fn() }));
 vi.mock('leaflet', () => ({ default: {} }));

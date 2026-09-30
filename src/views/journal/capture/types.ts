@@ -1,6 +1,6 @@
 import type { TemplateId } from '../templates.ts';
 
-export type CaptureView = 'feed' | 'places' | 'categories' | 'gallery' | 'map' | 'calendar';
+export type CaptureView = 'feed' | 'places' | 'albums' | 'gallery' | 'map' | 'calendar';
 
 export interface CaptureFilter {
   template: TemplateId | 'all';
@@ -45,4 +45,8 @@ export interface CaptureState {
   readingId: string | null;
   calendarMonth: string;
   gallerySquare: boolean;
+  /** Gallery multi-select: null = off, otherwise the picked entry ids. */
+  selection: string[] | null;
+  /** Album whose contents are being viewed, or null for the album grid. */
+  openAlbumId: string | null;
 }
