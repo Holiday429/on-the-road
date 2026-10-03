@@ -1,7 +1,20 @@
 rules_version = '2';
 
 // On the Road — Storage security rules.
-// All user uploads live under users/{uid}/... ; only the owner may read/write.
+// Two upload surfaces:
+//   users/{uid}/...        — private uploads (Journal photos). Owner only,
+//                             same as before this file grew a second block.
+//   trips/{tripId}/...     — trip-scoped uploads (leg cover photos) that
+//                             every trip member should be able to see, not
+//                             just the uploader. Membership is checked by
+//                             reading the trip's Firestore doc, mirroring
+//                             firestore.rules' subIsMember() — see that
+//                             file's helpers for why the legacy `in` guards
+//                             below are required (memberUids/members are
+//                             both optional and independently so; reading
+//                             an absent field throws rather than returning
+//                             null, which would otherwise deny every owner
+//                             on a trip that predates the members map).
 service firebase.storage {
   match /b/{bucket}/o {
     match /users/{userId}/{allPaths=**} {
@@ -14,6 +27,43 @@ service firebase.storage {
                    && request.auth.uid == userId
                    && request.resource.size < 15 * 1024 * 1024
                    && request.resource.contentType.matches('image/.*|application/pdf');
+    }
+
+    match /trips/{tripId}/{allPaths=**} {
+      function signedIn() {
+        return request.auth != null;
+      }
+      function tripDoc() {
+        return firestore.get(/databases/(default)/documents/trips/$(tripId)).data;
+      }
+      function isTripMember() {
+        // signedIn() must short-circuit before tripDoc() runs — a `let`
+        // binding evaluates eagerly, so putting the Firestore read first
+        // would fire it for anonymous/unauthenticated requests too (wasted
+        // read, and tripDoc() throwing on a missing doc would mask what's
+        // actually a plain "not signed in" denial). tripDoc() itself still
+        // throws (denying the request) if the trip doc doesn't exist —
+        // deliberately: an upload/read against a dangling or mistyped
+        // tripId should fail closed, same as firestore.rules' tripExists().
+        return signedIn() && isMemberOfExistingTrip();
+      }
+      function isMemberOfExistingTrip() {
+        let t = tripDoc();
+        return ('memberUids' in t && request.auth.uid in t.memberUids)
+          || ('members' in t && request.auth.uid in t.members)
+          || ('ownerUid' in t && t.ownerUid == request.auth.uid);
+      }
+      // Reads: any trip member (this is the whole point — a cover photo
+      // one member uploads should load for everyone on the trip).
+      allow read: if isTripMember();
+      // Deletes: any trip member may remove a cover image, same as they
+      // can already edit/delete the leg it belongs to in Firestore.
+      allow delete: if isTripMember();
+      // Writes (upload): any trip member, images only, max 15 MB — covers
+      // don't need the PDF allowance users/{uid} has for other uploads.
+      allow write: if isTripMember()
+                   && request.resource.size < 15 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
     }
   }
 }
