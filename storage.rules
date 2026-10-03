@@ -15,6 +15,21 @@ rules_version = '2';
 //                             an absent field throws rather than returning
 //                             null, which would otherwise deny every owner
 //                             on a trip that predates the members map).
+//
+// ⚠️ CROSS-SERVICE IAM DEPENDENCY — deploying this file is not enough.
+// The trips/ block below calls firestore.get(), which is a "cross-service"
+// rule. That requires the Firebase Storage service agent
+// (service-<projectNumber>@gcp-sa-firebasestorage.iam.gserviceaccount.com)
+// to hold the "Firebase Rules Firestore Service Agent" role. The CLI/console
+// normally PROMPTS to grant it the first time you save such rules — but the
+// prompt is interactive, so a non-TTY `firebase deploy` reports a perfectly
+// successful deploy while silently leaving the role ungranted. Without it,
+// every firestore.get() raises an evaluation error, which Rules treats as
+// deny — surfacing in the app as "you don't have permission" even for the
+// trip's own owner, with nothing in the deploy output hinting at the cause.
+// Verify on the Cloud Console IAM page with "Include Google-provided role
+// grants" checked. See Firebase docs: rules/manage-deploy, "Manage
+// permissions for cross-service Cloud Storage Security Rules".
 service firebase.storage {
   match /b/{bucket}/o {
     match /users/{userId}/{allPaths=**} {
