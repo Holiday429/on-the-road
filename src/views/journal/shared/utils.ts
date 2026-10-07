@@ -1,6 +1,5 @@
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
-import { DEFAULT_TEMPLATE, template } from '../templates.ts';
 export { escHtml } from '../../../core/utils.ts';
 
 export const OTHER_DESTINATION = '__other__';
@@ -30,7 +29,7 @@ export function excerpt(text: string, length = 180): string {
 export function titleFor(entry: StoredJournalEntry): string {
   if (entry.title.trim()) return entry.title.trim();
   const fallback = entry.body.trim().split(/\s+/).slice(0, 6).join(' ');
-  return fallback || template(entry.template).label || template(DEFAULT_TEMPLATE).label;
+  return fallback || 'Untitled';
 }
 
 export function prettyDate(iso: string): string {

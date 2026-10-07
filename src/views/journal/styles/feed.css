@@ -100,7 +100,7 @@
   white-space: pre-wrap;
 }
 /* A text-only card has no photo to carry it, so it gets display type and a
-   tinted edge to stay interesting next to the picture cards. */
+   edge to stay interesting next to the picture cards. */
 .journal-mag-card.is-text .journal-mag-body {
   border-left: 3px solid color-mix(in srgb, var(--tint) 55%, var(--surface));
   padding-left: calc(var(--sp-3) - 3px);
@@ -117,16 +117,6 @@
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   color: var(--ink-faint);
-}
-.journal-mag-stamp {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--r-full);
-  font-size: 11px;
-  flex-shrink: 0;
 }
 .journal-mag-where {
   font-weight: 600;
@@ -432,17 +422,7 @@
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--rule-soft);
 }
-.journal-reader-stamp {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: var(--r-full);
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-}
-.journal-reader-head-actions { display: flex; align-items: center; gap: 6px; }
+.journal-reader-head-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 
 .journal-reader-pill {
   display: inline-flex;

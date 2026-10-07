@@ -27,7 +27,6 @@
 
 /* Row 3: journal 3 cols, mini-col 3 cols — equal within left half */
 .td-w-journal  { grid-column: 1 / span 3; align-self: stretch; }
-.td-w-journal .td-jq-btn { flex: 1; }
 .td-w-mini-col { grid-column: 4 / span 3; display: flex; flex-direction: column; gap: var(--sp-4); align-self: stretch; }
 .td-w-mini-col .td-w-pack,
 .td-w-mini-col .td-w-safety { flex: 1; }

@@ -124,12 +124,12 @@ describe('albums view', () => {
     expect(albumUpdate).toHaveBeenCalledWith('a1', { entryIds: ['e2'] });
   });
 
-  it('keeps the auto groups, but below the user albums', () => {
-    const { body } = mount([mkEntry('e1')], []);
+  it('keeps the tag groups, but below the user albums', () => {
+    const { body } = mount([mkEntry('e1', { tags: ['food'] })], []);
     gotoView(body, 'albums');
     const shell = body.querySelector('.journal-album-shell')!;
     const auto = shell.querySelector('.journal-auto-groups');
-    expect(auto, 'auto groups still present').toBeTruthy();
+    expect(auto, 'tag groups still present').toBeTruthy();
     // Collapsed: it's reference material, not the main event.
     expect((auto as HTMLDetailsElement).open).toBe(false);
   });

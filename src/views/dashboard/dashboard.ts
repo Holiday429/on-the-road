@@ -20,6 +20,7 @@ import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES
 import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
+import { entryCover, excerpt, moodEmoji, prettyDate, titleFor } from '../journal/shared/utils.ts';
 import type { PlanItem, PlanDay, ClipCategory } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
@@ -646,8 +647,26 @@ function renderPlanFeed(leg: StoredLeg): string {
 
 /* ── Journal quick-entry widget ───────────────────────────────────────────── */
 function renderJournalWidget(_phase: Phase): string {
-  // One button, no category. Picking a type up front was the slowest part of
-  // capturing something on the road; the entry is classified after the fact.
+  // One compose button and the latest couple of entries. No category anywhere —
+  // the same shape as the iOS journal, where entries are just photo + words.
+  const recent = [..._journal]
+    .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn) || (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    .slice(0, 2);
+  const rows = recent.map((e) => {
+    const cover = entryCover(e);
+    const hasTitle = e.title.trim().length > 0;
+    return `
+      <button class="td-jq-row" data-nav="journal" type="button">
+        <span class="td-jq-thumb">${cover
+          ? `<img src="${esc(cover)}" alt="" loading="lazy">`
+          : esc(moodEmoji(e.mood) || '📖')}</span>
+        <span class="td-jq-copy">
+          <span class="td-jq-title">${esc(hasTitle ? titleFor(e) : excerpt(e.body, 40) || titleFor(e))}</span>
+          <span class="td-jq-meta">${esc(e.destination ? `${e.destination} · ` : '')}${esc(prettyDate(e.happenedOn))}</span>
+        </span>
+      </button>`;
+  }).join('');
+
   return `
     <div class="td-widget td-w-journal" data-widget-id="journal">
       <div class="td-widget-header">
@@ -657,8 +676,10 @@ function renderJournalWidget(_phase: Phase): string {
       <button class="td-jq-btn" data-journal-new>
         <span class="td-jq-icon">✍️</span>
         <span class="td-jq-label">记一笔</span>
-        <span class="td-jq-hint">照片或一句话都行</span>
       </button>
+      ${rows
+        ? `<div class="td-jq-recent">${rows}</div>`
+        : `<div class="td-jq-hint">照片或一句话都行</div>`}
     </div>`;
 }
 

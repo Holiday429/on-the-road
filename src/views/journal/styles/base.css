@@ -1,16 +1,9 @@
 /* ==========================================================================
    On the Road · Journal (feed mode)
    --------------------------------------------------------------------------
-   Each template carries a `--tint` from the shared MAP_PALETTE (set inline)
-   and a `journal-fmt-<format>` class that gives both the stamp, the composer
-   and the card their own silhouette + texture:
-     polaroid  — photo frame, thick lower margin, handwritten caption
-     postcard  — split: handwritten message | stamp + address lines
-     ticket    — boarding-pass stub with perforation + mono details
-     sticky    — square note, full tint, handwriting, dog-ear
-     post      — IG-style media block on top, caption row below
-   Backgrounds derive from --tint with color-mix so a new palette colour
-   just works.
+   Entries carry no visible category any more. `--tint` is a single accent
+   (set on .journal-shell below) shared by focus rings, the cover outline and
+   picked gallery tiles.
    ========================================================================== */
 
 #view-journal { animation: fadeUp var(--dur-mid) var(--ease-out); }
@@ -107,6 +100,13 @@
 .journal-mode-tab.active {
   background: var(--amber-100);
   color: var(--ink);
+}
+
+.journal-shell,
+#jco-overlay-root {
+  /* One accent for everything that used to take its colour from the entry's
+     category (focus rings, cover outline, picked tiles, text-card edge). */
+  --tint: var(--amber-400);
 }
 
 .journal-shell {

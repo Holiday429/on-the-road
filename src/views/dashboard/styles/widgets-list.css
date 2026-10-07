@@ -76,21 +76,60 @@
 /* ── Journal quick-entry ──────────────────────────────────────────────────── */
 .td-jq-btn {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: var(--sp-2);
   width: 100%;
-  padding: 18px 12px;
+  padding: 10px 12px;
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-md);
   background: var(--surface);
   cursor: pointer;
 }
 .td-jq-btn:hover { background: var(--amber-50); border-color: var(--amber-200); }
-.td-jq-icon { font-size: 20px; line-height: 1; }
+.td-jq-icon { font-size: 16px; line-height: 1; }
 .td-jq-label { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
-.td-jq-hint { font-size: var(--fs-xs); color: var(--ink-faint); }
+.td-jq-hint { font-size: var(--fs-xs); color: var(--ink-faint); text-align: center; }
+
+/* Latest entries. flex-basis 0 + min-height 0 so this block can only fill the
+   space the row already has — it never makes the widget (and the grid row it
+   shares with the mini widgets) taller. */
+.td-jq-recent {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.td-jq-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px;
+  border-radius: var(--r-md);
+  background: var(--surface-3);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.td-jq-row:hover { background: var(--surface-4); }
+.td-jq-thumb {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  background: var(--amber-50);
+  font-size: 14px;
+  overflow: hidden;
+}
+.td-jq-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.td-jq-copy { display: flex; flex-direction: column; min-width: 0; }
+.td-jq-title, .td-jq-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-jq-title { font-size: var(--fs-sm); font-weight: 500; color: var(--ink-soft); }
+.td-jq-meta { font-size: var(--fs-xs); color: var(--ink-faint); }
 
 /* Journal composer modal */
 .td-compose-body { display: flex; flex-direction: column; gap: var(--sp-3); }

@@ -15,7 +15,7 @@ import {
 } from '../templates.ts';
 import { inferTemplate } from '../classify.ts';
 import { suggestTidy, type AlbumSuggestion } from '../ai-classify.ts';
-import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type TagGroup, type TemplateGroup } from './render.ts';
+import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type TagGroup } from './render.ts';
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import { uploadJournalImage } from '../../../firebase/storage.ts';
@@ -46,7 +46,7 @@ interface CaptureControllerDeps {
 export function createCaptureController(deps: CaptureControllerDeps) {
   const state: CaptureState = {
     view: 'feed',
-    filter: { template: 'all', destination: 'all', tag: 'all', favoritesOnly: false },
+    filter: { destination: 'all', tag: 'all', favoritesOnly: false },
     draft: defaultDraft(deps.getLegs()),
     composerOpen: false,
     moreOpen: false,
@@ -84,7 +84,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     const allTags = collectTags(allEntries);
     const destinations = [...new Set(allEntries.map((entry) => entry.destination.trim()).filter(Boolean))];
     const placeGroups = buildPlaceGroups(visibleEntries);
-    const templateGroups = buildTemplateGroups(visibleEntries);
     const tagGroups = buildTagGroups(visibleEntries);
     const { points, route } = buildMapData(visibleEntries, deps.getLegs());
     const calendarCells = buildCalendarCells(state.calendarMonth, filteredEntries(allEntries, false));
@@ -96,7 +95,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       allTags,
       destinations,
       placeGroups,
-      templateGroups,
       tagGroups,
       mapPoints: points,
       mapRoute: route,
@@ -278,13 +276,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
-      const templateBtn = target.closest<HTMLElement>('[data-filter-template]');
-      if (templateBtn) {
-        state.filter.template = (templateBtn.dataset.filterTemplate as TemplateId | 'all') ?? 'all';
-        deps.requestRender();
-        return;
-      }
-
       const tagBtn = target.closest<HTMLElement>('[data-filter-tag]');
       if (tagBtn) {
         state.filter.tag = tagBtn.dataset.filterTag ?? 'all';
@@ -451,9 +442,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     if (state.filter.tag !== 'all' && !tags.has(state.filter.tag)) {
       state.filter.tag = 'all';
     }
-    if (state.filter.template !== 'all' && !templateIds.has(state.filter.template)) {
-      state.filter.template = 'all';
-    }
     if (!templateIds.has(normalizeTemplateId(state.draft.template))) {
       state.draft.template = DEFAULT_TEMPLATE;
     }
@@ -554,7 +542,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
   function filteredEntries(entries: StoredJournalEntry[], applyCalendarMonth = true): StoredJournalEntry[] {
     return entries
-      .filter((entry) => state.filter.template === 'all' || template(entry.template).id === state.filter.template)
       .filter((entry) => state.filter.destination === 'all' || entry.destination === state.filter.destination)
       .filter((entry) => state.filter.tag === 'all' || entry.tags.includes(state.filter.tag))
       .filter((entry) => !state.filter.favoritesOnly || entry.favorite)
@@ -1056,15 +1043,6 @@ function buildPlaceGroups(entries: StoredJournalEntry[]): PlaceGroup[] {
     .sort((a, b) => b.entries[0].happenedOn.localeCompare(a.entries[0].happenedOn));
 }
 
-function buildTemplateGroups(entries: StoredJournalEntry[]): TemplateGroup[] {
-  return templates()
-    .map((item) => {
-      const groupEntries = entries.filter((entry) => template(entry.template).id === item.id);
-      return { templateId: item.id, entries: groupEntries, topTags: topTagsFor(groupEntries).slice(0, 3) };
-    })
-    .filter((group) => group.entries.length > 0);
-}
-
 function buildTagGroups(entries: StoredJournalEntry[]): TagGroup[] {
   const map = new Map<string, StoredJournalEntry[]>();
   for (const entry of entries) {
@@ -1079,18 +1057,6 @@ function buildTagGroups(entries: StoredJournalEntry[]): TagGroup[] {
     .map(([tag, groupEntries]) => ({ tag, entries: sortEntries(groupEntries) }))
     .sort((a, b) => b.entries.length - a.entries.length || a.tag.localeCompare(b.tag))
     .slice(0, 8);
-}
-
-function topTagsFor(entries: StoredJournalEntry[]): string[] {
-  const counts = new Map<string, number>();
-  for (const entry of entries) {
-    for (const tag of entry.tags) {
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([tag]) => tag);
 }
 
 function buildMapData(entries: StoredJournalEntry[], legs: StoredLeg[]) {

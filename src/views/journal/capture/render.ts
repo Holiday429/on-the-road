@@ -1,10 +1,6 @@
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
-import {
-  template,
-  type TemplateId,
-} from '../templates.ts';
 import type { CaptureState } from './types.ts';
 import {
   MAX_JOURNAL_IMAGES,
@@ -28,12 +24,6 @@ export interface PlaceGroup {
   label: string;
   summary: string;
   entries: StoredJournalEntry[];
-}
-
-export interface TemplateGroup {
-  templateId: TemplateId;
-  entries: StoredJournalEntry[];
-  topTags: string[];
 }
 
 export interface TagGroup {
@@ -66,7 +56,6 @@ interface CaptureRenderModel {
   allTags: string[];
   destinations: string[];
   placeGroups: PlaceGroup[];
-  templateGroups: TemplateGroup[];
   tagGroups: TagGroup[];
   mapPoints: MapPoint[];
   mapRoute: Array<{ left: number; top: number }>;
@@ -186,14 +175,13 @@ function renderComposer(
   legs: StoredLeg[],
   savedGuidePlaces: Array<{ id: string; title: string; type: string }> = [],
 ): string {
-  const item = template(state.draft.template);
   const destinations = suggestedDestinations(entries, legs);
   const cities = tripCities(legs);
   const currentDestination = state.draft.destination.trim();
   const isCustomDestination = currentDestination !== '' && !cities.includes(currentDestination);
 
   return `
-    <section class="journal-composer journal-fmt-${item.format}" style="--tint:${item.tint}">
+    <section class="journal-composer">
       <div class="journal-composer-head">
         <span class="journal-composer-title">${state.editingId ? '编辑记录' : '记一笔'}</span>
         <button class="journal-icon-btn" data-journal-close type="button" title="Close">✕</button>
@@ -387,7 +375,6 @@ function renderMagazineCard(
   readingId: string | null,
   today: string,
 ): string {
-  const item = template(entry.template);
   const isOpen = entry.id === readingId;
   const photos = entryImages(entry);
   const extra = photos.length - 1;
@@ -401,7 +388,7 @@ function renderMagazineCard(
   // live in the reader that opens on tap (renderReaderOverlay).
   return `
     <article class="journal-mag-card${photos.length ? ' has-photo' : ' is-text'}${isOpen ? ' is-open' : ''}"
-             data-open-entry="${entry.id}" style="--tint:${item.tint}">
+             data-open-entry="${entry.id}">
       ${photos.length ? `
         <div class="journal-mag-cover" style="aspect-ratio:${coverAspect(entry.imageRatio)}">
           <img src="${escHtml(photos[0])}" alt="${escHtml(title)}" class="journal-mag-cover-img" loading="lazy">
@@ -416,8 +403,7 @@ function renderMagazineCard(
           : `<p class="journal-mag-text">${escHtml(excerpt(entry.body, 90))}</p>`}
 
         <footer class="journal-mag-foot">
-          <span class="journal-mag-stamp" style="background:color-mix(in srgb,${item.tint} 22%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">${item.emoji}</span>
-          <span class="journal-mag-where">${escHtml(entry.destination || item.label)}</span>
+          ${entry.destination ? `<span class="journal-mag-where">📍 ${escHtml(entry.destination)}</span>` : ''}
           <span class="journal-mag-date">${escHtml(dayLabel(entry.happenedOn, today))}</span>
         </footer>
       </div>
@@ -462,15 +448,13 @@ function renderReaderGallery(photos: string[], entryId: string, ratio: number | 
  * entry to read it never drops you into an editable textarea.
  */
 function renderReader(entry: StoredJournalEntry, albums: StoredJournalAlbum[]): string {
-  const item = template(entry.template);
   const photos = entryImages(entry);
   const title = titleFor(entry);
   const isPublic = entry.visibility === 'public';
 
   return `
-    <article class="journal-reader" style="--tint:${item.tint}">
+    <article class="journal-reader">
       <header class="journal-reader-head">
-        <span class="journal-reader-stamp" style="background:color-mix(in srgb,${item.tint} 22%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">${item.emoji} ${escHtml(item.label)}</span>
         <div class="journal-reader-head-actions">
           <button class="journal-reader-pill" data-open-reader-edit="${entry.id}" type="button">✎ Edit</button>
           <button class="journal-icon-btn" data-reader-close type="button" title="Close">✕</button>
@@ -535,15 +519,12 @@ function renderPlacesView(groups: PlaceGroup[]): string {
       ${groups.map((group) => {
         const coverEntry = group.entries.find((e) => entryCover(e));
         const hasImage = !!coverEntry && !!entryCover(coverEntry);
-        const tmpl = template(group.entries[0].template);
         return `
-          <article class="journal-place-tile" data-place-filter="${escHtml(group.label)}" style="--tint:${tmpl.tint}">
+          <article class="journal-place-tile" data-place-filter="${escHtml(group.label)}">
             <div class="journal-place-tile-cover">
               ${hasImage
                 ? `<img src="${escHtml(entryCover(coverEntry!))}" alt="${escHtml(group.label)}" class="journal-place-tile-img">`
-                : `<div class="journal-place-tile-fallback">
-                    ${group.entries.slice(0, 3).map((e) => `<span>${template(e.template).emoji}</span>`).join('')}
-                  </div>`}
+                : `<div class="journal-place-tile-fallback"><span>📍</span></div>`}
               <div class="journal-place-tile-count">${group.entries.length}</div>
             </div>
             <div class="journal-place-tile-info">
@@ -568,11 +549,9 @@ function renderPlacesView(groups: PlaceGroup[]): string {
 /**
  * Albums: the groupings the user actually made.
  *
- * This replaced the Categories view. Categories showed the four inferred
- * template buckets as if they were the user's own organisation — they never
- * were, and now that the template is inferred rather than chosen they're an
- * even weaker claim. They survive below the albums as "auto groups", which is
- * what they always were.
+ * This replaced the Categories view, which showed inferred template buckets as
+ * if they were the user's own organisation. Only tag groups survive, below the
+ * albums.
  */
 function renderAlbumsView(model: CaptureRenderModel): string {
   const open = model.state.openAlbumId
@@ -627,7 +606,7 @@ function renderAlbumsView(model: CaptureRenderModel): string {
         </div>
       `}
 
-      ${renderAutoGroups(model.templateGroups, model.tagGroups)}
+      ${renderAutoGroups(model.tagGroups)}
     </div>
   `;
 }
@@ -709,51 +688,26 @@ function renderAlbumDetail(album: StoredJournalAlbum, all: StoredJournalEntry[])
   `;
 }
 
-/** The old Categories view, demoted: system groupings, below the user's own. */
-function renderAutoGroups(templateGroups: TemplateGroup[], tagGroups: TagGroup[]): string {
-  if (!templateGroups.length && !tagGroups.length) return '';
+/** Tag groupings, below the user's own albums. Type buckets are gone — see classify.ts. */
+function renderAutoGroups(tagGroups: TagGroup[]): string {
+  if (!tagGroups.length) return '';
   return `
     <details class="journal-auto-groups">
-      <summary class="journal-auto-groups-toggle">自动分组（按类型 / 标签）</summary>
+      <summary class="journal-auto-groups-toggle">按标签</summary>
       <div class="journal-category-shell">
-        ${templateGroups.length ? `
-          <div class="journal-category-grid">
-            ${templateGroups.map((group) => {
-              const item = template(group.templateId);
-              const coverEntry = group.entries.find((e) => entryCover(e));
-              return `
-                <article class="journal-category-tile" data-filter-template="${item.id}" style="--tint:${item.tint}">
-                  <div class="journal-category-tile-cover">
-                    ${coverEntry && entryCover(coverEntry)
-                      ? `<img src="${escHtml(entryCover(coverEntry))}" alt="" class="journal-category-tile-img">`
-                      : `<div class="journal-category-tile-bg"></div>`}
-                    <div class="journal-category-tile-emoji">${item.emoji}</div>
-                  </div>
-                  <div class="journal-category-tile-body">
-                    <div class="journal-category-title">${escHtml(item.label)}</div>
-                    <div class="journal-category-meta">${group.entries.length} entries</div>
-                  </div>
-                </article>
-              `;
-            }).join('')}
-          </div>
-        ` : ''}
-
-        ${tagGroups.length ? `
-          <div class="journal-tag-groups">
-            ${tagGroups.map((group) => `
-              <article class="card journal-tag-group">
-                <div class="journal-tag-group-head">
-                  <button class="journal-filter-chip active" data-filter-tag="${escHtml(group.tag)}" type="button">#${escHtml(group.tag)}</button>
-                  <span class="journal-category-meta">${group.entries.length} entries</span>
-                </div>
-                <div class="journal-mini-list">
-                  ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
-                </div>
-              </article>
-            `).join('')}
-          </div>
-        ` : ''}
+        <div class="journal-tag-groups">
+          ${tagGroups.map((group) => `
+            <article class="card journal-tag-group">
+              <div class="journal-tag-group-head">
+                <button class="journal-filter-chip active" data-filter-tag="${escHtml(group.tag)}" type="button">#${escHtml(group.tag)}</button>
+                <span class="journal-category-meta">${group.entries.length} entries</span>
+              </div>
+              <div class="journal-mini-list">
+                ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
+              </div>
+            </article>
+          `).join('')}
+        </div>
       </div>
     </details>
   `;
@@ -812,7 +766,6 @@ function renderGalleryView(
 
     <div class="journal-gallery-grid">
       ${entries.map((entry) => {
-        const item = template(entry.template);
         const rawRatio = entry.imageRatio;
         const ratio = square ? 1 : (rawRatio ? closestPresetRatio(rawRatio) : 3 / 4);
         const paddingTop = `${(1 / ratio) * 100}%`;
@@ -823,13 +776,13 @@ function renderGalleryView(
           ? `data-gallery-pick="${entry.id}"`
           : `data-open-entry="${entry.id}"`;
         return `
-          <article class="journal-gallery-tile${entryCover(entry) ? ' has-image' : ''}${picked ? ' is-picked' : ''}" ${action} style="--tint:${item.tint}">
+          <article class="journal-gallery-tile${entryCover(entry) ? ' has-image' : ''}${picked ? ' is-picked' : ''}" ${action}>
             ${selecting ? `<span class="journal-gallery-check">${picked ? '✓' : ''}</span>` : ''}
             <div class="journal-gallery-media" style="padding-top:${paddingTop}">
               <div class="journal-gallery-media-inner">
                 ${entryCover(entry)
                   ? `<img src="${escHtml(entryCover(entry))}" alt="${escHtml(titleFor(entry))}" class="journal-gallery-image">`
-                  : `<div class="journal-gallery-fallback"><span>${item.emoji}</span><p>${escHtml(excerpt(entry.body, 88))}</p></div>`}
+                  : `<div class="journal-gallery-fallback"><span>${moodEmoji(entry.mood) || '📖'}</span><p>${escHtml(excerpt(entry.body, 88))}</p></div>`}
               </div>
             </div>
             <div class="journal-gallery-foot">
@@ -874,12 +827,6 @@ function renderMapView(points: MapPoint[], _route: Array<{ left: number; top: nu
 
 function renderCalendarView(cells: CalendarCell[], monthLabel: string): string {
   const today = new Date().toISOString().slice(0, 10);
-  const usedTemplates = new Set(cells.flatMap((c) => c.entries.map((e) => e.template)));
-  const legendItems = [...usedTemplates].map((tid) => {
-    const item = template(tid);
-    return `<span class="journal-cal-legend-item"><span class="journal-cal-legend-dot" style="background:${item.tint}"></span>${escHtml(item.label)}</span>`;
-  });
-
   return `
     <div class="journal-calendar-shell">
       <div class="journal-calendar-head">
@@ -898,10 +845,8 @@ function renderCalendarView(cells: CalendarCell[], monthLabel: string): string {
               <div class="journal-calendar-day ${isToday ? 'is-today' : ''}">${cell.day}</div>
               <div class="journal-calendar-items">
                 ${cell.entries.slice(0, 3).map((entry) => {
-                  const item = template(entry.template);
                   return `
-                    <button class="journal-calendar-pill" data-open-entry="${entry.id}" type="button" style="background:color-mix(in srgb,${item.tint} 25%,#fff);color:color-mix(in srgb,${item.tint} 80%,#333)">
-                      <span>${item.emoji}</span>
+                    <button class="journal-calendar-pill" data-open-entry="${entry.id}" type="button">
                       <span class="journal-calendar-pill-text">${escHtml(titleFor(entry))}</span>
                     </button>
                   `;
@@ -912,12 +857,6 @@ function renderCalendarView(cells: CalendarCell[], monthLabel: string): string {
           `;
         }).join('')}
       </div>
-      ${legendItems.length ? `
-        <div class="journal-cal-legend">
-          ${legendItems.join('')}
-          <span class="journal-cal-legend-item journal-cal-legend-all">All Entries</span>
-        </div>
-      ` : ''}
     </div>
   `;
 }
@@ -933,10 +872,9 @@ function renderEmpty(mark: string, title: string, copy: string): string {
 }
 
 function renderMiniEntry(entry: StoredJournalEntry): string {
-  const item = template(entry.template);
   return `
     <button class="journal-mini-entry" data-open-entry="${entry.id}" type="button">
-      <span class="journal-mini-entry-mark" style="--tint:${item.tint}">${item.emoji}</span>
+      <span class="journal-mini-entry-mark">${moodEmoji(entry.mood) || '📖'}</span>
       <span class="journal-mini-entry-copy">
         <span class="journal-mini-entry-title">${escHtml(titleFor(entry))}</span>
         <span class="journal-mini-entry-body">${escHtml(excerpt(entry.body, 72))}</span>

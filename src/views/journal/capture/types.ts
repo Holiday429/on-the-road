@@ -4,7 +4,6 @@ import type { TidySuggestions } from '../ai-classify.ts';
 export type CaptureView = 'feed' | 'places' | 'albums' | 'gallery' | 'map' | 'calendar';
 
 export interface CaptureFilter {
-  template: TemplateId | 'all';
   destination: string;
   tag: string;
   favoritesOnly: boolean;
