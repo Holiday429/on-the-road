@@ -14,6 +14,7 @@ import {
   type TemplateId,
 } from '../templates.ts';
 import { inferTemplate } from '../classify.ts';
+import { exportEntries } from '../export.ts';
 import { suggestTidy, type AlbumSuggestion } from '../ai-classify.ts';
 import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type TagGroup } from './render.ts';
 import { openCardPreview } from '../card/card-preview.ts';
@@ -155,6 +156,12 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       if (cancelBtn) {
         resetDraft();
         deps.requestRender();
+        return;
+      }
+
+      const exportBtn = target.closest<HTMLElement>('[data-journal-export]');
+      if (exportBtn) {
+        exportEntries(deps.getEntries(), exportBtn.dataset.journalExport === 'json' ? 'json' : 'md');
         return;
       }
 

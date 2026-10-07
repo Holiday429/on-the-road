@@ -121,6 +121,10 @@ function renderComposeButton(): string {
         <span class="journal-compose-icon">✍️</span>
         <span class="journal-compose-label">记一笔</span>
       </button>
+      <div class="journal-export" title="导出当前范围内的全部记录">
+        <button class="journal-export-btn" data-journal-export="md" type="button">⬇ Markdown</button>
+        <button class="journal-export-btn" data-journal-export="json" type="button">⬇ JSON</button>
+      </div>
     </div>
   `;
 }

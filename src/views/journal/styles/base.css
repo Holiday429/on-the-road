@@ -167,7 +167,20 @@
 }
 
 /* ── Compose bar (the single entry point) ────────────────────────────────── */
-.journal-compose-bar { display: flex; }
+.journal-compose-bar { display: flex; gap: var(--sp-3); align-items: stretch; }
+.journal-export { display: flex; flex-direction: column; justify-content: center; gap: 6px; flex-shrink: 0; }
+.journal-export-btn {
+  padding: 6px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--rule-soft);
+  background: var(--surface);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.journal-export-btn:hover { background: var(--amber-50); border-color: var(--amber-200); color: var(--ink); }
 .journal-compose-btn {
   display: flex;
   align-items: center;
