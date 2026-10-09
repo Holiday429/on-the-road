@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<!--
+  On the Road · Recap deck preview  (DEV ONLY)
+
+  Open http://localhost:5173/recap-preview.html with `npm run dev` running.
+  Renders the real deck from canned fixtures — no sign-in, no Firestore, no AI
+  call. Not referenced by app.html and not part of the deployed app.
+-->
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recap deck · preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Sans:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px 16px 60px;
+      background: var(--surface-2, #fafaf9);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 17px;
+      color: var(--ink, #1c1917);
+    }
+    .sub { margin: 0 0 18px; font-size: 13px; color: var(--ink-muted, #78716c); }
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 12px 14px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border, rgba(28,25,23,.08));
+      border-radius: 12px;
+      background: var(--surface, #fff);
+      font-size: 13px;
+      color: var(--ink-soft, #44403c);
+    }
+    #toolbar label { display: flex; align-items: center; gap: 6px; }
+    #toolbar select, #toolbar button {
+      font: inherit;
+      padding: 5px 8px;
+      border: 1px solid var(--border, rgba(28,25,23,.12));
+      border-radius: 8px;
+      background: var(--surface-2, #fafaf9);
+      color: inherit;
+      cursor: pointer;
+    }
+    #toolbar .hint { margin-left: auto; color: var(--ink-faint, #a8a29e); }
+
+    /* The phone width exercises recap.css's 520px breakpoint — the horizontal
+       snap-scrolling deck — without needing devtools emulation. */
+    .stage.is-phone {
+      max-width: 390px;
+      margin: 0 auto;
+      padding: 10px;
+      border: 1px solid var(--border, rgba(28,25,23,.12));
+      border-radius: 28px;
+      background: var(--surface, #fff);
+      container-type: inline-size;
+    }
+
+    #note {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translate(-50%, 12px);
+      max-width: 90vw;
+      padding: 9px 14px;
+      border-radius: 999px;
+      background: #1c1917;
+      color: #fff;
+      font-size: 12.5px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    #note.is-on { opacity: 1; transform: translate(-50%, 0); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Recap deck · preview</h1>
+    <p class="sub">
+      The real component with canned content. Generate and Share are stubbed —
+      nothing here reaches Firestore or an AI endpoint.
+    </p>
+    <div id="toolbar"></div>
+    <div id="stage" class="stage is-desktop">
+      <div id="deck"></div>
+    </div>
+  </div>
+  <div id="note"></div>
+  <script type="module" src="/src/views/journal/recap/preview/main.ts"></script>
+</body>
+</html>

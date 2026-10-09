@@ -545,6 +545,11 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       openComposer();
       deps.requestRender();
     },
+    /** Open one entry in the reader — used by the recap deck's evidence chips. */
+    openEntry: (id: string) => {
+      state.readingId = id;
+      deps.requestRender();
+    },
   };
 
   function filteredEntries(entries: StoredJournalEntry[], applyCalendarMonth = true): StoredJournalEntry[] {

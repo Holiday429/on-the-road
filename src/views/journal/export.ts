@@ -60,7 +60,7 @@ export function entriesToMarkdown(entries: StoredJournalEntry[]): string {
 
     const meta = [
       e.destination && `📍 ${e.destination}`,
-      moodEmoji(e.mood),
+      moodEmoji(e.mood) || e.mood, // older entries store the emoji itself
       e.tags.map((t) => `#${t}`).join(' '),
     ].filter(Boolean);
     if (meta.length) out.push(meta.join(' · '), '');

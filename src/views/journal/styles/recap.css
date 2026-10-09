@@ -1,0 +1,814 @@
+/* ==========================================================================
+   On the Road · Recap deck
+   --------------------------------------------------------------------------
+   Nine 3:4 flip cards. Every size inside a card is in `cqw` (1% of the card's
+   own width), so a 360px card on screen and a 1080px export are the same layout
+   at different scales: 1cqw = 10.8px at the export size.
+
+   Text floor: body copy is 3.6cqw (≈ 39px at 1080) — above the 3.5% line below
+   which a share image stops being readable when shrunk to a phone thumbnail.
+   ========================================================================== */
+
+@property --recap-ry  { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@property --recap-dip { syntax: "<number>"; inherits: false; initial-value: 1; }
+
+.journal-recap-shell {
+  /* Card surface tokens. Scoped here, not :root, so nothing else inherits them. */
+  --card-bg: var(--surface);
+  --card-edge: rgba(28, 25, 23, 0.10);
+  --paper-grain: rgba(28, 25, 23, 0.035);
+  --paper-wash: #fdfcfa;
+  --rc-sh-1: 0 1px 2px rgba(28, 25, 23, 0.05);
+  --rc-sh-2: 0 2px 6px rgba(28, 25, 23, 0.06), 0 10px 24px -12px rgba(28, 25, 23, 0.18);
+  --rc-sh-3: 0 6px 14px rgba(28, 25, 23, 0.08), 0 24px 48px -20px rgba(28, 25, 23, 0.26);
+  --sheen: rgba(255, 255, 255, 0.62);
+  --flip-dur: 620ms;
+  --ease-flip: cubic-bezier(0.2, 0.78, 0.24, 1);
+  --ease-out: cubic-bezier(0.22, 0.9, 0.3, 1);
+  --focus: #2563eb;
+
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 4px 0 40px;
+}
+
+:root[data-theme='dark'] .journal-recap-shell {
+  --card-edge: rgba(240, 235, 226, 0.13);
+  --paper-grain: rgba(240, 235, 226, 0.045);
+  --paper-wash: #2a2724;
+  --rc-sh-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --rc-sh-2: 0 2px 6px rgba(0, 0, 0, 0.35), 0 10px 24px -12px rgba(0, 0, 0, 0.6);
+  --rc-sh-3: 0 6px 14px rgba(0, 0, 0, 0.45), 0 24px 48px -20px rgba(0, 0, 0, 0.75);
+  --sheen: rgba(255, 241, 214, 0.14);
+  --focus: #8ab4ff;
+}
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+
+.recap-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px 24px;
+  padding: 4px 2px 22px;
+}
+
+.recap-title { margin: 0; font-family: var(--font-ui); font-weight: 600; font-size: 19px; letter-spacing: -0.01em; color: var(--ink); }
+.recap-sub { margin: 5px 0 0; font-size: 13px; color: var(--ink-muted); }
+
+.recap-header-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.recap-progress { display: flex; align-items: center; gap: 10px; }
+.recap-dots { display: flex; gap: 5px; }
+.recap-dot {
+  width: 7px; height: 7px;
+  border-radius: var(--r-full);
+  background: var(--surface-4);
+  transition: background 0.35s var(--ease-out), transform 0.35s var(--ease-out);
+}
+.recap-dot.is-on { background: var(--accent); transform: scale(1.18); }
+.recap-progress-label {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.recap-segment {
+  display: flex;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+}
+.recap-segment button {
+  padding: 5px 13px;
+  border-radius: var(--r-full);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--ink-muted);
+  transition: background 0.2s, color 0.2s;
+}
+.recap-segment button.is-on { background: var(--ink); color: var(--surface); }
+
+.recap-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--danger-bg, var(--surface-3));
+  color: var(--danger, var(--ink));
+  font-size: 13px;
+}
+
+/* ── Deck ─────────────────────────────────────────────────────────────────── */
+
+.recap-deck {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 30px 26px;
+  padding: 6px 0 0;
+}
+/* Every third card sits lower so the grid reads as a dealt hand, not a table. */
+.recap-deck > .recap-card:nth-child(3n + 2) { transform: translateY(24px); }
+
+/* ── Card shell + flip ────────────────────────────────────────────────────── */
+
+.recap-card {
+  position: relative;
+  aspect-ratio: 3 / 4;       /* == the 1080×1440 share frame */
+  container-type: inline-size;
+  perspective: 1600px;
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.recap-card--open { cursor: default; }
+
+.recap-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+
+.recap-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transform: rotateY(var(--recap-ry)) scale(var(--recap-dip));
+  /* Fast to start, almost still at the end: a sheet of paper flicked over. */
+  transition: --recap-ry var(--flip-dur) var(--ease-flip);
+}
+.recap-card.is-flipped .recap-card-inner { --recap-ry: 180deg; }
+/* The scale dips to ~.95 mid-flip — lifted, turned, put back down. */
+.recap-card.is-flipping .recap-card-inner { animation: recap-dip var(--flip-dur) var(--ease-flip); }
+@keyframes recap-dip { 0% { --recap-dip: 1; } 48% { --recap-dip: 0.952; } 100% { --recap-dip: 1; } }
+
+.recap-card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 7.4cqw;
+  overflow: hidden;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--card-edge);
+  background: linear-gradient(176deg, var(--paper-wash), var(--card-bg) 42%);
+  box-shadow: var(--rc-sh-2);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+/* Paper grain. */
+.recap-card-face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.9;
+  background-image: radial-gradient(var(--paper-grain) 0.6px, transparent 0.7px);
+  background-size: 3px 3px;
+}
+.recap-card-back { transform: rotateY(180deg); }
+
+/* Stacking order, stated outright. At rest Chrome does not cull the back face
+   (the inner transform is the identity), so backface-visibility alone leaves
+   whichever face is later in the DOM on top. */
+.recap-card-front { z-index: 2; }
+.recap-card-back  { z-index: 1; }
+.recap-card.is-flipped .recap-card-front { z-index: 1; }
+.recap-card.is-flipped .recap-card-back  { z-index: 2; box-shadow: var(--rc-sh-3); }
+
+/* A face-down card is drawn as the top of a stack: two paper edges peek out
+   below-right. Turning it over leaves the edges behind, which reads as a card
+   drawn from the pile. */
+.recap-card-front {
+  box-shadow: var(--rc-sh-1),
+    7px 7px 0 -1px var(--card-bg), 7px 7px 0 0 var(--card-edge),
+    14px 14px 0 -1px var(--card-bg), 14px 14px 0 0 var(--rule-soft),
+    0 14px 28px -20px rgba(28, 25, 23, 0.5);
+}
+@media (hover: hover) {
+  .recap-card:not(.is-flipped):not(.recap-card--static):hover .recap-card-front {
+    box-shadow: var(--rc-sh-2),
+      9px 9px 0 -1px var(--card-bg), 9px 9px 0 0 var(--card-edge),
+      18px 18px 0 -1px var(--card-bg), 18px 18px 0 0 var(--rule-soft),
+      0 18px 36px -20px rgba(28, 25, 23, 0.5);
+  }
+  .recap-card:not(.is-flipped):not(.recap-card--static):hover .recap-card-inner {
+    --recap-dip: 1.012;
+    transition: --recap-ry var(--flip-dur) var(--ease-flip), --recap-dip 0.3s var(--ease-out);
+  }
+}
+
+/* A card with nothing to turn (the numbers-only fallback) shows its one face. */
+.recap-card--open .recap-card-inner { transform-style: flat; transform: none; }
+.recap-card--open .recap-card-back {
+  transform: none;
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+  box-shadow: var(--rc-sh-2);
+}
+
+/* Light that sweeps across as the card turns. One pass, not a loop. */
+.recap-sheen {
+  position: absolute;
+  inset: -30% -60%;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(104deg, transparent 38%, var(--sheen) 50%, transparent 62%);
+}
+.recap-card.is-flipping .recap-sheen { animation: recap-sweep var(--flip-dur) var(--ease-flip); }
+@keyframes recap-sweep {
+  0%   { opacity: 0; transform: translateX(-55%); }
+  42%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(55%); }
+}
+
+/* Content arrives in three beats — label and heading, then the text, then the
+   footer — so the judgement is the last thing to land. */
+.r1, .r2, .r3 {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.34s ease, transform 0.46s var(--ease-out);
+}
+.recap-card.is-flipped .r1, .recap-card--open .r1 { opacity: 1; transform: none; transition-delay: 0.30s; }
+.recap-card.is-flipped .r2, .recap-card--open .r2 { opacity: 1; transform: none; transition-delay: 0.38s; }
+.recap-card.is-flipped .r3, .recap-card--open .r3 { opacity: 1; transform: none; transition-delay: 0.48s; }
+.recap-card--open .r1 { transition-delay: 0.12s; }
+.recap-card--open .r2 { transition-delay: 0.22s; }
+.recap-card--open .r3 { transition-delay: 0.34s; }
+
+/* ── Colour ───────────────────────────────────────────────────────────────── */
+/* Each card carries its own wash (set inline from tones.ts, light and dark). The
+   wash is strongest at the top of a face and fades to paper, so body text always
+   sits on a near-white ground and stays readable however saturated the tone. */
+
+.recap-card {
+  --tone: var(--tone-l);
+  --tone-ink: color-mix(in srgb, var(--tone) 40%, var(--ink));
+  --tone-rule: color-mix(in srgb, var(--tone-ink) 22%, transparent);
+}
+:root[data-theme='dark'] .journal-recap-shell .recap-card {
+  --tone: var(--tone-d);
+  --tone-ink: color-mix(in srgb, var(--tone) 35%, var(--ink));
+}
+
+.recap-card-front {
+  background: linear-gradient(158deg, var(--tone) 0%, color-mix(in srgb, var(--tone) 58%, var(--card-bg)) 100%);
+}
+.recap-card-back {
+  background: linear-gradient(178deg, var(--tone) 0%, color-mix(in srgb, var(--tone) 38%, var(--card-bg)) 26%, var(--card-bg) 56%);
+}
+
+/* A single over-long word (a German compound, a pasted URL) must wrap rather than
+   push past the card edge, where overflow:hidden would simply cut it off. */
+.recap-cover-label, .recap-heading, .recap-front-q, .recap-topic-q,
+.recap-oneline, .recap-body, .recap-tile-value, .recap-trait-key, .recap-trait-note,
+.recap-next-list li { overflow-wrap: anywhere; }
+
+.recap-pagenum {
+  font-family: var(--font-ui);
+  font-size: 3.2cqw;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/* ── Front: a question on a wash of colour ────────────────────────────────── */
+
+.recap-front { justify-content: flex-start; }
+
+.recap-front-top { display: flex; align-items: baseline; justify-content: space-between; position: relative; z-index: 1; }
+.recap-front-idx {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 4.6cqw;
+  letter-spacing: 0.04em;
+  color: var(--tone-ink);
+  font-variant-numeric: tabular-nums;
+}
+.recap-front-kicker {
+  font-family: var(--font-ui);
+  font-size: 3cqw;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--tone-ink);
+  opacity: 0.85;
+}
+
+/* A large line drawing of the card's theme, pale and half off the edge. It fills
+   the middle of the card without competing with the question set over it. */
+.recap-front-decor {
+  position: absolute;
+  right: -10cqw;
+  top: 17cqw;
+  width: 70cqw;
+  color: var(--tone-ink);
+  opacity: 0.15;
+  pointer-events: none;
+}
+.recap-front-decor svg { display: block; width: 100%; height: auto; }
+
+/* The question sits low-left, so the weight of the card is at the bottom — the
+   mirror of the back, whose topic bar is at the top. */
+.recap-front-qwrap { position: relative; z-index: 1; margin-top: auto; }
+.recap-front-q {
+  margin: 0;
+  max-width: 88%;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 7.4cqw;
+  line-height: 1.34;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.recap-front-sub { margin: 2.6cqw 0 0; font-size: 3.5cqw; color: var(--ink-soft); }
+.recap-front-bottom { position: relative; z-index: 1; display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-top: 7cqw; }
+
+.recap-cue { display: inline-flex; align-items: center; gap: 1.4cqw; font-size: 3.3cqw; color: var(--ink-soft); }
+.recap-cue span {
+  position: relative;
+  display: inline-block;
+  width: 3.4cqw; height: 3.4cqw;
+  border: 1px solid var(--tone-ink);
+  border-radius: var(--r-full);
+}
+.recap-cue span::after {
+  content: '';
+  position: absolute;
+  inset: 28%;
+  border-radius: var(--r-full);
+  background: var(--tone-ink);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.recap-card:hover .recap-cue span::after { opacity: 1; }
+
+/* The cover's front is the brand: the animated logo, then what this is. */
+.recap-front--cover { align-items: stretch; }
+.recap-cover-logo {
+  position: relative;
+  width: 50cqw;
+  aspect-ratio: 1;
+  margin: 6cqw auto 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--card-bg);
+  box-shadow: 0 0 0 1.4cqw color-mix(in srgb, var(--card-bg) 70%, transparent), var(--rc-sh-2);
+}
+.recap-logo-video, .recap-logo-still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.recap-logo-still { display: none; }
+.recap-front--cover .recap-front-q { font-size: 8.4cqw; }
+
+/* ── Back: topic bar · content · base bar ─────────────────────────────────── */
+
+/* The question this card answers, repeated at the top so a card that has been
+   turned — or saved and sent on its own — still says what it is about. */
+.recap-topic {
+  display: flex;
+  align-items: center;
+  gap: 2.4cqw;
+  padding-bottom: 3cqw;
+  border-bottom: 1px solid var(--tone-rule);
+}
+.recap-topic-idx {
+  flex: none;
+  padding: 0.8cqw 2.4cqw;
+  border-radius: var(--r-full);
+  background: var(--tone-ink);
+  color: var(--card-bg);
+  font-family: var(--font-ui);
+  font-size: 3cqw;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.recap-topic-q {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-size: 3.5cqw;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recap-topic-kicker {
+  flex: none;
+  font-family: var(--font-ui);
+  font-size: 2.7cqw;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--tone-ink);
+  opacity: 0.85;
+}
+
+/* The bar along the bottom of every back. Without it a short text leaves the
+   lower half of a card bare; with it the card is finished at the bottom whatever
+   the middle holds. */
+.recap-base {
+  margin-top: auto;
+  padding-top: 3cqw;
+  min-height: 11cqw;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3cqw;
+  border-top: 1px solid var(--tone-rule);
+}
+.recap-base-left { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 1.6cqw; font-size: 2.9cqw; line-height: 1.5; color: var(--ink-muted); }
+.recap-base-right { flex: none; display: flex; align-items: center; gap: 1.6cqw; font-family: var(--font-ui); font-size: 2.9cqw; font-weight: 600; color: var(--ink); }
+.recap-base-right .recap-pagenum { margin-left: 1cqw; font-size: 2.9cqw; font-weight: 500; }
+.recap-mark-dot { width: 2.8cqw; height: 2.8cqw; flex: none; border-radius: var(--r-full); background: var(--accent); }
+
+.recap-copy { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 4cqw 0; }
+
+.recap-heading {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 6.2cqw;
+  line-height: 1.32;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+
+.recap-body-wrap { margin-top: 3.6cqw; }
+.recap-body {
+  margin: 0;
+  font-size: 3.5cqw;
+  line-height: 1.8;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+/* Short text is set larger so it fills its card; the longest private readings
+   stay at the 3.5cqw readability floor. */
+.recap-body--lg { font-size: 4.8cqw; line-height: 1.74; }
+.recap-body--md { font-size: 4.1cqw; line-height: 1.8; }
+.recap-body--none { color: var(--ink-muted); font-style: italic; }
+
+/* The one sentence that states the judgement: heavier, darker, and marked in the
+   brand amber — the same highlight on every card, so it reads as the product's
+   voice rather than one more tint of the card's own colour. */
+.recap-em {
+  font-weight: 600;
+  color: var(--ink);
+  background: linear-gradient(transparent 52%, color-mix(in srgb, var(--accent) 52%, transparent) 52%);
+  padding: 0 0.08em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* Evidence chips (private view): each jumps to the entry it was drawn from. */
+.recap-evidence-chip {
+  padding: 0.7cqw 2cqw;
+  border: 1px solid var(--tone-rule);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--tone) 40%, var(--card-bg));
+  color: var(--ink-muted);
+  font-family: var(--font-ui);
+  font-size: 2.7cqw;
+  letter-spacing: 0.06em;
+  transition: border-color 0.18s, color 0.18s;
+}
+.recap-evidence-chip:hover { border-color: var(--tone-ink); color: var(--ink); }
+
+/* ── Cover back: archetype + six figures ──────────────────────────────────── */
+
+.recap-archetype { margin-top: 5cqw; padding-bottom: 4cqw; border-bottom: 1px solid var(--tone-rule); }
+.recap-cover-label {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10cqw;
+  line-height: 1.14;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.recap-cover-tagline { margin: 3.4cqw 0 0; font-size: 3.9cqw; line-height: 1.65; color: var(--ink-soft); text-wrap: pretty; }
+
+.recap-tiles {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: 0 3cqw;
+  align-content: stretch;
+}
+.recap-tile { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1cqw; padding: 2cqw 0; }
+.recap-tile:nth-child(-n + 3) { border-bottom: 1px solid var(--tone-rule); }
+.recap-tile-value {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 6.2cqw;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.recap-tile-label { font-size: 3cqw; line-height: 1.35; color: var(--ink-muted); }
+
+/* ── Traits ───────────────────────────────────────────────────────────────── */
+
+/* A fixed height, so four long notes below cannot shrink the radar. */
+.recap-radar-wrap { flex: 1 0 40cqw; min-height: 0; margin-top: 3cqw; display: flex; }
+/* min-height:0 on both: an svg's content height (width × its aspect) would otherwise
+   be the flex item's minimum and silently override the fixed 40cqw above. */
+.recap-radar { width: 100%; height: 100%; min-height: 0; display: block; }
+.recap-radar-ring { fill: none; stroke: var(--tone-rule); stroke-width: 1; }
+.recap-radar-axis { stroke: var(--tone-rule); stroke-width: 1; }
+.recap-radar-shape {
+  fill: var(--tone-ink);
+  fill-opacity: 0.2;
+  stroke: var(--tone-ink);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.recap-radar-pt { fill: var(--card-bg); stroke: var(--tone-ink); stroke-width: 2.4; }
+.recap-radar-key { font-family: var(--font-ui); font-size: 19px; font-weight: 500; fill: var(--ink-soft); }
+.recap-radar-score { font-family: var(--font-ui); font-size: 24px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+
+.recap-trait-list {
+  flex: 0 0 auto;
+  list-style: none;
+  margin: 2cqw 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.4cqw 5cqw;
+  align-content: start;
+}
+.recap-trait-list li { min-width: 0; padding-top: 1.8cqw; border-top: 1px solid var(--tone-rule); }
+.recap-trait-key { display: block; font-family: var(--font-ui); font-size: 3.3cqw; font-weight: 600; color: var(--ink); }
+.recap-trait-key b { font-weight: 700; color: var(--tone-ink); }
+.recap-trait-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 0.8cqw;
+  font-size: 3cqw;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+/* ── Closing ──────────────────────────────────────────────────────────────── */
+
+.recap-oneline {
+  margin: 5cqw 0 0;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 5.2cqw;
+  line-height: 1.55;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  text-wrap: pretty;
+}
+.recap-oneline em { font-style: normal; background: linear-gradient(transparent 52%, color-mix(in srgb, var(--accent) 52%, transparent) 52%); }
+
+.recap-next { margin: auto 0 4cqw; padding-top: 4cqw; }
+.recap-next-label { font-family: var(--font-ui); font-size: 2.9cqw; letter-spacing: 0.22em; text-transform: uppercase; color: var(--tone-ink); }
+.recap-next-list { list-style: none; margin: 2cqw 0 0; padding: 0; counter-reset: next; display: flex; flex-direction: column; gap: 2.4cqw; }
+.recap-next-list li {
+  counter-increment: next;
+  position: relative;
+  padding-left: 6.4cqw;
+  font-size: 3.6cqw;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.recap-next-list li::before {
+  content: counter(next);
+  position: absolute;
+  left: 0;
+  top: 0.4em;
+  width: 4cqw; height: 4cqw;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--tone-ink);
+  color: var(--card-bg);
+  font-family: var(--font-ui);
+  font-size: 2.6cqw;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── "Check" chip: a card whose public text needs a look before it is shared ── */
+/* Amber, not red: it is a prompt to decide, not a fault. The card stays turnable
+   and shareable — the owner chooses. */
+
+.recap-flag {
+  position: absolute;
+  top: -1.6cqw;
+  right: -1.6cqw;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 1.2cqw;
+  padding: 1.1cqw 2.6cqw;
+  border: 1px solid var(--accent);
+  border-radius: var(--r-full);
+  background: var(--accent-light);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 2.8cqw;
+  font-weight: 600;
+  box-shadow: var(--rc-sh-1);
+}
+.recap-flag i { width: 2.2cqw; height: 2.2cqw; border-radius: var(--r-full); background: var(--accent-deep); }
+
+/* ── Footer ───────────────────────────────────────────────────────────────── */
+
+.recap-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+}
+.recap-privacy-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
+.recap-privacy-note b { font-weight: 500; color: var(--ink-soft); }
+.recap-footer-actions { margin-left: auto; display: flex; gap: 10px; }
+/* Press-and-hold is a touch gesture; on a pointer device the hint is just noise. */
+.recap-save-hint { display: block; margin-top: 2px; }
+@media (hover: hover) and (pointer: fine) { .recap-save-hint { display: none; } }
+
+/* ── Empty / loading ──────────────────────────────────────────────────────── */
+
+.recap-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 44px 20px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-xl);
+  background: var(--surface-2);
+}
+.recap-empty h3 { margin: 0; font-size: 19px; color: var(--ink); }
+.recap-empty p { margin: 0; max-width: 46ch; font-size: 13.5px; line-height: 1.65; color: var(--ink-muted); }
+.recap-locked { font-size: 12.5px !important; }
+.recap-basis { font-size: 11px; color: var(--ink-muted); }
+
+/* Three fanned cards standing in for the deck that doesn't exist yet. */
+.recap-empty-deck { position: relative; width: 84px; height: 108px; margin-bottom: 4px; }
+.recap-empty-deck span {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.recap-empty-deck span:nth-child(1) { transform: rotate(-9deg) translateX(-7px); }
+.recap-empty-deck span:nth-child(2) { transform: rotate(-1deg); }
+.recap-empty-deck span:nth-child(3) { transform: rotate(8deg) translateX(7px); background: var(--accent-bg); border-color: var(--accent); }
+.recap-empty-deck.is-dealing span { animation: recap-deal 1.5s ease-in-out infinite; }
+.recap-empty-deck.is-dealing span:nth-child(2) { animation-delay: 0.18s; }
+.recap-empty-deck.is-dealing span:nth-child(3) { animation-delay: 0.36s; }
+@keyframes recap-deal {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50%      { transform: rotate(-6deg) translateY(-8px); }
+}
+
+.recap-progress-bar { width: 180px; height: 4px; border-radius: var(--r-full); background: var(--surface-4); overflow: hidden; }
+.recap-progress-bar i { display: block; height: 100%; background: var(--accent); transition: width 300ms ease; }
+
+/* ── Narrow screens: one card at a time, swiped ───────────────────────────── */
+/* Closer to holding a real deck, and it keeps each claim alone on screen, which
+   is what the format is for. Padding centres a card and leaves the next one's
+   edge showing as the cue that there is more. */
+
+@media (max-width: 860px) and (min-width: 521px) {
+  .recap-deck { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .recap-deck > .recap-card:nth-child(3n + 2) { transform: none; }
+}
+
+@media (max-width: 520px) {
+  .recap-header { flex-direction: column; align-items: stretch; gap: 14px; }
+  .recap-header-actions { margin-left: 0; justify-content: space-between; }
+  .recap-deck {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 6px calc(50% - 134px) 22px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .recap-deck::-webkit-scrollbar { display: none; }
+  .recap-deck > .recap-card { flex: 0 0 268px; transform: none !important; scroll-snap-align: center; }
+  .recap-footer { flex-direction: column; align-items: stretch; margin-top: 28px; }
+  .recap-footer-actions { margin-left: 0; }
+  .recap-footer-actions .btn { flex: 1; }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────────────── */
+/* No rotation: the two faces are laid on top of each other and cross-fade. */
+
+@media (prefers-reduced-motion: reduce) {
+  .recap-card-inner { transform: none !important; transition: none; animation: none !important; }
+  .recap-card-face { backface-visibility: visible; -webkit-backface-visibility: visible; transition: opacity 0.2s linear; }
+  .recap-card-back { transform: none; opacity: 0; }
+  .recap-card.is-flipped .recap-card-front { opacity: 0; }
+  .recap-card.is-flipped .recap-card-back { opacity: 1; }
+  .recap-card--open .recap-card-back { opacity: 1; }
+  .recap-sheen { display: none; }
+  .recap-logo-video { display: none; }
+  .recap-logo-still { display: block; }
+  .r1, .r2, .r3 { transition: opacity 0.2s linear; transform: none !important; transition-delay: 0s !important; }
+  .recap-dot { transition: none; }
+  .recap-empty-deck.is-dealing span { animation: none; }
+}
+
+/* ── Press-and-hold to save ───────────────────────────────────────────────── */
+/* Pressing and holding on iOS raises an image/text callout and starts a text
+   selection; either would sit on top of the save flow that the press triggers. */
+.recap-card {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ── "Choose what to share" sheet ─────────────────────────────────────────── */
+/* Lives in the modal layer, outside the deck, so it carries its own tone vars. */
+
+.recap-pick .otr-modal-body { max-height: min(70vh, 640px); overflow-y: auto; }
+.recap-pick-sub { margin: 0 0 12px; font-size: 13px; line-height: 1.6; color: var(--ink-muted); }
+.recap-pick-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.recap-pick-count { margin-left: auto; font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.recap-pick-list { display: flex; flex-direction: column; gap: 8px; }
+.recap-pick-error { margin: 12px 0 0; font-size: 13px; color: var(--danger, var(--ink)); }
+
+.recap-pick-item {
+  --tone: var(--tone-l);
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--tone) 38%, var(--surface));
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+:root[data-theme='dark'] .recap-pick-item { --tone: var(--tone-d); }
+.recap-pick-item:has(input:checked) { border-color: var(--accent); }
+.recap-pick-item.is-disabled { opacity: 0.55; cursor: default; }
+.recap-pick-item input { position: absolute; opacity: 0; pointer-events: none; }
+
+.recap-pick-swatch {
+  flex: none;
+  width: 34px; height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--tone) 70%, var(--ink) 12%);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* The tick: a ring that fills with the brand amber when chosen. */
+.recap-pick-item::after {
+  content: '';
+  position: absolute;
+  top: 12px; right: 12px;
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--ink-faint);
+  border-radius: var(--r-full);
+  background: var(--surface);
+}
+.recap-pick-item:has(input:checked)::after {
+  border-color: var(--accent-deep);
+  background: var(--accent) radial-gradient(circle, var(--on-accent) 28%, transparent 30%);
+}
+.recap-pick-item:has(input:focus-visible) { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
+
+.recap-pick-main { min-width: 0; padding-right: 30px; display: flex; flex-direction: column; gap: 2px; }
+.recap-pick-q { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--ink); }
+.recap-pick-text { font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
+.recap-pick-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.recap-pick-flag i { flex: none; width: 8px; height: 8px; border-radius: var(--r-full); background: var(--accent-deep); }
+.recap-confirm-text { margin: 0; font-size: 14px; line-height: 1.65; color: var(--ink); }

@@ -26,6 +26,10 @@ export const PAGE_COLLECTIONS: Record<PageId, string[]> = {
   // folded in — see product-restructure P3/P4), so it needs those too.
   cities:   ['cityIntel', 'nomadSpots', 'citySafety'],
   expenses: ['expenses', 'expenseCategories'],
+  // travelerRecaps is deliberately NOT listed. A portrait's private `body` text
+  // cites incidents and names people; listing it here would hand it to anyone
+  // holding a view link to the Journal page. Public sharing of a portrait is a
+  // separate, bodyPublic-only path.
   journal:  ['journalEntries', 'journalStories', 'journalTemplates'],
   map:      ['legs'],           // Map renders from leg geo data (shares with route)
   today:    [],                 // Dashboard aggregates other pages — not shareable alone

@@ -15,6 +15,7 @@
      cityIntel/{cityId}             AI city briefings    (cities)
      journalEntries/{entryId}       travel notes         (journal)
      journalStories/{storyId}       AI trip recaps       (journal)
+     travelerRecaps/{recapId}       AI traveller portraits (journal)
 
    Every document carries meta (createdAt/updatedAt/schemaVersion) so we can
    migrate shapes later without guessing a document's age or version.

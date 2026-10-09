@@ -1,12 +1,15 @@
 import './journal.css';
+import { morphInto } from '../../core/utils.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { journalStoryStore, type StoredJournalStory } from '../../data/stores/journal-story-store.ts';
 import { journalAlbumStore, type StoredJournalAlbum } from '../../data/stores/journal-album-store.ts';
+import { travelerRecapStore, type StoredTravelerRecap } from '../../data/stores/traveler-recap-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { createCaptureController } from './capture/capture.ts';
 import { createStoryController } from './story/story.ts';
+import { createRecapController } from './recap/recap.ts';
 
-type JournalMode = 'capture' | 'story';
+type JournalMode = 'capture' | 'story' | 'recap';
 
 let mode: JournalMode = 'capture';
 // 'trip' = this trip's entries; 'all' = every trip's memories (calendar scroll).
@@ -14,18 +17,32 @@ let entryScope: 'trip' | 'all' = 'trip';
 let entries: StoredJournalEntry[] = [];
 let stories: StoredJournalStory[] = [];
 let albums: StoredJournalAlbum[] = [];
+let recaps: StoredTravelerRecap[] = [];
 let legs: StoredLeg[] = [];
 
 let _unsubEntries: (() => void) | null = null;
 let _unsubLegs: (() => void) | null = null;
 let _unsubStories: (() => void) | null = null;
 let _unsubAlbums: (() => void) | null = null;
+let _unsubRecaps: (() => void) | null = null;
 
 const capture = createCaptureController({
   getEntries: () => entries,
   getLegs: () => legs,
   getAlbums: () => albums,
   requestRender: renderJournal,
+});
+
+const recap = createRecapController({
+  getEntries: () => entries,
+  getRecaps: () => recaps,
+  requestRender: renderJournal,
+  // A chapter's evidence chip jumps to the entry it was drawn from, which is
+  // the one path that turns a claim about the reader back into their own words.
+  openEntry: (id) => {
+    mode = 'capture';
+    capture.openEntry(id);
+  },
 });
 
 const story = createStoryController({
@@ -43,6 +60,7 @@ function subscribeEntries() {
     entries = rows;
     capture.handleDataChange();
     story.handleDataChange();
+    recap.handleDataChange();
     renderJournal();
   });
 }
@@ -50,6 +68,9 @@ function subscribeEntries() {
 function subtitleFor(currentMode: JournalMode) {
   if (currentMode === 'story') {
     return 'AI recap mode turns scattered moments into a shareable reflection page.';
+  }
+  if (currentMode === 'recap') {
+    return 'A portrait of how you travel — what you notice, and what you do when a day goes wrong.';
   }
   return 'Quick travel notes, feelings, and little moments you want to keep before they blur together.';
 }
@@ -88,14 +109,14 @@ function renderJournal() {
 
   const captureHtml = mode === 'capture' ? capture.render() : '';
   const storyHtml   = mode === 'story'   ? story.render()   : '';
+  const recapHtml   = mode === 'recap'   ? recap.render()   : '';
 
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  body.innerHTML = `
+  const html = `
     <div class="journal-mode-shell">
       <div class="journal-topbar">
         <div class="journal-topbar-left">
-          <span class="journal-topbar-title${mode === 'story' ? ' is-story' : ''}">
-            ${mode === 'story' ? '📖 Story' : 'Capture'}
+          <span class="journal-topbar-title${mode === 'capture' ? '' : ' is-story'}">
+            ${mode === 'story' ? '📖 Story' : mode === 'recap' ? '🃏 Portrait' : 'Capture'}
           </span>
           ${mode === 'capture' ? `
             <div class="journal-scope">
@@ -112,20 +133,26 @@ function renderJournal() {
               `).join('')}
             </div>
           ` : ''}
-          <button class="btn journal-story-btn ${mode === 'story' ? 'btn-primary' : 'btn-ghost'}" data-journal-mode="${mode === 'story' ? 'capture' : 'story'}" type="button">
-            ${mode === 'story' ? '← Entries' : '📖 Story'}
-          </button>
+          ${mode === 'capture' ? `
+            <button class="btn journal-story-btn btn-ghost" data-journal-mode="story" type="button">📖 Story</button>
+            <button class="btn journal-story-btn btn-ghost" data-journal-mode="recap" type="button">🃏 Portrait</button>
+          ` : `
+            <button class="btn journal-story-btn btn-ghost" data-journal-mode="capture" type="button">← Entries</button>
+          `}
         </div>
       </div>
-      ${captureHtml}${storyHtml}
+      ${captureHtml}${storyHtml}${recapHtml}
     </div>
   `;
+  morphInto(body, html);
 
   bindModeSwitch(root);
   bindScopeSwitch(root);
   if (mode === 'capture') {
     capture.bind(root);
     capture.afterRender(root);
+  } else if (mode === 'recap') {
+    recap.bind(root);
   } else {
     story.bind(root);
   }
@@ -137,7 +164,7 @@ function renderJournal() {
  * Called from the dashboard's single quick-entry button.
  */
 export function openJournalComposer(): void {
-  // Switch to capture mode in case story mode is active
+  // Switch to capture mode in case story or portrait mode is active
   mode = 'capture';
   capture.openComposer();
   // Render so the composer appears immediately when the view is shown
@@ -211,7 +238,8 @@ export function initJournal() {
   _unsubLegs?.();
   _unsubStories?.();
   _unsubAlbums?.();
-  entries = []; legs = []; stories = []; albums = [];
+  _unsubRecaps?.();
+  entries = []; legs = []; stories = []; albums = []; recaps = [];
 
   subscribeEntries(); // honours the current entryScope
 
@@ -219,6 +247,12 @@ export function initJournal() {
     legs = rows;
     capture.handleDataChange();
     story.handleDataChange();
+    renderJournal();
+  });
+
+  _unsubRecaps = travelerRecapStore.subscribe((rows) => {
+    recaps = rows;
+    recap.handleDataChange();
     renderJournal();
   });
 

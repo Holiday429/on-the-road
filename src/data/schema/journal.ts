@@ -109,3 +109,115 @@ export const JournalStorySchema = doc({
   slug: z.string().default(''),
 });
 export type JournalStory = z.infer<typeof JournalStorySchema>;
+
+/* ── Traveler Recap ──────────────────────────────────────────────────────── */
+// A portrait of the TRAVELLER, not of the trip — "what kind of person records
+// like this". Distinct from JournalStory (above), which recaps the trip itself.
+//
+// Why a separate collection rather than more fields on JournalStory:
+//   · different input — a story ranks the top ~18 entries and reads them at
+//     high resolution; a portrait needs EVERY entry at low resolution, because
+//     the behavioural signals (blank bodies, multi-entry days, when tagging
+//     stopped) are what the portrait is actually built from.
+//   · different output — fixed chapters with a public/private pair per chapter,
+//     vs free-form modules + questions.
+// See docs/AI_RECAP_架构设计.md.
+
+/**
+ * The six angles a portrait is written from. Fixed, not model-chosen, so the
+ * share-card layouts can be designed up front and each chapter's length stays
+ * predictable. Together they're the minimum complete set for "who is this":
+ *   attention   — where their eye lands
+ *   method      — how they get from a scene to a judgement
+ *   relations   — how they treat companions and strangers
+ *   friction    — what they do when something goes wrong
+ *   recording   — what kind of record-keeper they are (signals-driven)
+ *   throughline — the theme that keeps resurfacing
+ */
+export const RECAP_CHAPTER_IDS = [
+  'attention', 'method', 'relations', 'friction', 'recording', 'throughline',
+] as const;
+export type RecapChapterId = typeof RECAP_CHAPTER_IDS[number];
+
+export const RecapChapterSchema = z.object({
+  id: z.enum(RECAP_CHAPTER_IDS),
+  heading: z.string().default(''),
+  /** Private reading. May quote entries, name people, cite specifics. */
+  body: z.string().default(''),
+  /**
+   * The same judgement with every identifying detail removed — no names, no
+   * quoted speech, no amounts, no addresses, no relationship labels. Not a
+   * truncation of `body` but a distillation of it: the method without the
+   * incident. This is the only text a share card ever renders.
+   */
+  bodyPublic: z.string().default(''),
+  /** Short refs (e01…) into refMap, rendered as links back to the entries. */
+  evidenceRefs: z.array(z.string()).default([]),
+  /**
+   * Whether the public text passed every automatic check (no names, quoted
+   * speech, amounts, addresses…). ADVICE, not a lock: the owner chooses which
+   * cards to share, and a flagged one is shown with `flags` so they decide with
+   * the reason in front of them. Default false — a model that forgets to answer
+   * is treated as unchecked.
+   */
+  shareable: z.boolean().default(false),
+  /** Why it did not pass: person-name, quoted-speech, money, relationship-label, health, address, vendor, empty, too-short. */
+  flags: z.array(z.string()).default([]),
+});
+export type RecapChapter = z.infer<typeof RecapChapterSchema>;
+
+export const RecapTraitSchema = z.object({
+  key: z.string().default(''),
+  /**
+   * 0-100. Exactly four traits ship, because the radar chart has four axes. Each
+   * is a disposition visible in the writing — never a statistic about how the
+   * person used the app (tags, moods and the like say nothing about them).
+   */
+  score: z.number().min(0).max(100).default(50),
+  note: z.string().default(''),
+});
+export type RecapTrait = z.infer<typeof RecapTraitSchema>;
+
+/**
+ * An overview figure (up to six). `value` is computed from the writing, never by
+ * the model; the model supplies only the label and a caption that fits it.
+ */
+export const RecapNumberSchema = z.object({
+  label: z.string().default(''),
+  value: z.string().default(''),
+  caption: z.string().default(''),
+});
+export type RecapNumber = z.infer<typeof RecapNumberSchema>;
+
+export const TravelerRecapSchema = doc({
+  tripId: z.string().nullable().default(null),
+  /**
+   * hash(signals + evidence refs + promptVersion). Identical hash = identical
+   * input, so a regenerate request can be answered from the stored doc instead
+   * of the model. The one lever that makes this feature cheap to re-open.
+   */
+  sourceHash: z.string().default(''),
+  /** Entry count the portrait was generated from (shown as "based on N notes"). */
+  entryCount: z.number().default(0),
+  /** The L1 signal block, stored verbatim so share cards can draw the numbers
+   *  without re-reading every entry. */
+  signals: z.record(z.string(), z.unknown()).default({}),
+  archetype: z.object({
+    label: z.string().default(''),
+    tagline: z.string().default(''),
+  }).default({ label: '', tagline: '' }),
+  traits: z.array(RecapTraitSchema).default([]),
+  numbers: z.array(RecapNumberSchema).default([]),
+  chapters: z.array(RecapChapterSchema).default([]),
+  oneLine: z.string().default(''),
+  /** Up to three questions to carry into the next trip, each from a different angle. */
+  questions: z.array(z.string()).default([]),
+  /** Short ref → real entry id. Also the whitelist that rejects hallucinated refs. */
+  refMap: z.record(z.string(), z.string()).default({}),
+  /** 'signals' = heuristic/offline card only; 'ai' = full portrait. */
+  source: z.enum(['signals', 'ai']).default('ai'),
+  visibility: z.enum(['private', 'public']).default('private'),
+  slug: z.string().default(''),
+  generatedAt: z.number().default(0),
+});
+export type TravelerRecap = z.infer<typeof TravelerRecapSchema>;
