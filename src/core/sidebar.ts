@@ -230,7 +230,7 @@ function buildTripPill(): string {
     <div class="trip-pill${tripMenuOpen ? ' is-open' : ''}" id="trip-pill" role="button" tabindex="0" aria-haspopup="true" aria-expanded="${tripMenuOpen}">
       <div class="trip-pill-label">${t('app.currentTripPill')} <span class="trip-pill-caret">▾</span></div>
       <div class="trip-pill-name">${escapeHtml(name)}</div>
-      <div class="trip-pill-date ${compactClass}">${compactBadge}</div>
+      <div class="trip-pill-date ${compactClass}" data-len="${compactBadge.length}">${compactBadge}</div>
       <div class="trip-pill-days">${daysText}</div>
       ${roleBadge}
       ${reqBadge}

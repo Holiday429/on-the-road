@@ -673,13 +673,13 @@ function renderJournalWidget(_phase: Phase): string {
         <div class="td-widget-label">📔 Journal</div>
         <button class="td-link" data-nav="journal">All entries ›</button>
       </div>
-      <button class="td-jq-btn" data-journal-new>
-        <span class="td-jq-icon">✍️</span>
-        <span class="td-jq-label">记一笔</span>
-      </button>
       ${rows
         ? `<div class="td-jq-recent">${rows}</div>`
         : `<div class="td-jq-hint">照片或一句话都行</div>`}
+      <button class="td-jq-btn btn btn-primary" data-journal-new>
+        <span class="td-jq-icon">✍️</span>
+        <span class="td-jq-label">记一笔</span>
+      </button>
     </div>`;
 }
 

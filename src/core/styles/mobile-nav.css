@@ -102,43 +102,62 @@
   .trip-pill-label,
   .trip-pill-name,
   .trip-pill-days,
-  .nav-section-label,
   .nav-item .nav-label {
     display: none;
   }
 
   .trip-pill {
     margin: var(--sp-3) var(--sp-2) 0;
-    padding: var(--sp-2);
+    padding: var(--sp-2) 2px;
     text-align: center;
+    overflow: hidden;
   }
 
+  /* Font size steps down with digit count so 3–4 digit counts stay inside the pill. */
   .trip-pill-date {
     display: block;
     margin-top: 0;
     font-size: 22px;
     line-height: 1;
+    white-space: nowrap;
   }
+  .trip-pill-date[data-len="3"] { font-size: 18px; }
+  .trip-pill-date[data-len="4"] { font-size: 14px; }
 
   .sidebar-nav {
     padding: var(--sp-3) var(--sp-2);
     align-items: center;
+    gap: 10px;
   }
+
+  /* Section labels become hairline dividers between icon groups. */
+  .nav-section-label {
+    display: block;
+    align-self: stretch;
+    height: 1px;
+    margin: 6px 12px;
+    padding: 0;
+    overflow: hidden;
+    font-size: 0;
+    color: transparent;
+    background: var(--rule);
+  }
+  .nav-section-label:first-child { display: none; }
 
   .nav-item {
     justify-content: center;
     width: 100%;
-    padding: 10px 0;
+    padding: 14px 0;
   }
 
   .nav-item .nav-icon {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
   }
 
   .nav-icon-image {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
   }
 }
 

@@ -75,20 +75,13 @@
 
 /* ── Journal quick-entry ──────────────────────────────────────────────────── */
 .td-jq-btn {
-  display: flex;
-  align-items: center;
   justify-content: center;
-  gap: var(--sp-2);
   width: 100%;
+  margin-top: auto;
   padding: 10px 12px;
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  cursor: pointer;
 }
-.td-jq-btn:hover { background: var(--amber-50); border-color: var(--amber-200); }
 .td-jq-icon { font-size: 16px; line-height: 1; }
-.td-jq-label { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
+.td-jq-label { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; }
 .td-jq-hint { font-size: var(--fs-xs); color: var(--ink-faint); text-align: center; }
 
 /* Latest entries. flex-basis 0 + min-height 0 so this block can only fill the
