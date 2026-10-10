@@ -57,6 +57,7 @@ export const en: StringTable = {
   'dash.widget.currency': 'Currency',
   'dash.currency.swap': 'Swap',
   'dash.currency.source': 'ECB reference rate',
+  'dash.journal.entries': '{n} entries',
   'dash.hero.departToday': 'Departing today',
   'dash.hero.nextStop': 'next stop {place}',
   'dash.hero.stop': 'stop {i}/{n}',

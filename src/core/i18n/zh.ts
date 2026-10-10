@@ -53,6 +53,7 @@ export const zh: StringTable = {
   'dash.widget.currency': '汇率',
   'dash.currency.swap': '互换',
   'dash.currency.source': '欧洲央行参考汇率',
+  'dash.journal.entries': '{n} 篇',
   'dash.hero.departToday': '今天出发',
   'dash.hero.nextStop': '下一站 {place}',
   'dash.hero.stop': '第 {i}/{n} 站',

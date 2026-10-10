@@ -21,12 +21,12 @@ import { currencyForCountry } from '../../data/country-currency.ts';
 import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import { entryCover, excerpt, moodEmoji, prettyDate, titleFor } from '../journal/shared/utils.ts';
 import type { PlanItem, PlanDay } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
 import { PIN_COLORS } from '../map/map-status.ts';
 import { renderAgendaWidget, wireAgenda, resetAgenda } from './dashboard-agenda.ts';
+import { renderJournalWidget, wireJournalAlbum, resetJournalAlbum } from './dashboard-journal.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { openModal } from '../../core/modal.ts';
@@ -474,45 +474,6 @@ function ensurePlanDaysLocal(leg: StoredLeg): PlanDay[] {
   });
 }
 
-/* ── Journal quick-entry widget ───────────────────────────────────────────── */
-function renderJournalWidget(_phase: Phase): string {
-  // One compose button and the latest couple of entries. No category anywhere —
-  // the same shape as the iOS journal, where entries are just photo + words.
-  const recent = [..._journal]
-    .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn) || (b.createdAt ?? 0) - (a.createdAt ?? 0))
-    .slice(0, 2);
-  const rows = recent.map((e) => {
-    const cover = entryCover(e);
-    const hasTitle = e.title.trim().length > 0;
-    return `
-      <button class="td-jq-row" data-nav="journal" type="button">
-        <span class="td-jq-thumb">${cover
-          ? `<img src="${esc(cover)}" alt="" loading="lazy">`
-          : esc(moodEmoji(e.mood) || '📖')}</span>
-        <span class="td-jq-copy">
-          <span class="td-jq-title">${esc(hasTitle ? titleFor(e) : excerpt(e.body, 40) || titleFor(e))}</span>
-          <span class="td-jq-meta">${esc(e.destination ? `${e.destination} · ` : '')}${esc(prettyDate(e.happenedOn))}</span>
-        </span>
-      </button>`;
-  }).join('');
-
-  return `
-    <div class="td-widget td-w-journal" data-widget-id="journal">
-      <div class="td-widget-header">
-        <div class="td-widget-label">📔 ${esc(t('dash.widget.journal'))}</div>
-        <button class="td-link" data-nav="journal">${esc(t('dash.link.allEntries'))}</button>
-      </div>
-      ${rows
-        ? `<div class="td-jq-recent">${rows}</div>`
-        : `<div class="td-jq-hint">${esc(t('dash.journal.hint'))}</div>`}
-      <button class="td-jq-btn btn btn-primary" data-journal-new>
-        <span class="td-jq-icon">✍️</span>
-        <span class="td-jq-label">${esc(t('dash.journal.compose'))}</span>
-      </button>
-    </div>`;
-}
-
-
 /* ── To-do widget ─────────────────────────────────────────────────────────── */
 function renderTodoWidget(): string {
   const today   = todayIso();
@@ -759,12 +720,12 @@ function renderWhereToGoWidget(withPack: boolean): string {
 }
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
-function layout(phase: Phase): string {
+function layout(_phase: Phase): string {
   const agendaWidget = renderAgendaWidget({ legs: _legs, journal: _journal, todos: _todos, expenses: _expenses }, todayIso());
   const todoWidget  = renderTodoWidget();
   const spendWidget = renderSpendWidget();
   const mapWidget   = renderMapWidget();
-  const jrnWidget   = renderJournalWidget(phase);
+  const jrnWidget   = renderJournalWidget(_journal, _legs);
   const nomadHtml   = renderNomadWidget();
   const whereHtml   = renderWhereToGoWidget(!!renderPackWidget());
   const packHtml    = renderPackWidget();
@@ -1001,6 +962,7 @@ function wire(body: HTMLElement): void {
   });
 
   wireAgenda(body, render);
+  wireJournalAlbum(body);
   wireAlertBell(body, render);
   // Language + theme controls (top-right of the greeting row).
   const langMount = body.querySelector<HTMLElement>('[data-lang-mount]');
@@ -1050,6 +1012,7 @@ export function initDashboard(): void {
   _weather     = null;
   _weatherCity = '';
   resetAgenda();
+  resetJournalAlbum();
   disposeDashboardMap();
   render();
 
@@ -1067,6 +1030,7 @@ export function initDashboard(): void {
       _cityIntel  = cityStore.peek();
       _mapCanvas = null; _weather = null; _weatherCity = '';
       resetAgenda();
+      resetJournalAlbum();
       disposeDashboardMap(); render();
     }),
     // Re-render on language change so greeting/widget labels update in place.

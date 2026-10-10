@@ -1,0 +1,28 @@
+/* ── Journal photo carousel ───────────────────────────────────────────────────
+   One slide per place, cross-faded. The widget stretches to its grid row, so the
+   carousel takes whatever height is left above the "write an entry" button. */
+.jr-carousel {
+  position: relative; flex: 1 1 0; min-height: 170px;
+  border-radius: var(--r-lg); overflow: hidden; background: var(--amber-50);
+}
+.jr-slide {
+  position: absolute; inset: 0; display: block; width: 100%; padding: 0; border: 0; cursor: pointer;
+  background: none; opacity: 0; transition: opacity 0.9s ease;
+}
+.jr-slide.is-active { opacity: 1; z-index: 1; }
+.jr-slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.jr-slide.is-active img { animation: jr-kenburns 6s ease-out forwards; }
+@keyframes jr-kenburns { from { transform: scale(1); } to { transform: scale(1.07); } }
+.jr-shade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0, 0, 0, 0.58) 0%, rgba(0, 0, 0, 0) 58%); pointer-events: none; }
+.jr-cap { position: absolute; left: 14px; right: 70px; bottom: 12px; display: flex; flex-direction: column; gap: 1px; text-align: left; color: #fff; }
+.jr-place { font-family: var(--font-ui); font-size: var(--fs-lg, 18px); font-weight: 700; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jr-sub { font-size: var(--fs-xs); opacity: 0.92; }
+.jr-dots { position: absolute; right: 12px; bottom: 14px; z-index: 2; display: flex; gap: 5px; align-items: center; }
+.jr-dot { width: 6px; height: 6px; padding: 0; border-radius: 3px; background: rgba(255, 255, 255, 0.55); cursor: pointer; transition: width var(--dur-fast), background var(--dur-fast); }
+.jr-dot.is-active { width: 16px; background: #fff; }
+.td-jq-count { margin-left: 4px; padding: 0 7px; border-radius: var(--r-full); background: var(--surface-3); font-size: 10px; font-weight: 700; color: var(--ink-muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .jr-slide { transition: none; }
+  .jr-slide.is-active img { animation: none; }
+}
