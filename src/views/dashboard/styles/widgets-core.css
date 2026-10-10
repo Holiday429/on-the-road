@@ -183,3 +183,7 @@
 .td-prep-sub   { font-size: var(--fs-xs); color: var(--ink-muted); }
 
 
+
+/* Expanded converter under the hero: a slim full-width card, not a grid cell. */
+.td-rate-panel { margin-bottom: var(--sp-4); }
+.td-rate-panel .td-cur-rates { flex-direction: row; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); }

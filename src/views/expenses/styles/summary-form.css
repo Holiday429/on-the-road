@@ -119,3 +119,30 @@
 }
 .exp-sort-banner:hover { background: var(--amber-100); }
 
+
+/* Currency picker + "add currency" button */
+.exp-cur-row { display: flex; gap: var(--sp-2); align-items: center; }
+.exp-cur-row .select { flex: 1; min-width: 0; }
+.exp-cur-add {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: var(--r-md);
+  border: 1px dashed var(--amber-300, var(--amber-200)); background: var(--amber-50);
+  color: var(--amber-700); font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.exp-cur-add:hover { background: var(--amber-100); border-style: solid; }
+
+/* Custom currency manager modal */
+.cm-body { display: flex; flex-direction: column; gap: var(--sp-3); }
+.cm-hint { margin: 0; font-size: var(--fs-sm); color: var(--ink-muted); }
+.cm-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: var(--sp-2); }
+.cm-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs); font-weight: 600; color: var(--ink-muted); }
+.cm-rate-row { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--ink); }
+.cm-rate-row .input { flex: 1; min-width: 0; }
+.cm-error { font-size: var(--fs-xs); color: var(--danger); }
+.cm-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.cm-row { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 8px; border-radius: var(--r-md); background: var(--surface-3); font-size: var(--fs-sm); }
+.cm-code { font-weight: 700; }
+.cm-sym, .cm-rate { color: var(--ink-muted); }
+.cm-rate { margin-left: auto; font-size: var(--fs-xs); }
+.cm-del { color: var(--ink-faint); cursor: pointer; background: none; }
+.cm-del:hover { color: var(--danger); }
+.cm-empty { font-size: var(--fs-xs); color: var(--ink-faint); text-align: center; padding: var(--sp-2); }

@@ -21,6 +21,8 @@ import { expenseStore } from '../../data/stores/expense-store.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import type { RateTable } from '../../data/rates.ts';
+import { COUNTRY_CURRENCY, currencyForCountry, knownCurrencyForCountry } from '../../data/country-currency.ts';
+import type { StoredExpense } from '../../data/stores/expense-store.ts';
 
 /* ── Shared expense categories (used by widget + expenses page) ──────────── */
 export const BUILTIN_CATEGORIES = [
@@ -33,17 +35,8 @@ export const BUILTIN_CATEGORIES = [
   { id: 'misc',          label: 'Misc',       icon: '📌' },
 ] as const;
 
-/* ── Country → default currency ──────────────────────────────────────────────
-   Used to seed the currency from the leg's country. Not exhaustive — anything
-   unmapped falls back to the trip base currency. */
-export const COUNTRY_CURRENCY: Record<string, string> = {
-  Denmark: 'DKK', Sweden: 'SEK', Norway: 'NOK', Switzerland: 'CHF',
-  'United Kingdom': 'GBP', 'Czech Republic': 'CZK', Czechia: 'CZK',
-  Japan: 'JPY', 'United States': 'USD', China: 'CNY',
-  Germany: 'EUR', France: 'EUR', Spain: 'EUR', Portugal: 'EUR',
-  Italy: 'EUR', Netherlands: 'EUR', Belgium: 'EUR', Austria: 'EUR',
-  Ireland: 'EUR', Greece: 'EUR',
-};
+/* Country → currency now lives in data/country-currency.ts (full table). */
+export { COUNTRY_CURRENCY, currencyForCountry, knownCurrencyForCountry };
 
 /* ── Remembered prefs (localStorage) ─────────────────────────────────────── */
 
@@ -99,8 +92,34 @@ export function defaultCurrency(legs: StoredLeg[], iso: string): string {
   const last = lastUsed();
   if (last.currency) return last.currency;
   const leg = legForDate(legs, iso);
-  if (leg) return COUNTRY_CURRENCY[leg.country] ?? baseCurrency();
+  if (leg) return knownCurrencyForCountry(leg.country) ?? baseCurrency();
   return baseCurrency();
+}
+
+/** Smart "what currency am I spending right now" — geography sets the
+ *  expectation, recent spending corrects it:
+ *   1. the current leg's country → its currency (candidate);
+ *   2. if ≥3 spends in the last 3 days in that country used a different
+ *      dominant currency (card-in-EUR in Denmark, say) → that one wins;
+ *   3. unknown country → the most recent spend's currency → EUR. */
+export function suggestedCurrency(legs: StoredLeg[], expenses: StoredExpense[], iso: string): string {
+  const leg = legForDate(legs, iso) ?? legs.filter((l) => l.dateFrom <= iso).sort((a, b) => b.dateFrom.localeCompare(a.dateFrom))[0];
+  const candidate = leg ? currencyForCountry(leg.country) : null;
+
+  const from = new Date(iso + 'T00:00:00');
+  from.setDate(from.getDate() - 3);
+  const fromIso = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-${String(from.getDate()).padStart(2, '0')}`;
+  const recent = expenses.filter((e) => e.date >= fromIso && e.date <= iso && (!leg || e.country === leg.country));
+  if (recent.length >= 3) {
+    const counts = new Map<string, number>();
+    for (const e of recent) counts.set(e.currency, (counts.get(e.currency) ?? 0) + 1);
+    const [top] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (top !== candidate) return top;
+  }
+  if (candidate) return candidate;
+
+  const last = [...expenses].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
+  return last?.currency ?? 'EUR';
 }
 
 /* ── Conversion + write ──────────────────────────────────────────────────── */

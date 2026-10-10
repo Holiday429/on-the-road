@@ -7,8 +7,8 @@
    ========================================================================== */
 
 import { escHtml as esc } from '../../core/utils.ts';
-import { CURRENCIES, currencySymbol, getRateTable, peekRateTable, type RateTable } from '../../data/rates.ts';
-import { COUNTRY_CURRENCY, convert } from '../expenses/expense-defaults.ts';
+import { allCurrencies, currencySymbol, getRateTable, peekRateTable, type RateTable } from '../../data/rates.ts';
+import { knownCurrencyForCountry, convert } from '../expenses/expense-defaults.ts';
 import { expenseStore } from '../../data/stores/expense-store.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import type { Leg as SchemaLeg } from '../../data/schema.ts';
@@ -32,8 +32,8 @@ const STAY_PLATFORMS = [
 ];
 
 function stayCurrencyOptions(selected: string): string {
-  const known = CURRENCIES.some((c) => c.code === selected);
-  return CURRENCIES.map((c) =>
+  const known = allCurrencies().some((c) => c.code === selected);
+  return allCurrencies().map((c) =>
     `<option value="${c.code}" ${c.code === selected ? 'selected' : ''}>${c.flag} ${c.code} ${c.symbol}</option>`,
   ).join('') + (known ? '' : `<option value="${esc(selected)}" selected>${esc(selected)}</option>`);
 }
@@ -85,7 +85,7 @@ export function openTransportEditor(
   onSyncNeeded: (timeline: HTMLElement, leg: Leg) => void,
 ): void {
   const t = leg.arrivalTransport;
-  const defaultCur = t?.priceCurrency ?? COUNTRY_CURRENCY[leg.country] ?? baseCurrency();
+  const defaultCur = t?.priceCurrency ?? knownCurrencyForCountry(leg.country) ?? baseCurrency();
   const kg = (g?: number) => (g ? g / 1000 : '');
   const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
   const dlg = document.createElement('div');
@@ -219,7 +219,7 @@ export function openStayEditor(
   const stays = legStays(leg);
   const existing = stayKey != null ? stays.find((s, i) => (s.id ?? String(i)) === stayKey) : undefined;
   // Currency defaults from the existing value, else the leg's country, else trip base.
-  const defaultCur = existing?.priceCurrency ?? COUNTRY_CURRENCY[leg.country] ?? baseCurrency();
+  const defaultCur = existing?.priceCurrency ?? knownCurrencyForCountry(leg.country) ?? baseCurrency();
   const host = timeline.querySelector<HTMLElement>('.rd-shell')!;
   const dlg = document.createElement('div');
   dlg.className = 'rd-editor-overlay';
@@ -331,7 +331,7 @@ export function openStaySyncDialog(
     : 1;
   const perNight = stay.priceAmount ?? 0;
   const total = +(perNight * nights).toFixed(2);
-  const currency = stay.priceCurrency ?? COUNTRY_CURRENCY[leg.country] ?? baseCurrency();
+  const currency = stay.priceCurrency ?? knownCurrencyForCountry(leg.country) ?? baseCurrency();
   const today = new Date().toISOString().slice(0, 10);
   const synced = !!stay.expenseId;
 
@@ -421,7 +421,7 @@ export function openTransportSyncDialog(
 ): void {
   const t = leg.arrivalTransport!;
   const amount0 = t.priceAmount ?? 0;
-  const currency = t.priceCurrency ?? COUNTRY_CURRENCY[leg.country] ?? baseCurrency();
+  const currency = t.priceCurrency ?? knownCurrencyForCountry(leg.country) ?? baseCurrency();
   const today = new Date().toISOString().slice(0, 10);
   const synced = !!t.expenseId;
   const desc = `${t.from} → ${t.to}${t.service ? ` (${t.service})` : ''}`;

@@ -15,8 +15,9 @@ import {
   type Phase, todayIso as sharedTodayIso, daysBetween as sharedDaysBetween,
   tripPhase as sharedTripPhase, currentLeg as sharedCurrentLeg,
 } from '../../data/trip-phase.ts';
-import { addExpenseWithDefaults, defaultPlace, defaultCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
-import { currencySymbol, getRateTable, peekRateTable, type RateTable, CURRENCIES } from '../../data/rates.ts';
+import { addExpenseWithDefaults, defaultPlace, defaultCurrency, suggestedCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
+import { currencySymbol, getRateTable, peekRateTable, type RateTable, allCurrencies, currencyFlag, isKnownCurrency, isApproxCurrency } from '../../data/rates.ts';
+import { currencyForCountry } from '../../data/country-currency.ts';
 import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
@@ -49,7 +50,8 @@ let _todos:   StoredTodo[]         = [];
 let _rates: RateTable = {};
 let _rateInput = '';          // currency converter amount
 let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency())
-let _rateTo    = '';          // selected "to" currency (empty = auto localCurrency())
+let _rateTo    = '';          // selected "to" currency (empty = auto suggestedCurrency)
+let _rateOpen  = false;       // converter panel expanded (not persisted — collapses on reload)
 let _mapCanvas: HTMLElement | null = null; // tracks which canvas element the map was booted on
 let _unsubs: Array<() => void> = [];
 let _weather: { icon: string; tempHigh: string; tempLow: string; rainChance: number } | null = null;
@@ -128,26 +130,23 @@ async function fetchWeather(city: string): Promise<void> {
   } catch { /* silent — weather is decorative */ }
 }
 
-/* ── Currency pair for rate widget ───────────────────────────────────────── */
-const COUNTRY_CURRENCY: Array<[string, string]> = [
-  ['Denmark',     'DKK'], ['Sweden',     'SEK'], ['Norway',     'NOK'],
-  ['Switzerland', 'CHF'], ['UK',         'GBP'], ['Britain',    'GBP'],
-  ['Japan',       'JPY'], ['China',      'CNY'], ['US',         'USD'],
-  ['Czech',       'CZK'],
-];
+/* ── Currency pair for the rate line / converter ─────────────────────────── */
+/** The currency worth showing against base right now: geography corrected by
+ *  recent spending (see suggestedCurrency). If it collapses to the base
+ *  itself, fall back to the first other currency on the trip. */
 function localCurrency(): string {
-  const leg = currentLeg();
-  if (!leg) return 'USD';
-  const match = COUNTRY_CURRENCY.find(([k]) => leg.country.includes(k));
-  return match ? match[1] : (baseCurrency() === 'EUR' ? 'DKK' : 'EUR');
+  const base = baseCurrency();
+  const cur = suggestedCurrency(_legs, _expenses, todayIso());
+  if (cur !== base) return cur;
+  return tripCurrencies().find(c => c !== base) ?? (base === 'EUR' ? 'USD' : 'EUR');
 }
 function tripCurrencies(): string[] {
   const base = baseCurrency();
   // Always show CNY (user's home currency) + base + trip-leg currencies, deduped
   const seen = new Set<string>(['CNY', base]);
   for (const leg of _legs) {
-    const match = COUNTRY_CURRENCY.find(([k]) => leg.country.includes(k));
-    if (match) seen.add(match[1]);
+    const c = currencyForCountry(leg.country);
+    if (c && isKnownCurrency(c)) seen.add(c);
   }
   // Max 4 currencies to avoid overflow
   return Array.from(seen).slice(0, 4);
@@ -254,6 +253,7 @@ function renderHero(phase: Phase): string {
           </button>
           ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
           ${details}
+          ${renderRateLine()}
         </div>
       </div>
       <img class="td-hero-logo" src="${ART}logo.gif" alt="On the Road">
@@ -262,7 +262,7 @@ function renderHero(phase: Phase): string {
 
 /* ── Currency widget ──────────────────────────────────────────────────────── */
 function currencyOptions(selected: string): string {
-  return CURRENCIES.map(c =>
+  return allCurrencies().map(c =>
     `<option value="${esc(c.code)}" ${c.code === selected ? 'selected' : ''}>${c.flag} ${c.code}</option>`
   ).join('');
 }
@@ -281,48 +281,55 @@ function strongerFirst(a: string, b: string): [string, string] {
 }
 
 function flagFor(code: string): string {
-  return CURRENCIES.find(c => c.code === code)?.flag ?? '';
+  return currencyFlag(code);
 }
 
-function renderCurrencyWidget(): string {
+/** One line in the hero: "1 EUR = 7.46 DKK ▾". Click toggles the converter. */
+function renderRateLine(): string {
+  const base = baseCurrency();
+  const [left, right] = strongerFirst(base, localCurrency());
+  const l = unitValueInBase(left), r = unitValueInBase(right);
+  const known = isKnownCurrency(right) && l > 0 && r > 0;
+  const eq = known ? `1 ${flagFor(left)} ${esc(left)} = <strong>${(l / r).toFixed(2)}</strong> ${flagFor(right)} ${esc(right)}` 
+                   : `${flagFor(left)} ${esc(left)} → ${esc(right)} · ${esc(t('currency.rateUnavailable'))}`;
+  return `
+    <button type="button" class="td-hero-rate${_rateOpen ? ' is-open' : ''}" data-rate-toggle aria-expanded="${_rateOpen}" title="${esc(t('dash.widget.currency'))}">
+      <span>${eq}${known && isApproxCurrency(right) ? ` <em title="${esc(t('currency.approx'))}">≈</em>` : ''}</span>
+      <span class="td-hero-rate-caret" aria-hidden="true">▾</span>
+    </button>`;
+}
+
+/** Expanded converter + a few reference rates, shown under the hero. */
+function renderRatePanel(): string {
+  if (!_rateOpen) return '';
   const base = baseCurrency();
   // Default the converter with the stronger currency on the left.
   const [defFrom, defTo] = strongerFirst(base, localCurrency());
   const fromCur = _rateFrom || defFrom;
   const toCur   = _rateTo   || defTo;
 
-  // Converter: from → to
-  const rateToBase   = fromCur === base ? 1 : (_rates[fromCur] ? (1 / _rates[fromCur]) : null);
-  const rateFromBase = toCur === base ? 1 : (_rates[toCur] ? (1 / _rates[toCur]) : null);
-  const crossRate = (rateToBase != null && rateFromBase != null) ? rateFromBase / rateToBase : null;
-
+  const cross = crossRate();
   const inputAmt = _rateInput !== '' ? parseFloat(_rateInput) : null;
-  const converted = (inputAmt != null && crossRate != null) ? (inputAmt * crossRate).toFixed(2) : '';
+  const converted = (inputAmt != null && cross != null) ? (inputAmt * cross).toFixed(2) : '';
 
   // 3 rate info rows: always show 3 different non-base currencies.
   // Priority: trip leg currencies, then common fallbacks.
   const fallbacks = ['EUR', 'USD', 'GBP', 'JPY', 'CHF', 'DKK', 'SEK'];
-  const candidates = [
-    ...tripCurrencies(),
-    ...fallbacks,
-  ];
+  const candidates = [localCurrency(), ...tripCurrencies(), ...fallbacks];
   const seen3 = new Set<string>();
   for (const c of candidates) {
-    if (c !== base && !seen3.has(c)) seen3.add(c);
+    if (c !== base && isKnownCurrency(c) && unitValueInBase(c) > 0 && !seen3.has(c)) seen3.add(c);
     if (seen3.size === 3) break;
   }
-  const rateRowCodes = Array.from(seen3);
   // Each row: put the stronger currency on the left, show "1 STRONG = N.NN WEAK".
-  const rateRowsHtml = rateRowCodes.map(code => {
+  const rateRowsHtml = Array.from(seen3).map(code => {
     const [left, right] = strongerFirst(base, code);
-    const perLeft = unitValueInBase(right) > 0
-      ? (unitValueInBase(left) / unitValueInBase(right)).toFixed(2)
-      : '—';
+    const perLeft = (unitValueInBase(left) / unitValueInBase(right)).toFixed(2);
     return `<div class="td-cur-rate-row"><span>${flagFor(left)} ${esc(left)}</span><span class="td-cur-rate-eq">=</span><span><strong>${perLeft}</strong> ${flagFor(right)} ${esc(right)}</span></div>`;
   }).join('');
 
   return `
-    <div class="td-widget td-w-currency">
+    <div class="td-widget td-rate-panel">
       <div class="td-widget-header">
         <div class="td-widget-label">💱 ${esc(t('dash.widget.currency'))}</div>
         <span class="td-cur-source">${esc(t('dash.currency.source'))}</span>
@@ -335,7 +342,7 @@ function renderCurrencyWidget(): string {
           </div>
           <button class="td-currency-swap" data-rate-swap title="${esc(t('dash.currency.swap'))}">⇄</button>
           <div class="td-cur-conv-side td-cur-conv-result">
-            <span class="td-currency-value">${esc(converted || (crossRate != null ? crossRate.toFixed(2) : '—'))}</span>
+            <span class="td-currency-value">${esc(converted || (cross != null ? cross.toFixed(2) : '—'))}</span>
             <select class="td-cur-select" data-rate-to>${currencyOptions(toCur)}</select>
           </div>
         </div>
@@ -933,7 +940,6 @@ function renderWhereToGoWidget(): string {
 function layout(phase: Phase): string {
   const calWidget   = renderCalendarWidget();
   const todoWidget  = renderTodoWidget();
-  const currWidget  = renderCurrencyWidget();
   const spendWidget = renderSpendWidget();
   const mapWidget   = renderMapWidget();
   const upWidget    = renderUpcomingWidget();
@@ -943,7 +949,6 @@ function layout(phase: Phase): string {
   const packHtml    = renderPackWidget();
 
   return `<div class="td-grid" id="td-grid">
-    ${currWidget}
     ${calWidget}
     ${todoWidget}
     ${spendWidget}
@@ -999,7 +1004,7 @@ function render(): void {
   if (!body) return;
   const phase = tripPhase();
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  body.innerHTML = `${renderGreeting()}${renderHero(phase)}${layout(phase)}`;
+  body.innerHTML = `${renderGreeting()}${renderHero(phase)}${renderRatePanel()}${layout(phase)}`;
   wire(body);
   bootMap();
 }
@@ -1046,6 +1051,12 @@ function wire(body: HTMLElement): void {
     (form.querySelector('.td-quickadd-amt') as HTMLInputElement).value  = '';
     (form.querySelector('.td-quickadd-desc') as HTMLInputElement).value = '';
     (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value = '';
+  });
+
+  // Hero rate line → expand/collapse the converter.
+  body.querySelector<HTMLElement>('[data-rate-toggle]')?.addEventListener('click', () => {
+    _rateOpen = !_rateOpen;
+    render();
   });
 
   // Currency converter — amount input.

@@ -15,6 +15,7 @@ import { currentUser } from '../firebase/auth.ts';
 import { setMyTripIdsResolver } from '../firebase/db.ts';
 import { SCHEMA_VERSION, TripSchema, FREE_QUOTA, type Trip, type TravelStyle, type TripRole } from './schema.ts';
 import { track } from '../core/analytics.ts';
+import { registerCustomCurrencySource, type CustomCurrency } from './rates.ts';
 
 export const DEFAULT_TRIP_ID = 'europe-2025'; // kept for migrate-retag reference only
 
@@ -142,6 +143,28 @@ export async function setCategoryBudget(categoryId: string, amount: number | nul
 /** Per-country budget caps for the current trip (country → amount), or {} if none. */
 export function countryBudgets(): Record<string, number> {
   return _currentTrip?.countryBudgets ?? {};
+}
+
+/* ── Custom currencies ──────────────────────────────────────────────────── */
+registerCustomCurrencySource(() => _currentTrip?.customCurrencies);
+
+export function customCurrencies(): Record<string, CustomCurrency> {
+  return _currentTrip?.customCurrencies ?? {};
+}
+
+/** Add/replace one user-defined currency (def = null removes it). */
+export async function setCustomCurrency(code: string, def: CustomCurrency | null): Promise<void> {
+  if (!_currentTripId) return;
+  const key = code.trim().toUpperCase();
+  if (!key) return;
+  const next = { ..._currentTrip?.customCurrencies };
+  if (def) next[key] = def;
+  else delete next[key];
+  const patch: Partial<Trip> = {
+    customCurrencies: Object.keys(next).length ? next : undefined,
+  };
+  await updateTrip(_currentTripId, patch);
+  if (_currentTrip) _currentTrip = { ..._currentTrip, ...patch };
 }
 
 /** Set/clear one country's budget cap (amount <= 0 or null removes it). */
