@@ -48,6 +48,9 @@ let signingIn = false;
 // anonymous sign-in lands; without this guard its 'show-landing' branch would
 // bring the Enter card back over the app we're in the middle of opening.
 let entering = false;
+// The anonymous sign-up kicked off behind an already-visible app (see
+// enterAppFlow). onAuth waits on it so the new account is recognised as fresh.
+let pendingAnonSignIn: Promise<unknown> | null = null;
 let bootPromise: Promise<void> | null = null;
 let appPrepared = false;
 let preparedUserId: string | null = null;
@@ -276,7 +279,7 @@ async function bootAuthenticatedShell(user: User) {
     // A brand-new anonymous account has no profile doc and no trips by definition,
     // so a first-time visitor skips both reads — the first Firestore query on a cold
     // connection is the slowest step of entry, and here it can only return "nothing".
-    const fresh = isFreshAnonymous(user.uid);
+    const fresh = isFreshAnonymous(user);
     const bootDoc = fresh
       ? Promise.resolve({ defaultTripId: null, accountMigrationsVersion: 0 })
       : readUserBootDoc();
@@ -403,8 +406,19 @@ async function enterAppFlow(): Promise<void> {
     await authReady();
     let user = currentUser();
     if (!user) {
-      try { user = await signInAnonymously(); }
-      catch (e) { console.warn('Anonymous sign-in failed; entering as read-only guest:', e); }
+      // New visitor. Nothing on screen needs the account yet (they have no data),
+      // and the sign-up is ~2 network round trips — so show the app NOW and let
+      // the account arrive behind it: onAuth sees the new user with the app
+      // already entered and upgrades the shell in place (the same path an
+      // anonymous→Google upgrade takes). If sign-up fails they simply stay in the
+      // read-only guest shell, which is also what a failed sign-up always fell
+      // back to.
+      pendingAnonSignIn = signInAnonymously()
+        .catch((e) => { console.warn('Anonymous sign-in failed; staying in read-only guest shell:', e); })
+        .finally(() => { pendingAnonSignIn = null; });
+      await bootGuestShell();
+      enterApp();
+      return;
     }
     const path = decideBootPath({ viewerMode: false, user: user ? { uid: user.uid } : null });
     if (path.kind === 'authenticated' && user) {
@@ -454,6 +468,11 @@ export function startBoot(): void {
 
   onAuth(async ({ user, ready }) => {
     if (!ready) return;
+
+    // A new visitor's anonymous sign-up is still resolving (the app is already
+    // showing). Let it finish first so isFreshAnonymous() is settled by the time
+    // the shell upgrade reads it.
+    if (pendingAnonSignIn) await pendingAnonSignIn;
 
     // On iOS PWA a sign-in redirect just landed. Wait for consumeRedirectResult()
     // to finish so Firebase auth state is fully resolved before we act on it.
