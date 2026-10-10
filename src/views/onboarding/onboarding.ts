@@ -8,7 +8,7 @@ import { showRegisterPrompt } from '../../core/paywall.ts';
 import { retagLegacyData } from '../../data/migrate-retag.ts';
 import { createDestinationInput } from '../../core/destination-input.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../../data/schema.ts';
-import logoGif from '../../../assets/logo.gif';
+import logoGif from '../../../assets/logo.webp';
 import { t } from '../../core/i18n.ts';
 import { track } from '../../core/analytics.ts';
 

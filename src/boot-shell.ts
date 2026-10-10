@@ -3,8 +3,8 @@
    ========================================================================== */
 
 import { initApp, renderSession, navigateTo, reinitForTripChange, setAllowedViews, firstAllowedView, openOnboarding, type ViewId } from './core/app.ts';
-import { onAuth, currentUser, signInWithGoogle, signInAnonymously, consumeRedirectResult, type User } from './firebase/auth.ts';
-import { ensureDefaultTrip, restoreActiveTrip, currentMemberPages, currentTripId } from './data/trip-context.ts';
+import { onAuth, authReady, currentUser, signInWithGoogle, signInAnonymously, consumeRedirectResult, type User } from './firebase/auth.ts';
+import { ensureDefaultTrip, restoreActiveTrip, readDefaultTripId, currentMemberPages, currentTripId } from './data/trip-context.ts';
 import { isCollabMigrated } from './data/migrate-collab.ts';
 import { runPreTripMigrations, runPostEntryTasks } from './boot-migrations.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
@@ -44,6 +44,10 @@ let invitePending = INVITE_TOKEN !== null;
 
 let shellBooted = false;
 let signingIn = false;
+// True while enterAppFlow() is mid-flight. onAuth fires with user=null before the
+// anonymous sign-in lands; without this guard its 'show-landing' branch would
+// bring the Enter card back over the app we're in the middle of opening.
+let entering = false;
 let bootPromise: Promise<void> | null = null;
 let appPrepared = false;
 let preparedUserId: string | null = null;
@@ -89,7 +93,23 @@ function currentViewOrDefault(): ViewId {
   return valid.includes(hash) ? hash : 'today';
 }
 
+// app.html's head script sets data-fast-enter for /app?from=landing, which swaps
+// the Enter card for a lightweight splash (see auth.css). Anything that needs the
+// card back, or any entry that has finished, calls this to drop it.
+function isFastEnter(): boolean {
+  return document.documentElement.dataset.fastEnter === '1';
+}
+
+function leaveFastEnter(): void {
+  delete document.documentElement.dataset.fastEnter;
+  const splash = document.getElementById('boot-splash');
+  if (!splash) return;
+  splash.classList.add('is-leaving');
+  window.setTimeout(() => splash.remove(), 220);
+}
+
 function showLandingState() {
+  leaveFastEnter();
   authScreen?.removeAttribute('hidden');
   authScreen?.classList.remove('is-exiting');
   appRoot?.setAttribute('hidden', '');
@@ -112,14 +132,22 @@ function prepareAppFrame() {
 function enterApp() {
   if (appEntered || !authScreen || !appRoot) return;
   prepareAppFrame();
-  void appRoot.offsetHeight;
-  appRoot.classList.add('is-entering');
-  authScreen.classList.add('is-exiting');
-  authScreen.addEventListener('animationend', () => {
+  if (isFastEnter()) {
+    // The Enter card was never shown — no card to fade out, so reveal the app
+    // right away and let the splash dissolve over it.
+    appRoot.classList.remove('is-preparing');
     authScreen.setAttribute('hidden', '');
-    authScreen.classList.remove('is-exiting');
-    appRoot.classList.remove('is-preparing', 'is-entering');
-  }, { once: true });
+    leaveFastEnter();
+  } else {
+    void appRoot.offsetHeight;
+    appRoot.classList.add('is-entering');
+    authScreen.classList.add('is-exiting');
+    authScreen.addEventListener('animationend', () => {
+      authScreen.setAttribute('hidden', '');
+      authScreen.classList.remove('is-exiting');
+      appRoot.classList.remove('is-preparing', 'is-entering');
+    }, { once: true });
+  }
   appEntered = true;
 
   // Warm the offline cache with every view's chunk. Only meaningful online;
@@ -229,19 +257,21 @@ async function bootAuthenticatedShell(user: User) {
   const prevTripId = currentTripId();
 
   bootPromise = (async () => {
-    // FAST PATH: this device already ran the collab migration, so the trips/**
-    // layout is populated. We can read the active trip and enter immediately,
-    // then run the remaining (idempotent) migrations in the background. This is
-    // the common case — keeps Enter near-instant for returning users.
+    // FAST PATH (the common case): read the active trip straight away and enter,
+    // running the remaining (idempotent) migrations in the background after entry.
     //
     // SLOW PATH (legacy account's first sign-in): the collab migration hasn't
-    // run, so trips/** is still empty. We MUST migrate before reading the active
-    // trip, or ensureDefaultTrip would see no trips and wrongly trigger
-    // onboarding. This blocks entry once; subsequent boots take the fast path.
-    const tookSlowPath = !isCollabMigrated();
-    if (tookSlowPath) {
-      await runPreTripMigrations();
-    }
+    // run, so trips/** may still be empty and ensureDefaultTrip would wrongly
+    // trigger onboarding. Only THEN do we block entry on the migrations. The
+    // localStorage flag alone isn't enough to decide that — it's per device, so
+    // a new browser, a cleared profile, or a brand-new anonymous guest (who has
+    // no legacy data at all) would otherwise sit through every migration's
+    // Firestore round trips before seeing anything. So probe trips/** first and
+    // fall back to the slow path only when it comes back empty for a real account.
+    //
+    // The saved-default-trip read doesn't depend on the trip list, so start it now
+    // and let it overlap with listTrips() inside ensureDefaultTrip().
+    const savedTripId = readDefaultTripId();
 
     // Minimal set needed to know WHICH trip to show — always awaited before entry.
     // Anonymous visitors can't create trips (that needs a real account), so
@@ -249,12 +279,18 @@ async function bootAuthenticatedShell(user: User) {
     // browse, with a "sign in to create your first trip" CTA. A registered user
     // with no trips still gets onboarding.
     let needsOnboarding = false;
+    let tookSlowPath = false;
     try {
-      const trip = await ensureDefaultTrip();
+      let trip = await ensureDefaultTrip();
+      if (trip === null && !user.isAnonymous && !isCollabMigrated()) {
+        tookSlowPath = true;
+        await runPreTripMigrations();
+        trip = await ensureDefaultTrip();
+      }
       needsOnboarding = trip === null && !user.isAnonymous;
     } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
-    try { await restoreActiveTrip(); }
+    try { await restoreActiveTrip(savedTripId); }
     catch (e) { console.warn('Restore active trip skipped:', e); }
 
     // Apply any page restriction for this member (editor limited to some pages).
@@ -322,6 +358,7 @@ async function runPostEntryAndRepaint(user: User, alreadyOnboarding: boolean, mi
 // directly without auth. Otherwise boot as guest. Google sign-in is handled
 // exclusively via the sidebar avatar.
 async function enterAppFlow(): Promise<void> {
+  entering = true;
   setAuthButtonState('Entering…', true);
   setAuthStatus('');
   try {
@@ -342,6 +379,10 @@ async function enterAppFlow(): Promise<void> {
     // without an account, then upgrade to Google later (linkWithPopup preserves
     // their data). Anonymous sign-in failing (e.g. provider disabled) degrades
     // to the old read-only guest shell rather than blocking entry.
+    // Firebase restores a persisted session asynchronously. Wait for that first
+    // read so a returning Google user isn't mistaken for "nobody" — which would
+    // sign them in anonymously over their real session.
+    await authReady();
     let user = currentUser();
     if (!user) {
       try { user = await signInAnonymously(); }
@@ -361,9 +402,12 @@ async function enterAppFlow(): Promise<void> {
       enterApp();
     } catch (fallbackError) {
       console.warn('Guest boot failed:', fallbackError);
+      leaveFastEnter();
       setAuthButtonState('Enter', false);
       setAuthStatus('Could not enter. Try again or sign in from a refreshed page.', true);
     }
+  } finally {
+    entering = false;
   }
 }
 
@@ -441,6 +485,7 @@ export function startBoot(): void {
       case 'show-landing': {
         // If a redirect was just consumed, Firebase will fire onAuth again with the
         // real user shortly. Don't flash the landing screen in the interim.
+        if (entering) return;
         const redirectUser = await redirectResultPromise;
         if (redirectUser) return;
         preparedUserId = null;

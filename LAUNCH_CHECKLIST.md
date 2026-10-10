@@ -5,10 +5,14 @@ offline, product). Ordered by priority — P0 blocks launch.
 
 ## P0 — launch blockers
 
-- [ ] **Convert the three large GIFs to webm/mp4** (`location.gif` 11.5MB,
+- [x] **Convert the three large GIFs to webm/mp4** (`location.gif` 11.5MB,
       `travel.gif` 8.3MB, `logo.gif` 2.2MB — 22MB of a 23MB dist).
       `app.html` eager-loads ~10.5MB of them on the auth screen. Follow the
       existing `logo.webm` precedent; expect ~90% size reduction.
+      Done as animated WebP, not webm/mp4: those carry a solid white matte (no
+      alpha) and the mascot sits on tinted backgrounds. travel 8.3MB→0.7MB,
+      logo 2.2MB→0.6MB, location 11.5MB→5MB (lazy-loaded in Guide only —
+      could still be trimmed further).
 - [ ] **Authenticate `/api/places`.** Currently no auth + `Access-Control-Allow-Origin: *`
       — anyone can burn the Google Places quota. Require a Firebase ID token
       (anonymous users get one too) and set a quota cap on the key in Google

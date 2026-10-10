@@ -3,7 +3,11 @@
    Warm amber + white, rounded, playful but functional
    ========================================================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;1,400&family=Caveat:wght@500;600;700&display=swap');
+/* Web fonts (Sora / DM Sans / Caveat) are loaded from app.html as a non-blocking
+   <link>, NOT via @import here: an external @import makes this whole stylesheet
+   — and therefore every module script — wait on a third-party round trip before
+   the app can even start booting. Text paints in the system-ui fallback and swaps
+   when the fonts arrive. */
 
 :root {
   /* ── Brand palette ─────────────────────────────────────────────────── */

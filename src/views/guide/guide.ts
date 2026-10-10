@@ -5,9 +5,9 @@
 import './guide.css';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import travelGif from '../../../assets/travel.gif';
-import locationGif from '../../../assets/location.gif';
-import logoGif from '../../../assets/logo.gif';
+import travelGif from '../../../assets/travel.webp';
+import locationGif from '../../../assets/location.webp';
+import logoGif from '../../../assets/logo.webp';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { searchDestinations, COUNTRIES } from '../../data/destinations.ts';

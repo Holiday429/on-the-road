@@ -34,6 +34,37 @@
     })();
   </script>
 
+  <!-- Fast entry — /app?from=landing already made the "open the app" decision on
+       the marketing page, so skip the Enter card and show a lightweight splash
+       while the shell boots (auth.css hides #auth-screen and shows #boot-splash
+       while this flag is set). Invite links (#/join/…) own the UI and are left
+       alone. boot-shell.ts clears the flag when entry finishes or fails. -->
+  <script>
+    (function () {
+      try {
+        if (/[?&]from=landing(&|$)/.test(location.search) && location.hash.indexOf('#/join/') !== 0) {
+          document.documentElement.dataset.fastEnter = '1';
+        }
+      } catch (e) { /* no flag — the normal Enter card shows */ }
+    })();
+  </script>
+
+  <!-- Warm up the connections the boot sequence is about to open (anonymous
+       sign-in token exchange + Firestore) so their TLS handshakes overlap with
+       the JS download instead of sitting on the critical path afterwards. -->
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+
+  <!-- Web fonts — non-blocking. media="print" lets the browser fetch the sheet
+       without holding up first paint or script execution; onload flips it to
+       "all". Keep the family list in sync with --font-ui/--font-body/--font-hand
+       in src/core/base.css. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" media="print" onload="this.media='all'"
+        href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;1,400&family=Caveat:wght@500;600;700&display=swap">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Sans:ital,wght@0,400;0,500;1,400&family=Caveat:wght@500;600;700&display=swap"></noscript>
+
   <!-- Apple touch icons -->
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon-180.png">
@@ -47,6 +78,10 @@
 </head>
 <body>
 
+<div id="boot-splash" aria-hidden="true">
+  <img src="/icons/apple-touch-icon-120.png" alt="" width="96" height="96">
+</div>
+
 <section id="auth-screen" class="auth-screen" aria-live="polite">
   <div class="auth-shell">
     <!-- Left: Animation stage -->
@@ -59,8 +94,8 @@
         <span class="auth-eyebrow-road">the Road</span>
       </div>
       <div class="stage-canvas">
-        <img src="./assets/travel.gif" alt="" class="stage-gif stage-pack" loading="eager" aria-hidden="true">
-        <img src="./assets/logo.gif" alt="" class="landing-hero-img stage-hero-walk" loading="eager" aria-hidden="true">
+        <img src="./assets/travel.webp" alt="" class="stage-gif stage-pack" loading="lazy" aria-hidden="true">
+        <img src="./assets/logo.webp" alt="" class="landing-hero-img stage-hero-walk" loading="lazy" aria-hidden="true">
       </div>
     </div>
 

@@ -25,9 +25,17 @@
   <meta property="og:image" content="https://easy-on-the-road.vercel.app/art/logo.png">
   <meta name="twitter:card" content="summary_large_image">
 
+  <!-- Every CTA goes to /app — fetch its HTML and open the Firebase connections
+       while the visitor is still reading, so the app starts warm on click. -->
+  <link rel="prefetch" href="/app" as="document">
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Non-blocking: a render-blocking font sheet holds up first paint on slow
+       links to Google. display=swap shows fallback text until the fonts land. -->
+  <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700;800&display=swap"></noscript>
   <link rel="stylesheet" href="/landing.css">
 
   <!-- Analytics (Plausible — no cookies, script is a no-op if blocked) -->
@@ -138,8 +146,8 @@
   <div class="lp-hero-art">
     <!-- Transparent-background animated mascot. The .webm/.mp4 encodes a solid
          white matte (yuv420p carries no alpha), so it can't blend into the
-         cream page; the GIF has real transparency. -->
-    <img class="lp-hero-art-media" src="/art/logo.gif" width="800" height="800"
+         cream page; the animated WebP has real transparency. -->
+    <img class="lp-hero-art-media" src="/art/logo.webp" width="800" height="800"
          alt="On the Road mascot" decoding="async">
   </div>
 </section>

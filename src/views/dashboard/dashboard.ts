@@ -244,7 +244,7 @@ function renderHero(phase: Phase): string {
           ${renderRateLine()}
         </div>
       </div>
-      <img class="td-hero-logo" src="${ART}logo.gif" alt="On the Road">
+      <img class="td-hero-logo" src="${ART}logo-sm.webp" alt="On the Road" loading="lazy" decoding="async">
     </div>`;
 }
 
