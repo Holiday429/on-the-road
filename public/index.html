@@ -28,6 +28,7 @@
   <!-- Every CTA goes to /app — fetch its HTML and open the Firebase connections
        while the visitor is still reading, so the app starts warm on click. -->
   <link rel="prefetch" href="/app" as="document">
+  <!-- @app-prefetch -->
   <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
   <!-- Self-hosted fonts (see scripts/build-fonts.mjs) — no third-party host on the
