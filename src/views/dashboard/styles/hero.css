@@ -97,6 +97,11 @@
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 500;
   color: var(--ink-muted);
 }
+.td-hero-weather-rain {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
+  color: var(--info, var(--ink-muted));
+  white-space: nowrap;
+}
 .td-hero-left { flex: 1; min-width: 0; }
 .td-hero-name {
   display: inline-flex;
@@ -141,16 +146,6 @@
   margin-top: var(--sp-1);
 }
 .td-hero-anchor strong { color: var(--accent-deep); font-weight: 700; }
-.td-hero-chips {
-  display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2);
-}
-.td-hero-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: var(--fs-xs); font-weight: 600; border-radius: var(--r-full);
-  padding: 3px 10px; line-height: 1.3;
-}
-.td-hero-chip-transport { background: var(--amber-50); color: var(--amber-700); border: 1px solid var(--amber-200); }
-.td-hero-chip-acc       { background: var(--success-bg-soft); color: var(--success); border: 1px solid #bbf7d0; }
 .td-hero-logo {
   width: 68px; height: 68px;
   object-fit: contain;
@@ -158,3 +153,26 @@
 }
 @media (max-width: 560px) { .td-hero-logo { display: none; } }
 
+/* ── Rate line (1 EUR = 7.46 DKK ▾) ──────────────────────────────────────── */
+.td-hero-rate {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: var(--sp-2); padding: 3px 10px;
+  border-radius: var(--r-full);
+  background: var(--surface); border: 1px solid var(--rule-soft);
+  font-family: var(--font-ui); font-size: var(--fs-xs); color: var(--ink-muted);
+  cursor: pointer; max-width: 100%;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.td-hero-rate:hover, .td-hero-rate.is-open { border-color: var(--amber-300, var(--amber-200)); background: var(--amber-50); }
+.td-hero-rate strong { color: var(--ink); font-weight: 700; }
+.td-hero-rate em { font-style: normal; color: var(--amber-700); }
+.td-hero-rate-caret { font-size: 0.8em; opacity: 0.7; transition: transform var(--dur-fast); }
+.td-hero-rate.is-open .td-hero-rate-caret { transform: rotate(180deg); }
+
+/* After-trip call to action */
+.td-hero-cta {
+  margin-top: var(--sp-2); padding: 5px 14px; border-radius: var(--r-full);
+  background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-amber);
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; cursor: pointer;
+}
+.td-hero-cta:hover { background: var(--amber-500); }

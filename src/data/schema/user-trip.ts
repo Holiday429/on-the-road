@@ -52,6 +52,15 @@ export const TripSchema = doc({
   // Per-country budget caps in baseCurrency, keyed by country name (as stored
   // on legs/expenses, e.g. 'Germany'). Absent keys = no cap.
   countryBudgets: z.record(z.string(), z.number()).optional(),
+  // User-added currencies beyond the built-in set (obscure destinations), keyed
+  // by ISO-ish code. manualRate = rateBase units per 1 unit (rateBase defaults
+  // to the base currency when the entry was made).
+  customCurrencies: z.record(z.string(), z.object({
+    symbol: z.string(),
+    flag: z.string().optional(),
+    manualRate: z.number().optional(),
+    rateBase: z.string().optional(),
+  })).optional(),
 
   /* ── Collaboration ──────────────────────────────────────────────────────
      A trip lives at the top level (trips/{tripId}) so multiple users can

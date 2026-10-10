@@ -3,7 +3,7 @@
    --------------------------------------------------------------------------
    Replaces the old account modal + the standalone Safety view's emergency
    card sheet with one page, reached from the sidebar/mobile account button
-   (see core/sidebar.ts). Not in NAV_ITEMS — same pattern as /calendar.
+   (see core/sidebar.ts). Not in NAV_ITEMS (reached from the account button).
    ========================================================================== */
 
 import './profile.css';

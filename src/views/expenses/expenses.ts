@@ -31,12 +31,13 @@ import {
   expenseCategoryStore, type StoredExpenseCategory,
 } from '../../data/stores/expense-category-store.ts';
 import {
-  CURRENCIES, currencySymbol, getRateTable, peekRateTable, type RateTable,
+  CURRENCIES, allCurrencies, isApproxCurrency, currencySymbol, getRateTable, peekRateTable, type RateTable,
 } from '../../data/rates.ts';
 import { openModal } from '../../core/modal.ts';
+import { openCurrencyManager } from './currency-manager.ts';
 import {
   lastUsed, legCountries, legCitiesFor, defaultPlace, defaultCurrency,
-  convert, addExpenseWithDefaults, COUNTRY_CURRENCY,
+  convert, addExpenseWithDefaults, knownCurrencyForCountry,
 } from './expense-defaults.ts';
 import {
   type Category, BUILTIN_CATEGORIES, UNCLASSIFIED, categoryDisplayColor,
@@ -200,9 +201,11 @@ function renderSummary(el: HTMLElement) {
 
 /* ── Render: form ────────────────────────────────────────────────────────── */
 
-function currencyOptions(selected: string): string {
-  return CURRENCIES.map((c) =>
-    `<option value="${c.code}" ${c.code === selected ? 'selected' : ''}>${c.flag} ${c.code} ${c.symbol}</option>`,
+/** `list` defaults to every currency we can price (built-in + approximate +
+ *  user-added). The base picker passes CURRENCIES: a base needs a live feed. */
+function currencyOptions(selected: string, list = allCurrencies()): string {
+  return list.map((c) =>
+    `<option value="${c.code}" ${c.code === selected ? 'selected' : ''}>${c.flag} ${c.code} ${c.symbol}${isApproxCurrency(c.code) ? ' ≈' : ''}</option>`,
   ).join('');
 }
 
@@ -297,7 +300,7 @@ function renderForm(el: HTMLElement) {
         <label class="exp-base-picker">
           <span>${t('expenses.showTotalsIn')}</span>
           <select class="input select" id="exp-base">
-            ${currencyOptions(base)}
+            ${currencyOptions(base, CURRENCIES)}
           </select>
         </label>
       </div>
@@ -317,9 +320,12 @@ function renderForm(el: HTMLElement) {
         </div>
         <div>
           <label class="field-label">Currency</label>
-          <select class="input select" id="exp-currency">
-            ${currencyOptions(curValue)}
-          </select>
+          <div class="exp-cur-row">
+            <select class="input select" id="exp-currency">
+              ${currencyOptions(curValue)}
+            </select>
+            <button class="exp-cur-add" id="exp-cur-add" type="button" title="${escHtml(t('currency.addBtn'))}" aria-label="${escHtml(t('currency.addBtn'))}">＋</button>
+          </div>
         </div>
         <div>
           <label class="field-label">What for?</label>
@@ -346,6 +352,10 @@ function renderForm(el: HTMLElement) {
   const curInput = el.querySelector('#exp-currency') as HTMLSelectElement;
   const countrySel = el.querySelector('#exp-country') as HTMLSelectElement;
 
+  el.querySelector('#exp-cur-add')?.addEventListener('click', () => {
+    openCurrencyManager(() => { rates = peekRateTable(baseCurrency()); render(); });
+  });
+
   countrySel.addEventListener('change', () => {
     if (countrySel.value === CUSTOM_PLACE) {
       const name = prompt('Country name?')?.trim();
@@ -357,7 +367,7 @@ function renderForm(el: HTMLElement) {
     // Auto-pick the country's currency only if the user never chose one. Written
     // to the live select so renderForm's snapshot carries it into the redraw.
     if (!lastUsed().currency && formCountry !== WHOLE_TRIP) {
-      curInput.value = COUNTRY_CURRENCY[formCountry] ?? base;
+      curInput.value = knownCurrencyForCountry(formCountry) ?? base;
     }
     renderForm(el);
   });

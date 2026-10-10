@@ -1,11 +1,14 @@
 /* ==========================================================================
    Dashboard map thumbnail — non-interactive amCharts Europe map.
-   Shows trip legs as coloured pins: current=green, past=grey, future=amber.
-   Reuses loadAmCharts / MAP_COLORS / countryColor from the map module.
+   Shows trip legs as coloured pins AND tints each country by progress:
+   current=green, past=grey, upcoming=amber — so the trip's stage reads at a
+   glance without any layout change. Reuses loadAmCharts / mapColors.
    ========================================================================== */
 
 import { loadAmCharts } from '../map/amcharts-loader.ts';
-import { mapColors, countryColor } from '../map/map-shared.ts';
+import { mapColors } from '../map/map-shared.ts';
+import { legStatus, countryStatuses, countryFill, PIN_COLORS } from '../map/map-status.ts';
+import { todayIso } from '../../data/trip-phase.ts';
 import { coordsFor } from '../map/geo.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 
@@ -13,10 +16,7 @@ const EUROPE_CENTER = { latitude: 54, longitude: 15 };
 const EUROPE_ZOOM   = 4.2;
 
 function legStatusColor(leg: StoredLeg): string {
-  const today = new Date().toISOString().slice(0, 10);
-  if (leg.dateTo < today)   return '#a8a29e'; // past  → ink-faint grey
-  if (leg.dateFrom > today) return '#f9b830'; // future → amber
-  return '#22c55e';                            // current → sage green
+  return PIN_COLORS[legStatus(leg, todayIso())];
 }
 
 let _root: any = null;
@@ -73,28 +73,16 @@ export async function initDashboardMap(
     nonScalingStroke: true,
   });
 
-  // Light the trip countries.
-  const tripCountryISOs = new Set<string>();
+  // Tint the trip's countries by progress (past / current / upcoming).
+  const statuses = countryStatuses(legs, todayIso());
+  const dark = document.documentElement.dataset.theme === 'dark';
   world.events.on('datavalidated', () => {
     world.mapPolygons.each((poly: any) => {
       const id: string | undefined = poly.dataItem?.get('id');
-      if (id && tripCountryISOs.has(id)) {
-        poly.setAll({ fill: am5.color(countryColor(id)), fillOpacity: 0.85 });
-      }
+      const status = id ? statuses.get(id) : undefined;
+      if (status) poly.setAll({ fill: am5.color(countryFill(status, dark)), fillOpacity: 0.9 });
     });
   });
-
-  // Build the country ISO set from leg countries using a simple mapping.
-  const COUNTRY_ISO: Record<string, string> = {
-    Denmark: 'DK', Germany: 'DE', Netherlands: 'NL', Belgium: 'BE',
-    France: 'FR', Spain: 'ES', Portugal: 'PT', Switzerland: 'CH',
-    Italy: 'IT', Sweden: 'SE', Norway: 'NO', Czech: 'CZ', Austria: 'AT',
-    Greece: 'GR', Hungary: 'HU', Poland: 'PL', Croatia: 'HR',
-  };
-  for (const leg of legs) {
-    const iso = Object.entries(COUNTRY_ISO).find(([k]) => leg.country.includes(k))?.[1];
-    if (iso) tripCountryISOs.add(iso);
-  }
 
   // City pins — one per leg with number label, sorted chronologically.
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
