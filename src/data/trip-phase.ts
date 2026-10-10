@@ -14,8 +14,12 @@ import { routeStore, type StoredLeg } from './stores/route-store.ts';
 
 export type Phase = 'before' | 'during' | 'after';
 
+/** Today as YYYY-MM-DD in the *local* timezone. (toISOString() is UTC, which
+ *  reads as yesterday/tomorrow for hours each day outside UTC — wrong for a
+ *  traveller deciding what "today" is.) */
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /** Whole days from ISO date `a` to ISO date `b` (positive if b is later). */

@@ -25,6 +25,7 @@ import { entryCover, excerpt, moodEmoji, prettyDate, titleFor } from '../journal
 import type { PlanItem, PlanDay } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
+import { PIN_COLORS } from '../map/map-status.ts';
 import { renderAgendaWidget, wireAgenda, resetAgenda } from './dashboard-agenda.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
@@ -175,20 +176,37 @@ function renderHero(phase: Phase): string {
   const leg  = currentLeg();
   const ART  = `${(import.meta as any).env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
 
+  // The hero's wording carries the trip's stage — layout stays identical.
   let anchor = '';
+  let cta = '';
+  const today = todayIso();
 
   if (phase === 'before' && leg) {
-    const d = daysBetween(todayIso(), leg.dateFrom);
-    anchor = `<strong>${d}</strong> day${d === 1 ? '' : 's'} to go · next stop ${esc(leg.flag)} ${esc(leg.city)}`;
+    const d = daysBetween(today, leg.dateFrom);
+    const lead = d <= 0 ? esc(t('dash.hero.departToday'))
+      : t(d === 1 ? 'dash.dayToGo' : 'dash.daysToGo', { n: `<strong>${d}</strong>` });
+    anchor = `${lead} · ${esc(t('dash.hero.nextStop', { place: `${leg.flag} ${leg.city}` }))}`;
   } else if (phase === 'during' && leg) {
     const idx  = legs.findIndex(l => l.id === leg.id) + 1;
-    const dayN = daysBetween(leg.dateFrom, todayIso()) + 1;
+    const dayN = daysBetween(leg.dateFrom, today) + 1;
     const tot  = daysBetween(leg.dateFrom, leg.dateTo) + 1;
-    anchor = `${esc(leg.flag)} ${esc(leg.city)} · stop ${idx}/${legs.length} · day ${dayN} of ${tot}`;
+    const lastDay = legs.length > 0 && today === legs[legs.length - 1].dateTo;
+    anchor = [
+      `${esc(leg.flag)} ${esc(leg.city)}`,
+      esc(t('dash.hero.stop', { i: idx, n: legs.length })),
+      esc(t('dash.agenda.dayOf', { n: dayN, total: tot })),
+      lastDay ? `🏁 ${esc(t('dash.agenda.hint.lastDay'))}` : '',
+    ].filter(Boolean).join(' · ');
   } else if (phase === 'after') {
     const countries = new Set(legs.map(l => l.country)).size;
     const len = trip ? daysBetween(trip.startDate, trip.endDate) + 1 : null;
-    anchor = `Trip complete${len ? ` · ${len} days` : ''}${countries ? ` · ${countries} countr${countries === 1 ? 'y' : 'ies'}` : ''}`;
+    anchor = [
+      esc(t('dash.hero.complete')),
+      len ? esc(t('dash.hero.days', { n: len })) : '',
+      countries ? esc(t('dash.hero.countries', { n: countries })) : '',
+      legs.length ? esc(t('dash.hero.stops', { n: legs.length })) : '',
+    ].filter(Boolean).join(' · ');
+    cta = `<button type="button" class="td-hero-cta" data-nav="journal">${esc(t('dash.hero.recap'))}</button>`;
   }
 
   // Kick off weather fetch for current/next city
@@ -222,6 +240,7 @@ function renderHero(phase: Phase): string {
             <span class="td-hero-name-caret" aria-hidden="true">▾</span>
           </button>
           ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
+          ${cta}
           ${renderRateLine()}
         </div>
       </div>
@@ -431,9 +450,9 @@ function renderMapWidget(): string {
           <button class="td-map-zoom-btn" id="tdMapZoomOut" title="Zoom out">−</button>
         </div>
         <div class="td-map-legend">
-          <span><span class="td-map-dot" style="background:#22c55e"></span>Now</span>
-          <span><span class="td-map-dot" style="background:#f9b830"></span>Upcoming</span>
-          <span><span class="td-map-dot" style="background:#a8a29e"></span>Past</span>
+          <span><span class="td-map-dot" style="background:${PIN_COLORS.current}"></span>${esc(t('dash.map.now'))}</span>
+          <span><span class="td-map-dot" style="background:${PIN_COLORS.future}"></span>${esc(t('dash.map.upcoming'))}</span>
+          <span><span class="td-map-dot" style="background:${PIN_COLORS.past}"></span>${esc(t('dash.map.past'))}</span>
         </div>
       </div>
     </div>`;

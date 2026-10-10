@@ -168,3 +168,11 @@
 .td-hero-rate em { font-style: normal; color: var(--amber-700); }
 .td-hero-rate-caret { font-size: 0.8em; opacity: 0.7; transition: transform var(--dur-fast); }
 .td-hero-rate.is-open .td-hero-rate-caret { transform: rotate(180deg); }
+
+/* After-trip call to action */
+.td-hero-cta {
+  margin-top: var(--sp-2); padding: 5px 14px; border-radius: var(--r-full);
+  background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-amber);
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; cursor: pointer;
+}
+.td-hero-cta:hover { background: var(--amber-500); }

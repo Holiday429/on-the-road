@@ -112,6 +112,8 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean): string 
     ? `${esc(day.leg.flag)} ${esc(day.leg.city)}${day.dayInLeg ? ` · ${esc(t('dash.agenda.dayOf', { n: day.dayInLeg.n, total: day.dayInLeg.total }))}` : ''}`
     : '';
   const hint = dayHint(day, src);
+  // Past the final leg there's nothing left to plan — don't nudge toward the Guide.
+  const tripOver = src.legs.length > 0 && src.legs.every((l) => l.dateTo < day.iso);
 
   // The context card is the header's job here, not a row.
   const rows = day.items.filter((i) => i.kind !== 'context');
@@ -131,6 +133,8 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean): string 
 
   const body = shown.length || journal
     ? `<div class="ag-list">${shown.map(renderItem).join('')}</div>${journal}${more > 0 ? `<button type="button" class="ag-more" data-nav="calendar" data-intent='${esc(JSON.stringify({ date: day.iso }))}'>${esc(t('dash.agenda.more', { n: more }))}</button>` : ''}`
+    : tripOver
+    ? `<div class="ag-empty"><div>🎉 ${esc(t('dash.hero.complete'))}</div></div>`
     : `<div class="ag-empty"><div>${esc(t('dash.agenda.empty'))}</div><button type="button" class="td-link" data-nav="cities">${esc(t('dash.agenda.explore'))}</button></div>`;
 
   return `
