@@ -4,7 +4,10 @@
 
 import { initApp, renderSession, navigateTo, reinitForTripChange, setAllowedViews, firstAllowedView, openOnboarding, type ViewId } from './core/app.ts';
 import { onAuth, authReady, currentUser, signInWithGoogle, signInAnonymously, isFreshAnonymous, consumeRedirectResult, type User } from './firebase/auth.ts';
-import { ensureDefaultTrip, restoreActiveTrip, readUserBootDoc, currentMemberPages, currentTripId } from './data/trip-context.ts';
+import {
+  ensureDefaultTrip, restoreActiveTrip, readUserBootDoc, resolveActiveTripFromCache, reconcileActiveTripWithServer,
+  currentMemberPages, currentTripId,
+} from './data/trip-context.ts';
 import { isCollabMigrated } from './data/migrate-collab.ts';
 import { runPreTripMigrations, runPostEntryTasks, ACCOUNT_MIGRATIONS_VERSION } from './boot-migrations.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
@@ -260,56 +263,63 @@ async function bootAuthenticatedShell(user: User) {
   const prevTripId = currentTripId();
 
   bootPromise = (async () => {
-    // FAST PATH (the common case): read the active trip straight away and enter,
-    // running the remaining (idempotent) migrations in the background after entry.
+    // Three ways to learn WHICH trip to open, fastest first:
     //
-    // SLOW PATH (legacy account's first sign-in): the collab migration hasn't
-    // run, so trips/** may still be empty and ensureDefaultTrip would wrongly
+    // 1. A brand-new anonymous account has no profile doc and no trips by
+    //    definition — nothing to read at all.
+    // 2. A returning user's trips + profile are usually already in Firestore's local
+    //    persistent cache; reading them is a few ms of IndexedDB instead of a server
+    //    round trip (the slowest step of opening the app on a cold connection). The
+    //    cache can be stale, so a hit is reconciled against the server right after
+    //    entry (see below) — only a real difference ever re-renders.
+    // 3. Otherwise (first visit on this device, evicted cache) read the server.
+    //
+    // SLOW PATH (legacy account's first sign-in, case 3 only): the collab migration
+    // hasn't run, so trips/** may still be empty and ensureDefaultTrip would wrongly
     // trigger onboarding. Only THEN do we block entry on the migrations. The
-    // localStorage flag alone isn't enough to decide that — it's per device, so
-    // a new browser, a cleared profile, or a brand-new anonymous guest (who has
-    // no legacy data at all) would otherwise sit through every migration's
-    // Firestore round trips before seeing anything. So probe trips/** first and
-    // fall back to the slow path only when it comes back empty for a real account.
-    //
-    // One users/{uid} read supplies both the saved default trip and the
-    // account's migration marker. It doesn't depend on the trip list, so start it
-    // now and let it overlap with listTrips() inside ensureDefaultTrip().
-    //
-    // A brand-new anonymous account has no profile doc and no trips by definition,
-    // so a first-time visitor skips both reads — the first Firestore query on a cold
-    // connection is the slowest step of entry, and here it can only return "nothing".
+    // localStorage flag alone isn't enough to decide that — it's per device, so a new
+    // browser, a cleared profile, or a brand-new anonymous guest (who has no legacy
+    // data at all) would otherwise sit through every migration's round trips before
+    // seeing anything. So probe trips/** first and fall back to the slow path only
+    // when it comes back empty for a real account.
     const fresh = isFreshAnonymous(user);
-    const bootDoc = fresh
-      ? Promise.resolve({ defaultTripId: null, accountMigrationsVersion: 0 })
-      : readUserBootDoc();
-    const savedTripId = bootDoc.then((d) => d.defaultTripId);
+    const cached = fresh ? null : await resolveActiveTripFromCache();
 
-    // Minimal set needed to know WHICH trip to show — always awaited before entry.
-    // Anonymous visitors can't create trips (that needs a real account), so
-    // never push them into onboarding — they land on the app's empty state and
-    // browse, with a "sign in to create your first trip" CTA. A registered user
-    // with no trips still gets onboarding.
+    // Anonymous visitors can't create trips (that needs a real account), so never
+    // push them into onboarding — they land on the app's empty state and browse,
+    // with a "sign in to create your first trip" CTA. A registered user with no
+    // trips still gets onboarding.
     let needsOnboarding = false;
     let tookSlowPath = false;
     // Account-level migrations are already done (recorded server-side by whichever
     // device finished them) or can't apply (an anonymous guest has no legacy data).
     let skipAccountLevel = user.isAnonymous;
-    try {
-      // Awaited together so the profile read and the trip list stay overlapped.
-      const [doc, firstTrip] = await Promise.all([bootDoc, fresh ? null : ensureDefaultTrip()]);
-      skipAccountLevel ||= doc.accountMigrationsVersion >= ACCOUNT_MIGRATIONS_VERSION;
-      let trip = firstTrip;
-      if (trip === null && !skipAccountLevel && !isCollabMigrated()) {
-        tookSlowPath = true;
-        await runPreTripMigrations({ skipAccountLevel });
-        trip = await ensureDefaultTrip();
-      }
-      needsOnboarding = trip === null && !user.isAnonymous;
-    } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
+    if (cached) {
+      skipAccountLevel ||= cached.accountMigrationsVersion >= ACCOUNT_MIGRATIONS_VERSION;
+    } else {
+      // One users/{uid} read supplies both the saved default trip and the migration
+      // marker. It doesn't depend on the trip list, so start it now and let it
+      // overlap with listTrips() inside ensureDefaultTrip().
+      const bootDoc = fresh
+        ? Promise.resolve({ defaultTripId: null, accountMigrationsVersion: 0 })
+        : readUserBootDoc();
+      const savedTripId = bootDoc.then((d) => d.defaultTripId);
+      try {
+        // Awaited together so the profile read and the trip list stay overlapped.
+        const [doc, firstTrip] = await Promise.all([bootDoc, fresh ? null : ensureDefaultTrip()]);
+        skipAccountLevel ||= doc.accountMigrationsVersion >= ACCOUNT_MIGRATIONS_VERSION;
+        let trip = firstTrip;
+        if (trip === null && !skipAccountLevel && !isCollabMigrated()) {
+          tookSlowPath = true;
+          await runPreTripMigrations({ skipAccountLevel });
+          trip = await ensureDefaultTrip();
+        }
+        needsOnboarding = trip === null && !user.isAnonymous;
+      } catch (e) { console.warn('Default trip bootstrap skipped:', e); }
 
-    try { await restoreActiveTrip(savedTripId); }
-    catch (e) { console.warn('Restore active trip skipped:', e); }
+      try { await restoreActiveTrip(savedTripId); }
+      catch (e) { console.warn('Restore active trip skipped:', e); }
+    }
 
     // Apply any page restriction for this member (editor limited to some pages).
     // null = full access. Owners are always unrestricted.
@@ -343,6 +353,10 @@ async function bootAuthenticatedShell(user: User) {
     // app. On the fast path these migrations + side-effects no longer gate entry.
     // (On the slow path the migrations already ran inline above, so skip them.)
     void runPostEntryAndRepaint(user, needsOnboarding, tookSlowPath, skipAccountLevel);
+    // The app opened on cached trip data: check it against the server now that the
+    // user is in. Only a real difference (switched trip elsewhere, renamed, lost
+    // access) re-renders anything.
+    if (cached) void reconcileActiveTripWithServer();
   })();
 
   try {
@@ -404,7 +418,7 @@ async function enterAppFlow(): Promise<void> {
     // read so a returning Google user isn't mistaken for "nobody" — which would
     // sign them in anonymously over their real session.
     await authReady();
-    let user = currentUser();
+    const user = currentUser();
     if (!user) {
       // New visitor. Nothing on screen needs the account yet (they have no data),
       // and the sign-up is ~2 network round trips — so show the app NOW and let
