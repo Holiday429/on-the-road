@@ -61,9 +61,6 @@ function select(iso: string): void {
   _year = y; _month = m - 1;
 }
 
-const KIND_LABEL: Record<AgendaKind, string> = {
-  transport: 'Travel', stay: 'Stay', plan: 'Plan', journal: 'Journal', spend: 'Spend', todo: 'To-do', context: '',
-};
 const LEGEND: AgendaKind[] = ['transport', 'stay', 'plan', 'journal', 'spend', 'todo'];
 
 /* ── Month grid ──────────────────────────────────────────────────────────── */
@@ -193,9 +190,9 @@ function renderDayPanel(): string {
 
   const todoSection = (dayTodos.length || floating.length)
     ? `<div class="cal-sec">
-         <div class="cal-sec-label">☑️ To-do</div>
+         <div class="cal-sec-label">☑️ ${esc(t('dash.widget.todo'))}</div>
          ${dayTodos.map((td) => todoRow(td, today)).join('')}
-         ${floating.length ? `<div class="cal-sec-sub">No due date</div>${floating.map((td) => todoRow(td, today)).join('')}` : ''}
+         ${floating.length ? `<div class="cal-sec-sub">${esc(t('cal.noDueDate'))}</div>${floating.map((td) => todoRow(td, today)).join('')}` : ''}
        </div>`
     : '';
 
@@ -210,7 +207,7 @@ function renderDayPanel(): string {
         ${hint ? `<div class="cal-panel-hint">${esc(hint)}</div>` : ''}
       </div>
       ${rows.length ? `<div class="cal-items">${rows.map(renderItem).join('')}</div>` : ''}
-      ${journal ? `<div class="cal-sec"><div class="cal-sec-label">📔 Journal</div>${journal}</div>` : ''}
+      ${journal ? `<div class="cal-sec"><div class="cal-sec-label">📔 ${esc(t('dash.widget.journal'))}</div>${journal}</div>` : ''}
       ${todoSection}
       ${empty}
       <div class="cal-panel-actions">
@@ -236,8 +233,8 @@ function renderTodosPanel(): string {
         <span class="cal-todos-title">☑️ ${esc(t('dash.widget.todo'))}</span>
         <button class="cal-todos-add btn btn-ghost" data-add-todo="${today}">+ ${esc(t('cal.addTodo'))}</button>
       </div>
-      ${pending.length ? pending.map((td) => todoRow(td, today)).join('') : `<div class="cal-todos-empty">No open to-dos.</div>`}
-      ${done.length ? `<div class="cal-todos-section-label">Recently done</div>${done.map((td) => todoRow(td, today)).join('')}` : ''}
+      ${pending.length ? pending.map((td) => todoRow(td, today)).join('') : `<div class="cal-todos-empty">${esc(t('cal.noOpenTodos'))}</div>`}
+      ${done.length ? `<div class="cal-todos-section-label">${esc(t('cal.recentlyDone'))}</div>${done.map((td) => todoRow(td, today)).join('')}` : ''}
     </div>`;
 }
 
@@ -315,7 +312,7 @@ function render(): void {
           <button class="cal-today-btn" data-go-today>${esc(t('dash.agenda.today'))}</button>
         </div>
         ${renderMonthGrid(kinds)}
-        <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${KIND_LABEL[k]}</span>`).join('')}</div>
+        <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${esc(t(`cal.kind.${k}`))}</span>`).join('')}</div>
         ${renderStats()}
         ${renderTodosPanel()}
       </div>

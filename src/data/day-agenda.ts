@@ -20,6 +20,7 @@ import type { StoredExpense } from './stores/expense-store.ts';
 import type { StoredJournalEntry } from './stores/journal-store.ts';
 import type { StoredTodo } from './stores/todo-store.ts';
 import type { ViewId, NavIntent } from '../core/app.ts';
+import { t } from '../core/i18n.ts';
 
 export type AgendaKind = 'context' | 'transport' | 'stay' | 'plan' | 'todo' | 'spend' | 'journal';
 
@@ -137,7 +138,6 @@ function datesBetween(after: string, before: string): string[] {
 }
 
 const TRANSPORT_ICON: Record<string, string> = { flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️' };
-const TRANSPORT_LABEL: Record<string, string> = { flight: 'Flight', train: 'Train', bus: 'Bus', ferry: 'Ferry' };
 
 function sorted<T>(arr: T[], cmp: (a: T, b: T) => number): T[] { return [...arr].sort(cmp); }
 
@@ -176,24 +176,24 @@ function contextItems(iso: string, leg: StoredLeg | null, dayInLeg: DayAgenda['d
 function transportItems(legs: StoredLeg[], iso: string): AgendaItem[] {
   const out: AgendaItem[] = [];
   for (const leg of legs) {
-    const t = leg.arrivalTransport;
-    if (!t || t.date !== iso) continue;
+    const t_ = leg.arrivalTransport;
+    if (!t_ || t_.date !== iso) continue;
     const details: AgendaDetail[] = [];
     const add = (label: string, v: string | null | undefined) => { const x = blank(v); if (x) details.push({ label, value: x }); };
-    add('Service', t.service);
-    add('Departs', [blank(t.time), blank(t.depPlace)].filter(Boolean).join(' · '));
-    add('Arrives', [blank(t.arrivalTime), blank(t.arrPlace)].filter(Boolean).join(' · '));
-    add('Duration', t.duration);
-    if (t.via?.length) add('Via', t.via.filter(Boolean).join(' · '));
-    add('Price', t.priceAmount != null ? `${t.priceAmount} ${t.priceCurrency ?? ''}`.trim() : t.price);
-    add('Booking', t.bookingRef);
-    add('Notes', t.notes);
-    const route = [t.from, t.to].filter(Boolean).join(' → ');
+    add(t('agenda.d.service'), t_.service);
+    add(t('agenda.d.departs'), [blank(t_.time), blank(t_.depPlace)].filter(Boolean).join(' · '));
+    add(t('agenda.d.arrives'), [blank(t_.arrivalTime), blank(t_.arrPlace)].filter(Boolean).join(' · '));
+    add(t('agenda.d.duration'), t_.duration);
+    if (t_.via?.length) add(t('agenda.d.via'), t_.via.filter(Boolean).join(' · '));
+    add(t('agenda.d.price'), t_.priceAmount != null ? `${t_.priceAmount} ${t_.priceCurrency ?? ''}`.trim() : t_.price);
+    add(t('agenda.d.booking'), t_.bookingRef);
+    add(t('agenda.d.notes'), t_.notes);
+    const route = [t_.from, t_.to].filter(Boolean).join(' → ');
     out.push({
-      id: `transport-${leg.id}`, kind: 'transport', time: blank(t.time),
+      id: `transport-${leg.id}`, kind: 'transport', time: blank(t_.time),
       title: route || leg.city,
-      subtitle: [TRANSPORT_LABEL[t.type] ?? 'Transport', blank(t.service)].filter(Boolean).join(' · '),
-      icon: TRANSPORT_ICON[t.type] ?? '🚀', details, legId: leg.id, subRank: 0,
+      subtitle: [t(`agenda.transport.${t_.type}`), blank(t_.service)].filter(Boolean).join(' · '),
+      icon: TRANSPORT_ICON[t_.type] ?? '🚀', details, legId: leg.id, subRank: 0,
       navTo: 'route', intent: { legId: leg.id },
     });
   }
@@ -208,22 +208,22 @@ function stayItems(legs: StoredLeg[], iso: string): AgendaItem[] {
       const key = a.id ?? `${leg.id}-${i}`;
       const details: AgendaDetail[] = [];
       const add = (label: string, v: string | null | undefined) => { const x = blank(v); if (x) details.push({ label, value: x }); };
-      add('Address', a.address);
-      add('Check-in', a.checkIn);
-      add('Check-out', a.checkOut);
-      add('Price', a.price);
-      add('Platform', a.platform);
-      add('Phone', a.phone);
-      add('Status', a.confirmed ? 'Confirmed' : 'Not confirmed');
+      add(t('agenda.d.address'), a.address);
+      add(t('agenda.d.checkIn'), a.checkIn);
+      add(t('agenda.d.checkOut'), a.checkOut);
+      add(t('agenda.d.price'), a.price);
+      add(t('agenda.d.platform'), a.platform);
+      add(t('agenda.d.phone'), a.phone);
+      add(t('agenda.d.status'), t(a.confirmed ? 'agenda.confirmed' : 'agenda.notConfirmed'));
       const base = { kind: 'stay' as const, title: a.name, icon: '🏠', details, legId: leg.id, navTo: 'route' as ViewId, intent: { legId: leg.id } };
       const ci = datePart(a.checkIn), co = datePart(a.checkOut);
       // Both cards share the house icon; subRank orders check-out → check-in,
       // the order a travel day actually happens in.
-      if (co === iso) out.push({ ...base, id: `stay-out-${key}`, time: timePart(a.checkOut), subtitle: `Check out · ${leg.city}`, subRank: 0 });
-      if (ci === iso) out.push({ ...base, id: `stay-in-${key}`, time: timePart(a.checkIn), subtitle: `Check in · ${leg.city}`, subRank: 1 });
+      if (co === iso) out.push({ ...base, id: `stay-out-${key}`, time: timePart(a.checkOut), subtitle: t('agenda.checkOutIn', { city: leg.city }), subRank: 0 });
+      if (ci === iso) out.push({ ...base, id: `stay-in-${key}`, time: timePart(a.checkIn), subtitle: t('agenda.checkInAt', { city: leg.city }), subRank: 1 });
       // A mid-stay night has neither — but "where am I sleeping tonight" is
       // exactly the question, so carry it as a quiet untimed card.
-      if (ci && co && ci < iso && iso < co) out.push({ ...base, id: `stay-at-${key}`, time: null, subtitle: `Staying · ${leg.city}`, subRank: 2 });
+      if (ci && co && ci < iso && iso < co) out.push({ ...base, id: `stay-at-${key}`, time: null, subtitle: t('agenda.staying', { city: leg.city }), subRank: 2 });
     });
   }
   return out;
@@ -240,8 +240,8 @@ function planItems(legs: StoredLeg[], iso: string): AgendaItem[] {
     for (const p of todays) {
       const details: AgendaDetail[] = [];
       const add = (label: string, v: string | null | undefined) => { const x = blank(v); if (x) details.push({ label, value: x }); };
-      add('Note', p.note); add('Duration', p.duration); add('Cost', p.cost);
-      details.push({ label: 'City', value: `${leg.flag} ${leg.city}`.trim() });
+      add(t('agenda.d.note'), p.note); add(t('agenda.d.duration'), p.duration); add(t('agenda.d.cost'), p.cost);
+      details.push({ label: t('agenda.d.city'), value: `${leg.flag} ${leg.city}`.trim() });
       out.push({
         id: `plan-${p.id}`, kind: 'plan', time: null, title: p.title,
         subtitle: [blank(p.category), leg.city].filter(Boolean).join(' · '),
@@ -254,10 +254,10 @@ function planItems(legs: StoredLeg[], iso: string): AgendaItem[] {
 }
 
 function todoItems(todos: StoredTodo[], iso: string): AgendaItem[] {
-  return todos.filter((t) => t.dueDate === iso && !t.done).map((t) => ({
-    id: `todo-${t.id}`, kind: 'todo' as const, time: null, title: t.text,
-    subtitle: 'Due today', icon: '☑️', details: [], done: t.done, subRank: 0,
-    navTo: 'calendar' as ViewId, todoId: t.id,
+  return todos.filter((td) => td.dueDate === iso && !td.done).map((td) => ({
+    id: `todo-${td.id}`, kind: 'todo' as const, time: null, title: td.text,
+    subtitle: t('agenda.dueToday'), icon: '☑️', details: [], done: td.done, subRank: 0,
+    navTo: 'calendar' as ViewId, todoId: td.id,
   }));
 }
 
@@ -269,13 +269,13 @@ function spendItems(expenses: StoredExpense[], iso: string): AgendaItem[] {
   const baseCur = rows[0].baseCurrency;
   const total = rows.reduce((s, e) => s + e.baseAmount, 0);
   const details = [...rows].sort((a, b) => b.baseAmount - a.baseAmount).map((e) => ({
-    label: blank(e.description) ?? blank(e.category) ?? 'Unlabelled',
+    label: blank(e.description) ?? blank(e.category) ?? t('agenda.unlabelled'),
     value: `${e.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${e.currency}`,
   }));
   return [{
     id: `spend-${iso}`, kind: 'spend', time: null,
     title: `${Math.round(total).toLocaleString()} ${baseCur}`,
-    subtitle: `${rows.length} expense${rows.length === 1 ? '' : 's'}`,
+    subtitle: t(rows.length === 1 ? 'agenda.expense.one' : 'agenda.expense.other', { n: rows.length }),
     icon: '💶', details, subRank: 0, navTo: 'expenses',
   }];
 }
