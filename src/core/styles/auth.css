@@ -16,6 +16,50 @@
   overflow: auto;
 }
 
+/* Fast entry (/app?from=landing): no Enter card — a plain splash covers the app
+   while it boots. app.html's head script sets html[data-fast-enter]; boot-shell
+   clears it, and .is-leaving keeps the splash up just long enough to fade out. */
+#boot-splash {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 410;
+  place-items: center;
+  background: var(--surface-3);
+  transition: opacity 0.2s var(--ease-out);
+}
+
+html[data-fast-enter] #boot-splash,
+#boot-splash.is-leaving {
+  display: grid;
+}
+
+#boot-splash.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#boot-splash img {
+  width: 96px;
+  height: 96px;
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  animation: boot-splash-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes boot-splash-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #boot-splash img { animation: none; }
+}
+
+html[data-fast-enter] #auth-screen {
+  display: none;
+}
+
 @keyframes auth-fade-out {
   from { opacity: 1; }
   to   { opacity: 0; }
@@ -147,7 +191,7 @@
   filter: drop-shadow(0 16px 28px rgba(58, 29, 110, 0.18));
 }
 
-/* Act 2: mascot fades in at t=2.5s as travel.gif ends, then stays put. */
+/* Act 2: mascot fades in at t=2.5s as travel.webp ends, then stays put. */
 .landing-hero-img.stage-hero-walk {
   animation: hero-walk-in 0.4s ease-out 2.5s forwards;
 }

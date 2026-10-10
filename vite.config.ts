@@ -65,6 +65,13 @@ export default defineConfig({
           if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
             return 'firebase';
           }
+          // Only the Guide/Itinerary/Journal views use Leaflet. Without an explicit
+          // chunk, Rolldown parks its shared runtime helpers inside the Leaflet
+          // chunk, so the entry bundle imports it and every first paint pays for
+          // 149KB of map library (+ its CSS) that the dashboard never touches.
+          if (id.includes('node_modules/leaflet')) {
+            return 'leaflet';
+          }
         },
       },
     },

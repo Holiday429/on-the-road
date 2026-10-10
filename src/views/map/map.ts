@@ -47,7 +47,7 @@ import { openSheet } from '../../core/modal.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
-const HERO_GIF  = `${ART}logo.gif`;
+const HERO_GIF  = `${ART}logo.webp`;
 const PLANE_PNG = `${ART}plane.png`;
 
 interface StoredLegInput {

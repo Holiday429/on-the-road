@@ -52,6 +52,9 @@ let _currentTrip: Trip | null = null;
 // Snapshot of the trip ids the user belongs to, refreshed by listTrips().
 // Powers the cross-trip aggregation fan-out in db.ts (map/journal "all" view).
 let _myTripIds: string[] = [];
+// Full docs from the most recent listTrips(), so boot's restoreActiveTrip() can
+// resolve the saved default trip without a second Firestore read.
+let _listedTrips: Trip[] = [];
 setMyTripIdsResolver(() => _myTripIds);
 
 export function currentTripId(): string {
@@ -219,11 +222,13 @@ function tripsCol() {
 export async function listTrips(): Promise<Trip[]> {
   const u = currentUser();
   if (!u) return [];
+  _listedTrips = []; // never serve a previous account's docs if this read throws
   const snap = await getDocs(query(tripsCol(), where('memberUids', 'array-contains', u.uid)));
   const trips = snap.docs
     .map((d) => d.data() as Trip)
     .sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
   _myTripIds = trips.map((t) => t.id);
+  _listedTrips = trips;
   return trips;
 }
 
@@ -584,10 +589,12 @@ export async function ensureDefaultTrip(): Promise<Trip | null> {
  * default. Sets the active trip + caches its metadata. Call once after
  * ensureDefaultTrip() on boot. Does not broadcast (nothing is mounted yet).
  */
-export async function restoreActiveTrip(): Promise<void> {
-  const saved = await readDefaultTripId();
+export async function restoreActiveTrip(savedId?: Promise<string | null>): Promise<void> {
+  // Boot passes a readDefaultTripId() promise it started before listTrips(), so
+  // the two independent Firestore reads overlap instead of running back to back.
+  const saved = await (savedId ?? readDefaultTripId());
   if (saved && saved !== _currentTripId) {
-    const trip = await getTrip(saved);
+    const trip = _listedTrips.find((t) => t.id === saved) ?? await getTrip(saved);
     if (trip) {
       _currentTripId = saved;
       _currentTrip = trip;

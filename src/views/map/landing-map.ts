@@ -88,7 +88,7 @@ export async function initLandingMap(container: HTMLElement) {
     longitude: LANDING_STOPS[0].lng,
     latitude: LANDING_STOPS[0].lat,
   });
-  const heroImg = ensureHeroOverlay(stageCanvas, 'landing-hero-img', `${ART}logo.gif`);
+  const heroImg = ensureHeroOverlay(stageCanvas, 'landing-hero-img', `${ART}logo.webp`);
   const syncHero = bindHeroOverlay(root, {
     chart,
     item: heroItem,
