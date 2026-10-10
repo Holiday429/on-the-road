@@ -101,25 +101,34 @@ export function isSignedInReal(): boolean {
  */
 export async function signInAnonymously(): Promise<User> {
   if (_user) return _user;
-  const result = await fbSignInAnonymously(auth);
-  // Firebase also resolves this call with an EXISTING anonymous session (no
-  // additional info), so only a genuine sign-up marks the uid as fresh.
-  if (getAdditionalUserInfo(result)?.isNewUser) _freshAnonymousUid = result.user.uid;
-  track('signup');
-  return result.user;
+  _signingUpAnonymously = true;
+  try {
+    const result = await fbSignInAnonymously(auth);
+    // Firebase also resolves this call with an EXISTING anonymous session (no
+    // additional info), so only a genuine sign-up marks the uid as fresh.
+    if (getAdditionalUserInfo(result)?.isNewUser) _freshAnonymousUid = result.user.uid;
+    track('signup');
+    return result.user;
+  } finally {
+    _signingUpAnonymously = false;
+  }
 }
 
-// uid of an anonymous account created by THIS page load, if any.
+// Set for the duration of the sign-up call, and the uid it created. Auth listeners
+// can fire BEFORE signInAnonymously() resolves, so the in-flight flag is what lets
+// them recognise the new account; the uid covers any later check.
+let _signingUpAnonymously = false;
 let _freshAnonymousUid: string | null = null;
 
 /**
- * True for an anonymous account that was created a moment ago in this page
- * session. Such an account provably has no trips, profile doc or legacy data, so
- * boot can skip the Firestore reads that would otherwise gate a first-time
- * visitor's entry on a cold connection handshake.
+ * True for an anonymous account that THIS page session just created. Such an
+ * account provably has no trips, profile doc or legacy data, so boot can skip the
+ * Firestore reads that would otherwise gate a first-time visitor on a cold
+ * connection handshake. (A persisted anonymous session from an earlier visit is
+ * never "fresh" — it may have been given data since.)
  */
-export function isFreshAnonymous(uid: string): boolean {
-  return _freshAnonymousUid === uid;
+export function isFreshAnonymous(user: Pick<User, 'uid' | 'isAnonymous'>): boolean {
+  return user.isAnonymous && (_signingUpAnonymously || _freshAnonymousUid === user.uid);
 }
 
 /**

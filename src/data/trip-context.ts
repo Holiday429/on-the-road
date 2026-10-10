@@ -8,7 +8,7 @@
    ========================================================================== */
 
 import {
-  collection, doc as fbDoc, getDoc, getDocs, setDoc, deleteDoc, query, where, writeBatch,
+  collection, doc as fbDoc, getDoc, getDocs, getDocFromCache, getDocsFromCache, setDoc, deleteDoc, query, where, writeBatch,
 } from 'firebase/firestore';
 import { db as firestore } from '../firebase/config.ts';
 import { currentUser } from '../firebase/auth.ts';
@@ -554,9 +554,11 @@ export interface UserBootDoc {
   accountMigrationsVersion: number;
 }
 
-/** Read the boot-relevant profile fields. Never throws — offline/denied reads
- *  degrade to "nothing recorded", which just means the normal boot path. */
-export async function readUserBootDoc(): Promise<UserBootDoc> {
+/** Read the boot-relevant profile fields. By default never throws — offline/denied
+ *  reads degrade to "nothing recorded", which just means the normal boot path.
+ *  `strict` rethrows instead, for callers that must tell "no doc" from "couldn't
+ *  read" (reconcile: a failed read must not look like "no saved trip"). */
+export async function readUserBootDoc(opts: { strict?: boolean } = {}): Promise<UserBootDoc> {
   const none: UserBootDoc = { defaultTripId: null, accountMigrationsVersion: 0 };
   const u = currentUser();
   if (!u) return none;
@@ -568,7 +570,10 @@ export async function readUserBootDoc(): Promise<UserBootDoc> {
       defaultTripId: d.defaultTripId ?? null,
       accountMigrationsVersion: typeof d.accountMigrationsVersion === 'number' ? d.accountMigrationsVersion : 0,
     };
-  } catch { return none; }
+  } catch (e) {
+    if (opts.strict) throw e;
+    return none;
+  }
 }
 
 /** Read the persisted default trip id from the profile, if any. */
@@ -634,6 +639,113 @@ export async function restoreActiveTrip(savedId?: Promise<string | null>): Promi
       _currentTrip = trip;
       _baseCurrency = trip.baseCurrency ?? _baseCurrency;
     }
+  }
+}
+
+/**
+ * Which trip a boot should open, given the user's trips and the saved default.
+ * The saved default wins when the user still belongs to it; otherwise prefer a
+ * trip they created, then ANY trip they're a member of (e.g. one shared with
+ * them), so a collaborator with only shared trips isn't pushed into onboarding.
+ * null = no trips at all. (Same outcome as ensureDefaultTrip + restoreActiveTrip.)
+ */
+export function pickActiveTrip(trips: Trip[], savedId: string | null): Trip | null {
+  const saved = savedId ? trips.find((t) => t.id === savedId) : undefined;
+  return saved ?? trips.find((t) => t.userCreated === true) ?? trips[0] ?? null;
+}
+
+function applyActiveTrip(trip: Trip): void {
+  _currentTripId = trip.id;
+  _currentTrip = trip;
+  _baseCurrency = trip.baseCurrency ?? _baseCurrency;
+}
+
+function sortTrips(trips: Trip[]): Trip[] {
+  return trips.sort((a, b) => (b.startDate ?? '').localeCompare(a.startDate ?? ''));
+}
+
+/** Key-order-independent compare, so a cached doc and a server doc that hold the
+ *  same data never count as "changed". */
+function sameDoc(a: unknown, b: unknown): boolean {
+  const canon = (v: unknown): unknown =>
+    Array.isArray(v) ? v.map(canon)
+      : v && typeof v === 'object'
+        ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([x], [y]) => x.localeCompare(y)).map(([k, x]) => [k, canon(x)]))
+        : v;
+  return JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+}
+
+export interface CachedBoot {
+  trip: Trip;
+  accountMigrationsVersion: number;
+}
+
+/**
+ * Resolve the active trip from Firestore's local persistent cache ONLY — no
+ * network, a few ms of IndexedDB instead of a server round trip (the slowest part
+ * of opening the app for a returning user). Returns null when the cache can't
+ * answer (first visit on this device, evicted cache, no trips), and the caller
+ * falls back to the normal server boot. A hit must be followed by
+ * reconcileActiveTripWithServer() — cached membership/data can be stale.
+ */
+export async function resolveActiveTripFromCache(): Promise<CachedBoot | null> {
+  const u = currentUser();
+  if (!u) return null;
+  try {
+    const snap = await getDocsFromCache(query(tripsCol(), where('memberUids', 'array-contains', u.uid)));
+    const trips = sortTrips(snap.docs.map((d) => d.data() as Trip));
+    if (!trips.length) return null;
+
+    let defaultTripId: string | null = null;
+    let accountMigrationsVersion = 0;
+    try {
+      const userSnap = await getDocFromCache(fbDoc(firestore, `users/${u.uid}`));
+      if (userSnap.exists()) {
+        const d = userSnap.data() as { defaultTripId?: string | null; accountMigrationsVersion?: number };
+        defaultTripId = d.defaultTripId ?? null;
+        accountMigrationsVersion = typeof d.accountMigrationsVersion === 'number' ? d.accountMigrationsVersion : 0;
+      }
+    } catch { /* profile not cached — fall back to the default pick */ }
+
+    const trip = pickActiveTrip(trips, defaultTripId);
+    if (!trip) return null;
+    _myTripIds = trips.map((t) => t.id);
+    _listedTrips = trips;
+    applyActiveTrip(trip);
+    return { trip, accountMigrationsVersion };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * After a cache-first boot, re-read the trip list + profile from the server and
+ * correct whatever was stale: the saved default moved on another device, the
+ * trip was edited/renamed, or the user lost access. Broadcasts a trip change only
+ * if the active trip actually differs, so a normal boot costs views nothing.
+ * Resolves true when it changed the active trip. Never throws (offline = keep the
+ * cached state).
+ */
+export async function reconcileActiveTripWithServer(): Promise<boolean> {
+  try {
+    const beforeId = _currentTripId;
+    const before = _currentTrip;
+    const [doc, trips] = await Promise.all([readUserBootDoc({ strict: true }), listTrips()]);
+    const pick = pickActiveTrip(trips, doc.defaultTripId);
+    if (!pick) {
+      if (!before) return false;
+      _currentTrip = null;
+      _currentTripId = DEFAULT_TRIP_ID;
+      emitTripChange();
+      return true;
+    }
+    if (pick.id === beforeId && before && sameDoc(before, pick)) return false;
+    applyActiveTrip(pick);
+    emitTripChange();
+    return true;
+  } catch (e) {
+    console.warn('Trip reconcile skipped:', e);
+    return false;
   }
 }
 
