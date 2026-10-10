@@ -146,23 +146,12 @@
   margin-top: var(--sp-1);
 }
 .td-hero-anchor strong { color: var(--accent-deep); font-weight: 700; }
-.td-hero-chips {
-  display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2);
-}
-.td-hero-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: var(--fs-xs); font-weight: 600; border-radius: var(--r-full);
-  padding: 3px 10px; line-height: 1.3;
-}
-.td-hero-chip-transport { background: var(--amber-50); color: var(--amber-700); border: 1px solid var(--amber-200); }
-.td-hero-chip-acc       { background: var(--success-bg-soft); color: var(--success); border: 1px solid #bbf7d0; }
 .td-hero-logo {
   width: 68px; height: 68px;
   object-fit: contain;
   flex-shrink: 0;
 }
 @media (max-width: 560px) { .td-hero-logo { display: none; } }
-
 
 /* ── Rate line (1 EUR = 7.46 DKK ▾) ──────────────────────────────────────── */
 .td-hero-rate {

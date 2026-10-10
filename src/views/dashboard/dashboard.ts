@@ -22,14 +22,12 @@ import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher 
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { entryCover, excerpt, moodEmoji, prettyDate, titleFor } from '../journal/shared/utils.ts';
-import type { PlanItem, PlanDay, ClipCategory } from '../../data/schema.ts';
+import type { PlanItem, PlanDay } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
+import { renderAgendaWidget, wireAgenda, resetAgenda } from './dashboard-agenda.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
-// From itinerary-shared.ts (not itinerary.ts) so Dashboard's eager bundle
-// doesn't pull in the itinerary view module — and Leaflet with it.
-import { BUILTIN_CATEGORIES } from '../itinerary/itinerary-shared.ts';
 import { openModal } from '../../core/modal.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { mountPrefControls } from '../../core/pref-mounts.ts';
@@ -177,44 +175,16 @@ function renderHero(phase: Phase): string {
   const leg  = currentLeg();
   const ART  = `${(import.meta as any).env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
 
-  const TICON: Record<string, string> = { flight: '✈️', train: '🚂', bus: '🚌', ferry: '⛴️' };
-
   let anchor = '';
-  let details = '';
 
   if (phase === 'before' && leg) {
     const d = daysBetween(todayIso(), leg.dateFrom);
     anchor = `<strong>${d}</strong> day${d === 1 ? '' : 's'} to go · next stop ${esc(leg.flag)} ${esc(leg.city)}`;
-    // Show upcoming transport + accommodation chips
-    const chips: string[] = [];
-    const t = leg.arrivalTransport;
-    if (t) {
-      const icon = TICON[t.type] ?? '🚀';
-      const time = t.time ? ` ${t.time}` : '';
-      chips.push(`<span class="td-hero-chip td-hero-chip-transport">${icon} ${esc(t.from)} → ${esc(t.to)}${esc(time)}</span>`);
-    }
-    const accs = leg.accommodations?.length ? leg.accommodations : leg.accommodation ? [leg.accommodation] : [];
-    if (accs[0]) {
-      chips.push(`<span class="td-hero-chip td-hero-chip-acc">🏠 ${esc(accs[0].name)}</span>`);
-    }
-    if (chips.length) details = `<div class="td-hero-chips">${chips.join('')}</div>`;
   } else if (phase === 'during' && leg) {
     const idx  = legs.findIndex(l => l.id === leg.id) + 1;
     const dayN = daysBetween(leg.dateFrom, todayIso()) + 1;
     const tot  = daysBetween(leg.dateFrom, leg.dateTo) + 1;
     anchor = `${esc(leg.flag)} ${esc(leg.city)} · stop ${idx}/${legs.length} · day ${dayN} of ${tot}`;
-    const chips: string[] = [];
-    const t = leg.arrivalTransport;
-    if (t) {
-      const icon = TICON[t.type] ?? '🚀';
-      const time = t.time ? ` ${t.time}` : '';
-      chips.push(`<span class="td-hero-chip td-hero-chip-transport">${icon} ${esc(t.from)} → ${esc(t.to)}${esc(time)}</span>`);
-    }
-    const accs = leg.accommodations?.length ? leg.accommodations : leg.accommodation ? [leg.accommodation] : [];
-    if (accs[0]) {
-      chips.push(`<span class="td-hero-chip td-hero-chip-acc">🏠 ${esc(accs[0].name)}</span>`);
-    }
-    if (chips.length) details = `<div class="td-hero-chips">${chips.join('')}</div>`;
   } else if (phase === 'after') {
     const countries = new Set(legs.map(l => l.country)).size;
     const len = trip ? daysBetween(trip.startDate, trip.endDate) + 1 : null;
@@ -252,7 +222,6 @@ function renderHero(phase: Phase): string {
             <span class="td-hero-name-caret" aria-hidden="true">▾</span>
           </button>
           ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
-          ${details}
           ${renderRateLine()}
         </div>
       </div>
@@ -348,71 +317,6 @@ function renderRatePanel(): string {
         </div>
       </div>
       <div class="td-cur-rates">${rateRowsHtml}</div>
-    </div>`;
-}
-
-/* ── Calendar mini widget ─────────────────────────────────────────────────── */
-function renderCalendarWidget(): string {
-  const now   = new Date();
-  const year  = now.getFullYear();
-  const month = now.getMonth();
-  const today = todayIso();
-
-  // Build event map: date → colours (leg=amber, journal=sky, todo=future)
-  const events: Record<string, string[]> = {};
-  const addDot = (date: string, color: string) => {
-    if (!events[date]) events[date] = [];
-    if (!events[date].includes(color)) events[date].push(color);
-  };
-  // Leg date ranges
-  for (const leg of _legs) {
-    const d = new Date(leg.dateFrom + 'T00:00:00');
-    const end = new Date(leg.dateTo + 'T00:00:00');
-    while (d <= end) {
-      addDot(d.toISOString().slice(0, 10), 'var(--amber-400)');
-      d.setDate(d.getDate() + 1);
-    }
-  }
-  // Journal entries
-  for (const e of _journal) addDot(e.happenedOn, 'var(--sky-400)');
-  // Todos with due date
-  for (const t of _todos) if (t.dueDate) addDot(t.dueDate, t.done ? 'var(--surface-4)' : '#f87171');
-  // Plan items assigned to a day (dayId encodes date as "day-YYYY-MM-DD")
-  const planDayRe = /^day-(\d{4}-\d{2}-\d{2})$/;
-  for (const leg of _legs) {
-    for (const p of (leg.plans ?? []) as PlanItem[]) {
-      if (!p.dayId) continue;
-      const m = planDayRe.exec(p.dayId);
-      if (m) addDot(m[1], '#a78bfa'); // violet dot for plan items
-    }
-  }
-
-  // Calendar grid
-  const firstDay = new Date(year, month, 1).getDay(); // 0=Sun
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const startOffset = (firstDay + 6) % 7; // Mon-first
-  const monthName = now.toLocaleString('en', { month: 'long' });
-  const dayHeaders = ['M','T','W','T','F','S','S'].map(d => `<span class="td-cal-hdr">${d}</span>`).join('');
-
-  let cells = '';
-  for (let i = 0; i < startOffset; i++) cells += `<span class="td-cal-cell td-cal-empty"></span>`;
-  for (let d = 1; d <= daysInMonth; d++) {
-    const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isToday = iso === today;
-    const dots = (events[iso] ?? []).map(c => `<span class="td-cal-dot" style="background:${c}"></span>`).join('');
-    cells += `<span class="td-cal-cell ${isToday ? 'is-today' : ''}">${d}${dots ? `<span class="td-cal-dots">${dots}</span>` : ''}</span>`;
-  }
-
-  return `
-    <div class="td-widget td-w-calendar" data-nav="calendar">
-      <div class="td-widget-label">🗓️ ${monthName} ${year}</div>
-      <div class="td-cal-grid">${dayHeaders}${cells}</div>
-      <div class="td-cal-legend">
-        <span><span class="td-cal-dot" style="background:var(--amber-400)"></span>Itinerary</span>
-        <span><span class="td-cal-dot" style="background:var(--sky-400)"></span>Journal</span>
-        <span><span class="td-cal-dot" style="background:#f87171"></span>To-do</span>
-        <span><span class="td-cal-dot" style="background:#a78bfa"></span>Plan</span>
-      </div>
     </div>`;
 }
 
@@ -535,17 +439,7 @@ function renderMapWidget(): string {
     </div>`;
 }
 
-/* ── Upcoming itinerary widget — feed view mirroring itinerary Feed tab ───── */
-
-function categoryByIdLocal(leg: StoredLeg, id: string): ClipCategory | undefined {
-  const custom = (leg as any).clipCategories ?? [];
-  const all: ClipCategory[] = [
-    ...BUILTIN_CATEGORIES.filter((b: ClipCategory) => !custom.find((c: ClipCategory) => c.id === b.id)),
-    ...custom,
-  ];
-  return all.find((c: ClipCategory) => c.id === id);
-}
-
+/* Plan days for a leg (padded from its date range) — used by Where-to-go → add to itinerary. */
 function ensurePlanDaysLocal(leg: StoredLeg): PlanDay[] {
   const total = daysBetween(leg.dateFrom, leg.dateTo);
   const existing = [...(leg.planDays ?? [])].sort((a, b) => a.order - b.order);
@@ -559,98 +453,6 @@ function ensurePlanDaysLocal(leg: StoredLeg): PlanDay[] {
     const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     return existing.find(e => e.date === iso) ?? { id: `day-${iso}`, date: iso, order: i, label: '', notes: '' };
   });
-}
-
-function renderUpcomingWidget(): string {
-  const today = todayIso();
-  const leg   = currentLeg();
-
-  if (!leg) {
-    const sorted = sortedLegs();
-    const next = sorted.find(l => l.dateFrom >= today);
-    if (!next) {
-      return `
-        <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
-          <div class="td-widget-header">
-            <div class="td-widget-label">📍 ${esc(t('dash.widget.upcoming'))}</div>
-            <button class="td-link" data-nav="route">Itinerary ›</button>
-          </div>
-          <div class="td-upcoming-empty">No itinerary yet — add stops in the Route view.</div>
-        </div>`;
-    }
-    return renderPlanFeed(next);
-  }
-
-  return renderPlanFeed(leg);
-}
-
-function renderPlanFeed(leg: StoredLeg): string {
-  const today = todayIso();
-  const plans = (leg.plans ?? []) as PlanItem[];
-  const days  = ensurePlanDaysLocal(leg);
-
-  if (!plans.length) {
-    return `
-      <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
-        <div class="td-widget-header">
-          <div class="td-widget-label">📍 ${esc(t('dash.widget.upcoming'))}</div>
-          <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
-        </div>
-        <div class="td-plan-city">${esc(leg.flag)} ${esc(leg.city)}</div>
-        <div class="td-upcoming-empty">No plan items for this stop yet.</div>
-      </div>`;
-  }
-
-  // Only show days that have assigned items — skip unassigned
-  const assigned = days
-    .map(day => ({ day, items: plans.filter(p => p.dayId === day.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) }))
-    .filter(g => g.items.length > 0);
-
-  function dayStatus(date: string): 'active' | 'past' | 'upcoming' {
-    if (date === today) return 'active';
-    if (date < today) return 'past';
-    return 'upcoming';
-  }
-
-  const feedItem = (p: PlanItem, status: 'active' | 'past' | 'upcoming') => {
-    const cat = p.category ? categoryByIdLocal(leg, p.category) : undefined;
-    const color = cat?.color ?? '#ebebeb';
-    return `
-      <div class="td-feed-item ${p.done ? 'is-done' : ''} td-feed-item--${status}" data-toggle-plan="${esc(leg.id)}:${esc(p.id)}">
-        <div class="td-feed-item-dot" style="background:${p.done ? 'var(--ink-faint)' : status === 'active' ? '#22c55e' : status === 'past' ? '#a8a29e' : '#f9b830'}"></div>
-        <div class="td-feed-item-body">
-          ${cat ? `<span class="td-cat-badge" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
-          <span class="td-feed-item-title ${p.done ? 'is-done' : ''}">${esc(p.title)}</span>
-        </div>
-      </div>`;
-  };
-
-  const dayGroups = assigned.map(({ day, items }) => {
-    const status = dayStatus(day.date);
-    const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
-    const dayIdx = days.findIndex(d => d.id === day.id);
-    const dotColor = status === 'active' ? '#22c55e' : status === 'past' ? '#a8a29e' : '#f9b830';
-    return `
-      <div class="td-feed-day-group td-feed-day--${status}">
-        <div class="td-feed-day-head">
-          <span class="td-feed-day-dot" style="background:${dotColor}"></span>
-          <span class="td-feed-day-num">DAY ${dayIdx + 1}${status === 'active' ? ' · Today' : ''}</span>
-          <span class="td-feed-day-date">${esc(dateLabel)}</span>
-          ${day.label ? `<span class="td-feed-day-label">${esc(day.label)}</span>` : ''}
-        </div>
-        <div class="td-feed-items">${items.map(p => feedItem(p, status)).join('')}</div>
-      </div>`;
-  }).join('');
-
-  return `
-    <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
-      <div class="td-widget-header">
-        <div class="td-widget-label">📍 ${esc(t('dash.widget.upcoming'))}</div>
-        <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
-      </div>
-      <div class="td-plan-city">${esc(leg.flag)} ${esc(leg.city)}</div>
-      <div class="td-feed-list">${dayGroups}</div>
-    </div>`;
 }
 
 /* ── Journal quick-entry widget ───────────────────────────────────────────── */
@@ -676,7 +478,7 @@ function renderJournalWidget(_phase: Phase): string {
   }).join('');
 
   return `
-    <div class="td-widget td-w-journal${packVisible() ? '' : ' td-w-journal--wide'}" data-widget-id="journal">
+    <div class="td-widget td-w-journal" data-widget-id="journal">
       <div class="td-widget-header">
         <div class="td-widget-label">📔 ${esc(t('dash.widget.journal'))}</div>
         <button class="td-link" data-nav="journal">${esc(t('dash.link.allEntries'))}</button>
@@ -852,11 +654,12 @@ function renderNomadWidget(): string | null {
 }
 
 /* ── Where-to-Go widget — one pick per category, with add-to-itinerary ──────── */
-function renderWhereToGoWidget(): string {
+function renderWhereToGoWidget(withPack: boolean): string {
+  const cls = `td-w-whereto${withPack ? '' : ' td-w-whereto--solo'}`;
   const leg = currentLeg();
   if (!leg) {
     return `
-      <div class="td-widget td-w-whereto">
+      <div class="td-widget ${cls}">
         <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))}</div>
         <div class="td-whereto-empty">Add stops in Route view to get recommendations.</div>
       </div>`;
@@ -868,7 +671,7 @@ function renderWhereToGoWidget(): string {
 
   if (!intel || (!intel.attractions?.length && !intel.restaurants?.length && !intel.experiences?.length && !intel.cafes?.length)) {
     return `
-      <div class="td-widget td-w-whereto">
+      <div class="td-widget ${cls}">
         <div class="td-widget-header">
           <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))} · ${esc(leg.flag)} ${esc(leg.city)}</div>
           <button class="td-link" data-nav="cities">${esc(t('dash.link.guide'))}</button>
@@ -927,7 +730,7 @@ function renderWhereToGoWidget(): string {
   }).join('');
 
   return `
-    <div class="td-widget td-w-whereto">
+    <div class="td-widget ${cls}">
       <div class="td-widget-header">
         <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))} · ${esc(leg.flag)} ${esc(leg.city)}</div>
         <button class="td-link" data-nav="cities">${esc(t('dash.link.guide'))}</button>
@@ -938,24 +741,22 @@ function renderWhereToGoWidget(): string {
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 function layout(phase: Phase): string {
-  const calWidget   = renderCalendarWidget();
+  const agendaWidget = renderAgendaWidget({ legs: _legs, journal: _journal, todos: _todos, expenses: _expenses }, todayIso());
   const todoWidget  = renderTodoWidget();
   const spendWidget = renderSpendWidget();
   const mapWidget   = renderMapWidget();
-  const upWidget    = renderUpcomingWidget();
   const jrnWidget   = renderJournalWidget(phase);
   const nomadHtml   = renderNomadWidget();
-  const whereHtml   = renderWhereToGoWidget();
+  const whereHtml   = renderWhereToGoWidget(!!renderPackWidget());
   const packHtml    = renderPackWidget();
 
   return `<div class="td-grid" id="td-grid">
-    ${calWidget}
-    ${todoWidget}
-    ${spendWidget}
+    ${agendaWidget}
     ${mapWidget}
+    ${spendWidget}
     ${jrnWidget}
+    ${todoWidget}
     ${packHtml ? `<div class="td-w-mini-col">${packHtml}</div>` : ''}
-    ${upWidget}
     ${whereHtml}
     ${nomadHtml ?? ''}
   </div>`;
@@ -1180,6 +981,7 @@ function wire(body: HTMLElement): void {
     openNewTrip();
   });
 
+  wireAgenda(body, render);
   wireAlertBell(body, render);
   // Language + theme controls (top-right of the greeting row).
   const langMount = body.querySelector<HTMLElement>('[data-lang-mount]');
@@ -1228,6 +1030,7 @@ export function initDashboard(): void {
   _mapCanvas   = null;
   _weather     = null;
   _weatherCity = '';
+  resetAgenda();
   disposeDashboardMap();
   render();
 
@@ -1244,6 +1047,7 @@ export function initDashboard(): void {
       _nomadSpots = nomadStore.peek();
       _cityIntel  = cityStore.peek();
       _mapCanvas = null; _weather = null; _weatherCity = '';
+      resetAgenda();
       disposeDashboardMap(); render();
     }),
     // Re-render on language change so greeting/widget labels update in place.

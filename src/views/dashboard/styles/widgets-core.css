@@ -49,30 +49,6 @@
   text-align: right; white-space: nowrap; flex-shrink: 0;
 }
 
-/* ── Calendar mini ────────────────────────────────────────────────────────── */
-.td-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
-.td-cal-hdr {
-  font-family: var(--font-ui); font-size: 10px; font-weight: 700;
-  color: var(--ink-faint); text-align: center; padding: 2px 0 3px;
-}
-.td-cal-cell {
-  position: relative; font-size: 11px; font-weight: 500; color: var(--ink-soft);
-  text-align: center; padding: 4px 1px 8px; border-radius: var(--r-sm); line-height: 1;
-}
-.td-cal-cell.td-cal-empty { visibility: hidden; }
-.td-cal-cell.is-today {
-  background: var(--accent); color: var(--on-accent); font-weight: 700; border-radius: 50%;
-  width: 24px; height: 24px; display: inline-flex; align-items: center;
-  justify-content: center; margin: 0 auto; padding: 0;
-}
-.td-cal-dots {
-  position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%);
-  display: flex; gap: 2px;
-}
-.td-cal-dot { display: inline-block; width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; }
-.td-cal-legend { display: flex; gap: var(--sp-2); font-size: 10px; color: var(--ink-muted); flex-wrap: wrap; }
-.td-cal-legend span { display: flex; align-items: center; gap: 3px; }
-
 /* ── Spend ────────────────────────────────────────────────────────────────── */
 .td-spend-top { display: flex; align-items: flex-end; justify-content: space-between; }
 .td-spend-label { font-size: var(--fs-xs); font-weight: 600; color: var(--ink-muted); }
@@ -181,8 +157,6 @@
 }
 .td-prep-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
 .td-prep-sub   { font-size: var(--fs-xs); color: var(--ink-muted); }
-
-
 
 /* Expanded converter under the hero: a slim full-width card, not a grid cell. */
 .td-rate-panel { margin-bottom: var(--sp-4); }
