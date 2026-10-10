@@ -40,6 +40,10 @@ function readLegacy(): LegacyExpense[] {
 
 /** Returns number of expenses uploaded (0 if cloud already had data). */
 export async function migrateExpensesToCloud(): Promise<number> {
+  // This migration has no done-flag, so without this guard every boot read the
+  // whole expenses collection just to learn there was nothing local to upload.
+  if (readLegacy().length === 0) return 0;
+
   const store = createCollectionStore(currentTripId(), 'expenses', ExpenseSchema);
   const cloud = await store.list();
   if (cloud.length > 0) return 0;

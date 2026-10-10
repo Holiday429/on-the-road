@@ -19,6 +19,7 @@ import {
   linkWithRedirect,
   signInWithCredential,
   getRedirectResult,
+  getAdditionalUserInfo,
   signOut as fbSignOut,
   onAuthStateChanged,
   type User,
@@ -101,8 +102,24 @@ export function isSignedInReal(): boolean {
 export async function signInAnonymously(): Promise<User> {
   if (_user) return _user;
   const result = await fbSignInAnonymously(auth);
+  // Firebase also resolves this call with an EXISTING anonymous session (no
+  // additional info), so only a genuine sign-up marks the uid as fresh.
+  if (getAdditionalUserInfo(result)?.isNewUser) _freshAnonymousUid = result.user.uid;
   track('signup');
   return result.user;
+}
+
+// uid of an anonymous account created by THIS page load, if any.
+let _freshAnonymousUid: string | null = null;
+
+/**
+ * True for an anonymous account that was created a moment ago in this page
+ * session. Such an account provably has no trips, profile doc or legacy data, so
+ * boot can skip the Firestore reads that would otherwise gate a first-time
+ * visitor's entry on a cold connection handshake.
+ */
+export function isFreshAnonymous(uid: string): boolean {
+  return _freshAnonymousUid === uid;
 }
 
 /**

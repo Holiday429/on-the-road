@@ -3,11 +3,11 @@
    Warm amber + white, rounded, playful but functional
    ========================================================================== */
 
-/* Web fonts (Sora / DM Sans / Caveat) are loaded from app.html as a non-blocking
-   <link>, NOT via @import here: an external @import makes this whole stylesheet
-   — and therefore every module script — wait on a third-party round trip before
-   the app can even start booting. Text paints in the system-ui fallback and swaps
-   when the fonts arrive. */
+/* Web fonts (Sora / DM Sans / Caveat) are self-hosted: @font-face rules live in
+   public/fonts/fonts.css, linked from app.html (regenerate with
+   scripts/build-fonts.mjs). Don't @import a font host here — an external @import
+   makes this stylesheet, and so every module script, wait on a third-party round
+   trip before the app can even start booting. */
 
 :root {
   /* ── Brand palette ─────────────────────────────────────────────────── */

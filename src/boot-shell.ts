@@ -3,10 +3,10 @@
    ========================================================================== */
 
 import { initApp, renderSession, navigateTo, reinitForTripChange, setAllowedViews, firstAllowedView, openOnboarding, type ViewId } from './core/app.ts';
-import { onAuth, authReady, currentUser, signInWithGoogle, signInAnonymously, consumeRedirectResult, type User } from './firebase/auth.ts';
-import { ensureDefaultTrip, restoreActiveTrip, readDefaultTripId, currentMemberPages, currentTripId } from './data/trip-context.ts';
+import { onAuth, authReady, currentUser, signInWithGoogle, signInAnonymously, isFreshAnonymous, consumeRedirectResult, type User } from './firebase/auth.ts';
+import { ensureDefaultTrip, restoreActiveTrip, readUserBootDoc, currentMemberPages, currentTripId } from './data/trip-context.ts';
 import { isCollabMigrated } from './data/migrate-collab.ts';
-import { runPreTripMigrations, runPostEntryTasks } from './boot-migrations.ts';
+import { runPreTripMigrations, runPostEntryTasks, ACCOUNT_MIGRATIONS_VERSION } from './boot-migrations.ts';
 import { initNotificationScheduler } from './core/notifications.ts';
 import { initTouchTooltips } from './core/touch.ts';
 import {
@@ -269,9 +269,18 @@ async function bootAuthenticatedShell(user: User) {
     // Firestore round trips before seeing anything. So probe trips/** first and
     // fall back to the slow path only when it comes back empty for a real account.
     //
-    // The saved-default-trip read doesn't depend on the trip list, so start it now
-    // and let it overlap with listTrips() inside ensureDefaultTrip().
-    const savedTripId = readDefaultTripId();
+    // One users/{uid} read supplies both the saved default trip and the
+    // account's migration marker. It doesn't depend on the trip list, so start it
+    // now and let it overlap with listTrips() inside ensureDefaultTrip().
+    //
+    // A brand-new anonymous account has no profile doc and no trips by definition,
+    // so a first-time visitor skips both reads — the first Firestore query on a cold
+    // connection is the slowest step of entry, and here it can only return "nothing".
+    const fresh = isFreshAnonymous(user.uid);
+    const bootDoc = fresh
+      ? Promise.resolve({ defaultTripId: null, accountMigrationsVersion: 0 })
+      : readUserBootDoc();
+    const savedTripId = bootDoc.then((d) => d.defaultTripId);
 
     // Minimal set needed to know WHICH trip to show — always awaited before entry.
     // Anonymous visitors can't create trips (that needs a real account), so
@@ -280,11 +289,17 @@ async function bootAuthenticatedShell(user: User) {
     // with no trips still gets onboarding.
     let needsOnboarding = false;
     let tookSlowPath = false;
+    // Account-level migrations are already done (recorded server-side by whichever
+    // device finished them) or can't apply (an anonymous guest has no legacy data).
+    let skipAccountLevel = user.isAnonymous;
     try {
-      let trip = await ensureDefaultTrip();
-      if (trip === null && !user.isAnonymous && !isCollabMigrated()) {
+      // Awaited together so the profile read and the trip list stay overlapped.
+      const [doc, firstTrip] = await Promise.all([bootDoc, fresh ? null : ensureDefaultTrip()]);
+      skipAccountLevel ||= doc.accountMigrationsVersion >= ACCOUNT_MIGRATIONS_VERSION;
+      let trip = firstTrip;
+      if (trip === null && !skipAccountLevel && !isCollabMigrated()) {
         tookSlowPath = true;
-        await runPreTripMigrations();
+        await runPreTripMigrations({ skipAccountLevel });
         trip = await ensureDefaultTrip();
       }
       needsOnboarding = trip === null && !user.isAnonymous;
@@ -324,7 +339,7 @@ async function bootAuthenticatedShell(user: User) {
     // Everything below is non-blocking: it runs AFTER the user is already in the
     // app. On the fast path these migrations + side-effects no longer gate entry.
     // (On the slow path the migrations already ran inline above, so skip them.)
-    void runPostEntryAndRepaint(user, needsOnboarding, tookSlowPath);
+    void runPostEntryAndRepaint(user, needsOnboarding, tookSlowPath, skipAccountLevel);
   })();
 
   try {
@@ -334,8 +349,11 @@ async function bootAuthenticatedShell(user: User) {
   }
 }
 
-async function runPostEntryAndRepaint(user: User, alreadyOnboarding: boolean, migrationsAlreadyRan: boolean): Promise<void> {
-  const { dataChanged, accessRequestToastPending: toastPending } = await runPostEntryTasks(migrationsAlreadyRan);
+async function runPostEntryAndRepaint(
+  user: User, alreadyOnboarding: boolean, migrationsAlreadyRan: boolean, skipAccountLevel: boolean,
+): Promise<void> {
+  const { dataChanged, accessRequestToastPending: toastPending } =
+    await runPostEntryTasks({ migrationsAlreadyRan, skipAccountLevel });
   if (toastPending) accessRequestToastPending = true;
 
   if (accessRequestToastPending) {

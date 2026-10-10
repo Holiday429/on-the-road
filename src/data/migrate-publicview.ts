@@ -25,6 +25,11 @@ import type { Trip, TripInvite } from './schema.ts';
 
 const FLAG_KEY = 'otr:migrated:publicview:v1';
 
+/** True once the trip list was readable and the migration pass ran to the end. */
+export function isPublicViewMigrated(): boolean {
+  return !!localStorage.getItem(FLAG_KEY);
+}
+
 /** Migrate owned trips to the publicView model. Returns number of trips changed. */
 export async function migratePublicView(): Promise<number> {
   if (localStorage.getItem(FLAG_KEY)) return 0;

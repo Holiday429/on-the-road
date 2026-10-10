@@ -93,6 +93,19 @@ describe('users/{userId}', () => {
     });
   });
 
+  it('can record accountMigrationsVersion on their own profile, but nobody else can write it', async () => {
+    // Boot writes this merge-style marker (see markAccountMigrationsDone), including
+    // as an anonymous-then-upgraded account whose doc already has other fields.
+    await seed(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice'), { displayName: 'Alice', plan: 'free', tripQuota: 1 });
+    });
+    const alice = testEnv.authenticatedContext('alice');
+    await assertSucceeds(setDoc(doc(alice.firestore(), 'users/alice'),
+      { accountMigrationsVersion: 1, updatedAt: Date.now() }, { merge: true }));
+    const bob = testEnv.authenticatedContext('bob');
+    await assertFails(setDoc(doc(bob.firestore(), 'users/alice'), { accountMigrationsVersion: 1 }, { merge: true }));
+  });
+
   it('a user can read and write their own sub-collections (coreKit, etc.)', async () => {
     const alice = testEnv.authenticatedContext('alice');
     await assertSucceeds(setDoc(doc(alice.firestore(), 'users/alice/coreKit/item1'), { name: 'passport' }));

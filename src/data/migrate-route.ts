@@ -47,6 +47,11 @@ export async function migrateRouteToCloud(): Promise<number> {
   // This prevents re-seeding when the user deliberately deletes all their legs.
   if (localStorage.getItem(MIGRATION_DONE_FLAG) === '1') return 0;
 
+  // Nothing in this browser to upload → nothing to do, and no reason to pay a
+  // Firestore round trip on every boot to find that out. (Every later branch
+  // returns 0 for an empty source anyway.)
+  if (readLegacyLegs().length === 0) return 0;
+
   // Flat, tripId-tagged legs collection (users/{uid}/legs).
   const tripId = currentTripId();
   const store = createTaggedCollectionStore('legs', LegSchema);

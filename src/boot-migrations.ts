@@ -2,73 +2,93 @@
    On the Road · Boot — data migrations run on sign-in
    ========================================================================== */
 
-import { checkAndAcceptEmailInvites } from './data/trip-context.ts';
-import { migrateMultiTrip } from './data/migrate-multitrip.ts';
+import { checkAndAcceptEmailInvites, markAccountMigrationsDone } from './data/trip-context.ts';
+import { migrateMultiTrip, isMultiTripMigrated } from './data/migrate-multitrip.ts';
 import { migrateRouteToCloud } from './data/migrate-route.ts';
 import { migrateExpensesToCloud } from './data/migrate-expenses.ts';
 import { migrateStaysToCompares } from './data/migrate-stays.ts';
 import { migrateCityShared } from './data/migrate-city-shared.ts';
 import { migrateJournalTemplatesToTags } from './data/migrate-journal-templates.ts';
-import { migrateCollab } from './data/migrate-collab.ts';
-import { migratePublicView } from './data/migrate-publicview.ts';
+import { migrateCollab, isCollabMigrated } from './data/migrate-collab.ts';
+import { migratePublicView, isPublicViewMigrated } from './data/migrate-publicview.ts';
 
 /**
- * Data migrations that MUST complete before the active trip can be read.
- * Order matters: migrateCollab copies users/{uid}/** into trips/**, and the
- * route/expense/stay/publicView migrations all target trips/**, so they run
- * after it. Each is idempotent and early-returns once its own done-flag is set.
- * Run inline (blocking entry) only on a legacy account's first sign-in; on the
- * fast path the same set runs in the background via runPostEntryTasks.
+ * Bump when an ACCOUNT-level migration is added or changes, so accounts that
+ * recorded the previous version re-run the set once.
  */
-export async function runPreTripMigrations(): Promise<void> {
-  // Legacy localStorage→cloud; operates entirely on users/{uid}/** (always permitted).
-  try {
-    const n = await migrateMultiTrip();
-    if (n > 0) console.info(`Flattened ${n} legs/journal entries for multi-trip.`);
-  } catch (e) { console.warn('Multi-trip migration skipped:', e); }
+export const ACCOUNT_MIGRATIONS_VERSION = 1;
 
-  // Collaboration migration: copy users/{uid}/** into top-level trips/**.
-  // Copy-only, non-destructive. MUST precede any read of trips/**.
-  try {
-    const r = await migrateCollab();
-    if (r.trips > 0 || r.docs > 0) console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs copied to trips/**.`);
-  } catch (e) { console.warn('Collab migration skipped:', e); }
+interface Step {
+  name: string;
+  /** 'account' steps rewrite data that lives on the account (Firestore layout),
+   *  so once one device has finished them they're done everywhere and the
+   *  server-side marker lets every other device skip them. 'device' steps upload
+   *  THIS browser's leftover localStorage, so they must run per device no matter
+   *  what the marker says (they're cheap — no network when there's nothing local). */
+  scope: 'account' | 'device';
+  run: () => Promise<number>;
+}
 
-  // Convert owned trips from the coarse hasPublicView flag to page-level
-  // publicView. Owner-only; other members' trips migrate when their owner logs in.
-  try {
-    const n = await migratePublicView();
-    if (n > 0) console.info(`Converted ${n} trip(s) to page-level public view.`);
-  } catch (e) { console.warn('publicView migration skipped:', e); }
+// Order matters: migrateMultiTrip tags legacy flat docs, migrateCollab then
+// copies users/{uid}/** into trips/**, and everything after targets trips/**.
+// migrateCityShared reads trips/**/legs, so it comes after the route migration.
+// Each step is idempotent and early-returns once its own done-flag is set.
+const STEPS: Step[] = [
+  { name: 'Multi-trip',        scope: 'account', run: migrateMultiTrip },
+  { name: 'Collab',            scope: 'account', run: async () => { const r = await migrateCollab(); return r.trips + r.docs; } },
+  { name: 'publicView',        scope: 'account', run: migratePublicView },
+  { name: 'Route',             scope: 'device',  run: migrateRouteToCloud },
+  { name: 'Expense',           scope: 'device',  run: migrateExpensesToCloud },
+  { name: 'Stay→compare',      scope: 'account', run: migrateStaysToCompares },
+  { name: 'City-shared',       scope: 'account', run: migrateCityShared },
+  { name: 'Journal template',  scope: 'account', run: migrateJournalTemplatesToTags },
+];
 
-  // These target trips/** via the repathed stores; run after collab.
-  try {
-    const n = await migrateRouteToCloud();
-    if (n > 0) console.info(`Migrated ${n} itinerary legs to the cloud.`);
-  } catch (e) { console.warn('Route migration skipped:', e); }
+export interface MigrationRun {
+  /** Something the user can see moved — callers repaint. */
+  dataChanged: boolean;
+  /** Every account-level step ran to completion (no throw, silent-failure
+   *  steps confirm via their done-flags). Only then is it safe to record. */
+  accountComplete: boolean;
+}
 
-  try {
-    const n = await migrateExpensesToCloud();
-    if (n > 0) console.info(`Migrated ${n} expenses to the cloud.`);
-  } catch (e) { console.warn('Expense migration skipped:', e); }
+/**
+ * Run the migration sequence. `skipAccountLevel` drops the account steps — for
+ * anonymous guests (never had legacy data) and accounts whose server-side marker
+ * is current. When the account steps do run and finish cleanly, the completion
+ * is recorded on the profile so no other device repeats them.
+ *
+ * The same sequence serves both boot paths: awaited before entry on a legacy
+ * account's first sign-in (trips/** must be populated before the active trip is
+ * read), and in the background after entry for everyone else.
+ */
+export async function runMigrations(opts: { skipAccountLevel: boolean }): Promise<MigrationRun> {
+  let dataChanged = false;
+  let threw = false;
 
-  try {
-    const n = await migrateStaysToCompares();
-    if (n > 0) console.info(`Migrated ${n} stay groups to compare format.`);
-  } catch (e) { console.warn('Stay→compare migration skipped:', e); }
+  for (const step of STEPS) {
+    if (opts.skipAccountLevel && step.scope === 'account') continue;
+    try {
+      const n = await step.run();
+      if (n > 0) { dataChanged = true; console.info(`${step.name} migration: ${n} item(s) moved.`); }
+    } catch (e) {
+      if (step.scope === 'account') threw = true;
+      console.warn(`${step.name} migration skipped:`, e);
+    }
+  }
 
-  // Seed the shared "intent layer" for cities that repeat within a trip.
-  // Reads trips/**/legs, so it runs after the route migration above.
-  try {
-    const n = await migrateCityShared();
-    if (n > 0) console.info(`Seeded ${n} shared-city doc(s) for repeated cities.`);
-  } catch (e) { console.warn('City-shared migration skipped:', e); }
+  const accountComplete = !opts.skipAccountLevel
+    && !threw && isCollabMigrated() && isMultiTripMigrated() && isPublicViewMigrated();
+  if (accountComplete) await markAccountMigrationsDone(ACCOUNT_MIGRATIONS_VERSION);
+  return { dataChanged, accountComplete };
+}
 
-  // Custom journal templates are gone from the UI; keep their labels as tags.
-  try {
-    const n = await migrateJournalTemplatesToTags();
-    if (n > 0) console.info(`Folded custom journal templates into tags on ${n} entr(ies).`);
-  } catch (e) { console.warn('Journal template migration skipped:', e); }
+/**
+ * Migrations that MUST complete before the active trip can be read. Awaited
+ * inline only for a legacy account's first sign-in (see boot-shell.ts).
+ */
+export async function runPreTripMigrations(opts: { skipAccountLevel: boolean }): Promise<void> {
+  await runMigrations(opts);
 }
 
 export interface PostEntryResult {
@@ -83,25 +103,18 @@ export interface PostEntryResult {
  * follow-ups. Returns whether anything changed that the caller should repaint
  * for, and whether an access-request confirmation toast should be shown.
  */
-export async function runPostEntryTasks(migrationsAlreadyRan: boolean): Promise<PostEntryResult> {
+export async function runPostEntryTasks(
+  opts: { migrationsAlreadyRan: boolean; skipAccountLevel: boolean },
+): Promise<PostEntryResult> {
   let dataChanged = false;
   let accessRequestToastPending = false;
 
-  // Fast path only: the migrations didn't run before entry, so run them now in
-  // the background and capture whether anything actually moved. (The slow path
-  // already ran them inline before entry, so we skip the redundant re-run.)
-  if (!migrationsAlreadyRan) {
-    try {
-      const r = await migrateCollab();
-      if (r.trips > 0 || r.docs > 0) { dataChanged = true; console.info(`Collab migration: ${r.trips} trips, ${r.docs} docs.`); }
-    } catch (e) { console.warn('Collab migration (bg) skipped:', e); }
-    try { if (await migratePublicView() > 0) dataChanged = true; } catch (e) { console.warn('publicView migration (bg) skipped:', e); }
-    try { if (await migrateRouteToCloud() > 0) dataChanged = true; } catch (e) { console.warn('Route migration (bg) skipped:', e); }
-    try { if (await migrateExpensesToCloud() > 0) dataChanged = true; } catch (e) { console.warn('Expense migration (bg) skipped:', e); }
-    try { if (await migrateStaysToCompares() > 0) dataChanged = true; } catch (e) { console.warn('Stay→compare migration (bg) skipped:', e); }
-    try { if (await migrateCityShared() > 0) dataChanged = true; } catch (e) { console.warn('City-shared migration (bg) skipped:', e); }
-    try { if (await migrateJournalTemplatesToTags() > 0) dataChanged = true; } catch (e) { console.warn('Journal template migration (bg) skipped:', e); }
-    try { await migrateMultiTrip(); } catch (e) { console.warn('Multi-trip migration (bg) skipped:', e); }
+  // The migrations didn't run before entry, so run them now in the background
+  // and capture whether anything actually moved. (A legacy account's slow path
+  // already ran them inline, so skip the redundant re-run.)
+  if (!opts.migrationsAlreadyRan) {
+    const r = await runMigrations({ skipAccountLevel: opts.skipAccountLevel });
+    if (r.dataChanged) dataChanged = true;
   }
 
   // If an editor link was opened before this sign-in, record the access request

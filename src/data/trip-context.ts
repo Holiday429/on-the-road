@@ -545,15 +545,49 @@ async function persistDefaultTripId(id: string): Promise<void> {
   }
 }
 
-/** Read the persisted default trip id from the profile, if any. */
-export async function readDefaultTripId(): Promise<string | null> {
+/** The slice of users/{uid} that boot needs — read in ONE getDoc. */
+export interface UserBootDoc {
+  defaultTripId: string | null;
+  /** Version of the account-level migration set this account has fully completed
+   *  (see boot-migrations.ts). 0 = never recorded. Server-side so it follows the
+   *  account to a new browser/device, unlike the per-device localStorage flags. */
+  accountMigrationsVersion: number;
+}
+
+/** Read the boot-relevant profile fields. Never throws — offline/denied reads
+ *  degrade to "nothing recorded", which just means the normal boot path. */
+export async function readUserBootDoc(): Promise<UserBootDoc> {
+  const none: UserBootDoc = { defaultTripId: null, accountMigrationsVersion: 0 };
   const u = currentUser();
-  if (!u) return null;
+  if (!u) return none;
   try {
     const snap = await getDoc(fbDoc(firestore, `users/${u.uid}`));
-    const id = snap.exists() ? (snap.data() as { defaultTripId?: string | null }).defaultTripId : null;
-    return id ?? null;
-  } catch { return null; }
+    if (!snap.exists()) return none;
+    const d = snap.data() as { defaultTripId?: string | null; accountMigrationsVersion?: number };
+    return {
+      defaultTripId: d.defaultTripId ?? null,
+      accountMigrationsVersion: typeof d.accountMigrationsVersion === 'number' ? d.accountMigrationsVersion : 0,
+    };
+  } catch { return none; }
+}
+
+/** Read the persisted default trip id from the profile, if any. */
+export async function readDefaultTripId(): Promise<string | null> {
+  return (await readUserBootDoc()).defaultTripId;
+}
+
+/** Record on the profile that this account's account-level migrations are done,
+ *  so no other device has to re-check them. Best-effort: a failed write only
+ *  means the next device re-verifies once. */
+export async function markAccountMigrationsDone(version: number): Promise<void> {
+  const u = currentUser();
+  if (!u) return;
+  try {
+    await setDoc(fbDoc(firestore, `users/${u.uid}`),
+      { accountMigrationsVersion: version, updatedAt: Date.now() }, { merge: true });
+  } catch (e) {
+    console.warn('Could not record migration completion:', e);
+  }
 }
 
 /**

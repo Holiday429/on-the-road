@@ -19,6 +19,11 @@ import { DEFAULT_TRIP_ID } from './trip-context.ts';
 
 const FLAG = 'otr:migrated:multitrip';
 
+/** True once this device finished the multi-trip flatten (flag is only set on success). */
+export function isMultiTripMigrated(): boolean {
+  return localStorage.getItem(FLAG) === '1';
+}
+
 /** Copy one legacy per-trip subcollection into the flat tagged collection. */
 async function migrateCollection(uid: string, name: string): Promise<number> {
   const flatCol = collection(firestore, `users/${uid}/${name}`);
