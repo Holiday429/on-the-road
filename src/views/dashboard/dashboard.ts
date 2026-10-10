@@ -26,6 +26,7 @@ import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashb
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
 import { PIN_COLORS } from '../map/map-status.ts';
 import { renderAgendaWidget, wireAgenda, resetAgenda } from './dashboard-agenda.ts';
+import { captureUiState, restoreUiState, swapHtml, createRenderScheduler, mapSignature } from './dashboard-render.ts';
 import { renderJournalWidget, wireJournalAlbum, resetJournalAlbum } from './dashboard-journal.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
@@ -125,7 +126,7 @@ async function fetchWeather(city: string): Promise<void> {
     const hourly: Array<{ chanceofrain?: string }> = todayForecast?.hourly ?? [];
     const rainChance = hourly.reduce((m, h) => Math.max(m, Number(h.chanceofrain) || 0), 0);
     _weather = { icon, tempHigh, tempLow, rainChance };
-    render();
+    scheduleRender();
   } catch { /* silent — weather is decorative */ }
 }
 
@@ -784,11 +785,19 @@ function render(): void {
   const body = document.querySelector<HTMLElement>('#view-today .today-body');
   if (!body) return;
   const phase = tripPhase();
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  body.innerHTML = `${renderGreeting()}${renderHero(phase)}${renderRatePanel()}${layout(phase)}`;
+  // A rebuild must be invisible: carry typed text + focus across, and keep the
+  // (expensive, async-built) map canvas node instead of recreating the map.
+  const ui = captureUiState(body);
+  swapHtml(body, `${renderGreeting()}${renderHero(phase)}${renderRatePanel()}${layout(phase)}`, '#td-map-canvas');
   wire(body);
+  restoreUiState(body, ui);
   bootMap();
 }
+
+/** Store callbacks go through this so a burst (eight listeners all fire once at
+ *  start-up, then weather/FX land) renders once. User actions call render() directly. */
+const scheduleRender = createRenderScheduler(render);
+let _mapSig = '';
 
 
 function wire(body: HTMLElement): void {
@@ -1009,6 +1018,7 @@ export function initDashboard(): void {
   _nomadSpots  = nomadStore.peek();
   _cityIntel   = cityStore.peek();
   _mapCanvas   = null;
+  _mapSig      = mapSignature(_legs);
   _weather     = null;
   _weatherCity = '';
   resetAgenda();
@@ -1018,24 +1028,32 @@ export function initDashboard(): void {
 
   _unsubs.forEach(u => u());
   _unsubs = [
-    routeStore.subscribe(rows => { _legs = rows; _mapCanvas = null; disposeDashboardMap(); render(); }),
-    expenseStore.subscribe(rows => { _expenses = rows; render(); }),
-    journalStore.subscribe(rows => { _journal = rows; render(); }),
-    todoStore.subscribe(rows => { _todos = rows; render(); }),
-    packStore.subscribe(rows => { _packLists = rows; render(); }),
-    nomadStore.subscribeForTrip(currentTripId(), rows => { _nomadSpots = rows; render(); }),
-    cityStore.subscribe(rows => { _cityIntel = rows; render(); }),
+    routeStore.subscribe(rows => {
+      _legs = rows;
+      // Only rebuild the map if what it draws changed — ticking a plan item or
+      // editing a note also arrives as a route update.
+      const sig = mapSignature(rows);
+      if (sig !== _mapSig) { _mapSig = sig; _mapCanvas = null; disposeDashboardMap(); }
+      scheduleRender();
+    }),
+    expenseStore.subscribe(rows => { _expenses = rows; scheduleRender(); }),
+    journalStore.subscribe(rows => { _journal = rows; scheduleRender(); }),
+    todoStore.subscribe(rows => { _todos = rows; scheduleRender(); }),
+    packStore.subscribe(rows => { _packLists = rows; scheduleRender(); }),
+    nomadStore.subscribeForTrip(currentTripId(), rows => { _nomadSpots = rows; scheduleRender(); }),
+    cityStore.subscribe(rows => { _cityIntel = rows; scheduleRender(); }),
     onTripChange(() => {
       _nomadSpots = nomadStore.peek();
       _cityIntel  = cityStore.peek();
-      _mapCanvas = null; _weather = null; _weatherCity = '';
+      _mapCanvas = null; _mapSig = ''; _weather = null; _weatherCity = '';
       resetAgenda();
       resetJournalAlbum();
-      disposeDashboardMap(); render();
+      disposeDashboardMap(); scheduleRender();
     }),
-    // Re-render on language change so greeting/widget labels update in place.
-    onLocaleChange(() => { _mapCanvas = null; disposeDashboardMap(); render(); }),
+    // Re-render on language change so greeting/widget labels update in place
+    // (the map has no localized text, so it is kept as-is).
+    onLocaleChange(() => { scheduleRender(); }),
   ];
 
-  void getRateTable(baseCurrency()).then(table => { _rates = table; render(); });
+  void getRateTable(baseCurrency()).then(table => { _rates = table; scheduleRender(); });
 }
