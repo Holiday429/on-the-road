@@ -69,7 +69,7 @@ function renderMonth(iso: string, today: string, kinds: Map<string, Set<AgendaKi
 /* ── Day panel ───────────────────────────────────────────────────────────── */
 
 /** Phase-aware one-liner for the day, derived from the shared DayFlags. */
-function dayHint(day: DayAgenda, src: AgendaSources): string {
+export function dayHint(day: DayAgenda, src: AgendaSources): string {
   const { flags, leg } = day;
   if (flags.isLastDayOfTrip) return `🏁 ${t('dash.agenda.hint.lastDay')}`;
   if (flags.isFirstDayOfTrip) return `🚀 ${t('dash.agenda.hint.firstDay')}`;

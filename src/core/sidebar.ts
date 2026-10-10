@@ -20,6 +20,8 @@ export interface NavItem {
   emoji?: boolean;
   // `pinned` items render above the Before/During/After sections (e.g. Today).
   section: 'pinned' | 'before' | 'during' | 'after';
+  // Omit from the mobile bottom bar (still routable and in the desktop sidebar).
+  desktopOnly?: boolean;
 }
 
 // Injected by app.ts to avoid a circular import (sidebar needs to navigate,
@@ -122,7 +124,7 @@ function buildGuestPanel(): string {
 }
 
 export function renderViewTitleMarkup(id: ViewId, title?: string): string {
-  // Views can be routable (ViewId) without a NAV_ITEMS entry (calendar,
+  // Views can be routable (ViewId) without a NAV_ITEMS entry (profile,
   // and now nomad) — fall back to a bare translated label rather than
   // asserting non-null, which would throw for any nav-less view.
   const item = host!.navItems().find((navItem) => navItem.id === id);
@@ -319,7 +321,7 @@ function wireTripSwitcher(sidebar: HTMLElement) {
 
 export function buildMobileNav() {
   const mobileNav = document.getElementById('mobile-nav')!;
-  const navItems = host!.navItems().filter(item => host!.isViewAllowed(item.id)).map(item => {
+  const navItems = host!.navItems().filter(item => !item.desktopOnly && host!.isViewAllowed(item.id)).map(item => {
     return `<div class="mobile-nav-item" data-view="${item.id}" role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
       <span class="nav-label">${navLabel(item).split(' ')[0]}</span>

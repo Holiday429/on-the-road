@@ -28,6 +28,10 @@ export { renderViewTitleMarkup, openTripSwitcher };
 const NAV_ITEMS: NavItem[] = [
   // Pinned
   { id: 'today',    label: 'Dashboard', iconSrc: '🏠',  emoji: true, section: 'pinned' },
+  // Calendar is a cross-cutting time view, not a content area — pinned beside the
+  // Dashboard rather than inside a Before/During/After group. On phones it is
+  // reached from the dashboard agenda instead of the (already full) bottom bar.
+  { id: 'calendar', label: 'Calendar',  iconSrc: '🗓️', emoji: true, section: 'pinned', desktopOnly: true },
   // Before
   { id: 'prep',     label: 'Prepare',   iconSrc: checklistIcon, section: 'before' },
   { id: 'budget',   label: 'Compare',   iconSrc: stayIcon,      section: 'before' },
@@ -84,7 +88,7 @@ export function firstAllowedView(): ViewId {
 }
 
 /** Whether `id` names a real, mounted view — including one with no
- *  NAV_ITEMS entry (calendar, profile). Ground truth is the DOM: every view
+ *  NAV_ITEMS entry (profile, nomad). Ground truth is the DOM: every view
  *  has a static #view-<id> shell in app.html regardless of nav visibility. */
 function isRoutableView(id: string): id is ViewId {
   return !!document.getElementById(`view-${id}`);
@@ -317,7 +321,7 @@ export function initApp() {
 
   // Route from hash (navigateTo applies the page-level access guard).
   // Validate against the DOM (any registered #view-<id>), not NAV_ITEMS —
-  // views like 'calendar' and 'profile' are intentionally routable without
+  // views like 'profile' are intentionally routable without
   // a nav entry, and NAV_ITEMS-only validation would reject their own hash.
   const hash = resolveLegacyView(window.location.hash.replace('#', ''));
   navigateTo(isRoutableView(hash) ? hash : firstAllowedView());
