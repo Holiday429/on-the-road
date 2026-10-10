@@ -182,20 +182,4 @@
 .td-prep-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
 .td-prep-sub   { font-size: var(--fs-xs); color: var(--ink-muted); }
 
-/* ── Safety mini ──────────────────────────────────────────────────────────── */
-.td-safety-city { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
-.td-safety-hint { font-size: var(--fs-xs); color: var(--ink-muted); }
-.td-safety-number-row {
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: var(--fs-xs);
-}
-.td-safety-number-label { color: var(--ink-muted); font-weight: 600; }
-.td-safety-call-btn {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-family: var(--font-ui); font-weight: 700; font-size: var(--fs-sm); color: var(--ink);
-  text-decoration: none; background: var(--surface-3);
-  border: 1px solid var(--rule-soft); border-radius: var(--r-full);
-  padding: 4px 12px; transition: background var(--dur-fast), border-color var(--dur-fast);
-}
-.td-safety-call-btn:hover { background: var(--success-bg); border-color: var(--sage-400); color: var(--success); }
 

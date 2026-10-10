@@ -97,6 +97,11 @@
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 500;
   color: var(--ink-muted);
 }
+.td-hero-weather-rain {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
+  color: var(--info, var(--ink-muted));
+  white-space: nowrap;
+}
 .td-hero-left { flex: 1; min-width: 0; }
 .td-hero-name {
   display: inline-flex;

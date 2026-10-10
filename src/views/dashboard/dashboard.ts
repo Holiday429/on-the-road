@@ -26,7 +26,6 @@ import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashb
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
-import { safetyStore, type StoredCitySafety } from '../../data/stores/safety-store.ts';
 // From itinerary-shared.ts (not itinerary.ts) so Dashboard's eager bundle
 // doesn't pull in the itinerary view module — and Leaflet with it.
 import { BUILTIN_CATEGORIES } from '../itinerary/itinerary-shared.ts';
@@ -53,11 +52,10 @@ let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency(
 let _rateTo    = '';          // selected "to" currency (empty = auto localCurrency())
 let _mapCanvas: HTMLElement | null = null; // tracks which canvas element the map was booted on
 let _unsubs: Array<() => void> = [];
-let _weather: { icon: string; tempHigh: string; tempLow: string } | null = null;
+let _weather: { icon: string; tempHigh: string; tempLow: string; rainChance: number } | null = null;
 let _weatherCity = '';
 let _nomadSpots: StoredNomadSpot[] = [];
 let _cityIntel: StoredCityIntel[] = [];
-let _citySafety: StoredCitySafety[] = [];
 let _packLists: StoredPackList[] = [];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -123,7 +121,9 @@ async function fetchWeather(city: string): Promise<void> {
     const todayForecast = data?.weather?.[0];
     const tempHigh = todayForecast?.maxtempC != null ? `${todayForecast.maxtempC}°` : `${cur.temp_C ?? '?'}°`;
     const tempLow  = todayForecast?.mintempC != null ? `${todayForecast.mintempC}°` : '';
-    _weather = { icon, tempHigh, tempLow };
+    const hourly: Array<{ chanceofrain?: string }> = todayForecast?.hourly ?? [];
+    const rainChance = hourly.reduce((m, h) => Math.max(m, Number(h.chanceofrain) || 0), 0);
+    _weather = { icon, tempHigh, tempLow, rainChance };
     render();
   } catch { /* silent — weather is decorative */ }
 }
@@ -234,6 +234,7 @@ function renderHero(phase: Phase): string {
           <span class="td-hero-weather-high">${esc(_weather.tempHigh)}</span>
           ${_weather.tempLow ? `<span class="td-hero-weather-low">/ ${esc(_weather.tempLow)}</span>` : ''}
         </div>
+        ${_weather.rainChance >= 40 ? `<div class="td-hero-weather-rain" title="Chance of rain today">☔ ${_weather.rainChance}%</div>` : ''}
       </div>`
     : (weatherCity
         ? `<div class="td-hero-weather-sq td-hero-weather-sq--loading">
@@ -471,8 +472,8 @@ function renderSpendWidget(): string {
   return `
     <div class="td-widget td-w-spend">
       <div class="td-widget-header">
-        <div class="td-widget-label">💶 Spend</div>
-        <button class="td-link" data-nav="expenses">All expenses ›</button>
+        <div class="td-widget-label">💶 ${esc(t('dash.widget.spend'))}</div>
+        <button class="td-link" data-nav="expenses">${esc(t('dash.link.allExpenses'))}</button>
       </div>
       <div class="td-spend-top">
         <div><div class="td-spend-label">Total</div><div class="td-spend-big">${fmt(total)}</div></div>
@@ -508,8 +509,8 @@ function renderMapWidget(): string {
   return `
     <div class="td-widget td-w-map">
       <div class="td-widget-header">
-        <div class="td-widget-label">🗺️ Route map</div>
-        <button class="td-link" data-nav="map">Full map ›</button>
+        <div class="td-widget-label">🗺️ ${esc(t('dash.widget.routeMap'))}</div>
+        <button class="td-link" data-nav="map">${esc(t('dash.link.fullMap'))}</button>
       </div>
       <div class="td-map-wrap">
         <div class="td-map-container" id="td-map-canvas"></div>
@@ -564,7 +565,7 @@ function renderUpcomingWidget(): string {
       return `
         <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
           <div class="td-widget-header">
-            <div class="td-widget-label">📍 Upcoming</div>
+            <div class="td-widget-label">📍 ${esc(t('dash.widget.upcoming'))}</div>
             <button class="td-link" data-nav="route">Itinerary ›</button>
           </div>
           <div class="td-upcoming-empty">No itinerary yet — add stops in the Route view.</div>
@@ -585,7 +586,7 @@ function renderPlanFeed(leg: StoredLeg): string {
     return `
       <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
         <div class="td-widget-header">
-          <div class="td-widget-label">📍 Upcoming</div>
+          <div class="td-widget-label">📍 ${esc(t('dash.widget.upcoming'))}</div>
           <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
         </div>
         <div class="td-plan-city">${esc(leg.flag)} ${esc(leg.city)}</div>
@@ -637,7 +638,7 @@ function renderPlanFeed(leg: StoredLeg): string {
   return `
     <div class="td-widget td-w-upcoming" data-widget-id="upcoming">
       <div class="td-widget-header">
-        <div class="td-widget-label">📍 Upcoming</div>
+        <div class="td-widget-label">📍 ${esc(t('dash.widget.upcoming'))}</div>
         <button class="td-link" data-nav="route" data-intent='${esc(JSON.stringify({ legId: leg.id } satisfies NavIntent))}'>Open ›</button>
       </div>
       <div class="td-plan-city">${esc(leg.flag)} ${esc(leg.city)}</div>
@@ -668,17 +669,17 @@ function renderJournalWidget(_phase: Phase): string {
   }).join('');
 
   return `
-    <div class="td-widget td-w-journal" data-widget-id="journal">
+    <div class="td-widget td-w-journal${packVisible() ? '' : ' td-w-journal--wide'}" data-widget-id="journal">
       <div class="td-widget-header">
-        <div class="td-widget-label">📔 Journal</div>
-        <button class="td-link" data-nav="journal">All entries ›</button>
+        <div class="td-widget-label">📔 ${esc(t('dash.widget.journal'))}</div>
+        <button class="td-link" data-nav="journal">${esc(t('dash.link.allEntries'))}</button>
       </div>
       ${rows
         ? `<div class="td-jq-recent">${rows}</div>`
-        : `<div class="td-jq-hint">照片或一句话都行</div>`}
+        : `<div class="td-jq-hint">${esc(t('dash.journal.hint'))}</div>`}
       <button class="td-jq-btn btn btn-primary" data-journal-new>
         <span class="td-jq-icon">✍️</span>
-        <span class="td-jq-label">记一笔</span>
+        <span class="td-jq-label">${esc(t('dash.journal.compose'))}</span>
       </button>
     </div>`;
 }
@@ -721,68 +722,31 @@ function renderTodoWidget(): string {
   return `
     <div class="td-widget td-w-todo">
       <div class="td-widget-header">
-        <div class="td-widget-label">☑️ To-do</div>
-        <button class="td-link" data-nav="calendar">All tasks ›</button>
+        <div class="td-widget-label">☑️ ${esc(t('dash.widget.todo'))}</div>
+        <button class="td-link" data-nav="calendar">${esc(t('dash.link.allTasks'))}</button>
       </div>
       <div class="td-todo-list">${rows}${empty}</div>
       <form class="td-todo-add" data-todo-add>
         <button class="td-todo-add-cal" type="button" data-todo-add-modal title="Add with due date">📅</button>
         <input class="td-todo-add-input" type="text" placeholder="+ Quick add task…">
-        <button class="btn btn-ghost td-todo-add-btn" type="submit">Add</button>
+        <button class="btn btn-primary td-todo-add-btn" type="submit">Add</button>
       </form>
     </div>`;
 }
 
-/* ── Safety mini — shows city emergency numbers with call buttons ─────────── */
-function renderSafetyMini(): string {
-  const leg = currentLeg();
-  if (!leg) {
-    return `
-      <div class="td-widget td-w-safety">
-        <div class="td-widget-label">🛡️ Safety</div>
-        <div class="td-safety-city">Setup emergency info</div>
-        <div class="td-safety-hint">Add stops in Route view</div>
-      </div>`;
-  }
-
-  const safetyCard = _citySafety.find(s =>
-    s.city.toLowerCase() === leg.city.toLowerCase()
-  );
-
-  function callRow(label: string, number: string): string {
-    return `<div class="td-safety-number-row">
-      <span class="td-safety-number-label">${esc(label)}</span>
-      <a class="td-safety-call-btn" href="tel:${esc(number)}">${esc(number)} 📞</a>
-    </div>`;
-  }
-
-  if (!safetyCard) {
-    return `
-      <div class="td-widget td-w-safety">
-        <div class="td-widget-label">🛡️ ${esc(leg.flag)} ${esc(leg.city)}</div>
-        ${callRow('General', '112')}
-      </div>`;
-  }
-
-  // Show only the single most important number (general emergency first)
-  const topNumber = safetyCard.generalEmergency
-    || safetyCard.emergencyNumbers?.find(n => n.number)?.number
-    || '112';
-  const topLabel = safetyCard.generalEmergency
-    ? 'General'
-    : (safetyCard.emergencyNumbers?.find(n => n.number)?.label ?? 'General');
-
-  return `
-    <div class="td-widget td-w-safety">
-      <div class="td-widget-label">🛡️ ${esc(leg.flag)} ${esc(leg.city)}</div>
-      ${callRow(topLabel, topNumber)}
-    </div>`;
+/* Pack only matters near a flight: show it when the next leg with a baggage
+   allowance starts within 2 days (or today). */
+function packVisible(): boolean {
+  if (!_packLists[0]) return false;
+  const today = todayIso();
+  const next = sortedLegs().find(l => l.dateFrom >= today && l.arrivalTransport?.baggageAllowanceG);
+  return !!next && daysBetween(today, next.dateFrom) <= 2;
 }
 
 /* ── Pack widget ─────────────────────────────────────────────────────────── */
 function renderPackWidget(): string | null {
   const list = _packLists[0];
-  if (!list) return null;
+  if (!list || !packVisible()) return null;
 
   const sLegs = [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
   const today = todayIso();
@@ -792,7 +756,7 @@ function renderPackWidget(): string | null {
 
   const totalG = listTotalWeight(list);
   const remainG = curLeg ? baggageRemainG(list.items, sLegs, curLeg.id) : null;
-  const nextLegWithAllowance = sLegs.find(l => l.dateFrom > today && l.arrivalTransport?.baggageAllowanceG);
+  const nextLegWithAllowance = sLegs.find(l => l.dateFrom >= today && l.arrivalTransport?.baggageAllowanceG);
   const allowanceG = nextLegWithAllowance?.arrivalTransport?.baggageAllowanceG;
   const isOver = remainG !== null && remainG < 0;
   const pct = allowanceG ? Math.min(100, (totalG / allowanceG) * 100) : 0;
@@ -819,8 +783,8 @@ function renderPackWidget(): string | null {
   return `
     <div class="td-widget td-w-pack">
       <div class="td-widget-header">
-        <div class="td-widget-label">🎒 Pack <span class="td-pk-header-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</span></div>
-        <button class="td-link" data-nav="prep" data-intent='${esc(JSON.stringify({ listId: list.id }))}'>Open Pack ›</button>
+        <div class="td-widget-label">🎒 ${esc(t('dash.widget.pack'))} <span class="td-pk-header-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</span></div>
+        <button class="td-link" data-nav="prep" data-intent='${esc(JSON.stringify({ listId: list.id }))}'>${esc(t('dash.link.openPack'))}</button>
       </div>
       ${allowanceBar}
       ${recentHtml}
@@ -873,8 +837,8 @@ function renderNomadWidget(): string | null {
   return `
     <div class="td-widget td-w-nomad" data-widget-id="nomad">
       <div class="td-widget-header">
-        <div class="td-widget-label">💻 Work spots · ${esc(leg.city)}</div>
-        <button class="td-link" data-nav="nomad">All spots ›</button>
+        <div class="td-widget-label">💻 ${esc(t('dash.widget.workSpots'))} · ${esc(leg.city)}</div>
+        <button class="td-link" data-nav="nomad">${esc(t('dash.link.allSpots'))}</button>
       </div>
       <div class="td-nomad-cards">${cards}</div>
     </div>`;
@@ -886,7 +850,7 @@ function renderWhereToGoWidget(): string {
   if (!leg) {
     return `
       <div class="td-widget td-w-whereto">
-        <div class="td-widget-label">✨ Where to go</div>
+        <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))}</div>
         <div class="td-whereto-empty">Add stops in Route view to get recommendations.</div>
       </div>`;
   }
@@ -899,8 +863,8 @@ function renderWhereToGoWidget(): string {
     return `
       <div class="td-widget td-w-whereto">
         <div class="td-widget-header">
-          <div class="td-widget-label">✨ Where to go · ${esc(leg.flag)} ${esc(leg.city)}</div>
-          <button class="td-link" data-nav="cities">Guide ›</button>
+          <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))} · ${esc(leg.flag)} ${esc(leg.city)}</div>
+          <button class="td-link" data-nav="cities">${esc(t('dash.link.guide'))}</button>
         </div>
         <div class="td-whereto-empty">No guide data for ${esc(leg.city)} yet.<br>Open Guide to generate recommendations.</div>
       </div>`;
@@ -958,8 +922,8 @@ function renderWhereToGoWidget(): string {
   return `
     <div class="td-widget td-w-whereto">
       <div class="td-widget-header">
-        <div class="td-widget-label">✨ Where to go · ${esc(leg.flag)} ${esc(leg.city)}</div>
-        <button class="td-link" data-nav="cities">Guide ›</button>
+        <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))} · ${esc(leg.flag)} ${esc(leg.city)}</div>
+        <button class="td-link" data-nav="cities">${esc(t('dash.link.guide'))}</button>
       </div>
       <div class="td-whereto-cards">${cards}</div>
     </div>`;
@@ -977,7 +941,6 @@ function layout(phase: Phase): string {
   const nomadHtml   = renderNomadWidget();
   const whereHtml   = renderWhereToGoWidget();
   const packHtml    = renderPackWidget();
-  const safetyHtml  = renderSafetyMini();
 
   return `<div class="td-grid" id="td-grid">
     ${currWidget}
@@ -986,10 +949,7 @@ function layout(phase: Phase): string {
     ${spendWidget}
     ${mapWidget}
     ${jrnWidget}
-    <div class="td-w-mini-col">
-      ${packHtml ?? ''}
-      ${safetyHtml}
-    </div>
+    ${packHtml ? `<div class="td-w-mini-col">${packHtml}</div>` : ''}
     ${upWidget}
     ${whereHtml}
     ${nomadHtml ?? ''}
@@ -1254,7 +1214,6 @@ export function initDashboard(): void {
   _todos       = todoStore.peek();
   _nomadSpots  = nomadStore.peek();
   _cityIntel   = cityStore.peek();
-  _citySafety  = safetyStore.peek();
   _mapCanvas   = null;
   _weather     = null;
   _weatherCity = '';
@@ -1270,11 +1229,9 @@ export function initDashboard(): void {
     packStore.subscribe(rows => { _packLists = rows; render(); }),
     nomadStore.subscribeForTrip(currentTripId(), rows => { _nomadSpots = rows; render(); }),
     cityStore.subscribe(rows => { _cityIntel = rows; render(); }),
-    safetyStore.subscribe(rows => { _citySafety = rows; render(); }),
     onTripChange(() => {
       _nomadSpots = nomadStore.peek();
       _cityIntel  = cityStore.peek();
-      _citySafety = safetyStore.peek();
       _mapCanvas = null; _weather = null; _weatherCity = '';
       disposeDashboardMap(); render();
     }),

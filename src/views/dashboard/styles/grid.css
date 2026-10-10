@@ -28,8 +28,9 @@
 /* Row 3: journal 3 cols, mini-col 3 cols — equal within left half */
 .td-w-journal  { grid-column: 1 / span 3; align-self: stretch; }
 .td-w-mini-col { grid-column: 4 / span 3; display: flex; flex-direction: column; gap: var(--sp-4); align-self: stretch; }
-.td-w-mini-col .td-w-pack,
-.td-w-mini-col .td-w-safety { flex: 1; }
+.td-w-mini-col .td-w-pack { flex: 1; }
+/* Pack hidden → journal takes the full left half. */
+.td-w-journal--wide { grid-column: 1 / span 6; }
 
 /* Row 4: upcoming narrower (5), whereto wider (7) */
 .td-w-upcoming { grid-column: 1 / span 5; }
@@ -51,6 +52,7 @@
   .td-w-spend    { grid-column: 1 / span 2; }
   .td-w-map      { grid-column: 3; grid-row: span 2; }
   .td-w-journal  { grid-column: 1; }
+  .td-w-journal--wide { grid-column: 1 / span 2; }
   .td-w-mini-col { grid-column: 2; }
   .td-w-upcoming { grid-column: 1 / span 2; }
   .td-w-whereto  { grid-column: 3; }
@@ -65,6 +67,7 @@
   .td-w-spend    { grid-column: 1 / span 2; }
   .td-w-map      { grid-column: 1 / span 2; grid-row: auto; }
   .td-w-journal  { grid-column: 1; }
+  .td-w-journal--wide { grid-column: 1 / span 2; }
   .td-w-mini-col { grid-column: 2; }
   .td-w-upcoming { grid-column: 1 / span 2; }
   .td-w-whereto  { grid-column: 1 / span 2; }
