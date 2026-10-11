@@ -65,39 +65,24 @@
 /* Vertical quickadd form */
 .td-quickadd.td-quickadd-v { display: flex; flex-direction: column; gap: var(--sp-2); }
 .td-quickadd-row2 { display: flex; align-items: center; gap: var(--sp-2); }
-/* Amount input with symbol inside the border */
-.td-quickadd-amt-wrap {
-  flex: 1; display: flex; align-items: center;
-  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
-  background: var(--surface); transition: border-color var(--dur-fast);
-  padding: 0 10px;
+/* Row 1: currency badge · amount · category — the amount and category boxes are identical
+   (same height, same flex share). Row 2: optional note · Save. */
+.td-quickadd-cur {
+  flex: 0 0 38px; height: 38px; display: grid; place-items: center; border-radius: var(--r-md);
+  background: var(--surface-3); border: 1.5px solid var(--surface-4);
+  font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 700; color: var(--ink-soft); user-select: none;
 }
-.td-quickadd-amt-wrap:focus-within { border-color: var(--accent); }
-.td-quickadd-sym {
-  font-family: var(--font-ui); font-weight: 700; color: var(--ink-muted);
-  flex-shrink: 0; padding-right: 4px; user-select: none;
+.td-quickadd-amt, .td-quickadd-cat, .td-quickadd-desc {
+  box-sizing: border-box; height: 38px; min-width: 0; flex: 1 1 0; padding: 0 10px;
+  border: 1.5px solid var(--surface-4); border-radius: var(--r-md); outline: none; background: var(--surface); color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--fs-sm); transition: border-color var(--dur-fast);
 }
-.td-quickadd-amt {
-  flex: 1; padding: 8px 0;
-  border: none; outline: none; background: transparent;
-  font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 700; color: var(--ink);
-  -moz-appearance: textfield;
-}
+.td-quickadd-amt { font-weight: 700; font-size: var(--fs-md); -moz-appearance: textfield; }
 .td-quickadd-amt::-webkit-inner-spin-button,
 .td-quickadd-amt::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.td-quickadd-cat {
-  flex: 1; padding: 8px 8px;
-  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
-  font-size: var(--fs-sm); background: var(--surface); outline: none;
-}
-.td-quickadd-desc {
-  flex: 1; padding: 8px 10px;
-  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
-  font-size: var(--fs-sm); outline: none; background: var(--surface);
-}
+.td-quickadd-amt:focus, .td-quickadd-cat:focus, .td-quickadd-desc:focus { border-color: var(--accent); }
 .td-quickadd-hint { font-size: 11px; font-weight: 600; color: var(--ink-faint); }
-.td-quickadd-desc:focus, .td-quickadd-cat:focus { border-color: var(--accent); }
-.td-quickadd-save { flex-shrink: 0; padding: 8px 16px; font-size: var(--fs-sm); white-space: nowrap; }
+.td-quickadd-save { flex: 0 0 auto; height: 38px; padding: 0 18px; font-size: var(--fs-sm); white-space: nowrap; }
 
 /* ── Map ──────────────────────────────────────────────────────────────────── */
 .td-w-map { display: flex; flex-direction: column; }
@@ -179,8 +164,6 @@
 .td-spend-total { background: none; padding: 0; text-align: left; cursor: pointer; border-radius: var(--r-md); }
 .td-spend-total:hover .td-spend-big { color: var(--accent-deep); }
 .td-spend-total:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.td-quickadd-row2 .td-quickadd-save { padding: 8px 14px; font-size: var(--fs-md, 15px); }
-.td-quickadd-row2 .td-quickadd-cat { flex: 1; min-width: 0; }
 
 /* Spend drawer */
 .td-spf { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-4); }
@@ -221,3 +204,7 @@
   min-height: 1.3em; font-size: var(--fs-xs); color: var(--ink-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+
+/* Analysis drawer: the panel's own title repeats the drawer's */
+.td-sp-analysis .exp-form-title { display: none; }
+.td-sp-analysis .exp-breakdown { padding: 0; border: 0; box-shadow: none; background: none; }

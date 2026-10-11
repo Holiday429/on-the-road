@@ -171,7 +171,6 @@ export function renderAgendaWidget(src: AgendaSources, today: string): string {
       <div class="td-widget-header">
         <div class="td-widget-label">📅 ${esc(t('dash.agenda.title'))}</div>
         <div class="ag-tabs">${tab('today', t('dash.agenda.today'))}${tab('tomorrow', t('dash.agenda.tomorrow'))}</div>
-        <button type="button" class="td-link" data-nav="calendar">${esc(t('dash.agenda.all'))}</button>
         ${src.legs.length ? `<button type="button" class="td-plus" data-agenda-add title="${esc(t('dash.agenda.add'))}" aria-label="${esc(t('dash.agenda.add'))}">+</button>` : ''}
       </div>
       <div class="ag-body">

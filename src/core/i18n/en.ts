@@ -204,6 +204,8 @@ export const en: StringTable = {
   'dash.spend.note': 'What for? (optional)',
   'dash.spend.saved': 'Saved',
   'dash.spend.failed': 'Couldn’t save — try again',
+  'dash.spend.analysis': 'Expense analysis',
+  'dash.journal.albums': 'Albums',
   'dash.spend.entries': '{n} entries',
   'dash.spend.entry1': '1 entry',
   'dash.spend.dayNone': 'Nothing spent',

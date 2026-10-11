@@ -34,22 +34,16 @@ describe('buildPlaceGroups', () => {
 
 describe('journalTiles', () => {
   const group = (city: string, n = 1) => ({ city, flag: '', entries: [], images: Array.from({ length: n }, (_, i) => `${city}${i}.jpg`), cover: `${city}0.jpg`, latest: '' });
-  it('one tile per place, with +N for places beyond three', () => {
-    const r = journalTiles([group('a'), group('b'), group('c'), group('d'), group('e')]);
-    expect(r.tiles.map((t) => t.group.city)).toEqual(['a', 'b', 'c']);
-    expect(r.more).toBe(2);
+  it('one tile per place — all of them (the card rotates past three)', () => {
+    const t = journalTiles([group('a'), group('b'), group('c'), group('d'), group('e')]);
+    expect(t.map((x) => x.group.city)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(t.map((x) => x.image)).toEqual(['a0.jpg', 'b0.jpg', 'c0.jpg', 'd0.jpg', 'e0.jpg']);
   });
-  it('shows fewer tiles for fewer places, no +N', () => {
-    expect(journalTiles([group('a'), group('b')])).toMatchObject({ more: 0 });
-    expect(journalTiles([group('a'), group('b')]).tiles).toHaveLength(2);
-    expect(journalTiles([group('a'), group('b'), group('c')]).more).toBe(0);
-  });
-  it('a single place becomes its first three photos', () => {
-    const r = journalTiles([group('a', 5)]);
-    expect(r.tiles.map((t) => t.image)).toEqual(['a0.jpg', 'a1.jpg', 'a2.jpg']);
-    expect(r.more).toBe(0);
+  it('a single place becomes its photos, capped at eight', () => {
+    expect(journalTiles([group('a', 5)]).map((x) => x.image)).toEqual(['a0.jpg', 'a1.jpg', 'a2.jpg', 'a3.jpg', 'a4.jpg']);
+    expect(journalTiles([group('a', 12)])).toHaveLength(8);
   });
   it('is empty with no places', () => {
-    expect(journalTiles([])).toEqual({ tiles: [], more: 0 });
+    expect(journalTiles([])).toEqual([]);
   });
 });

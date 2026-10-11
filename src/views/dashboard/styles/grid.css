@@ -3,8 +3,8 @@
    Row 2: agenda(1-6) | to-do(7-9) | pack(10-12)
    Rows 3-4: map(1-6, spans both rows) | spend(7-12) over journal(7-12)
    Row 5: where to go(1-12, only when some city has recommendations)
-   Narrow (container < 900px): two columns — agenda · to-do + pack · map ·
-   spend · journal · where to go.
+   Narrow (container < 900px): two columns — agenda · to-do + pack · map (own
+   row) · spend + journal (one row) · where to go.
    ─────────────────────────────────────────────────────────────────────────── */
 .td-grid {
   display: grid;
@@ -32,7 +32,10 @@
   .td-w-agenda { grid-column: 1 / span 2; }
   .td-w-todo   { grid-column: 1; }
   .td-w-pack   { grid-column: 2; }
-  .td-w-map, .td-w-spend, .td-w-journal, .td-w-whereto { grid-column: 1 / span 2; grid-row: auto; }
+  .td-w-map, .td-w-whereto { grid-column: 1 / span 2; grid-row: auto; }
+  /* spend and journal share one row */
+  .td-w-spend   { grid-column: 1; grid-row: auto; }
+  .td-w-journal { grid-column: 2; grid-row: auto; }
 }
 @container tdgrid (max-width: 420px) {
   .td-grid { grid-template-columns: 1fr; }

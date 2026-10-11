@@ -41,7 +41,7 @@ import {
 } from './expense-defaults.ts';
 import {
   type Category, BUILTIN_CATEGORIES, UNCLASSIFIED, categoryDisplayColor,
-  type AnalysisDim, ANALYSIS_DIMS, nightCount,
+  type AnalysisDim, ANALYSIS_DIMS, nightCount, renderDonut,
 } from './expense-helpers.ts';
 import {
   initBudgetPage, openBudgetPage, closeBudgetPage, renderBudgetPage, isBudgetOpen,
@@ -882,34 +882,6 @@ function dailyBudgetAmount(): number | null {
   return budget / days;
 }
 
-/* ── SVG donut chart for category breakdown ──────────────────────────────── */
-function renderDonut(rows: Row[]): string {
-  const totalSum = rows.reduce((s, r) => s + r.sum, 0);
-  if (totalSum === 0) return '';
-  const R = 54; const cx = 68; const cy = 68; const stroke = 18;
-  let offset = 0;
-  const circ = 2 * Math.PI * R;
-  const slices = rows.map((r) => {
-    const frac = r.sum / totalSum;
-    const dash = frac * circ;
-    const gap = circ - dash;
-    const slice = `<circle cx="${cx}" cy="${cy}" r="${R}"
-      fill="none" stroke="${r.color}" stroke-width="${stroke}"
-      stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
-      stroke-dashoffset="${(-offset * circ / 1).toFixed(2)}"
-      transform="rotate(-90 ${cx} ${cy})" />`;
-    offset += frac;
-    return slice;
-  }).join('');
-  return `
-    <svg class="exp-donut" viewBox="0 0 136 136" width="136" height="136">
-      <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="${stroke}"/>
-      ${slices}
-      <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle"
-        class="exp-donut-label">${fmt(totalSum)}</text>
-    </svg>`;
-}
-
 /* ── Expense calendar (month view with daily spend) ──────────────────────── */
 function renderExpenseCalendar(): string {
   const year = calViewYear;
@@ -975,7 +947,7 @@ function renderBreakdown(el: HTMLElement) {
     if (rows.length === 0) {
       content = empty;
     } else {
-      const donut = renderDonut(rows);
+      const donut = renderDonut(rows, fmt);
       const totalSum2 = rows.reduce((s, x) => s + x.sum, 0);
       const legend = rows.map((r) => {
         const hasBudget = (r.budget ?? 0) > 0;
@@ -1156,6 +1128,24 @@ function render() {
   renderSummary(root.querySelector('.exp-summary')!);
   renderRecordsPanel();
   renderBreakdown(root.querySelector('.exp-breakdown-wrap')!);
+}
+
+/** The Analysis panel mounted into `el` (the Dashboard drawer): feeds this module's state
+ *  from the stores itself, repaints on change, returns a disposer. No budget-cap editors. */
+export function mountExpenseAnalysis(el: HTMLElement): () => void {
+  rates = peekRateTable(baseCurrency());
+  expenses = expenseStore.peek();
+  legs = routeStore.peek();
+  customCategories = expenseCategoryStore.peek();
+  const paint = () => { renderBreakdown(el); el.querySelectorAll('.exp-cat-budget-btn').forEach((b) => b.remove()); };
+  paint();
+  const unsubs = [
+    expenseStore.subscribe((rows) => { expenses = rows; paint(); }),
+    routeStore.subscribe((rows) => { legs = rows; paint(); }),
+    expenseCategoryStore.subscribe((rows) => { customCategories = rows; paint(); }),
+  ];
+  void getRateTable(baseCurrency()).then((table) => { rates = table; if (el.isConnected) paint(); });
+  return () => unsubs.forEach((u) => u());
 }
 
 export function initExpenses() {

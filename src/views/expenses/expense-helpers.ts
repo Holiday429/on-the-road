@@ -68,3 +68,31 @@ export function nightCount(fromIso: string, toIso: string): number {
   const ms = new Date(toIso).getTime() - new Date(fromIso).getTime();
   return Math.max(1, Math.round(ms / 86400000));
 }
+
+/* ── SVG donut chart for the category breakdown ──────────────────────────── */
+export function renderDonut(rows: Array<{ sum: number; color: string }>, fmt: (n: number) => string): string {
+  const totalSum = rows.reduce((s, r) => s + r.sum, 0);
+  if (totalSum === 0) return '';
+  const R = 54; const cx = 68; const cy = 68; const stroke = 18;
+  let offset = 0;
+  const circ = 2 * Math.PI * R;
+  const slices = rows.map((r) => {
+    const frac = r.sum / totalSum;
+    const dash = frac * circ;
+    const gap = circ - dash;
+    const slice = `<circle cx="${cx}" cy="${cy}" r="${R}"
+      fill="none" stroke="${r.color}" stroke-width="${stroke}"
+      stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
+      stroke-dashoffset="${(-offset * circ / 1).toFixed(2)}"
+      transform="rotate(-90 ${cx} ${cy})" />`;
+    offset += frac;
+    return slice;
+  }).join('');
+  return `
+    <svg class="exp-donut" viewBox="0 0 136 136" width="136" height="136">
+      <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--surface-3)" stroke-width="${stroke}"/>
+      ${slices}
+      <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle"
+        class="exp-donut-label">${fmt(totalSum)}</text>
+    </svg>`;
+}

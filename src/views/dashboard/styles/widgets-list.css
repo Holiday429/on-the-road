@@ -133,3 +133,14 @@
 .td-ring-n { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .td-todo-row.is-sel { background: color-mix(in srgb, var(--amber-400, var(--accent)) 14%, var(--surface-3)); }
 .td-todo-more { align-self: flex-start; }
+
+/* Corner expand button (opens the card's detail view in the side drawer) */
+.td-expand {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: var(--r-md);
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-3); color: var(--ink-soft); font-size: 15px; line-height: 1; cursor: pointer;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.td-expand:hover { background: var(--amber-100); color: var(--ink); }
+.td-expand:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
+.td-plus--lg { width: 40px; height: 40px; font-size: 22px; }

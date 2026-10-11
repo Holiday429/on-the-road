@@ -1,10 +1,11 @@
 /* ==========================================================================
    On the Road · Dashboard — Journal card
    --------------------------------------------------------------------------
-   Up to three square city thumbnails (name + entry count bottom-left, +N for
-   further cities bottom-right). Tapping one opens that city's photos and
-   entries in the side drawer. With no photos yet it falls back to the latest
-   entries as rows. The write buttons open the real composer.
+   Square city thumbnails (name + entry count bottom-left), three at a time —
+   with more than three they rotate. A + to their right opens the real composer;
+   the corner expand button opens the album view in the side drawer. Tapping a
+   thumbnail opens that city's photos and entries. With no photos yet it falls
+   back to the latest entries as rows.
 
    Looking back at a day (time travel): the same card shows what was written on
    that day instead — one tile per entry (photo, or a mood/text tile) — and a
@@ -13,7 +14,7 @@
 
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import type { StoredJournalEntry } from '../../data/stores/journal-store.ts';
-import { buildPlaceGroups, journalTiles, type PlaceGroup } from './journal-places.ts';
+import { buildPlaceGroups, journalTiles, TILE_COUNT, type PlaceGroup } from './journal-places.ts';
 import { entryCover, entryImages, excerpt, moodEmoji, prettyDate, titleFor } from '../journal/shared/utils.ts';
 import { entriesOn } from '../../data/as-of.ts';
 import { openDrawer, closeDrawer } from '../../core/drawer.ts';
@@ -25,13 +26,17 @@ function entriesLabel(n: number): string {
   return n === 1 ? t('dash.journal.entry1') : t('dash.journal.entries', { n });
 }
 
+/** Three tiles are visible at a time; with more the track slides (see wireJournal). */
+function carousel(tiles: string[]): string {
+  return `<div class="jr-carousel" data-jr-carousel${tiles.length > TILE_COUNT ? ' data-rotates' : ''}><div class="jr-track">${tiles.join('')}</div></div>`;
+}
+
 function renderTiles(groups: PlaceGroup[]): string {
-  const { tiles, more } = journalTiles(groups);
+  const tiles = journalTiles(groups);
   const single = groups.length === 1;
-  const html = tiles.map((tile, i) => {
+  return carousel(tiles.map((tile, i) => {
     const g = tile.group;
     const place = [g.flag, g.city].filter(Boolean).join(' ');
-    const isLast = i === tiles.length - 1;
     return `
       <button type="button" class="jr-tile" data-jr-place="${groups.indexOf(g)}" aria-label="${esc(place)}">
         <img src="${esc(tile.image)}" alt="" loading="lazy" decoding="async">
@@ -40,10 +45,8 @@ function renderTiles(groups: PlaceGroup[]): string {
           ${place ? `<span class="jr-place">${esc(place)}</span>` : ''}
           ${!single || i === 0 ? `<span class="jr-sub">${esc(entriesLabel(g.entries.length))}</span>` : ''}
         </span>
-        ${more > 0 && isLast ? `<span class="jr-more">+${more}</span>` : ''}
       </button>`;
-  }).join('');
-  return `<div class="jr-tiles">${html}</div>`;
+  }));
 }
 
 function renderRecentRows(entries: StoredJournalEntry[]): string {
@@ -68,16 +71,12 @@ function renderRecentRows(entries: StoredJournalEntry[]): string {
 
 /* ── Day view (time travel) ──────────────────────────────────────────────── */
 
-const TILE_MAX = 3;
-
 function renderDayTiles(day: StoredJournalEntry[], iso: string): string {
   if (!day.length) {
     const when = new Date(`${iso}T00:00:00`).toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' });
     return `<div class="jr-day-empty">${esc(t('dash.journal.dayNone', { date: when }))}</div>`;
   }
-  const shown = day.slice(0, TILE_MAX);
-  const more = day.length - shown.length;
-  const tiles = shown.map((e, i) => {
+  return carousel(day.map((e) => {
     const cover = safeUrl(entryCover(e));
     const title = e.title.trim() ? titleFor(e) : excerpt(e.body, 40) || titleFor(e);
     const face = cover
@@ -88,10 +87,8 @@ function renderDayTiles(day: StoredJournalEntry[], iso: string): string {
         ${face}
         <span class="jr-shade"></span>
         <span class="jr-cap"><span class="jr-place">${esc(title)}</span>${e.destination ? `<span class="jr-sub">${esc(e.destination)}</span>` : ''}</span>
-        ${more > 0 && i === shown.length - 1 ? `<span class="jr-more">+${more}</span>` : ''}
       </button>`;
-  }).join('');
-  return `<div class="jr-tiles">${tiles}</div>`;
+  }));
 }
 
 function openEntryDrawer(e: StoredJournalEntry, trigger: HTMLElement | null): void {
@@ -117,14 +114,12 @@ export function renderJournalWidget(entries: StoredJournalEntry[], legs: StoredL
     <div class="td-widget td-w-journal" data-widget-id="journal">
       <div class="td-widget-header">
         <div class="td-widget-label">📔 ${esc(t('dash.widget.journal'))}${entries.length ? ` <span class="td-jq-count">${entries.length}</span>` : ''}</div>
-        <button class="td-link" data-nav="journal">${esc(t('dash.link.allEntries'))}</button>
-        <button type="button" class="td-plus" data-journal-new title="${esc(t('dash.journal.compose'))}" aria-label="${esc(t('dash.journal.compose'))}">+</button>
+        <button type="button" class="td-expand" data-journal-expand title="${esc(t('dash.journal.albums'))}" aria-label="${esc(t('dash.journal.albums'))}">⤢</button>
       </div>
-      ${body}
-      <button class="td-jq-btn btn btn-primary" data-journal-new>
-        <span class="td-jq-icon">✍️</span>
-        <span class="td-jq-label">${esc(t('dash.journal.compose'))}</span>
-      </button>
+      <div class="jr-row">
+        <div class="jr-main">${body}</div>
+        <button type="button" class="td-plus td-plus--lg" data-journal-new title="${esc(t('dash.journal.compose'))}" aria-label="${esc(t('dash.journal.compose'))}">+</button>
+      </div>
     </div>`;
 }
 
@@ -149,8 +144,56 @@ function openPlaceDrawer(g: PlaceGroup, trigger: HTMLElement | null): void {
   d.root.querySelector('[data-d-open]')?.addEventListener('click', () => { closeDrawer(); navigateTo('journal'); });
 }
 
+/* ── Rotation ────────────────────────────────────────────────────────────── */
+// The dashboard re-renders wholesale on store changes, so the position lives
+// here and the timer is re-attached on each wire — a Firestore tick must not
+// snap the carousel back to the first tile.
+
+const INTERVAL_MS = 4000;
+let _idx = 0;
+let _timer: number | undefined;
+let _paused = false;
+
+function stopRotation(): void {
+  if (_timer !== undefined) { window.clearInterval(_timer); _timer = undefined; }
+}
+
+function wireCarousel(body: HTMLElement): void {
+  stopRotation();
+  const root = body.querySelector<HTMLElement>('[data-jr-carousel]');
+  const track = root?.querySelector<HTMLElement>('.jr-track');
+  const tiles = track ? [...track.children] as HTMLElement[] : [];
+  if (!root || !track || tiles.length <= TILE_COUNT) { _idx = 0; return; }
+  const last = tiles.length - TILE_COUNT;            // furthest the window can slide
+  const show = (i: number, animate: boolean) => {
+    _idx = i > last ? 0 : i;
+    const step = tiles[1].offsetLeft - tiles[0].offsetLeft;   // tile width + gap
+    track.style.transition = animate ? '' : 'none';
+    track.style.transform = `translateX(${-_idx * step}px)`;
+  };
+  show(Math.min(_idx, last), false);
+  root.addEventListener('mouseenter', () => { _paused = true; });
+  root.addEventListener('mouseleave', () => { _paused = false; });
+  root.addEventListener('focusin', () => { _paused = true; });
+  root.addEventListener('focusout', () => { _paused = false; });
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;   // no auto-advance
+  _timer = window.setInterval(() => {
+    if (!root.isConnected) { stopRotation(); return; }
+    if (_paused || document.hidden) return;
+    show(_idx + 1, _idx + 1 <= last);
+  }, INTERVAL_MS);
+}
+
+/** Dashboard teardown / new trip. */
+export function resetJournalCarousel(): void { stopRotation(); _idx = 0; _paused = false; }
+
 /** `get` is read at click time so the drawer reflects the latest entries. */
 export function wireJournal(body: HTMLElement, get: () => { entries: StoredJournalEntry[]; legs: StoredLeg[] }): void {
+  wireCarousel(body);
+  body.querySelector<HTMLElement>('[data-journal-expand]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    void import('./journal-album-drawer.ts').then((m) => m.openJournalAlbumDrawer(e.currentTarget as HTMLElement));
+  });
   body.querySelectorAll<HTMLElement>('[data-jr-place]').forEach((tile) => {
     tile.addEventListener('click', () => {
       const { entries, legs } = get();

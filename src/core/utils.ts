@@ -47,6 +47,7 @@ export function slugId(s: string): string {
  */
 export function morphInto(target: Element, html: string): void {
   const next = document.createElement(target.tagName.toLowerCase());
+  // eslint-disable-next-line no-restricted-syntax -- audited: `html` is built by callers with escHtml/safeUrl (same contract as innerHTML at the call site)
   next.innerHTML = html;
   morphChildren(target, next);
 }

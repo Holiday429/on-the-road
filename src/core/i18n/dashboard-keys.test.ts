@@ -43,7 +43,7 @@ describe('dashboard translation keys', () => {
     // spot checks: a plain key, an expanded template key, a conditional key
     expect(used.has('dash.bagModal.title')).toBe(true);
     expect(used.has('dash.whereto.tab.work')).toBe(true);
-    expect(used.has('dash.link.guide')).toBe(true);
+    expect(used.has('dash.spend.analysis')).toBe(true);
     expect([...used.keys()].filter((k) => k.startsWith('UNEXPANDED'))).toEqual([]);
   });
   it('every key exists in English', () => {

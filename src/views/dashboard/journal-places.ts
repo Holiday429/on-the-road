@@ -31,8 +31,11 @@ export interface PlaceGroup {
 
 export interface PlaceTile { group: PlaceGroup; image: string }
 
-/** How many tiles the card shows. */
+/** Tiles visible at once on the card; more than this rotate. */
 export const TILE_COUNT = 3;
+
+/** Photos shown when the whole trip is one place. */
+const MAX_PHOTOS = 8;
 
 function placeFor(e: StoredJournalEntry, legs: StoredLeg[]): { city: string; flag: string } {
   const dest = e.destination?.trim();
@@ -64,16 +67,13 @@ export function buildPlaceGroups(entries: StoredJournalEntry[], legs: StoredLeg[
   return [...groups.values()].sort((a, b) => b.latest.localeCompare(a.latest));
 }
 
-/** The tiles to draw and how many more places sit behind them.
- *  Two or more places → one tile per place (first three), `more` = the rest.
- *  Exactly one place → its first three photos, so the card isn't a lone tile. */
-export function journalTiles(groups: PlaceGroup[]): { tiles: PlaceTile[]; more: number } {
+/** The tiles to draw, one per place; the card shows three at a time and rotates
+ *  through the rest. Exactly one place → its photos instead (up to MAX_PHOTOS), so
+ *  the card isn't a lone tile. */
+export function journalTiles(groups: PlaceGroup[]): PlaceTile[] {
   if (groups.length === 1) {
     const g = groups[0];
-    return { tiles: g.images.slice(0, TILE_COUNT).map((image) => ({ group: g, image })), more: 0 };
+    return g.images.slice(0, MAX_PHOTOS).map((image) => ({ group: g, image }));
   }
-  return {
-    tiles: groups.slice(0, TILE_COUNT).map((g) => ({ group: g, image: g.cover })),
-    more: Math.max(0, groups.length - TILE_COUNT),
-  };
+  return groups.map((g) => ({ group: g, image: g.cover }));
 }

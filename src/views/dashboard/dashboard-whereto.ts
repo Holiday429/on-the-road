@@ -87,7 +87,6 @@ export function renderWhereTo(inp: WhereToInput): string {
       <div class="td-widget-header">
         <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))} · ${esc(`${leg.flag} ${leg.city}`.trim())}</div>
         <div class="ag-tabs wtg-tabs">${WTG_TABS.map(tab).join('')}</div>
-        <button type="button" class="td-link" data-nav="${_tab === 'work' ? 'nomad' : 'cities'}">${esc(t(_tab === 'work' ? 'dash.link.allSpots' : 'dash.link.guide'))}</button>
       </div>
       ${body}
     </div>`;

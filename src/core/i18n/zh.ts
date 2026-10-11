@@ -200,6 +200,8 @@ export const zh: StringTable = {
   'dash.spend.note': '用来做什么?(选填)',
   'dash.spend.saved': '已保存',
   'dash.spend.failed': '保存失败,请重试',
+  'dash.spend.analysis': '消费分析',
+  'dash.journal.albums': '相册',
   'dash.spend.entries': '{n} 笔',
   'dash.spend.entry1': '1 笔',
   'dash.spend.dayNone': '这一天没有花费',

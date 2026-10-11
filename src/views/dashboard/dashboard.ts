@@ -28,7 +28,7 @@ import { agendaForDay } from '../../data/day-agenda.ts';
 import { geocode, geocodeLocal } from '../map/geocode.ts';
 import { openStaysDrawer } from './banner-drawers.ts';
 import { openAgendaItemDrawer } from './agenda-drawer.ts';
-import { openSpendDrawer } from './spend-drawer.ts';
+import { openSpendDrawer, openSpendAnalysisDrawer } from './spend-drawer.ts';
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
 import { PIN_COLORS } from '../map/map-status.ts';
 import { AGENDA_COLORS } from '../../data/day-agenda.ts';
@@ -37,7 +37,7 @@ import { renderTodoWidget } from './dashboard-todo.ts';
 import { renderPackWidget, wirePack } from './dashboard-pack.ts';
 import { renderWhereTo, wireWhereTo, resetWhereTo } from './dashboard-whereto.ts';
 import { captureUiState, restoreUiState, swapHtml, createRenderScheduler, mapSignature } from './dashboard-render.ts';
-import { renderJournalWidget, wireJournal } from './dashboard-journal.ts';
+import { renderJournalWidget, wireJournal, resetJournalCarousel } from './dashboard-journal.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { t, onLocaleChange, getLocale } from '../../core/i18n.ts';
@@ -379,8 +379,7 @@ function renderSpendWidget(): string {
     <div class="td-widget td-w-spend">
       <div class="td-widget-header">
         <div class="td-widget-label">💶 ${esc(t('dash.widget.spend'))}</div>
-        <button class="td-link" data-nav="expenses">${esc(t('dash.link.allExpenses'))}</button>
-        <button type="button" class="td-plus" data-spend-open="form" title="${esc(t('dash.spend.addTitle'))}" aria-label="${esc(t('dash.spend.addTitle'))}">+</button>
+        <button type="button" class="td-expand" data-spend-analysis title="${esc(t('dash.spend.analysis'))}" aria-label="${esc(t('dash.spend.analysis'))}">⤢</button>
       </div>
       <div class="td-spend-top">
         <button type="button" class="td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><div class="td-spend-label">${esc(t('dash.spend.total'))}</div><div class="td-spend-big">${fmt(total)}</div></button>
@@ -395,15 +394,16 @@ function renderSpendWidget(): string {
       <form class="td-quickadd td-quickadd-v" data-quickadd>
         <div class="td-quickadd-hint">📍 ${esc(leg?.country || '—')}${leg?.city ? ' · ' + esc(leg.city) : ''} · ${currencySymbol(defaultCurrency(_legs, today))}${defaultCurrency(_legs, today)}</div>
         <div class="td-quickadd-row2">
-          <div class="td-quickadd-amt-wrap">
-            <span class="td-quickadd-sym">${sym}</span>
-            <input class="td-quickadd-amt" type="text" inputmode="decimal" placeholder="0.00" required>
-          </div>
+          <span class="td-quickadd-cur" title="${esc(defaultCurrency(_legs, today))}">${sym}</span>
+          <input class="td-quickadd-amt" type="text" inputmode="decimal" placeholder="0.00" aria-label="${esc(t('dash.agenda.spendAmount'))}" required>
           <select class="td-quickadd-cat select" aria-label="${esc(t('dash.agenda.spendCategory'))}">
             <option value="">${esc(t('dash.agenda.spendCategory'))}…</option>
             ${EXPENSE_CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('')}
           </select>
-          <button class="td-quickadd-save btn btn-primary" type="submit" title="${esc(t('common.save'))}" aria-label="${esc(t('common.save'))}">✓</button>
+        </div>
+        <div class="td-quickadd-row2">
+          <input class="td-quickadd-desc" type="text" placeholder="${esc(t('dash.spend.note'))}" aria-label="${esc(t('dash.spend.note'))}">
+          <button class="td-quickadd-save btn btn-primary" type="submit">${esc(t('common.save'))}</button>
         </div>
       </form>
     </div>`;
@@ -428,7 +428,6 @@ function renderMapWidget(): string {
       <div class="td-widget-header">
         <div class="td-widget-label">🗺️ ${esc(t('dash.widget.map'))}</div>
         <div class="ag-tabs">${seg('day', t('dash.map.day'))}${seg('trip', t('dash.map.trip'))}</div>
-        <button class="td-link" data-nav="map">${esc(t('dash.link.fullMap'))}</button>
       </div>
       <div class="td-map-wrap" data-map-mode-now="${mode}">
         <div class="td-map-container" id="td-map-canvas"></div>
@@ -570,12 +569,14 @@ function wire(body: HTMLElement): void {
     e.preventDefault();
     const form = e.currentTarget as HTMLFormElement;
     const amt  = parseFloat((form.querySelector('.td-quickadd-amt') as HTMLInputElement).value);
-    const desc = '';
+    const desc = (form.querySelector('.td-quickadd-desc') as HTMLInputElement)?.value.trim() ?? '';
     const cat  = (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value;
     if (!Number.isFinite(amt) || amt <= 0) return;
     quickAddSpend(amt, desc, cat);
     (form.querySelector('.td-quickadd-amt') as HTMLInputElement).value  = '';
     (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value = '';
+    const descEl = form.querySelector('.td-quickadd-desc') as HTMLInputElement | null;
+    if (descEl) descEl.value = '';
   });
 
   // Rate line (under the Spend bar) → open/close the converter dropdown.
@@ -668,11 +669,15 @@ function wire(body: HTMLElement): void {
   const langMount = body.querySelector<HTMLElement>('[data-lang-mount]');
   if (langMount) mountPrefControls(langMount);
 
-  // Spend: + → add form first; total → recent list first.
+  // Spend: the corner expand button → Expense Analysis in the drawer; the total → recent entries.
+  body.querySelector<HTMLElement>('[data-spend-analysis]')?.addEventListener('click', e => {
+    e.stopPropagation();
+    void openSpendAnalysisDrawer(e.currentTarget as HTMLElement);
+  });
   body.querySelectorAll<HTMLElement>('[data-spend-open]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      openSpendDrawer({ expenses: _expenses, asOf: lookingBack() ? todayIso() : null, legs: _legs, focus: btn.dataset.spendOpen as 'form' | 'list', trigger: btn });
+      openSpendDrawer({ expenses: _expenses, asOf: lookingBack() ? todayIso() : null, legs: _legs, focus: 'list', trigger: btn });
     });
   });
 
@@ -777,6 +782,7 @@ export function initDashboard(): void {
   _weatherCity = '';
   resetAgenda();
   resetWhereTo();
+  resetJournalCarousel();
   _mapMode = null; _mapBootMode = null;
   disposeMaps();
   render();
@@ -804,6 +810,7 @@ export function initDashboard(): void {
       _mapCanvas = null; _mapSig = ''; _weather = null; _weatherCity = ''; _mapMode = null;
       resetAgenda();
       resetWhereTo();
+      resetJournalCarousel();
       disposeMaps(); scheduleRender();
     }),
     // Re-render on language change so greeting/widget labels update in place

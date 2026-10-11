@@ -124,3 +124,21 @@ export function openSpendDrawer(opts: {
     f.querySelector<HTMLInputElement>('.td-spf-amt')?.focus();
   });
 }
+
+
+/** The Expenses page's Analysis panel in the side drawer (expand button on the card). */
+export async function openSpendAnalysisDrawer(trigger: HTMLElement | null): Promise<void> {
+  const { mountExpenseAnalysis } = await import('../expenses/expenses.ts');
+  let dispose: (() => void) | null = null;
+  const d = openDrawer({
+    title: `💶 ${t('expenses.analysisTitle')}`,
+    body: '<div class="exp-breakdown-wrap td-sp-analysis"></div>',
+    footer: `<button type="button" class="btn btn-ghost" data-d-open>${esc(t('dash.link.allExpenses'))}</button>`,
+    className: 'td-sp-analysis-drawer',
+    returnFocus: trigger,
+    onClose: () => { dispose?.(); dispose = null; },
+  });
+  const host = d.body.querySelector<HTMLElement>('.td-sp-analysis');
+  if (host) dispose = mountExpenseAnalysis(host);
+  d.root.querySelector('[data-d-open]')?.addEventListener('click', () => { closeDrawer(); navigateTo('expenses'); });
+}
