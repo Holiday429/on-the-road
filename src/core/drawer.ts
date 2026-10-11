@@ -44,6 +44,9 @@ export interface DrawerOptions {
   returnFocus?: HTMLElement | null;
   /** Called after teardown. */
   onClose?: () => void;
+  /** No title bar and no body padding — the content runs to the edges (a full-bleed photo)
+   *  and the ✕ floats over its top-right corner. `title` is still the accessible name. */
+  bare?: boolean;
 }
 
 const FOCUSABLE =
@@ -78,14 +81,16 @@ export function openDrawer(opts: DrawerOptions): DrawerHandle {
     ? `<div class="otr-drawer-sub">${escHtml(opts.subtitle)}</div>` : '';
   // eslint-disable-next-line no-restricted-syntax -- audited: title/subtitle escaped via escHtml; body/footer are caller-escaped HTML
   scrim.innerHTML = `
-    <aside class="otr-drawer ${opts.className ?? ''}" role="dialog" aria-modal="true" aria-label="${escHtml(opts.title)}" tabindex="-1">
-      <header class="otr-drawer-head">
+    <aside class="otr-drawer${opts.bare ? ' otr-drawer--bare' : ''} ${opts.className ?? ''}" role="dialog" aria-modal="true" aria-label="${escHtml(opts.title)}" tabindex="-1">
+      ${opts.bare
+        ? `<button type="button" class="otr-drawer-close otr-drawer-close--float" data-otr-close aria-label="${escHtml(t('common.close'))}">✕</button>`
+        : `<header class="otr-drawer-head">
         <div class="otr-drawer-titles">
           <div class="otr-drawer-title">${escHtml(opts.title)}</div>
           ${subtitle}
         </div>
         <button type="button" class="otr-drawer-close" data-otr-close aria-label="${escHtml(t('common.close'))}">✕</button>
-      </header>
+      </header>`}
       <div class="otr-drawer-body">${opts.body}</div>
       ${opts.footer ? `<footer class="otr-drawer-foot">${opts.footer}</footer>` : ''}
     </aside>`;

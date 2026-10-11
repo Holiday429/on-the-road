@@ -80,3 +80,13 @@ body.otr-drawer-open { overflow: hidden; }
   .otr-drawer-scrim, .otr-drawer { animation: none; }
 }
 .otr-drawer-scrim--static, .otr-drawer-scrim--static .otr-drawer { animation: none; }
+
+/* Bare drawer: content to the edges, ✕ floating on the top-right corner */
+.otr-drawer--bare { position: relative; }
+.otr-drawer--bare .otr-drawer-body { padding: 0; }
+.otr-drawer-close--float {
+  position: absolute; top: var(--sp-3); right: var(--sp-3); z-index: 5;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(20, 16, 12, 0.45); color: #fff; backdrop-filter: blur(6px);
+}
+.otr-drawer-close--float:hover { background: rgba(20, 16, 12, 0.65); color: #fff; }

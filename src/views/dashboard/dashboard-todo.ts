@@ -70,7 +70,7 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
   const newRow = `
     <form class="td-todo-row td-todo-newrow${_due !== undefined || _remind ? ' has-meta' : ''}" data-todo-new>
       <span class="td-todo-plus" aria-hidden="true">+</span>
-      <input class="td-todo-add-input" type="text" placeholder="${esc(t('dash.todo.addRow'))}" aria-label="${esc(t('dash.todo.addRow'))}" autocomplete="off">
+      <textarea class="td-todo-add-input" rows="1" placeholder="${esc(t('dash.todo.addRow'))}" aria-label="${esc(t('dash.todo.addRow'))}" autocomplete="off"></textarea>
       <span class="td-todo-new-tools">
         <button type="button" class="td-ic${_due !== undefined ? ' is-set' : ''}" data-todo-pick="due" title="${esc(t('dash.todoModal.due'))}"><span aria-hidden="true">📅</span><span class="td-ic-v">${esc(shortDate(due))}</span></button>
         <button type="button" class="td-ic${_remind ? ' is-set' : ''}" data-todo-pick="remind" title="${esc(t('dash.todoModal.remind'))}"><span aria-hidden="true">🔔</span>${remindShort ? `<span class="td-ic-v">${esc(remindShort)}</span>` : ''}</button>
@@ -106,10 +106,19 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
 export function wireTodo(body: HTMLElement, render: () => void): void {
   const form = body.querySelector<HTMLFormElement>('[data-todo-new]');
   if (!form) return;
-  const input = form.querySelector<HTMLInputElement>('.td-todo-add-input')!;
+  const input = form.querySelector<HTMLTextAreaElement>('.td-todo-add-input')!;
 
+  // The box grows with what you type — up to two lines, then it scrolls.
+  const fit = () => {
+    input.style.height = 'auto';
+    const line = parseFloat(getComputedStyle(input).lineHeight) || 18;
+    input.style.height = `${Math.min(input.scrollHeight, line * 2 + 2)}px`;
+  };
+  fit();
+  input.addEventListener('input', fit);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { input.value = ''; _due = undefined; _remind = ''; input.blur(); render(); }
+    else if (e.key === 'Enter') { e.preventDefault(); form.requestSubmit(); }       // one to-do per line: Enter saves
   });
 
   // Icon buttons open the native pickers that sit invisibly beside them.
@@ -128,7 +137,7 @@ export function wireTodo(body: HTMLElement, render: () => void): void {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const text = input.value.trim();
+    const text = input.value.replace(/\s+/g, ' ').trim();
     if (!text) { input.focus(); return; }
     const dueDate = form.querySelector<HTMLInputElement>('[data-todo-due]')!.value || null;
     const ms = _remind ? new Date(_remind).getTime() : NaN;
@@ -139,6 +148,6 @@ export function wireTodo(body: HTMLElement, render: () => void): void {
     input.value = '';
     _due = undefined; _remind = '';
     render();
-    document.querySelector<HTMLInputElement>('.td-todo-add-input')?.focus();   // ready for the next one
+    document.querySelector<HTMLTextAreaElement>('.td-todo-add-input')?.focus();   // ready for the next one
   });
 }

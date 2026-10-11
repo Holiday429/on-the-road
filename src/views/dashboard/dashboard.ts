@@ -271,9 +271,10 @@ function renderRateLine(): string {
   const eq = known ? `1 ${flagFor(left)} ${esc(left)} = <strong>${(l / r).toFixed(2)}</strong> ${flagFor(right)} ${esc(right)}` 
                    : `${flagFor(left)} ${esc(left)} → ${esc(right)} · ${esc(t('currency.rateUnavailable'))}`;
   return `
-    <button type="button" class="td-rate-line${_rateOpen ? ' is-open' : ''}" data-rate-toggle aria-expanded="${_rateOpen}" title="${esc(t('dash.widget.currency'))}">
-      <span>${eq}${known && isApproxCurrency(right) ? ` <em title="${esc(t('currency.approx'))}">≈</em>` : ''}</span>
-      <span class="td-rate-caret" aria-hidden="true">▾</span>
+    <button type="button" class="td-rate-line${_rateOpen ? ' is-open' : ''}" data-rate-toggle aria-expanded="${_rateOpen}" title="${esc(t('dash.spend.convertHint'))}">
+      <span class="td-rate-ico" aria-hidden="true">⇄</span>
+      <span class="td-rate-eq">${eq}${known && isApproxCurrency(right) ? ` <em title="${esc(t('currency.approx'))}">≈</em>` : ''}</span>
+      <span class="td-rate-cta">${esc(t('dash.spend.convert'))} <span class="td-rate-caret" aria-hidden="true">▾</span></span>
     </button>`;
 }
 
@@ -373,8 +374,6 @@ function renderSpendWidget(): string {
       </div>`;
   }
 
-  const leg = currentLeg();
-
   return `
     <div class="td-widget td-w-spend">
       <div class="td-widget-header">
@@ -392,7 +391,6 @@ function renderSpendWidget(): string {
         ${_rateOpen ? renderRatePopover() : ''}
       </div>
       <form class="td-quickadd td-quickadd-v" data-quickadd>
-        <div class="td-quickadd-hint">📍 ${esc(leg?.country || '—')}${leg?.city ? ' · ' + esc(leg.city) : ''}</div>
         <div class="td-quickadd-row2">
           <label class="td-quickadd-cur" title="${esc(t('dash.spend.currency'))}">
             <span class="td-quickadd-sym">${esc(currencySymbol(curCode))}</span>

@@ -16,8 +16,8 @@
 .td-todo-check:hover { border-color: var(--sage-500); background: var(--amber-50); }
 .td-todo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .td-todo-label {
-  font-size: var(--fs-sm); font-weight: 600; color: var(--ink-soft);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: var(--fs-sm); font-weight: 600; color: var(--ink-soft); line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
 .td-todo-due { font-size: 10px; color: var(--ink-faint); }
 .td-todo-due.is-overdue { color: var(--coral-500); font-weight: 600; }
@@ -141,18 +141,19 @@
 .td-plus--lg { width: 40px; height: 40px; font-size: 22px; }
 
 /* The add row: a + where the tick goes, then a bare input; the date / reminder icons show while typing */
-.td-todo-newrow { background: transparent; border: 1.5px dashed var(--rule); }
+.td-todo-newrow { background: transparent; border: 1.5px dashed var(--rule); flex-wrap: wrap; align-items: flex-start; row-gap: 6px; }
 .td-todo-newrow:focus-within { border-color: var(--amber-400); background: var(--surface); }
 .td-todo-plus {
   flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
   background: var(--amber-400, var(--accent)); color: var(--ink); font-weight: 700; font-size: 14px; line-height: 1;
 }
 .td-todo-newrow .td-todo-add-input {
-  flex: 1; min-width: 0; height: auto; padding: 0; border: 0; background: transparent; outline: none;
-  font-size: var(--fs-sm); color: var(--ink);
+  flex: 1; min-width: 0; height: auto; min-height: 20px; padding: 0; margin: 0; border: 0; background: transparent; outline: none;
+  font-family: inherit; font-size: var(--fs-sm); line-height: 1.35; color: var(--ink); resize: none; overflow-y: auto; display: block;
 }
+.td-todo-newrow .td-todo-plus { margin-top: 1px; }
 .td-todo-newrow .td-todo-add-input::placeholder { font-size: var(--fs-sm); color: var(--ink-faint); }
-.td-todo-new-tools { display: none; align-items: center; gap: 4px; flex-shrink: 0; position: relative; }
+.td-todo-new-tools { display: none; align-items: center; gap: 4px; flex: 0 0 100%; padding-left: 26px; box-sizing: border-box; position: relative; }
 .td-todo-newrow:focus-within .td-todo-new-tools,
 .td-todo-newrow:has(.td-todo-add-input:not(:placeholder-shown)) .td-todo-new-tools,
 .td-todo-newrow.has-meta .td-todo-new-tools { display: inline-flex; }

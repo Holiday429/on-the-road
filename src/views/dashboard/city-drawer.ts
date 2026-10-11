@@ -1,8 +1,9 @@
 /* ==========================================================================
    On the Road · Dashboard — city page drawer
    --------------------------------------------------------------------------
-   Opened from the city name in the banner. The Itinerary's cover hero for the stop
-   (its photo — or the tinted flag — with the city and dates over it), then the Plan
+   Opened from the city name in the banner. A bare drawer: the Itinerary's cover hero
+   for the stop (its photo — or the tinted flag — with the city and dates over it) runs
+   edge to edge from the top, the ✕ floating on it, then the Plan
    in the Itinerary's Feed view, drawn by the Itinerary's own renderer so it looks
    the same and ticking an item writes the same field. Nothing else: the stays and
    transport have their own drawers and notes stay on the page.
@@ -39,8 +40,10 @@ export async function openCityDrawer(legIn: StoredLeg, _todayIso: string, trigge
             <div class="rd-hero-dates"><span>${esc(fmtDate(leg.dateFrom))} → ${esc(fmtDate(leg.dateTo))} · ${esc(nightsLabel(nights))}</span></div>
           </div>
         </header>
-        <h3 class="td-dh">${esc(t('dash.city.plan'))}</h3>
-        ${renderPlanFeedView(leg as never)}
+        <div class="td-itn-city-plan">
+          <h3 class="td-dh">${esc(t('dash.city.plan'))}</h3>
+          ${renderPlanFeedView(leg as never)}
+        </div>
       </div>`;
   };
 
@@ -49,6 +52,7 @@ export async function openCityDrawer(legIn: StoredLeg, _todayIso: string, trigge
     body: body(),
     footer: `<button type="button" class="btn btn-ghost" data-d-open>${esc(t('dash.banner.openItinerary'))}</button>`,
     className: 'td-itn-drawer',
+    bare: true,
     returnFocus: trigger,
   });
   d.root.addEventListener('click', (e) => {

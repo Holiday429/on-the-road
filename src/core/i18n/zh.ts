@@ -214,6 +214,8 @@ export const zh: StringTable = {
   'dash.spend.note': '用来做什么?(选填)',
   'dash.spend.saved': '已保存',
   'dash.spend.failed': '保存失败,请重试',
+  'dash.spend.convertHint': '汇率换算器',
+  'dash.spend.convert': '换算',
   'dash.spend.analysis': '消费分析',
   'dash.journal.albums': '相册',
   'dash.spend.entries': '{n} 笔',

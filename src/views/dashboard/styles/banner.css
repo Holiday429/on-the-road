@@ -26,8 +26,9 @@
 .td-dial-num[data-len="3"] { font-size: 15px; }
 .td-dial-num[data-len="4"], .td-dial-num[data-len="5"] { font-size: 12px; }
 .td-dial-text { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.td-dial-country { line-height: 1.25; }
 .td-dial-city {
-  padding: 0; margin: 1px 0 0; background: none; cursor: pointer; text-align: left;
+  padding: 0; margin: 5px 0 0; background: none; cursor: pointer; text-align: left;
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--accent-deep);
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -37,7 +38,7 @@
   font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700; color: var(--ink);
   line-height: 1.2; white-space: nowrap;
 }
-.td-dial-sub { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; line-height: 1.3; }
+.td-dial-sub { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 7px; line-height: 1.35; }
 
 /* Stay over transport */
 .td-hero-info { flex: 1; min-width: 0; }

@@ -303,9 +303,11 @@
 .td-itn { display: flex; flex-direction: column; gap: var(--sp-3); }
 .td-itn-drawer .rd-stay-actions .rd-icon-btn { display: none; }
 .td-itn-tag { align-self: flex-start; margin-bottom: -6px; }
-.td-itn-city .rd-hero { min-height: 160px; margin-bottom: 0; }
-.td-itn-city .rd-hero-content { padding: var(--sp-4); padding-right: var(--sp-4); }
+.td-itn-city { gap: 0; }
+.td-itn-city .rd-hero { min-height: 190px; margin-bottom: 0; border-radius: 0; box-shadow: none; }
+.td-itn-city-plan { padding: var(--sp-4) var(--sp-5) var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3); }
+.td-itn-city .rd-hero-content { padding: var(--sp-4) var(--sp-5); }
 .td-itn-city .rd-hero-city { font-size: 26px; margin: 4px 0 2px; }
 .td-itn-city .rd-hero-fallback-flag { font-size: 96px; }
-.td-itn-city .td-dh { margin: var(--sp-2) 0 0; }
+.td-itn-city .td-dh { margin: 0; }
 .td-itn-drawer .otr-drawer, .otr-drawer.td-itn-drawer { width: min(520px, 100%); }
