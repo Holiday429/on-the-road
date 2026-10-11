@@ -9,6 +9,7 @@ import { openDrawer, closeDrawer } from '../../core/drawer.ts';
 import { navigateTo } from '../../core/app.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
+import { appNow } from '../../data/sim-clock.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { datePart, timePart } from '../../data/day-agenda.ts';
 import { legStays, stayNights, tonightStay, type Stay, type Transport, type TransportLeg } from '../../data/trip-now.ts';
@@ -135,7 +136,7 @@ export function openTransportDrawer(
   if (!main) return;
   const tr = main.transport;
   const when = [tr.date ? bannerDateRange(tr.date) : '', blank(tr.time)].filter(Boolean).join(' · ');
-  const cd = next ? countdownLabel(next.depAt, next.transport.date, new Date(), todayIso) : '';
+  const cd = next ? countdownLabel(next.depAt, next.transport.date, appNow(), todayIso) : '';
   const showArrival = !!arrival && arrival !== main;
   const d = openDrawer({
     title: transportTitle(tr),

@@ -41,6 +41,8 @@ import { renderJournalWidget, wireJournal } from './dashboard-journal.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
+import { appNow, onSimChange } from '../../data/sim-clock.ts';
+import { renderSimControl, wireSimControl } from './dashboard-simclock.ts';
 import { mountPrefControls } from '../../core/pref-mounts.ts';
 // Lazy (see call site below) — journal/index.ts pulls in Leaflet via capture.ts,
 // which Dashboard shouldn't eagerly load just to wire up a click handler.
@@ -95,7 +97,7 @@ function firstName(): string {
   return name.split(/\s+/)[0];
 }
 function greetingWord(): string {
-  const h = new Date().getHours();
+  const h = appNow().getHours();
   if (h < 5)  return t('dash.greeting.night');
   if (h < 12) return t('dash.greeting.morning');
   if (h < 18) return t('dash.greeting.afternoon');
@@ -170,6 +172,7 @@ function renderGreeting(): string {
     <div class="td-greeting-row">
       <div class="td-greeting">${greetingWord()}, ${esc(firstName())}! 👋</div>
       <div class="td-greeting-actions">
+        ${renderSimControl()}
         ${renderAlertBell({ expenses: _expenses, legs: _legs, todos: _todos, today: todayIso(), inBase })}
         <button class="btn btn-ghost td-new-trip-btn" data-action="new-trip">${esc(t('common.newTrip'))}</button>
         <div class="td-lang-mount" data-lang-mount></div>
@@ -642,6 +645,7 @@ function wire(body: HTMLElement): void {
   });
 
   wireBanner(body, () => bannerData(tripPhase()));
+  wireSimControl(body, () => { const tr = currentTrip(); return { trip: tr ? { startDate: tr.startDate, endDate: tr.endDate } : null, legs: _legs }; });
   wireWhereTo(body, render);
   wireAgenda(body, render, () => ({ src: agendaSources(), today: todayIso() }));
   wirePack(body, () => ({ list: _packLists[0], legs: _legs, today: todayIso() }));
@@ -792,6 +796,8 @@ export function initDashboard(): void {
     // Re-render on language change so greeting/widget labels update in place
     // (the map has no localized text, so it is kept as-is).
     onLocaleChange(() => { scheduleRender(); }),
+    // Time-travel (testing aid): "today" changed, so selections and map mode start over.
+    onSimChange(() => { resetAgenda(); resetWhereTo(); _mapMode = null; scheduleRender(); }),
   ];
 
   startBannerClock(todayIso);

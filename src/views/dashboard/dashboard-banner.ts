@@ -9,6 +9,7 @@
 
 import { escHtml as esc } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
+import { appNow } from '../../data/sim-clock.ts';
 import { navigateTo } from '../../core/app.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import type { Phase } from '../../data/trip-phase.ts';
@@ -138,7 +139,7 @@ function renderClocks(leg: StoredLeg | null, homeTz: string | null, now: Date): 
 
 /* ── Public ──────────────────────────────────────────────────────────────── */
 
-export function renderBanner(d: BannerData, now: Date = new Date()): string {
+export function renderBanner(d: BannerData, now: Date = appNow()): string {
   const stop = currentStop(d.legs, d.today, d.phase);
   const dial = tripDial(d.phase, tripSpan(d.trip, d.legs), d.today);
   const transports = tripTransports(d.legs, d.homeTz);
@@ -169,7 +170,7 @@ export function wireBanner(root: HTMLElement, getData: () => BannerData): void {
     const d = getData();
     const stop = currentStop(d.legs, d.today, d.phase);
     const list = tripTransports(d.legs, d.homeTz);
-    const next = nextTransport(list, new Date(), d.today);
+    const next = nextTransport(list, appNow(), d.today);
     const arrival = stop ? arrivalFor(list, stop.leg) : null;
     if (!next && !arrival) { navigateTo('route'); return; }
     openTransportDrawer(next, arrival, d.today, e.currentTarget as HTMLElement);
@@ -184,7 +185,7 @@ let _tick: ReturnType<typeof setInterval> | null = null;
 
 function tickBanner(getToday: () => string): void {
   if (document.hidden) return;
-  const now = new Date();
+  const now = appNow();
   document.querySelectorAll<SVGElement>('.td-clock[data-tz] svg').forEach((svg) => {
     const tz = (svg.closest('.td-clock') as HTMLElement).dataset.tz!;
     const a = clockAngles(tz, now);

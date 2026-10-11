@@ -10,6 +10,7 @@
    ========================================================================== */
 
 import { currentTrip } from './trip-context.ts';
+import { appNow } from './sim-clock.ts';
 import { routeStore, type StoredLeg } from './stores/route-store.ts';
 
 export type Phase = 'before' | 'during' | 'after';
@@ -18,7 +19,7 @@ export type Phase = 'before' | 'during' | 'after';
  *  reads as yesterday/tomorrow for hours each day outside UTC — wrong for a
  *  traveller deciding what "today" is.) */
 export function todayIso(): string {
-  const d = new Date();
+  const d = appNow();   // the real clock unless a simulation is on (sim-clock.ts)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
