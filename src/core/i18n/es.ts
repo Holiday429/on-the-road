@@ -20,6 +20,7 @@ export const es: StringTable = {
   'common.newTrip':  '+ Nuevo viaje',
   'common.save':     'Guardar',
   'common.cancel':   'Cancelar',
+  'common.close':    'Cerrar',
   'common.delete':   'Eliminar',
   'common.add':      'Añadir',
   'common.edit':     'Editar',

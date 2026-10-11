@@ -21,6 +21,7 @@ export const zh: StringTable = {
   'common.newTrip':  '+ 新行程',
   'common.save':     '保存',
   'common.cancel':   '取消',
+  'common.close':    '关闭',
   'common.delete':   '删除',
   'common.add':      '添加',
   'common.edit':     '编辑',

@@ -23,6 +23,7 @@ export const en: StringTable = {
   'common.newTrip':  '+ New trip',
   'common.save':     'Save',
   'common.cancel':   'Cancel',
+  'common.close':    'Close',
   'common.delete':   'Delete',
   'common.add':      'Add',
   'common.edit':     'Edit',

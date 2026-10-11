@@ -1,0 +1,81 @@
+/* ── Side drawer (src/core/drawer.ts) ──────────────────────────────────────── */
+body.otr-drawer-open { overflow: hidden; }
+
+.otr-drawer-scrim {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.38);
+  display: flex; justify-content: flex-end; align-items: stretch;
+  z-index: 1100; /* above page chrome, below the modal factory (1200) so a modal can open from a drawer */
+  animation: fadeIn var(--dur-fast) var(--ease-out);
+}
+
+.otr-drawer {
+  background: var(--surface);
+  width: min(420px, 100%);
+  height: 100%;
+  display: flex; flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  border-left: 1px solid var(--rule-soft);
+  outline: none;
+  animation: otrDrawerIn var(--dur-mid) var(--ease-out);
+}
+@keyframes otrDrawerIn { from { transform: translateX(100%) } to { transform: none } }
+@keyframes otrDrawerUp { from { transform: translateY(100%) } to { transform: none } }
+
+.otr-drawer-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-5) var(--sp-3);
+  border-bottom: 1px solid var(--rule-soft);
+}
+.otr-drawer-titles { min-width: 0; }
+.otr-drawer-title {
+  font-family: var(--font-ui);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.otr-drawer-sub { margin-top: 2px; font-size: var(--fs-sm); color: var(--ink-muted); }
+.otr-drawer-close {
+  flex: none;
+  width: 30px; height: 30px;
+  border-radius: var(--r-sm);
+  color: var(--ink-faint);
+  font-size: 15px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--dur-fast);
+}
+.otr-drawer-close:hover { background: var(--surface-3); color: var(--ink); }
+
+.otr-drawer-body {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--sp-5);
+}
+.otr-drawer-foot {
+  display: flex; gap: var(--sp-3); justify-content: flex-end;
+  padding: var(--sp-3) var(--sp-5) var(--sp-5);
+  border-top: 1px solid var(--rule-soft);
+}
+
+/* Narrow screens: half-height sheet rising from the bottom. */
+@media (max-width: 720px) {
+  .otr-drawer-scrim { align-items: flex-end; justify-content: stretch; }
+  .otr-drawer {
+    width: 100%;
+    height: auto;
+    max-height: 70dvh;
+    border-left: 0;
+    border-top: 1px solid var(--rule-soft);
+    border-radius: var(--r-2xl) var(--r-2xl) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation-name: otrDrawerUp;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .otr-drawer-scrim, .otr-drawer { animation: none; }
+}
+.otr-drawer-scrim--static, .otr-drawer-scrim--static .otr-drawer { animation: none; }

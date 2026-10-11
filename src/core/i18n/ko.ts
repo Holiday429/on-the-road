@@ -20,6 +20,7 @@ export const ko: StringTable = {
   'common.newTrip':  '+ 새 여행',
   'common.save':     '저장',
   'common.cancel':   '취소',
+  'common.close':    '닫기',
   'common.delete':   '삭제',
   'common.add':      '추가',
   'common.edit':     '편집',

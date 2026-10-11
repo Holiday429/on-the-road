@@ -20,6 +20,7 @@ export const ja: StringTable = {
   'common.newTrip':  '+ 新しい旅',
   'common.save':     '保存',
   'common.cancel':   'キャンセル',
+  'common.close':    '閉じる',
   'common.delete':   '削除',
   'common.add':      '追加',
   'common.edit':     '編集',
