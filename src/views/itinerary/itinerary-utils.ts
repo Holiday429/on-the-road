@@ -176,3 +176,22 @@ export function clipImages(c: Clip): string[] {
 export function legPlanTitleSet(leg: Leg): Set<string> {
   return new Set((leg.plans ?? []).map(p => slugId(p.title) || p.title.trim().toLowerCase()));
 }
+
+/* ── Cover photo ─────────────────────────────────────────────────────────── */
+
+/** CSS object-position for a leg's cover, honouring iOS's vertical focal point
+ *  (0 top … 1 bottom, default centre). Clamped so a bad value can't push the
+ *  crop off the image. */
+export function coverPosition(leg: Pick<SchemaLeg, 'coverFocalY'>): string {
+  const y = leg.coverFocalY;
+  const pct = typeof y === 'number' && Number.isFinite(y) ? Math.min(1, Math.max(0, y)) * 100 : 50;
+  return `center ${Math.round(pct)}%`;
+}
+
+/** Stable hue (0–359) per city name, for the no-photo fallback gradient — so a
+ *  city without a cover still looks distinct from its neighbours. */
+export function cityHue(city: string): number {
+  let h = 0;
+  for (const ch of city.trim().toLowerCase()) h = (h * 31 + ch.codePointAt(0)!) >>> 0;
+  return h % 360;
+}

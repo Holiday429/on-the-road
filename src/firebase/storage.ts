@@ -43,6 +43,9 @@ export async function deleteSafetyDoc(url: string): Promise<void> {
   } catch { /* ignore — already deleted or wrong ref */ }
 }
 
+/** Delete any Storage object by its download URL (best-effort). */
+export const deleteStorageUrl = deleteSafetyDoc;
+
 /** @deprecated Use deleteSafetyDoc instead. */
 export const deleteInsurancePdf = deleteSafetyDoc;
 
@@ -80,3 +83,39 @@ export async function uploadJournalImage(file: File, index = 0): Promise<UploadR
 
 /** Delete a journal photo by download URL (best-effort, same as safety docs). */
 export const deleteJournalImage = deleteSafetyDoc;
+
+/**
+ * Downscale an image to at most `maxEdge` px on its longest side and re-encode
+ * as JPEG. Phone photos are 4–12 MB; a cover is shown at ≤ ~1200 px wide, so
+ * this keeps uploads quick and well under the 15 MB rule. Falls back to the
+ * original file if the browser can't decode it.
+ */
+async function downscaleImage(file: File, maxEdge = 1800, quality = 0.85): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, maxEdge / Math.max(bmp.width, bmp.height));
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d')!.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', quality));
+    return blob ?? file;
+  } catch {
+    return file;
+  }
+}
+
+/**
+ * Upload a leg cover photo to `trips/{tripId}/legs/{legId}/<id>.jpg` — the
+ * same path iOS's LegStore.setCoverImage uses, so storage.rules' trip-member
+ * block covers it and both clients read each other's covers.
+ */
+export async function uploadLegCover(file: File, tripId: string, legId: string): Promise<string> {
+  if (!currentUser()) throw new Error('Not signed in.');
+  const blob = await downscaleImage(file);
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const storageRef = ref(storage, `trips/${tripId}/legs/${legId}/${id}.jpg`);
+  await uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg' });
+  return getDownloadURL(storageRef);
+}

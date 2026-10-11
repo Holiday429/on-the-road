@@ -18,13 +18,12 @@ import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../dat
 import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
-import { escHtml as esc } from '../../core/utils.ts';
+import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { flagForCountry } from '../../data/destinations.ts';
 import {
-  TRANSPORT_ICONS, uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
-  legStays, mapHref, NOTE_COLORS, noteColor, resolveNoteColor, dayColour, bearing,
-  legNoteCardsOf, stayPriceLabel, transportPriceLabel, stayBookingHref,
-  baggageLabel, clipImages, legPlanTitleSet,
+  uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
+  legStays, NOTE_COLORS, noteColor, resolveNoteColor, dayColour, bearing,
+  legNoteCardsOf, clipImages, legPlanTitleSet,
 } from './itinerary-utils.ts';
 import {
   cityShareContext, sharedPlans, groupSharedPlans, buildSharedDoc,
@@ -32,11 +31,10 @@ import {
 } from './itinerary-city-shared.ts';
 import { coordsFor } from '../map/geo.ts';
 import { geocode } from '../map/geocode.ts';
-import { baseCurrency } from '../../data/trip-context.ts';
 import type {
   Leg as SchemaLeg, PlanItem, Clip, ClipCategory, NoteCard,
 } from '../../data/schema.ts';
-import { uploadClipImage } from '../../firebase/storage.ts';
+import { uploadClipImage, uploadLegCover, deleteStorageUrl } from '../../firebase/storage.ts';
 import {
   openDatesEditor,
   openTransportEditor,
@@ -49,6 +47,9 @@ import {
   type Leg, type Transport, type Accommodation,
   BUILTIN_CATEGORIES, CATEGORY_PALETTE, allCategories, categoryById,
 } from './itinerary-shared.ts';
+import {
+  nightsLabel, legCoverArt, legSummary, renderTransportSection, renderStaysSection,
+} from './itinerary-cards.ts';
 import {
   ensurePlanDays, renderPlanItem,
   renderPlanBoardView, renderPlanCategoryView, renderPlanFeedView,
@@ -179,66 +180,45 @@ function rewriteLeg(leg: Leg, omit: (keyof SchemaLeg)[]) {
   return routeStore.set(clean(next) as Partial<SchemaLeg> & { id: string }).catch(saveFailed);
 }
 
-/* ── Render: list (timeline grouped by country) ─────────────────────────── */
-
-function legSummary(leg: Leg): string {
-  const t = leg.arrivalTransport;
-  const stays = legStays(leg);
-
-  const leftChips: string[] = [];
-  const rightChips: string[] = [];
-
-  if (t) {
-    const times = t.time
-      ? (t.arrivalTime ? `${esc(t.time)}–${esc(t.arrivalTime)}` : esc(t.time))
-      : '';
-    const parts = [
-      TRANSPORT_ICONS[t.type],
-      esc(t.from),
-      t.service ? `· ${esc(t.service)}` : '',
-      times ? `· ${times}` : '',
-    ].filter(Boolean).join(' ');
-    leftChips.push(`<span class="route-sum-chip route-sum-transport">${parts}</span>`);
-  }
-
-  stays.forEach((a) => {
-    const href = mapHref(a, leg);
-    rightChips.push(
-      `<a class="route-sum-chip route-sum-hotel" href="${esc(href)}" target="_blank" rel="noopener" title="Open in Google Maps">` +
-      `🏨 ${esc(a.name)}</a>`
-    );
-  });
-
-  if (!leftChips.length && !rightChips.length) {
-    return `<div class="route-leg-summary"><span class="route-sum-chip route-sum-empty">${tr('route.emptyLegTip')}</span></div>`;
-  }
-
-  return `
-    <div class="route-leg-summary">
-      <div class="route-sum-left">${leftChips.join('')}</div>
-      <div class="route-sum-right">${rightChips.join('')}</div>
-    </div>`;
+/** Point a leg at a new cover (or none) and delete the previous Storage
+ *  object only once the write has landed — so a failed write never leaves the
+ *  leg referencing a deleted image. Resets coverFocalY either way: a focal
+ *  point tuned for the old photo is meaningless for the new one. */
+async function setLegCover(leg: Leg, url: string | null) {
+  const next: Record<string, unknown> = { ...leg, coverImageUrl: url ?? undefined };
+  delete next.coverFocalY;
+  await routeStore.set(clean(next) as Partial<SchemaLeg> & { id: string });
+  if (leg.coverImageUrl && leg.coverImageUrl !== url) deleteStorageUrl(leg.coverImageUrl);
 }
+
+/* ── Render: list (timeline grouped by country) ─────────────────────────── */
 
 function renderLegCard(leg: Leg): string {
   const days = daysBetween(leg.dateFrom, leg.dateTo);
   const status = legStatus(leg);
+  const statusLabel = status === 'active' ? tr('route.statusActive') : status === 'past' ? tr('route.statusPast') : '';
   return `
     <div class="route-leg status-${status}" data-id="${leg.id}">
       <div class="route-leg-dot"></div>
       <div class="route-leg-card" data-act="open" data-id="${leg.id}" role="button" tabindex="0">
-        <div class="route-leg-header">
-          <div class="route-leg-flag">${leg.flag || '🗺️'}</div>
-          <div class="route-leg-info">
-            <div class="route-leg-city">${esc(leg.city)}</div>
-          </div>
-          <div class="route-leg-dates">
-            <div>${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)}</div>
-            <div class="route-leg-duration">${days} night${days !== 1 ? 's' : ''}</div>
-          </div>
-          <button class="route-leg-del delete-leg" data-act="del" data-id="${leg.id}" title="Remove">✕</button>
+        <div class="route-leg-cover">
+          ${legCoverArt(leg, 'route-leg-cover')}
+          ${statusLabel ? `<span class="route-leg-status">${statusLabel}</span>` : ''}
         </div>
-        ${legSummary(leg)}
+        <div class="route-leg-body">
+          <div class="route-leg-header">
+            <div class="route-leg-title">
+              <span class="route-leg-city">${esc(leg.city)}</span>
+              <span class="route-leg-flag">${leg.flag || ''}</span>
+            </div>
+            <div class="route-leg-dates">
+              <span class="route-leg-range">${fmtDate(leg.dateFrom)} <span class="route-leg-arrow">→</span> ${fmtDate(leg.dateTo)}</span>
+              <span class="route-leg-duration">${nightsLabel(days)}</span>
+            </div>
+            <button class="route-leg-del delete-leg" data-act="del" data-id="${leg.id}" title="Remove" aria-label="Remove">✕</button>
+          </div>
+          ${legSummary(leg)}
+        </div>
       </div>
     </div>`;
 }
@@ -352,88 +332,6 @@ function renderAddForm(): string {
 }
 
 /* ── Render: detail ─────────────────────────────────────────────────────── */
-
-/** Price preferring the structured amount, falling back to legacy text. */
-function renderTransportSection(leg: Leg): string {
-  const t = leg.arrivalTransport;
-  const price = t ? transportPriceLabel(t, baseCurrency()) : '';
-  const bags = t ? baggageLabel(t) : '';
-  const synced = !!t?.expenseId;
-  const body = t ? `
-    <div class="rd-transport">
-      <div class="rd-transport-icon">${TRANSPORT_ICONS[t.type]}</div>
-      <div class="rd-transport-main">
-        <div class="rd-transport-route">${esc(t.from)} → ${esc(t.to)}</div>
-        <div class="rd-transport-meta">
-          ${t.service ? `<span>${esc(t.service)}</span>` : ''}
-          ${t.time ? `<span>🕑 ${esc(t.time)}${t.arrivalTime ? `–${esc(t.arrivalTime)}` : ''}</span>` : ''}
-          ${t.duration ? `<span>⏱ ${esc(t.duration)}</span>` : ''}
-          ${price ? `<span>💰 ${esc(price)}${synced ? ` · ${tr('route.loggedLabel')}` : ''}</span>` : ''}
-        </div>
-        ${(t.depPlace || t.arrPlace) ? `<div class="rd-transport-meta">${t.depPlace ? `<span>📍 ${esc(t.depPlace)}</span>` : ''}${t.arrPlace ? `<span>🏁 ${esc(t.arrPlace)}</span>` : ''}</div>` : ''}
-        ${bags ? `<div class="rd-transport-meta"><span>🎒 ${esc(bags)}</span></div>` : ''}
-        ${t.notes ? `<div class="rd-transport-note">${esc(t.notes)}</div>` : ''}
-      </div>
-      <span class="badge ${t.confirmed ? 'badge-green' : 'badge-gray'}" data-act="toggle-transport-confirmed" role="button" tabindex="0">
-        ${t.confirmed ? '✓ Booked' : 'Not booked'}
-      </span>
-    </div>
-    <div class="rd-section-actions">
-      <button class="btn btn-ghost rd-sm" data-act="edit-transport">Edit transport</button>
-      ${t.priceAmount != null ? `<button class="btn btn-ghost rd-sm" data-act="sync-transport">${synced ? '↻ Update expense' : '＋ Log to expenses'}</button>` : ''}
-      <button class="btn btn-ghost rd-sm rd-danger" data-act="del-transport">Remove</button>
-    </div>` : `
-    <div class="rd-placeholder">
-      <span>${tr('route.noTransport')}</span>
-      <button class="btn btn-primary rd-sm" data-act="edit-transport">${tr('route.btnAddTransport')}</button>
-    </div>`;
-
-  return `
-    <section class="rd-section">
-      <div class="rd-section-head"><h3>${tr('route.sectionTransport')}</h3></div>
-      ${body}
-    </section>`;
-}
-
-function renderStaysSection(leg: Leg): string {
-  const stays = legStays(leg);
-  const rows = stays.map((a, i) => {
-    const price = stayPriceLabel(a, baseCurrency());
-    const canSync = a.priceAmount != null;
-    const synced = !!a.expenseId;
-    return `
-    <div class="rd-stay" data-stay="${a.id ?? i}">
-      <div class="rd-stay-order">${i + 1}</div>
-      <div class="rd-stay-main">
-        <div class="rd-stay-name">${esc(a.name)}</div>
-        <div class="rd-stay-meta">
-          ${(a.checkIn || a.checkOut) ? `<span>📅 ${a.checkIn ? fmtDate(a.checkIn) : '?'} → ${a.checkOut ? fmtDate(a.checkOut) : '?'}</span>` : ''}
-          ${price ? `<span>💰 ${esc(price)}${tr('route.perNight')}${synced ? ` · ${tr('route.loggedLabel')}` : ''}</span>` : ''}
-          ${a.platform ? `<span>🛎️ ${esc(a.platform)}</span>` : ''}
-          ${a.phone ? `<span>📞 ${esc(a.phone)}</span>` : ''}
-          <span class="badge ${a.confirmed ? 'badge-green' : 'badge-gray'}">${a.confirmed ? '✓ Confirmed' : 'Not confirmed'}</span>
-        </div>
-      </div>
-      <div class="rd-stay-actions">
-        ${a.bookingUrl ? `<a class="rd-map-btn" href="${esc(stayBookingHref(a))}" target="_blank" rel="noopener" title="Open the booking on ${esc(a.platform || 'the platform')}">🔗 Order</a>` : ''}
-        <a class="rd-map-btn" href="${esc(mapHref(a, leg))}" target="_blank" rel="noopener" title="Navigate in Google Maps">📍 Navigate</a>
-        ${canSync ? `<button class="rd-icon-btn" data-act="sync-stay" data-stay="${a.id ?? i}" title="${synced ? 'Update the linked expense' : 'Log this stay in Expenses'}">${synced ? '↻ Expense' : '＋ Expense'}</button>` : ''}
-        <button class="rd-icon-btn" data-act="edit-stay" data-stay="${a.id ?? i}" title="Edit">✎</button>
-        <button class="rd-icon-btn rd-danger" data-act="del-stay" data-stay="${a.id ?? i}" title="Remove">✕</button>
-      </div>
-    </div>`;
-  }).join('');
-
-  return `
-    <section class="rd-section">
-      <div class="rd-section-head">
-        <h3>${tr('route.sectionStays')}</h3>
-        <button class="btn btn-ghost rd-sm" data-act="add-stay">${tr('route.btnAddStay')}</button>
-      </div>
-      ${stays.length ? `<div class="rd-stay-list">${rows}</div>`
-        : `<div class="rd-placeholder"><span>${tr('route.noStays')}</span></div>`}
-    </section>`;
-}
 
 /* ── Category helpers ────────────────────────────────────────────────────── */
 
@@ -860,25 +758,35 @@ function renderCityShareBar(leg: Leg): string {
 function renderDetail(leg: Leg): string {
   const days = daysBetween(leg.dateFrom, leg.dateTo);
   const status = legStatus(leg);
+  const hasCover = !!safeUrl(leg.coverImageUrl);
   return `
     <div class="rd-shell status-${status}">
-      <div class="rd-topbar">
-        <button class="btn btn-ghost rd-back" data-act="back">${tr('route.btnBackAllStops')}</button>
-        <div class="rd-title">
-          <span class="rd-title-flag">${leg.flag || '🗺️'}</span>
-          <span class="rd-title-city">${esc(leg.city)}</span>
-          <span class="rd-title-country">${esc(leg.country)}</span>
+      <header class="rd-hero ${hasCover ? 'has-cover' : ''}">
+        ${legCoverArt(leg, 'rd-hero', true)}
+        <div class="rd-hero-shade"></div>
+        <div class="rd-hero-tools">
+          <button class="rd-glass-btn" data-act="open-guide">${tr('route.btnCityGuide')}</button>
+          <button class="rd-glass-btn" data-act="open-compare">${tr('route.btnCompare')}</button>
         </div>
-        <button class="btn btn-ghost rd-sm rd-guide-link" data-act="open-guide">${leg.flag || ''} ${tr('route.btnCityGuide')}</button>
-        <button class="btn btn-ghost rd-sm" data-act="open-compare">${tr('route.btnCompare')}</button>
-      </div>
-      <div class="rd-datebar">
-        <span class="rd-status-pill status-${status}">${status === 'active' ? tr('route.statusActive') : status === 'past' ? tr('route.statusPast') : tr('route.statusUpcoming')}</span>
-        <div class="rd-datebar-dates" id="rd-datebar-dates">
-          <span class="rd-datebar-label">${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)} · ${days} night${days !== 1 ? 's' : ''}</span>
-          <button class="rd-datebar-edit-btn" data-act="edit-dates" title="Edit dates">✎</button>
+        <div class="rd-hero-content">
+          <div class="rd-hero-kicker">
+            <span class="rd-status-pill status-${status}">${status === 'active' ? tr('route.statusActive') : status === 'past' ? tr('route.statusPast') : tr('route.statusUpcoming')}</span>
+            <span>${leg.flag || ''} ${esc(leg.country)}</span>
+          </div>
+          <h2 class="rd-hero-city">${esc(leg.city)}</h2>
+          <div class="rd-hero-dates" id="rd-datebar-dates">
+            <span>${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)} · ${nightsLabel(days)}</span>
+            <button class="rd-hero-edit" data-act="edit-dates" title="Edit dates" aria-label="Edit dates">✎</button>
+          </div>
         </div>
-      </div>
+        <div class="rd-hero-cover-actions">
+          <label class="rd-glass-btn rd-cover-pick">
+            <span class="rd-cover-pick-label">${hasCover ? tr('route.coverChange') : tr('route.coverAdd')}</span>
+            <input type="file" accept="image/*" data-act="cover-file" hidden>
+          </label>
+          ${hasCover ? `<button class="rd-glass-btn rd-glass-btn--icon" data-act="cover-remove" title="${tr('route.coverRemove')}" aria-label="${tr('route.coverRemove')}">✕</button>` : ''}
+        </div>
+      </header>
       ${renderCityShareBar(leg)}
       <div class="rd-detail-layout">
         <div class="rd-detail-grid rd-detail-grid--top">
@@ -890,6 +798,29 @@ function renderDetail(leg: Leg): string {
         ${renderNotesSection(leg)}
       </div>
     </div>`;
+}
+
+/** "← All stops" lives in the page header (same row as the Itinerary title)
+ *  while a leg is open; removed again on the list. */
+function syncHeaderBack(show: boolean) {
+  const header = document.querySelector<HTMLElement>('#view-route .view-header');
+  if (!header) return;
+  let btn = header.querySelector<HTMLButtonElement>('.route-header-back');
+  header.classList.toggle('has-back', show);
+  if (!show) { btn?.remove(); return; }
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.className = 'btn btn-ghost route-header-back';
+    btn.addEventListener('click', backToList);
+    header.appendChild(btn);
+  }
+  btn.textContent = tr('route.btnBackAllStops');
+}
+
+function backToList() {
+  if (_planLeaflet) { _planLeaflet.remove(); _planLeaflet = null; _planLeafletEl = null; }
+  selectedLegId = null;
+  render();
 }
 
 /* ── Render root ────────────────────────────────────────────────────────── */
@@ -909,6 +840,7 @@ function render() {
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   timeline.innerHTML = selected ? renderDetail(selected) : renderTimeline();
   timeline.classList.toggle('is-detail', !!selected);
+  syncHeaderBack(!!selected);
 
   if (selected) wireDetail(timeline, selected);
   else wireList(timeline);
@@ -991,7 +923,7 @@ function wireList(timeline: HTMLElement) {
 
   timeline.querySelectorAll<HTMLElement>('[data-act="open"]').forEach((card) => {
     card.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('[data-act="del"]')) return;
+      if ((e.target as HTMLElement).closest('[data-act="del"], [data-act="stay-link"]')) return;
       selectedLegId = card.dataset.id!;
       addFormOpen = false;
       _calMonth = 0;
@@ -1022,10 +954,29 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     });
   };
 
-  on('back', () => {
-    if (_planLeaflet) { _planLeaflet.remove(); _planLeaflet = null; _planLeafletEl = null; }
-    selectedLegId = null;
-    render();
+  on('back', backToList);
+
+  /* — Cover photo (same Storage path + fields as iOS) — */
+  const coverInput = timeline.querySelector<HTMLInputElement>('[data-act="cover-file"]');
+  coverInput?.addEventListener('change', async () => {
+    const file = coverInput.files?.[0];
+    if (!file) return;
+    const label = timeline.querySelector<HTMLElement>('.rd-cover-pick-label');
+    if (label) label.textContent = tr('route.coverUploading');
+    const current = legs.find(l => l.id === leg.id) ?? leg;
+    try {
+      const url = await uploadLegCover(file, current.tripId ?? currentTripId(), current.id);
+      await setLegCover(current, url);
+    } catch (e) {
+      console.error('[route] cover upload failed:', e);
+      alert(tr('route.coverFailed'));
+      render();
+    }
+  });
+  on('cover-remove', () => {
+    const current = legs.find(l => l.id === leg.id) ?? leg;
+    if (!current.coverImageUrl || !confirm(`${tr('route.coverRemove')}?`)) return;
+    setLegCover(current, null).catch(saveFailed);
   });
   on('open-guide', () => navigateTo('cities'));
   on('open-compare', () => navigateTo('budget', { city: leg.city, dateFrom: leg.dateFrom } satisfies NavIntent));

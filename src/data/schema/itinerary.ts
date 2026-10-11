@@ -149,6 +149,13 @@ export const LegSchema = doc({
   notes: z.string().optional(),                        // legacy single-text notes (back-compat)
   noteCards: z.array(NoteCardSchema).optional(),       // multi-card sticky notes
   order: z.number().default(0),
+  // Cover photo (set from iOS or the web detail hero), stored under
+  // trips/{tripId}/legs/{legId}/. coverFocalY is the vertical crop focus,
+  // 0 (top) … 1 (bottom), default centre. Must stay in the schema: the store's
+  // update() re-parses and overwrites the whole doc, so an unknown key would be
+  // silently stripped by any web edit.
+  coverImageUrl: z.string().optional(),
+  coverFocalY: z.number().optional(),
   // Reserved for the /map globe — lets us plot legs without re-geocoding.
   lat: z.number().optional(),
   lng: z.number().optional(),

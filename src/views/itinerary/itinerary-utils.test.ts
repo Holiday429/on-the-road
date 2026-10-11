@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Leg as SchemaLeg, Clip } from '../../data/schema.ts';
 import {
   stayPriceLabel, transportPriceLabel, stayBookingHref,
-  baggageLabel, clipImages, legPlanTitleSet,
+  baggageLabel, clipImages, legPlanTitleSet, coverPosition, cityHue,
 } from './itinerary-utils.ts';
 
 type Accommodation = NonNullable<SchemaLeg['accommodations']>[number];
@@ -101,5 +101,25 @@ describe('legPlanTitleSet', () => {
   });
   it('returns an empty set for a leg with no plans', () => {
     expect(legPlanTitleSet({} as Leg).size).toBe(0);
+  });
+});
+
+describe('coverPosition', () => {
+  it('defaults to centre', () => {
+    expect(coverPosition({})).toBe('center 50%');
+  });
+  it('maps and clamps the focal point', () => {
+    expect(coverPosition({ coverFocalY: 0.25 })).toBe('center 25%');
+    expect(coverPosition({ coverFocalY: -1 })).toBe('center 0%');
+    expect(coverPosition({ coverFocalY: 3 })).toBe('center 100%');
+  });
+});
+
+describe('cityHue', () => {
+  it('is stable, case/space-insensitive and in range', () => {
+    expect(cityHue(' Berlin ')).toBe(cityHue('berlin'));
+    const h = cityHue('Copenhagen');
+    expect(h).toBeGreaterThanOrEqual(0);
+    expect(h).toBeLessThan(360);
   });
 });

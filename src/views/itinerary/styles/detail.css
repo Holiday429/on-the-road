@@ -8,61 +8,143 @@
   /* Do NOT set overflow-x here — it would clip the timeline's scroll container */
 }
 
-.rd-topbar {
-  display: flex; align-items: center; gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-  flex-wrap: wrap;
+/* "← All stops" sits on the Itinerary title row while a leg is open. */
+#view-route .view-header { position: relative; }
+#view-route .view-header.has-back { padding-right: 150px; }
+.route-header-back {
+  position: absolute;
+  right: 0;
+  top: var(--sp-5);
+  white-space: nowrap;
+}
+
+/* ── Hero: cover photo with the city, status and dates laid over it ─────── */
+.rd-hero {
+  position: relative;
+  min-height: clamp(200px, 24vw, 260px);
+  margin-bottom: var(--sp-5);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  background: var(--surface-3);
+  box-shadow: var(--shadow-md);
+  display: flex; align-items: flex-end;
+}
+.rd-hero-img,
+.rd-hero-fallback {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+}
+.rd-hero-img { object-fit: cover; }
+.rd-hero-fallback {
+  justify-content: flex-end;
+  padding-right: 8%;
+}
+.rd-hero-fallback-flag {
+  font-size: clamp(90px, 12vw, 150px);
+  opacity: 0.85;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,0.18));
+}
+.rd-hero-shade {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(20,16,12,0.72) 0%, rgba(20,16,12,0.28) 45%, rgba(20,16,12,0) 70%);
+}
+.rd-hero:not(.has-cover) .rd-hero-shade {
+  background: linear-gradient(to top, rgba(20,16,12,0.45) 0%, rgba(20,16,12,0) 60%);
+}
+
+.rd-hero-content {
+  position: relative;
+  z-index: 1;
+  padding: var(--sp-6);
+  padding-right: 200px;
+  color: #fff;
   min-width: 0;
 }
-.rd-back { flex-shrink: 0; }
-.rd-title {
-  flex: 1; min-width: 160px;
-  display: flex; align-items: baseline; gap: var(--sp-2);
-  flex-wrap: wrap;
-  overflow: hidden;
-}
-.rd-title-flag { font-size: 22px; flex-shrink: 0; }
-.rd-title-city {
-  font-family: var(--font-ui);
-  font-size: clamp(var(--fs-xl), 3vw, var(--fs-2xl));
-  font-weight: 700;
-  color: var(--ink);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.rd-title-country {
-  font-size: var(--fs-sm); color: var(--ink-muted);
-  white-space: nowrap; flex-shrink: 0;
-}
-.rd-guide-link { flex-shrink: 0; }
-
-.rd-datebar {
-  display: flex; align-items: center; gap: var(--sp-3);
-  font-size: var(--fs-sm);
-  color: var(--ink-soft);
-  margin-bottom: var(--sp-5);
-  flex-wrap: wrap;
-}
-.rd-datebar-dates {
+.rd-hero-kicker {
   display: flex; align-items: center; gap: var(--sp-2);
+  flex-wrap: wrap;
+  font-size: var(--fs-sm); font-weight: 600;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.35);
 }
-.rd-datebar-label { color: var(--ink-soft); }
-.rd-datebar-edit-btn {
-  border: none; background: transparent;
-  color: var(--ink-faint); cursor: pointer;
-  font-size: 14px; padding: 2px 5px;
-  border-radius: var(--r-sm);
-  transition: background var(--dur-fast), color var(--dur-fast);
+.rd-hero-city {
+  font-family: var(--font-ui);
+  font-size: clamp(30px, 4.2vw, 48px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  margin: 6px 0 4px;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.35);
+  overflow-wrap: anywhere;
 }
-.rd-datebar-edit-btn:hover { background: var(--surface-3); color: var(--ink); }
-.rd-status-pill {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  padding: 2px 10px;
+.rd-hero-dates {
+  display: flex; align-items: center; gap: var(--sp-2);
+  font-family: var(--font-ui);
+  font-size: var(--fs-md); font-weight: 600;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.35);
+}
+.rd-hero-edit {
+  border: none; cursor: pointer;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.18);
+  color: #fff; font-size: 13px;
+  backdrop-filter: blur(8px);
+  transition: background var(--dur-fast);
+}
+.rd-hero-edit:hover { background: rgba(255,255,255,0.32); }
+
+.rd-hero-tools,
+.rd-hero-cover-actions {
+  position: absolute;
+  z-index: 1;
+  right: var(--sp-4);
+  display: flex; gap: var(--sp-2);
+}
+.rd-hero-tools { top: var(--sp-4); }
+.rd-hero-cover-actions { bottom: var(--sp-4); }
+
+.rd-glass-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid rgba(255,255,255,0.35);
   border-radius: var(--r-full);
-  background: var(--amber-100); color: var(--amber-700);
+  background: rgba(28,25,23,0.32);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  font-family: var(--font-ui);
+  font-size: var(--fs-sm); font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast);
 }
-.rd-status-pill.status-active { background: var(--success-bg); color: var(--success); }
-.rd-status-pill.status-past   { background: var(--surface-3); color: var(--ink-muted); }
+.rd-glass-btn:hover { background: rgba(28,25,23,0.5); border-color: rgba(255,255,255,0.55); }
+.rd-glass-btn:focus-within,
+.rd-glass-btn:focus-visible { outline: 2px solid var(--amber-300); outline-offset: 2px; }
+.rd-glass-btn--icon { width: 34px; padding: 0; font-size: 12px; }
+
+.rd-status-pill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  background: var(--amber-400); color: #1c1917;
+  text-shadow: none;
+}
+.rd-status-pill.status-active { background: var(--sage-500); color: #fff; }
+.rd-status-pill.status-past   { background: rgba(255,255,255,0.85); color: #44403c; }
+
+@media (max-width: 640px) {
+  #view-route .view-header.has-back { padding-right: 0; }
+  .route-header-back { position: static; margin-top: var(--sp-3); }
+  .rd-hero { min-height: 240px; }
+  .rd-hero-content { padding: var(--sp-5); padding-bottom: 60px; }
+  .rd-hero-cover-actions { left: var(--sp-5); right: auto; }
+}
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
 .rd-section {
@@ -88,6 +170,7 @@
 }
 .rd-detail-grid--top {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
 }
 .rd-detail-layout > .rd-section,
 .rd-detail-grid > .rd-section {
