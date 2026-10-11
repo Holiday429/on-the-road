@@ -99,23 +99,7 @@ function currentViewOrDefault(): ViewId {
   return valid.includes(hash) ? hash : 'today';
 }
 
-// app.html's head script sets data-fast-enter for /app?from=landing, which swaps
-// the Enter card for a lightweight splash (see auth.css). Anything that needs the
-// card back, or any entry that has finished, calls this to drop it.
-function isFastEnter(): boolean {
-  return document.documentElement.dataset.fastEnter === '1';
-}
-
-function leaveFastEnter(): void {
-  delete document.documentElement.dataset.fastEnter;
-  const splash = document.getElementById('boot-splash');
-  if (!splash) return;
-  splash.classList.add('is-leaving');
-  window.setTimeout(() => splash.remove(), 220);
-}
-
 function showLandingState() {
-  leaveFastEnter();
   authScreen?.removeAttribute('hidden');
   authScreen?.classList.remove('is-exiting');
   appRoot?.setAttribute('hidden', '');
@@ -138,22 +122,14 @@ function prepareAppFrame() {
 function enterApp() {
   if (appEntered || !authScreen || !appRoot) return;
   prepareAppFrame();
-  if (isFastEnter()) {
-    // The Enter card was never shown — no card to fade out, so reveal the app
-    // right away and let the splash dissolve over it.
-    appRoot.classList.remove('is-preparing');
+  void appRoot.offsetHeight;
+  appRoot.classList.add('is-entering');
+  authScreen.classList.add('is-exiting');
+  authScreen.addEventListener('animationend', () => {
     authScreen.setAttribute('hidden', '');
-    leaveFastEnter();
-  } else {
-    void appRoot.offsetHeight;
-    appRoot.classList.add('is-entering');
-    authScreen.classList.add('is-exiting');
-    authScreen.addEventListener('animationend', () => {
-      authScreen.setAttribute('hidden', '');
-      authScreen.classList.remove('is-exiting');
-      appRoot.classList.remove('is-preparing', 'is-entering');
-    }, { once: true });
-  }
+    authScreen.classList.remove('is-exiting');
+    appRoot.classList.remove('is-preparing', 'is-entering');
+  }, { once: true });
   appEntered = true;
 
   // Warm the offline cache with every view's chunk. Only meaningful online;
@@ -448,7 +424,6 @@ async function enterAppFlow(): Promise<void> {
       enterApp();
     } catch (fallbackError) {
       console.warn('Guest boot failed:', fallbackError);
-      leaveFastEnter();
       setAuthButtonState('Enter', false);
       setAuthStatus('Could not enter. Try again or sign in from a refreshed page.', true);
     }
