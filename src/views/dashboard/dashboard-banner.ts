@@ -56,7 +56,7 @@ function renderDial(d: Dial, leg: StoredLeg | null, index: number, count: number
   return `
     <div class="td-dial" data-kind="${d.kind}">
       <div class="td-dial-ring" role="img" aria-label="${esc(t('dash.banner.progress'))}">
-        <svg viewBox="0 0 52 52" width="52" height="52" aria-hidden="true">
+        <svg viewBox="0 0 52 52" width="48" height="48" aria-hidden="true">
           <circle class="td-dial-track" cx="26" cy="26" r="${RING_R}" />
           <circle class="td-dial-arc" cx="26" cy="26" r="${RING_R}" stroke-dasharray="${dash} ${RING_C.toFixed(1)}" transform="rotate(-90 26 26)" />
         </svg>
@@ -115,7 +115,7 @@ function renderClock(tz: string, now: Date, caption: string, extra = ''): string
   for (const h of [0, 3, 6, 9]) ticks += `<line x1="22" y1="4.5" x2="22" y2="7" transform="rotate(${h * 30} 22 22)" />`;
   return `
     <div class="td-clock" data-tz="${esc(tz)}">
-      <svg viewBox="0 0 44 44" width="64" height="64" aria-hidden="true">
+      <svg viewBox="0 0 44 44" width="56" height="56" aria-hidden="true">
         <circle class="td-clock-face" cx="22" cy="22" r="20" />
         <g class="td-clock-ticks">${ticks}</g>
         <line class="td-clock-h" data-hand="h" x1="22" y1="22" x2="22" y2="11.5" transform="rotate(${a.hour.toFixed(1)} 22 22)" />

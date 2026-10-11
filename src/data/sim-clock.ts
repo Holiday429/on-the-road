@@ -70,6 +70,11 @@ export function onSimChange(fn: () => void): () => void {
   return () => { _subs.delete(fn); };
 }
 
+/** `YYYY-MM-DD` of the app's current "now" (local). */
+export function nowDateValue(): string {
+  return nowLocalValue().slice(0, 10);
+}
+
 /** `datetime-local` value for the app's current "now". */
 export function nowLocalValue(): string {
   const d = appNow();

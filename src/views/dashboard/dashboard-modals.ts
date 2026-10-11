@@ -29,13 +29,11 @@ export function openDashboardTodoModal(defaultDate: string = todayIso()): void {
     body: `
       <div style="display:flex;flex-direction:column;gap:12px">
         <input class="input" id="db-todo-text" placeholder="${esc(t('dash.todoModal.text'))}" autofocus>
-        <div style="display:flex;gap:8px;align-items:center">
-          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">${esc(t('dash.todoModal.due'))}</label>
-          <input class="input" id="db-todo-due" type="date" value="${esc(defaultDate)}">
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">${esc(t('dash.todoModal.remind'))}</label>
-          <input class="input" id="db-todo-remind" type="datetime-local">
+        <div style="display:flex;gap:8px">
+          <div style="flex:1;min-width:0"><label class="field-label">${esc(t('dash.todoModal.due'))}</label>
+            <input class="input" id="db-todo-due" type="date" value="${esc(defaultDate)}"></div>
+          <div style="flex:1;min-width:0"><label class="field-label">${esc(t('dash.todoModal.remind'))}</label>
+            <input class="input" id="db-todo-remind" type="datetime-local"></div>
         </div>
       </div>`,
     footer: `<button class="btn btn-ghost" id="db-todo-cancel">${esc(t('common.cancel'))}</button>
@@ -215,10 +213,9 @@ export function openAddPlanModal(legs: StoredLeg[], opts: { date: string; title?
     body: `
       <div style="display:flex;flex-direction:column;gap:12px">
         <input class="input" id="ap-title" value="${esc(opts.title ?? '')}" placeholder="${esc(t('dash.plan.name'))}">
-        ${sorted.length > 1 ? `<select class="input" id="ap-leg">${legOptions}</select>` : ''}
         <div style="display:flex;gap:8px;align-items:center">
-          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">${esc(t('dash.plan.day'))}</label>
-          <input class="input" id="ap-date" type="date" value="${esc(opts.date)}">
+          ${sorted.length > 1 ? `<select class="input" id="ap-leg" aria-label="${esc(t('dash.plan.city'))}" style="flex:1;min-width:0">${legOptions}</select>` : ''}
+          <input class="input" id="ap-date" type="date" value="${esc(opts.date)}" aria-label="${esc(t('dash.plan.day'))}" style="flex:1;min-width:0">
         </div>
         <div id="ap-err" class="field-label" style="color:var(--coral-500);margin:0" hidden>${esc(t('dash.plan.noDays'))}</div>
       </div>`,

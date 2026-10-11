@@ -6,15 +6,20 @@
    day's full agenda on the right (today by default, tomorrow one tap away, or
    any day you tap in the month).
 
+   The day panel lists only what you planned to do that day (plan items, in
+   order) under the day's headline and hint. Flights and stays live in the banner,
+   spend and journal in their own cards, to-dos in the To-do card — so none of
+   them repeat here.
+
    All aggregation lives in data/day-agenda.ts — shared with the Calendar view
    and mirroring iOS — so this file is rendering and a little UI state only.
    ========================================================================== */
 
 import { agendaForDay, kindsByDate, addDays, AGENDA_COLORS, type AgendaItem, type AgendaKind, type AgendaSources, type DayAgenda } from '../../data/day-agenda.ts';
-import { entryCover, moodEmoji } from '../journal/shared/utils.ts';
+import { planCategoryIcon } from '../../data/plan-category-icon.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
-import { opensDrawer, openAgendaItemDrawer } from './agenda-drawer.ts';
+import { openAgendaItemDrawer } from './agenda-drawer.ts';
 import { openAddPlanModal } from './dashboard-modals.ts';
 
 type Tab = 'today' | 'tomorrow';
@@ -32,11 +37,13 @@ export function resetAgenda(): void { _tab = 'today'; _sel = null; _month = null
 function resolveDay(today: string, src: AgendaSources): { iso: string; nextUp: boolean } {
   if (_sel) return { iso: _sel, nextUp: false };
   if (_tab === 'tomorrow') return { iso: addDays(today, 1), nextUp: false };
-  // Before/after the trip (or on a free day) "today" is empty — rather than a
-  // blank panel, jump to the next day that actually has something.
-  if (agendaForDay(today, src).isEmpty) {
+  // Before/after the trip (or on a free day) "today" has nothing planned — rather
+  // than a blank panel, jump to the next day that has a plan item. A day that
+  // still has a headline hint (arrival, last day…) stays put.
+  const todayDay = agendaForDay(today, src);
+  if (!todayDay.items.some((i) => i.kind === 'plan') && !dayHint(todayDay, src)) {
     const kinds = kindsByDate(src);
-    const next = [...kinds.keys()].filter((d) => d > today).sort()[0];
+    const next = [...kinds.entries()].filter(([d, k]) => d > today && k.has('plan')).map(([d]) => d).sort()[0];
     if (next) return { iso: next, nextUp: true };
   }
   return { iso: today, nextUp: false };
@@ -103,24 +110,16 @@ export function dayHint(day: DayAgenda, src: AgendaSources): string {
   return '';
 }
 
+/** A planned thing: category icon on the left, then the title — no clock time
+ *  (the order is the order of the day). Opens its details in the side drawer. */
 function renderItem(it: AgendaItem): string {
   const color = AGENDA_COLORS[it.kind];
-  // Plan items and to-dos tick inline; everything else is a plain tap-through.
   const check = it.planRef
     ? `<button type="button" class="ag-check${it.done ? ' is-done' : ''}" data-toggle-plan="${esc(it.planRef.legId)}:${esc(it.planRef.planId)}" aria-label="${esc(t('dash.agenda.toggleDone'))}"></button>`
-    : it.todoId
-    ? `<button type="button" class="ag-check" data-toggle-todo="${esc(it.todoId)}:false" aria-label="${esc(t('dash.todo.markDone'))}"></button>`
-    : '';
-  // Plan / transport / stay open the side drawer; the rest tap through to their page.
-  const nav = opensDrawer(it)
-    ? ` data-agenda-item="${esc(it.id)}" role="button" tabindex="0"`
-    : it.navTo
-    ? ` data-nav="${it.navTo}"${it.intent ? ` data-intent='${esc(JSON.stringify(it.intent))}'` : ''}`
     : '';
   return `
-    <div class="ag-item ag-kind-${it.kind}${it.done ? ' is-done' : ''}"${nav} style="--ag-c:${color}">
-      <span class="ag-time">${esc(it.time ?? '')}</span>
-      <span class="ag-icon">${it.icon}</span>
+    <div class="ag-item ag-kind-${it.kind}${it.done ? ' is-done' : ''}" data-agenda-item="${esc(it.id)}" role="button" tabindex="0" style="--ag-c:${color}">
+      <span class="ag-icon">${planCategoryIcon(it.category)}</span>
       <span class="ag-copy">
         <span class="ag-title">${esc(it.title)}</span>
         ${it.subtitle ? `<span class="ag-sub">${esc(it.subtitle)}</span>` : ''}
@@ -136,24 +135,14 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean, today: s
     : '';
   const hint = dayHint(day, src);
 
-  // The context card is the header's job here, not a row.
-  const rows = day.items.filter((i) => i.kind !== 'context');
+  // Only the day's plan. (Context is the header's job; transport / stay are in the
+  // banner; to-dos, spend and journal have their own cards.)
+  const rows = day.items.filter((i) => i.kind === 'plan');
   const shown = rows.slice(0, MAX_ITEMS);
   const more = rows.length - shown.length;
 
-  const journal = day.journalEntries.length
-    ? `<div class="ag-journal" data-nav="journal">
-         <span class="ag-journal-label">📔</span>
-         ${day.journalEntries.slice(0, 4).map((e) => {
-           const cover = entryCover(e);
-           return `<span class="ag-thumb">${cover ? `<img src="${esc(cover)}" alt="" loading="lazy">` : esc(moodEmoji(e.mood) || '📖')}</span>`;
-         }).join('')}
-         ${day.journalEntries.length > 4 ? `<span class="ag-more-n">+${day.journalEntries.length - 4}</span>` : ''}
-       </div>`
-    : '';
-
-  const body = shown.length || journal
-    ? `<div class="ag-list">${shown.map(renderItem).join('')}</div>${journal}${more > 0 ? `<button type="button" class="ag-more" data-nav="calendar" data-intent='${esc(JSON.stringify({ date: day.iso }))}'>${esc(t('dash.agenda.more', { n: more }))}</button>` : ''}`
+  const body = shown.length
+    ? `<div class="ag-list">${shown.map(renderItem).join('')}</div>${more > 0 ? `<button type="button" class="ag-more" data-nav="calendar" data-intent='${esc(JSON.stringify({ date: day.iso }))}'>${esc(t('dash.agenda.more', { n: more }))}</button>` : ''}`
     : `<div class="ag-none">${esc(t(day.iso === today ? 'dash.agenda.noEventsToday' : 'dash.agenda.empty'))}</div>`;
 
   return `

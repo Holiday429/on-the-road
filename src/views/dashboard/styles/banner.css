@@ -11,7 +11,8 @@
   align-self: stretch;
   max-width: 214px;
 }
-.td-dial-ring { position: relative; width: 52px; height: 52px; flex-shrink: 0; }
+.td-dial-ring { position: relative; width: 48px; height: 48px; flex-shrink: 0; }
+.td-dial-ring svg { width: 48px; height: 48px; }
 .td-dial-ring svg { display: block; }
 .td-dial-track { fill: none; stroke: var(--rule-soft); stroke-width: 4; }
 .td-dial-arc { fill: none; stroke: var(--amber-500, var(--accent)); stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray var(--dur-slow) var(--ease-out); }
@@ -72,7 +73,8 @@ button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
 }
 .td-hero-clocks:hover .td-clock-face { stroke: var(--amber-400); }
 .td-hero-clocks:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-md); }
-.td-clock { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 76px; }
+.td-clock { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 72px; }
+.td-clock svg { width: 56px; height: 56px; }
 .td-clock-face { fill: var(--surface); stroke: var(--rule); stroke-width: 1.5; transition: stroke var(--dur-fast); }
 .td-clock-ticks line { stroke: var(--ink-faint); stroke-width: 1.2; stroke-linecap: round; }
 .td-clock-h, .td-clock-m { stroke: var(--ink); stroke-linecap: round; }

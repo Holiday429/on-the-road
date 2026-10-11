@@ -14,10 +14,10 @@ import { escHtml as esc } from '../../core/utils.ts';
 import { t, getLocale } from '../../core/i18n.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { addDays } from '../../data/day-agenda.ts';
-import { appNow, isSimulating, nowLocalValue, setSimulatedNow } from '../../data/sim-clock.ts';
+import { appNow, isSimulating, nowDateValue, setSimulatedNow } from '../../data/sim-clock.ts';
 import { tripSpan } from '../../data/trip-now.ts';
 
-/** Local time used when a jump picks only a date — morning, so a same-day flight is still ahead. */
+/** Time of day the app starts from when a date is chosen — morning, so a same-day flight is still ahead (then it ticks on). */
 const JUMP_TIME = '10:00';
 
 export type SimJump =
@@ -42,9 +42,10 @@ function fmtDate(iso: string): string {
   try { return new Date(iso + 'T00:00:00').toLocaleDateString(getLocale(), { year: 'numeric', month: 'short', day: 'numeric' }); }
   catch { return iso; }
 }
+/** The chosen day, no clock time — the control works in whole days. */
 function fmtNow(): string {
-  try { return appNow().toLocaleString(getLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-  catch { return nowLocalValue(); }
+  try { return appNow().toLocaleDateString(getLocale(), { year: 'numeric', month: 'short', day: 'numeric' }); }
+  catch { return nowDateValue(); }
 }
 
 /** The greeting-row control: the pill while looking back, otherwise the 🕒 button. */
@@ -76,7 +77,7 @@ function openSimDrawer(trip: { startDate: string; endDate: string } | null, legs
     body: `
       <label class="field-label" for="sim-dt">${esc(t('dash.sim.pick'))}</label>
       <div class="td-sim-row">
-        <input class="input" id="sim-dt" type="datetime-local" value="${esc(nowLocalValue())}">
+        <input class="input" id="sim-dt" type="date" value="${esc(nowDateValue())}">
         <button type="button" class="btn btn-primary" data-sim-apply>${esc(t('dash.sim.apply'))}</button>
       </div>
       ${jumps.length ? `
@@ -91,7 +92,7 @@ function openSimDrawer(trip: { startDate: string; endDate: string } | null, legs
   const apply = (local: string | null) => { if (setSimulatedNow(local)) closeDrawer(); };
   d.root.querySelector('[data-sim-apply]')?.addEventListener('click', () => {
     const v = d.root.querySelector<HTMLInputElement>('#sim-dt')?.value;
-    if (v) apply(v);
+    if (v) apply(`${v}T${JUMP_TIME}`);
   });
   d.root.querySelectorAll<HTMLElement>('[data-sim-to]').forEach((b) =>
     b.addEventListener('click', () => apply(`${b.dataset.simTo}T${JUMP_TIME}`)));

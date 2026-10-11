@@ -2,9 +2,9 @@
    On the Road · Dashboard — Pack widget
    --------------------------------------------------------------------------
    Always on. Near a flight with a baggage limit it shows weight vs limit;
-   otherwise what you're carrying and the latest bought/lost items. The corner
-   + / − log a purchase or a loss; the card opens the full change log in the
-   side drawer. The model lives in data/pack-summary.ts.
+   otherwise what you're carrying and the latest bought/lost items. Two clear
+   buttons low in the card log a purchase or a loss; the corner link (and the card
+   itself) opens the full change log and the same actions in the side drawer. The model lives in data/pack-summary.ts.
    ========================================================================== */
 
 import { openDrawer, closeDrawer } from '../../core/drawer.ts';
@@ -17,6 +17,7 @@ import { packSummary, packChanges, type PackChange } from '../../data/pack-summa
 import { formatKg } from '../../data/packing-formula.ts';
 import { openPackBagChangeModal } from './dashboard-modals.ts';
 
+const piecesLabel = (n: number) => (n === 1 ? t('dash.pack.piece1') : t('dash.pack.pieces', { n }));
 const kg = (g: number) => (g / 1000).toFixed(Math.abs(g) % 1000 === 0 ? 0 : 1);
 
 function chip(c: PackChange): string {
@@ -40,10 +41,11 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
       </div>`;
   }
 
-  const buttons = legs.length ? `
-    <div class="td-pk-btns">
-      <button type="button" class="td-plus" data-pk-action="acquired" title="${esc(t('dash.pack.bought'))}" aria-label="${esc(t('dash.pack.bought'))}">+</button>
-      <button type="button" class="td-plus td-plus--minus" data-pk-action="left" title="${esc(t('dash.pack.lost'))}" aria-label="${esc(t('dash.pack.lost'))}">−</button>
+  const details = `<button type="button" class="td-link" data-pk-details>${esc(t('dash.pack.details'))}</button>`;
+  const actions = legs.length ? `
+    <div class="td-pk-actions">
+      <button type="button" class="btn btn-primary td-pk-act" data-pk-action="acquired">＋ ${esc(t('dash.pack.boughtIn'))}</button>
+      <button type="button" class="btn btn-ghost td-pk-act" data-pk-action="left">－ ${esc(t('dash.pack.lostIn'))}</button>
     </div>` : '';
 
   let body: string;
@@ -61,14 +63,15 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
   } else {
     body = `
       <div class="td-pk-weight">${kg(s.carriedG)}<small> kg</small></div>
-      <div class="td-pk-allowance">${esc(t('dash.pack.pieces', { n: s.pieces }))}</div>
+      <div class="td-pk-allowance">${esc(piecesLabel(s.pieces))}</div>
       ${s.recent.length ? `<div class="td-pk-recent">${s.recent.map(chip).join('')}</div>` : ''}`;
   }
 
   return `
     <div class="td-widget td-w-pack td-w-pack--open" data-pack-open tabindex="0" role="button" aria-label="${esc(t('dash.widget.pack'))}">
-      ${head(buttons)}
+      ${head(details)}
       ${body}
+      ${actions}
     </div>`;
 }
 
@@ -77,7 +80,7 @@ function openPackDrawer(list: PackList, legs: StoredLeg[], today: string, trigge
   const changes = packChanges(list, legs).reverse();
   const summary = s.kind === 'near'
     ? `${kg(s.carriedG)} / ${kg(s.limitG)} kg · ${s.over ? t('dash.pack.overBy', { kg: kg(-s.remainG) }) : t('dash.pack.left', { kg: kg(s.remainG) })}`
-    : s.kind === 'idle' ? `${formatKg(s.carriedG)} · ${t('dash.pack.pieces', { n: s.pieces })}` : '';
+    : s.kind === 'idle' ? `${formatKg(s.carriedG)} · ${piecesLabel(s.pieces)}` : '';
   const d = openDrawer({
     title: `🎒 ${t('dash.widget.pack')}`,
     subtitle: summary || undefined,
@@ -118,7 +121,7 @@ export function wirePack(body: HTMLElement, get: () => { list: PackList | null |
     const { list, legs, today } = get();
     if (list) openPackDrawer(list, legs, today, card);
   };
-  card?.addEventListener('click', (e) => { if (!(e.target as HTMLElement).closest('button')) open(); });
+  card?.addEventListener('click', (e) => { if (!(e.target as HTMLElement).closest('[data-pk-action]')) open(); });
   card?.addEventListener('keydown', (e) => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); open(); }
   });

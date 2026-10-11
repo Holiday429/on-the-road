@@ -53,6 +53,8 @@ export interface AgendaItem {
   /** Emoji glyph. */
   icon: string;
   details: AgendaDetail[];
+  /** Plan items: the itinerary category id ('food', 'museum', …), if any. */
+  category?: string;
   done?: boolean;
   legId?: string;
   /** Where a click should go. */
@@ -245,7 +247,7 @@ function planItems(legs: StoredLeg[], iso: string): AgendaItem[] {
       out.push({
         id: `plan-${p.id}`, kind: 'plan', time: null, title: p.title,
         subtitle: [blank(p.category), leg.city].filter(Boolean).join(' · '),
-        icon: p.done ? '✅' : '📌', details, done: p.done, legId: leg.id, subRank: 0,
+        icon: p.done ? '✅' : '📌', details, category: blank(p.category) ?? undefined, done: p.done, legId: leg.id, subRank: 0,
         navTo: 'route', intent: { legId: leg.id }, planRef: { legId: leg.id, planId: p.id },
       });
     }

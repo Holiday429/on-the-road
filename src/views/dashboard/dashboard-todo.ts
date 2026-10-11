@@ -48,8 +48,12 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
       </div>`;
   }).join('');
 
+  // Nothing open: say so, centred, and ask the one question that gets a first item written.
   const empty = !shown.length
-    ? `<div class="td-todo-empty">${esc(t('dash.todo.empty'))}${total ? ' 🎉' : ''}</div>` : '';
+    ? `<div class="td-todo-empty">
+         <div class="td-todo-empty-title">${esc(t('dash.todo.empty'))}</div>
+         <button type="button" class="td-todo-prompt" data-todo-add-modal>${esc(t('dash.todo.prompt'))}</button>
+       </div>` : '';
 
   return `
     <div class="td-widget td-w-todo">

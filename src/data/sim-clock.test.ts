@@ -74,3 +74,10 @@ describe('?sim URL param', () => {
     expect(sim.isSimulating()).toBe(false);
   });
 });
+
+describe('nowDateValue', () => {
+  it('is the simulated day, date only', () => {
+    sim.setSimulatedNow('2026-08-06T10:00');
+    expect(sim.nowDateValue()).toBe('2026-08-06');
+  });
+});

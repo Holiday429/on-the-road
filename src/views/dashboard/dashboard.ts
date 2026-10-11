@@ -638,11 +638,11 @@ function wire(body: HTMLElement): void {
   });
 
   // Todo calendar-icon button → full modal with due date.
-  body.querySelector<HTMLButtonElement>('[data-todo-add-modal]')?.addEventListener('click', e => {
+  body.querySelectorAll<HTMLButtonElement>('[data-todo-add-modal]').forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation();
     e.preventDefault();
     openDashboardTodoModal(shownAgendaDay(agendaSources(), todayIso()));
-  });
+  }));
 
   // Where-to-go: add to itinerary button
   body.querySelectorAll<HTMLButtonElement>('[data-wtg-add]').forEach(btn => {

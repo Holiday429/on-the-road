@@ -64,7 +64,7 @@
   background: linear-gradient(135deg, var(--amber-50) 0%, var(--surface) 75%);
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-2xl);
-  padding: var(--sp-4) var(--sp-6);
+  padding: var(--sp-2) var(--sp-6);
   margin-bottom: var(--sp-4);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
@@ -77,7 +77,7 @@
 .td-hero-weather-sq {
   flex-shrink: 0;
   align-self: stretch;
-  width: 104px;                       /* ≈ the banner's height, so the block reads as a square */
+  width: 96px;                        /* ≈ the banner's height, so the block reads as a square */
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 6px;
   border-right: 1px solid var(--rule-soft);
@@ -85,7 +85,7 @@
   margin-right: 0;
 }
 .td-hero-weather-sq--loading { opacity: 0.45; }
-.td-hero-weather-icon { font-size: 42px; line-height: 1; }
+.td-hero-weather-icon { font-size: 38px; line-height: 1; }
 .td-hero-weather-temps {
   display: flex; align-items: baseline; gap: 4px;
 }

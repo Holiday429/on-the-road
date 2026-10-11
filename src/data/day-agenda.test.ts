@@ -89,3 +89,12 @@ describe('kindsByDate', () => {
     expect([...m.get('2026-08-13')!].sort()).toEqual(['journal', 'plan', 'spend', 'stay']);
   });
 });
+
+describe('plan item category', () => {
+  it('carries the itinerary category on plan items (blank → undefined)', () => {
+    const plans = agendaForDay('2026-08-13', src()).items.filter((i) => i.kind === 'plan');
+    expect(plans.map((p) => [p.title, p.category])).toEqual([['Coffee', 'cafe'], ['Pantheon', 'museum']]);
+    const blank = { ...rome, plans: [{ id: 'p9', title: 'Walk', category: '', dayId: 'day-y', done: false, order: 0 }] };
+    expect(agendaForDay('2026-08-13', src({ legs: [blank, lisbon] })).items.find((i) => i.kind === 'plan')!.category).toBeUndefined();
+  });
+});
