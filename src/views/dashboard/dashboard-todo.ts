@@ -15,7 +15,7 @@ import { openTodosFor } from '../../data/todo-order.ts';
 import { todoStore } from '../../data/stores/todo-store.ts';
 import { scheduleAllNotifications } from '../../core/notifications.ts';
 
-const SHOWN = 5;
+const SHOWN = 4;
 
 /* The add row's picks live here (the dashboard re-renders wholesale): the chosen due
    date (undefined = the day being shown) and the reminder. The typed text itself is
@@ -47,7 +47,7 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
   const dayTotal = dayTodos.length;
   const dayDone = dayTodos.filter((td) => td.done).length;
   const frac = dayTotal ? dayDone / dayTotal : 0;
-  // 4 rows + the add row keeps the card the height it was.
+  // 3 rows + the add row keeps the card short.
   const shown = open.slice(0, SHOWN - 1);
   const more = open.length - shown.length;
 
@@ -72,7 +72,7 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
       <span class="td-todo-plus" aria-hidden="true">+</span>
       <textarea class="td-todo-add-input" rows="1" placeholder="${esc(t('dash.todo.addRow'))}" aria-label="${esc(t('dash.todo.addRow'))}" autocomplete="off"></textarea>
       <span class="td-todo-new-tools">
-        <button type="button" class="td-ic${_due !== undefined ? ' is-set' : ''}" data-todo-pick="due" title="${esc(t('dash.todoModal.due'))}"><span aria-hidden="true">📅</span><span class="td-ic-v">${esc(shortDate(due))}</span></button>
+        <button type="button" class="td-ic${_due !== undefined ? ' is-set' : ''}" data-todo-pick="due" title="${esc(`${t('dash.todoModal.due')} · ${shortDate(due)}`)}" aria-label="${esc(`${t('dash.todoModal.due')} · ${shortDate(due)}`)}"><span aria-hidden="true">📅</span></button>
         <button type="button" class="td-ic${_remind ? ' is-set' : ''}" data-todo-pick="remind" title="${esc(t('dash.todoModal.remind'))}"><span aria-hidden="true">🔔</span>${remindShort ? `<span class="td-ic-v">${esc(remindShort)}</span>` : ''}</button>
         <input class="td-ic-input" type="date" data-todo-due value="${esc(due)}" tabindex="-1" aria-hidden="true">
         <input class="td-ic-input" type="datetime-local" data-todo-remind value="${esc(_remind)}" tabindex="-1" aria-hidden="true">

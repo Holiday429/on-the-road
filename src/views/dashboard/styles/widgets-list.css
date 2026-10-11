@@ -3,7 +3,7 @@
 .td-todo-list { display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .td-todo-row {
   display: flex; align-items: center; gap: var(--sp-3);
-  padding: 6px var(--sp-3);
+  padding: 4px var(--sp-3);
   border-radius: var(--r-md); background: var(--surface-3);
   transition: background var(--dur-fast);
 }
@@ -141,7 +141,7 @@
 .td-plus--lg { width: 40px; height: 40px; font-size: 22px; }
 
 /* The add row: a + where the tick goes, then a bare input; the date / reminder icons show while typing */
-.td-todo-newrow { background: transparent; border: 1.5px dashed var(--rule); flex-wrap: wrap; align-items: flex-start; row-gap: 6px; }
+.td-todo-newrow { background: transparent; border: 1.5px dashed var(--rule); flex-wrap: wrap; align-items: flex-start; row-gap: 4px; }
 .td-todo-newrow:focus-within { border-color: var(--amber-400); background: var(--surface); }
 .td-todo-plus {
   flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
@@ -153,12 +153,12 @@
 }
 .td-todo-newrow .td-todo-plus { margin-top: 1px; }
 .td-todo-newrow .td-todo-add-input::placeholder { font-size: var(--fs-sm); color: var(--ink-faint); }
-.td-todo-new-tools { display: none; align-items: center; gap: 4px; flex: 0 0 100%; padding-left: 26px; box-sizing: border-box; position: relative; }
+.td-todo-new-tools { display: none; align-items: center; gap: 4px; flex: 0 0 100%; justify-content: flex-end; box-sizing: border-box; position: relative; }
 .td-todo-newrow:focus-within .td-todo-new-tools,
 .td-todo-newrow:has(.td-todo-add-input:not(:placeholder-shown)) .td-todo-new-tools,
-.td-todo-newrow.has-meta .td-todo-new-tools { display: inline-flex; }
+.td-todo-newrow.has-meta .td-todo-new-tools { display: flex; }
 .td-ic {
-  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: var(--r-full); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; min-width: 24px; padding: 0 6px; border-radius: var(--r-full); cursor: pointer;
   background: var(--surface); border: 1.5px solid var(--surface-4); font-size: 12px; line-height: 1; color: var(--ink-soft);
   transition: border-color var(--dur-fast), background var(--dur-fast);
 }
@@ -166,5 +166,5 @@
 .td-ic.is-set { background: var(--amber-50); border-color: var(--amber-400); color: var(--ink); }
 .td-ic-v { font-size: 11px; font-weight: 600; white-space: nowrap; }
 .td-ic-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.td-todo-go { width: 26px; height: 26px; border-radius: var(--r-full); background: var(--amber-400, var(--accent)); color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; }
+.td-todo-go { width: 24px; height: 24px; border-radius: var(--r-full); background: var(--amber-400, var(--accent)); color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; }
 .td-todo-go:hover { background: var(--amber-500, var(--accent)); }

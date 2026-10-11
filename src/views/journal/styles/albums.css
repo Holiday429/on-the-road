@@ -8,6 +8,10 @@
 .journal-album-hint { font-size: var(--fs-sm); color: var(--ink-faint); margin: 2px 0 0; }
 .journal-album-detail-actions { display: flex; gap: var(--sp-2); }
 .journal-album-detail-title { margin: 0; font-size: var(--fs-lg); }
+/* Back arrow, title and count share one line (the Dashboard's album drawer) */
+.journal-album-bar { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.journal-album-bar .journal-album-detail-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.journal-album-bar .journal-category-meta { flex-shrink: 0; }
 
 .journal-album-grid {
   display: grid;

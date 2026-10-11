@@ -1,7 +1,6 @@
 /* ── Agenda (calendar + schedule) ─────────────────────────────────────────────
-   Left: compact Monday-first month with up to 3 kind-coloured dots per day.
-   Right: the selected day. Kind colours come from AGENDA_COLORS (day-agenda.ts),
-   the same hues iOS borrows from the expense-category chart. */
+   Left: compact Monday-first month.
+   Right: the selected day. */
 .td-w-agenda .td-widget-header { gap: var(--sp-3); }
 .td-w-agenda .td-widget-label { margin-right: auto; }
 
@@ -17,21 +16,21 @@
 
 /* Month */
 .ag-month { min-width: 0; }
-.ag-month-nav { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); margin-bottom: var(--sp-1); }
+.ag-month-nav { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); margin-bottom: 2px; }
 /* ‹ title › stay together in the middle — not pinned to the grid's edges, so a
    stray tap near the corner can't page the month. Fixed title width keeps the
    arrows from shifting between "May 2026" and "September 2026". */
 .ag-month-title { min-width: 124px; text-align: center; font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
 .ag-nav {
-  width: 26px; height: 26px; border-radius: var(--r-full); background: var(--surface-3); color: var(--ink-soft);
+  width: 24px; height: 24px; border-radius: var(--r-full); background: var(--surface-3); color: var(--ink-soft);
   font-size: 16px; line-height: 1; cursor: pointer; transition: background var(--dur-fast);
 }
 .ag-nav:hover { background: var(--amber-100); color: var(--amber-800, var(--ink)); }
-.ag-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 2px; }
-.ag-dow { text-align: center; font-size: 10px; font-weight: 600; color: var(--ink-faint); padding-bottom: 4px; }
+.ag-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 1px; }
+.ag-dow { text-align: center; font-size: 10px; font-weight: 600; color: var(--ink-faint); padding-bottom: 2px; }
 .ag-cell {
-  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px;
-  height: 30px; padding-top: 0; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 24px; padding-top: 0; background: none; cursor: pointer;
 }
 /* The circle is the digit's own box, so a ring/fill always wraps the number. */
 .ag-num {
@@ -43,8 +42,6 @@
 .ag-cell.is-today .ag-num { box-shadow: inset 0 0 0 1.5px var(--amber-400); font-weight: 700; color: var(--ink); }
 .ag-cell.is-sel .ag-num { background: var(--amber-300, var(--amber-200)); box-shadow: none; font-weight: 700; color: var(--ink); }
 .ag-cell.is-today.is-sel .ag-num { box-shadow: inset 0 0 0 1.5px var(--amber-500); }
-.ag-dots { display: flex; gap: 2px; height: 4px; }
-.ag-dots i { width: 4px; height: 4px; border-radius: 50%; }
 
 /* Day panel */
 .ag-day { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; align-self: stretch; }
@@ -58,7 +55,7 @@
 /* One plan item — same look as the Itinerary's Plan board: category colour, a tick in front. */
 .ag-item {
   display: flex; align-items: center; gap: var(--sp-2);
-  padding: 6px 8px; border-radius: var(--r-md); background: var(--ag-bg, #ebebeb);
+  padding: 4px 8px; border-radius: var(--r-md); background: var(--ag-bg, #ebebeb);
   color: #2b2b2b;                         /* the pastel category colours are light in both themes */
   cursor: pointer; transition: filter var(--dur-fast), opacity var(--dur-fast);
 }
@@ -82,7 +79,7 @@
 .ag-more:hover { text-decoration: underline; }
 /* + sits under the list, at the bottom of the day panel */
 .ag-add {
-  margin-top: auto; align-self: stretch; padding: 7px 10px; border-radius: var(--r-md); cursor: pointer;
+  margin-top: auto; align-self: stretch; padding: 5px 10px; border-radius: var(--r-md); cursor: pointer;
   background: var(--amber-400, var(--accent)); color: var(--ink);
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; text-align: center;
   transition: background var(--dur-fast), transform var(--dur-fast);

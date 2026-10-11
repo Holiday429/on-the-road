@@ -31,6 +31,7 @@ export async function openJournalAlbumDrawer(trigger: HTMLElement | null): Promi
     getEntries: () => entries,
     getLegs: () => legs,
     getAlbums: () => albums,
+    albumDrawer: true,
     requestRender: () => paint(),
   });
 

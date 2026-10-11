@@ -41,6 +41,8 @@ interface CaptureControllerDeps {
   getEntries: () => StoredJournalEntry[];
   getLegs: () => StoredLeg[];
   getAlbums?: () => StoredJournalAlbum[];
+  /** The Dashboard's album drawer: existing albums only, opened as a feed, no editing controls. */
+  albumDrawer?: boolean;
   requestRender: () => void;
 }
 
@@ -107,6 +109,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       legs: deps.getLegs(),
       savedGuidePlaces: savedGuideCards(),
       albums: deps.getAlbums?.() ?? [],
+      albumDrawer: deps.albumDrawer,
     });
   }
 

@@ -60,6 +60,36 @@ export function renderSimControl(): string {
   return `<button type="button" class="td-sim td-sim--btn" data-sim-open title="${esc(t('dash.sim.title'))}" aria-label="${esc(t('dash.sim.title'))}">🕒</button>`;
 }
 
+function shiftMonth(key: string, delta: number): string {
+  const [y, m] = key.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/** A Monday-first month grid in the Dashboard agenda's look, with `picked` highlighted. */
+function simCalendar(monthKey: string, picked: string): string {
+  const [y, m] = monthKey.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const days = new Date(y, m, 0).getDate();
+  const offset = (first.getDay() + 6) % 7;
+  const today = nowDateValue();
+  const hdr = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<span class="ag-dow">${d}</span>`).join('');
+  let cells = '<span class="ag-cell ag-empty"></span>'.repeat(offset);
+  for (let d = 1; d <= days; d++) {
+    const cur = `${monthKey}-${String(d).padStart(2, '0')}`;
+    const cls = ['ag-cell', cur === today ? 'is-today' : '', cur === picked ? 'is-sel' : ''].filter(Boolean).join(' ');
+    cells += `<button type="button" class="${cls}" data-sim-day="${cur}"><span class="ag-num">${d}</span></button>`;
+  }
+  const title = first.toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' });
+  return `
+    <div class="ag-month-nav">
+      <button type="button" class="ag-nav" data-sim-month="-1" aria-label="${esc(t('dash.agenda.prevMonth'))}">‹</button>
+      <div class="ag-month-title">${esc(title)}</div>
+      <button type="button" class="ag-nav" data-sim-month="1" aria-label="${esc(t('dash.agenda.nextMonth'))}">›</button>
+    </div>
+    <div class="ag-grid">${hdr}${cells}</div>`;
+}
+
 function jumpLabel(j: SimJump): string {
   switch (j.kind) {
     case 'before': return t('dash.sim.before');
@@ -71,13 +101,15 @@ function jumpLabel(j: SimJump): string {
 
 function openSimDrawer(trip: { startDate: string; endDate: string } | null, legs: StoredLeg[], trigger: HTMLElement | null): void {
   const jumps = simJumps(trip, legs);
+  let picked = nowDateValue();
+  let viewMonth = picked.slice(0, 7);
   const d = openDrawer({
     title: `🕒 ${t('dash.sim.title')}`,
     subtitle: isSimulating() ? t('dash.sim.on', { when: fmtNow() }) : t('dash.sim.off'),
     body: `
-      <label class="field-label" for="sim-dt">${esc(t('dash.sim.pick'))}</label>
+      <div class="field-label">${esc(t('dash.sim.pick'))}</div>
+      <div class="td-sim-cal" data-sim-cal>${simCalendar(viewMonth, picked)}</div>
       <div class="td-sim-row">
-        <input class="input" id="sim-dt" type="date" value="${esc(nowDateValue())}">
         <button type="button" class="btn btn-primary" data-sim-apply>${esc(t('dash.sim.apply'))}</button>
       </div>
       ${jumps.length ? `
@@ -90,10 +122,19 @@ function openSimDrawer(trip: { startDate: string; endDate: string } | null, legs
     returnFocus: trigger,
   });
   const apply = (local: string | null) => { if (setSimulatedNow(local)) closeDrawer(); };
-  d.root.querySelector('[data-sim-apply]')?.addEventListener('click', () => {
-    const v = d.root.querySelector<HTMLInputElement>('#sim-dt')?.value;
-    if (v) apply(`${v}T${JUMP_TIME}`);
+  // The month grid is the app's own (the browser's date popup is blue and can't be themed).
+  const cal = d.root.querySelector<HTMLElement>('[data-sim-cal]');
+  cal?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const nav = target.closest<HTMLElement>('[data-sim-month]');
+    const day = target.closest<HTMLElement>('[data-sim-day]');
+    if (nav) viewMonth = shiftMonth(viewMonth, Number(nav.dataset.simMonth));
+    else if (day) picked = day.dataset.simDay!;
+    else return;
+    // eslint-disable-next-line no-restricted-syntax -- audited: digits and a localized month name only
+    cal.innerHTML = simCalendar(viewMonth, picked);
   });
+  d.root.querySelector('[data-sim-apply]')?.addEventListener('click', () => apply(`${picked}T${JUMP_TIME}`));
   d.root.querySelectorAll<HTMLElement>('[data-sim-to]').forEach((b) =>
     b.addEventListener('click', () => apply(`${b.dataset.simTo}T${JUMP_TIME}`)));
   d.root.querySelector('[data-sim-reset]')?.addEventListener('click', () => apply(null));

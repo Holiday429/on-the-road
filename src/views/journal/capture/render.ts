@@ -64,6 +64,9 @@ interface CaptureRenderModel {
   legs: StoredLeg[];
   savedGuidePlaces?: Array<{ id: string; title: string; type: string }>;
   albums: StoredJournalAlbum[];
+  /** Shown inside the Dashboard's side drawer: only the existing albums, opened as a feed,
+   *  with no create / rename / delete controls. */
+  albumDrawer?: boolean;
 }
 
 
@@ -561,11 +564,13 @@ function renderAlbumsView(model: CaptureRenderModel): string {
   const open = model.state.openAlbumId
     ? model.albums.find((a) => a.id === model.state.openAlbumId)
     : undefined;
-  if (open) return renderAlbumDetail(open, model.allEntries);
+  if (open) return model.albumDrawer
+    ? renderAlbumFeed(open, model.allEntries, model.state.readingId)
+    : renderAlbumDetail(open, model.allEntries);
 
   return `
     <div class="journal-album-shell">
-      <div class="journal-album-head">
+      ${model.albumDrawer ? '' : `<div class="journal-album-head">
         <div>
           <div class="journal-section-kicker">Albums</div>
           <p class="journal-album-hint">先随手记，之后把相关的几条放进一个 album。</p>
@@ -576,9 +581,9 @@ function renderAlbumsView(model: CaptureRenderModel): string {
           </button>
           <button class="btn btn-ghost" data-album-create type="button">＋ 新建 album</button>
         </div>
-      </div>
+      </div>`}
 
-      ${renderTidySuggestions(model)}
+      ${model.albumDrawer ? '' : renderTidySuggestions(model)}
 
       ${model.albums.length ? `
         <div class="journal-album-grid">
@@ -606,11 +611,11 @@ function renderAlbumsView(model: CaptureRenderModel): string {
         </div>
       ` : `
         <div class="journal-album-empty">
-          还没有 album。到 Gallery 里选几张，或点上面新建一个。
+          ${model.albumDrawer ? '还没有 album。' : '还没有 album。到 Gallery 里选几张，或点上面新建一个。'}
         </div>
       `}
 
-      ${renderAutoGroups(model.tagGroups)}
+      ${model.albumDrawer ? '' : renderAutoGroups(model.tagGroups)}
     </div>
   `;
 }
@@ -659,6 +664,25 @@ function albumEntries(album: StoredJournalAlbum, all: StoredJournalEntry[]): Sto
   return album.entryIds
     .map((id) => all.find((e) => e.id === id))
     .filter((e): e is StoredJournalEntry => Boolean(e));
+}
+
+/** An album opened in the Dashboard drawer: back arrow, title and count on one line, then
+ *  the entries as the Journal's feed. Read-only — renaming, deleting and removing entries
+ *  stay on the Journal page. */
+function renderAlbumFeed(album: StoredJournalAlbum, all: StoredJournalEntry[], readingId: string | null): string {
+  const entries = albumEntries(album, all);
+  return `
+    <div class="journal-album-shell">
+      <div class="journal-album-bar">
+        <button class="journal-icon-btn" data-album-back type="button" title="Albums" aria-label="Albums">←</button>
+        <h3 class="journal-album-detail-title">${escHtml(album.emoji)} ${escHtml(album.title)}</h3>
+        <span class="journal-category-meta">${entries.length} entries</span>
+      </div>
+      ${entries.length
+        ? renderMagazineFeed(entries, readingId)
+        : '<div class="journal-album-empty">这个 album 还是空的。</div>'}
+    </div>
+  `;
 }
 
 function renderAlbumDetail(album: StoredJournalAlbum, all: StoredJournalEntry[]): string {

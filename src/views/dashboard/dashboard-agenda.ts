@@ -15,7 +15,7 @@
    and mirroring iOS — so this file is rendering and a little UI state only.
    ========================================================================== */
 
-import { agendaForDay, kindsByDate, addDays, AGENDA_COLORS, type AgendaItem, type AgendaKind, type AgendaSources, type DayAgenda } from '../../data/day-agenda.ts';
+import { agendaForDay, kindsByDate, addDays, type AgendaItem, type AgendaSources, type DayAgenda } from '../../data/day-agenda.ts';
 import { categoryById } from '../itinerary/itinerary-shared.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { escHtml as esc } from '../../core/utils.ts';
@@ -28,8 +28,7 @@ let _tab: Tab = 'today';
 let _sel: string | null = null;      // explicit day picked from the month grid
 let _month: string | null = null;    // 'YYYY-MM' the user paged to; null = follow the shown day
 
-const MAX_ITEMS = 4;   // the rest sit behind "+N more" — keeps the card as short as the month grid
-const DOT_ORDER: AgendaKind[] = ['transport', 'stay', 'plan', 'todo', 'spend', 'journal'];
+const MAX_ITEMS = 3;   // the rest sit behind "+N more" — keeps the card as short as the month grid
 
 /** Reset UI state (new trip / re-init) so a stale selection can't leak across. */
 export function resetAgenda(): void { _tab = 'today'; _sel = null; _month = null; }
@@ -63,7 +62,7 @@ function shiftMonth(key: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-function renderMonth(monthKey: string, today: string, selected: string, kinds: Map<string, Set<AgendaKind>>): string {
+function renderMonth(monthKey: string, today: string, selected: string): string {
   const [y, m] = monthKey.split('-').map(Number);
   const first = new Date(y, m - 1, 1);
   const days = new Date(y, m, 0).getDate();
@@ -72,15 +71,9 @@ function renderMonth(monthKey: string, today: string, selected: string, kinds: M
   let cells = '<span class="ag-cell ag-empty"></span>'.repeat(offset);
   for (let d = 1; d <= days; d++) {
     const cur = `${monthKey}-${String(d).padStart(2, '0')}`;
-    const set = kinds.get(cur);
-    const dots = set
-      ? DOT_ORDER.filter((k) => set.has(k)).slice(0, 3)
-          .map((k) => `<i style="background:${AGENDA_COLORS[k]}"></i>`).join('')
-      : '';
     const cls = ['ag-cell', cur === today ? 'is-today' : '', cur === selected ? 'is-sel' : ''].filter(Boolean).join(' ');
-    // The ring / fill sits on .ag-num (a fixed circle around the digits), with
-    // the event dots underneath — so the highlight always wraps the number.
-    cells += `<button type="button" class="${cls}" data-agenda-day="${cur}"><span class="ag-num">${d}</span><span class="ag-dots">${dots}</span></button>`;
+    // The ring / fill sits on .ag-num (a fixed circle around the digits).
+    cells += `<button type="button" class="${cls}" data-agenda-day="${cur}"><span class="ag-num">${d}</span></button>`;
   }
   const title = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   return `
@@ -163,7 +156,6 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean, today: s
 
 export function renderAgendaWidget(src: AgendaSources, today: string): string {
   const { iso, nextUp } = resolveDay(today, src);
-  const kinds = kindsByDate(src);
   const day = agendaForDay(iso, src);
   const activeTab: Tab | null = _sel ? null : _tab;
   const tab = (id: Tab, label: string) =>
@@ -175,7 +167,7 @@ export function renderAgendaWidget(src: AgendaSources, today: string): string {
         <div class="ag-tabs">${tab('today', t('dash.agenda.today'))}${tab('tomorrow', t('dash.agenda.tomorrow'))}</div>
       </div>
       <div class="ag-body">
-        ${renderMonth(_month ?? iso.slice(0, 7), today, iso, kinds)}
+        ${renderMonth(_month ?? iso.slice(0, 7), today, iso)}
         ${renderDay(day, src, nextUp, today)}
       </div>
     </div>`;

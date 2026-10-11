@@ -42,3 +42,6 @@
 
 /* Album drawer: just the albums — no hint line, no AI tidy, no tag groups */
 .jr-album-drawer .journal-album-hint, .jr-album-drawer [data-album-tidy], .jr-album-drawer .journal-tidy, .jr-album-drawer .journal-tidy-empty, .jr-album-drawer .journal-auto-groups, .jr-album-drawer .journal-section-kicker { display: none; }
+
+/* Album drawer is narrow: two feed columns regardless of the viewport width */
+.jr-album-drawer .journal-mag-feed { columns: 2; }

@@ -1,9 +1,9 @@
 /* ==========================================================================
    On the Road · Dashboard — city page drawer
    --------------------------------------------------------------------------
-   Opened from the city name in the banner. A bare drawer: the Itinerary's cover hero
-   for the stop (its photo — or the tinted flag — with the city and dates over it) runs
-   edge to edge from the top, the ✕ floating on it, then the Plan
+   Opened from the city name in the banner. A bare drawer: the same cover as the stop's
+   Itinerary list card (its photo — or the tinted flag) runs edge to edge from the top,
+   the ✕ floating on it, then the city and dates, then the Plan
    in the Itinerary's Feed view, drawn by the Itinerary's own renderer so it looks
    the same and ticking an item writes the same field. Nothing else: the stays and
    transport have their own drawers and notes stay on the page.
@@ -13,7 +13,7 @@
 
 import { openDrawer, closeDrawer } from '../../core/drawer.ts';
 import { navigateTo } from '../../core/app.ts';
-import { escHtml as esc, safeUrl } from '../../core/utils.ts';
+import { escHtml as esc } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { legCoverArt, nightsLabel } from '../itinerary/itinerary-cards.ts';
@@ -28,17 +28,13 @@ export async function openCityDrawer(legIn: StoredLeg, _todayIso: string, trigge
   const body = (): string => {
     const leg = latest();
     const nights = Math.max(0, daysBetween(leg.dateFrom, leg.dateTo));
-    const hasCover = !!safeUrl(leg.coverImageUrl);
     return `
       <div class="td-itn td-itn-city">
-        <header class="rd-hero ${hasCover ? 'has-cover' : ''}">
-          ${legCoverArt(leg as never, 'rd-hero', true)}
-          <div class="rd-hero-shade"></div>
-          <div class="rd-hero-content">
-            <div class="rd-hero-kicker"><span>${leg.flag || ''} ${esc(leg.country)}</span></div>
-            <h2 class="rd-hero-city">${esc(leg.city)}</h2>
-            <div class="rd-hero-dates"><span>${esc(fmtDate(leg.dateFrom))} → ${esc(fmtDate(leg.dateTo))} · ${esc(nightsLabel(nights))}</span></div>
-          </div>
+        <div class="route-leg-cover td-itn-city-cover">${legCoverArt(leg as never, 'route-leg-cover', true)}</div>
+        <header class="td-itn-city-head">
+          <div class="td-itn-city-kicker">${leg.flag || ''} ${esc(leg.country)}</div>
+          <h2 class="td-itn-city-name">${esc(leg.city)}</h2>
+          <div class="td-itn-city-dates">${esc(fmtDate(leg.dateFrom))} → ${esc(fmtDate(leg.dateTo))} · ${esc(nightsLabel(nights))}</div>
         </header>
         <div class="td-itn-city-plan">
           <h3 class="td-dh">${esc(t('dash.city.plan'))}</h3>
