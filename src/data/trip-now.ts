@@ -88,14 +88,18 @@ export interface TransportLeg {
 
 /** Every dated transport in trip order, with its departure instant resolved.
  *  `homeTz` is the zone of the first flight's origin. */
-export function tripTransports(legs: StoredLeg[], homeTz: string | null): TransportLeg[] {
+export function tripTransports(
+  legs: StoredLeg[],
+  homeTz: string | null,
+  zoneOf: (leg: StoredLeg) => string | null = (l) => timezoneForPlace(l.city, l.country),
+): TransportLeg[] {
   const sorted = byFrom(legs);
   const out: TransportLeg[] = [];
   sorted.forEach((leg, i) => {
     const transport = leg.arrivalTransport;
     if (!transport?.date) return;
     const prev = sorted[i - 1];
-    const depTz = prev ? timezoneForPlace(prev.city, prev.country) : homeTz;
+    const depTz = prev ? zoneOf(prev) : homeTz;
     const time = transport.time?.trim();
     const depAt = time && depTz ? wallTimeToInstant(transport.date, time, depTz) : null;
     out.push({ leg, transport, depTz, depAt });

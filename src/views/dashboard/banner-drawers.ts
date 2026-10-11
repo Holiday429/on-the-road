@@ -58,7 +58,7 @@ function footer(): string {
 
 /* ── Stays ───────────────────────────────────────────────────────────────── */
 
-function stayCard(s: Stay, isTonight: boolean): string {
+export function stayCard(s: Stay, isTonight: boolean): string {
   const ci = datePart(s.checkIn), co = datePart(s.checkOut);
   const n = stayNights(s);
   const phone = blank(s.phone);
@@ -101,7 +101,7 @@ export function openStaysDrawer(leg: StoredLeg, todayIso: string, trigger?: HTML
 
 /* ── Transport ───────────────────────────────────────────────────────────── */
 
-function transportBody(tr: Transport): string {
+export function transportBody(tr: Transport): string {
   const bag = [
     [t('dash.banner.bag.checked'), tr.baggageCheckedG],
     [t('dash.banner.bag.carryOn'), tr.baggageCarryOnG ?? tr.baggageAllowanceG],
@@ -122,7 +122,7 @@ function transportBody(tr: Transport): string {
   ]);
 }
 
-function transportTitle(tr: Transport): string {
+export function transportTitle(tr: Transport): string {
   return `${TRANSPORT_ICON[tr.type] ?? '🚀'} ${[tr.from, tr.to].filter(Boolean).join(' → ')}`;
 }
 

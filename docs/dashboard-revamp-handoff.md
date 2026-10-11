@@ -66,6 +66,7 @@ iOS 侧只合并过 Journal 相册的独立组件,**还没接进 Dashboard**(被
 ### 视图(`src/views/dashboard/`)
 - `dashboard.ts` — 编排:state、layout、wire、init。仍是最大的文件。
 - `dashboard-banner.ts`(渲染 + 20 秒 tick 更新指针/倒计时,不整页重渲染)、`banner-drawers.ts`(住宿/交通抽屉)、`banner-format.ts`。
+- 横幅里的城市名点开 `city-drawer.ts`(这一站在行程里的只读摘要:来程、住宿、按天的计划、笔记 + 「在行程中打开」;**没有把行程页本身嵌进抽屉**,行程页是带自己编辑器和状态的整页)。两个时钟是一个按钮,点开 `clock-drawer.ts` 改时区:「这里」按站点修正(存 localStorage `otr:hereTz:<legId>`,`home-timezone.ts` 的 `resolveHereTimezone`,交通出发时刻也用它),「家」就是个人资料里的设置。
 - `dashboard-agenda.ts` + `agenda-drawer.ts` — 紧凑月历 + 当日日程;计划/交通/住宿行点开抽屉(计划项有「地图 ↗」和一行「记一笔」),其余类型照旧跳页;`+` 通过 `openAddPlanModal` 加到当天。
 - `dashboard-todo.ts`、`dashboard-pack.ts`(含行李抽屉)。
 - `dashboard-map.ts`(amCharts,「整个旅程」)、`dashboard-daymap.ts`(Leaflet,「这一天」,**懒加载**)。模式切换在卡片头部;默认「这一天」,旅程结束后默认「整个旅程」。
@@ -91,7 +92,7 @@ iOS 侧只合并过 Journal 相册的独立组件,**还没接进 Dashboard**(被
 
 ## 4. 验证方法
 
-- Web:`npx tsc --noEmit`、`npx vitest run`(当前 783 通过)、`npx vite build`。
+- Web:`npx tsc --noEmit`、`npx vitest run`(当前 787 通过)、`npx vite build`。
 - `npx eslint src` 有 **2 处不在本轮改动范围的既有报错**:`src/core/utils.ts:50`(innerHTML)和 `src/views/expenses/expenses.ts` 的 max-lines。
 - **没有登录也能看 UI**:建临时 `_harness/*.html`,先 `import '/src/data/trip-context.ts'`,再 import `base.css`/`app.css`,给 `routeStore/journalStore/todoStore/expenseStore/packStore/cityStore` 打桩(`s.peek = () => rows; s.subscribe = cb => { cb(rows); return () => {}; }`),`nomadStore.peek` 和 `nomadStore.subscribeForTrip` 单独打桩;页面容器要加 `class="view active"`(否则 `.view` 是 display:none,截图是空白);固定「今天」就覆盖 `globalThis.Date`;`vite --port <p>` 起服务后:
   `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --hide-scrollbars --window-size=W,H --virtual-time-budget=9000 --screenshot=out.png "http://localhost:<p>/_harness/x.html"`

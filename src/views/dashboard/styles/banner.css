@@ -6,9 +6,10 @@
 .td-dial {
   flex-shrink: 0;
   display: flex; align-items: center; gap: var(--sp-3);
-  padding-right: var(--sp-5);
+  padding-right: var(--sp-4);
   border-right: 1px solid var(--rule-soft);
   align-self: stretch;
+  max-width: 214px;
 }
 .td-dial-ring { position: relative; width: 52px; height: 52px; flex-shrink: 0; }
 .td-dial-ring svg { display: block; }
@@ -23,12 +24,19 @@
 }
 .td-dial-num[data-len="3"] { font-size: 15px; }
 .td-dial-num[data-len="4"], .td-dial-num[data-len="5"] { font-size: 12px; }
-.td-dial-text { min-width: 0; }
+.td-dial-text { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+.td-dial-city {
+  padding: 0; margin: 1px 0 0; background: none; cursor: pointer; text-align: left;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--accent-deep);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.td-dial-city:hover { text-decoration: underline; }
+.td-dial-city:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 .td-dial-country {
   font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700; color: var(--ink);
   line-height: 1.2; white-space: nowrap;
 }
-.td-dial-sub { font-size: var(--fs-sm); color: var(--ink-soft); margin-top: 2px; white-space: nowrap; }
+.td-dial-sub { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; line-height: 1.3; }
 
 /* Stay over transport */
 .td-hero-info { flex: 1; min-width: 0; }
@@ -54,27 +62,26 @@ button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
 .td-banner-row--empty, .td-banner-row--none { color: var(--ink-muted); }
 .td-banner-summary { font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 600; color: var(--ink); }
 
-/* Mini clocks */
+/* World clocks — here and home, one button that opens the clocks drawer */
 .td-hero-clocks {
   flex-shrink: 0;
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding-left: var(--sp-4);
-  border-left: 1px solid var(--rule-soft);
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: 0 var(--sp-4);
+  background: none; border: 0; border-left: 1px solid var(--rule-soft); border-radius: 0; cursor: pointer;
+  align-self: stretch;
 }
-.td-clock-pair { display: flex; gap: var(--sp-3); }
-.td-clock { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 52px; }
-.td-clock-face { fill: var(--surface); stroke: var(--rule); stroke-width: 1.5; }
+.td-hero-clocks:hover .td-clock-face { stroke: var(--amber-400); }
+.td-hero-clocks:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-md); }
+.td-clock { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 76px; }
+.td-clock-face { fill: var(--surface); stroke: var(--rule); stroke-width: 1.5; transition: stroke var(--dur-fast); }
 .td-clock-ticks line { stroke: var(--ink-faint); stroke-width: 1.2; stroke-linecap: round; }
 .td-clock-h, .td-clock-m { stroke: var(--ink); stroke-linecap: round; }
 .td-clock-h { stroke-width: 2.4; }
 .td-clock-m { stroke-width: 1.6; }
 .td-clock-pin { fill: var(--accent-deep, var(--ink)); }
-.td-clock-cap { font-size: 10px; color: var(--ink-muted); max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.td-clock-diff {
-  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; color: var(--accent-deep);
-  background: color-mix(in srgb, var(--amber-500, var(--accent)) 14%, transparent);
-  border-radius: var(--r-full); padding: 0 8px;
-}
+.td-clock-cap { display: flex; align-items: baseline; justify-content: center; gap: 4px; max-width: 100%; font-size: 11px; color: var(--ink-muted); white-space: nowrap; }
+.td-clock-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.td-clock-diff { flex-shrink: 0; font-family: var(--font-ui); font-size: 11px; font-weight: 700; color: var(--accent-deep); }
 
 /* Trip switcher on narrow screens (the sidebar pill is hidden there) */
 .td-hero-name--mobile { display: none; }
@@ -90,7 +97,7 @@ button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
 @container tdgrid (max-width: 560px) {
   .td-dial { border-right: 0; padding-right: 0; }
   .td-hero-clocks { border-left: 0; padding-left: 0; margin-left: auto; }
-  .td-dial-country, .td-dial-sub { white-space: normal; }
+  .td-dial-country { white-space: normal; }
 }
 
 /* ── Drawer contents (stay / transport detail) ─────────────────────────── */

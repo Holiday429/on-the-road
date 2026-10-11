@@ -69,3 +69,10 @@ export function isoDateIn(tz: string, at: Date): string {
   const p = partsIn(tz, at);
   return `${p.y}-${String(p.mo).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
 }
+
+/** "UTC+8", "UTC−3:30" for `tz` at `at`. */
+export function utcLabel(tz: string, at: Date): string {
+  const m = tzOffsetMinutes(tz, at);
+  const a = Math.abs(m);
+  return `UTC${m < 0 ? '−' : '+'}${Math.floor(a / 60)}${a % 60 ? ':' + String(a % 60).padStart(2, '0') : ''}`;
+}

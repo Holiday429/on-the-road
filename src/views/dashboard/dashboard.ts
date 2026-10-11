@@ -657,7 +657,7 @@ function wire(body: HTMLElement): void {
     openNewTrip();
   });
 
-  wireBanner(body, () => bannerData(tripPhase()));
+  wireBanner(body, () => bannerData(tripPhase()), render);
   wireSimControl(body, () => { const tr = currentTrip(); return { trip: tr ? { startDate: tr.startDate, endDate: tr.endDate } : null, legs: _legs }; });
   wireWhereTo(body, render);
   wireAgenda(body, render, () => ({ src: agendaSources(), today: todayIso() }));

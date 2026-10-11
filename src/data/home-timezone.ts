@@ -10,7 +10,7 @@
    ========================================================================== */
 
 import type { StoredLeg } from './stores/route-store.ts';
-import { timezoneForHomeText } from './country-timezone.ts';
+import { timezoneForHomeText, timezoneForPlace } from './country-timezone.ts';
 import { isValidTimezone } from './tz-math.ts';
 
 export function resolveHomeTimezone(
@@ -24,4 +24,30 @@ export function resolveHomeTimezone(
   if (fromCity) return fromCity;
   const first = [...legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom))[0];
   return timezoneForHomeText(first?.arrivalTransport?.from);
+}
+
+/* ── The "here" clock ─────────────────────────────────────────────────────── */
+// A stop's zone is guessed from its country/city. When the guess is wrong (a
+// multi-zone country, an unknown town) the traveller can correct it; the fix is
+// remembered per stop on this device, so it doesn't leak onto the next city.
+
+const hereKey = (legId: string) => `otr:hereTz:${legId}`;
+
+export function hereTimezoneOverride(legId: string): string | null {
+  try {
+    const v = localStorage.getItem(hereKey(legId));
+    return v && isValidTimezone(v) ? v : null;
+  } catch { return null; }
+}
+
+export function setHereTimezoneOverride(legId: string, tz: string | null): void {
+  try {
+    if (tz && isValidTimezone(tz)) localStorage.setItem(hereKey(legId), tz);
+    else localStorage.removeItem(hereKey(legId));
+  } catch { /* best-effort */ }
+}
+
+/** The zone to show for a stop: the traveller's correction, else the guess. */
+export function resolveHereTimezone(leg: Pick<StoredLeg, 'id' | 'city' | 'country'>): string | null {
+  return hereTimezoneOverride(leg.id) ?? timezoneForPlace(leg.city, leg.country);
 }

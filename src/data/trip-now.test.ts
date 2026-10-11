@@ -68,6 +68,12 @@ describe('transports', () => {
     expect(list[1].depAt!.toISOString()).toBe('2026-08-05T13:20:00.000Z'); // 14:20 WEST
     expect(list[2].depAt).toBeNull(); // no time given
   });
+  it('uses a custom zone resolver for the departure stop (a corrected zone)', () => {
+    const fixed = tripTransports(LEGS, 'Asia/Shanghai', (l) => (l.id === 'a' ? 'Atlantic/Azores' : null));
+    expect(fixed[1].depTz).toBe('Atlantic/Azores');
+    expect(fixed[1].depAt!.toISOString()).toBe('2026-08-05T14:20:00.000Z');   // Azores are UTC+0 in August (Lisbon would be 13:20Z)
+    expect(fixed[2].depAt).toBeNull();                                         // resolver gave no zone
+  });
   it('without a home zone the first flight has no instant', () => {
     expect(tripTransports(LEGS, null)[0].depAt).toBeNull();
   });
