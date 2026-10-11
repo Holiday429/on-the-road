@@ -18,12 +18,13 @@ import { t } from '../../core/i18n.ts';
 type Tab = 'today' | 'tomorrow';
 let _tab: Tab = 'today';
 let _sel: string | null = null;      // explicit day picked from the month grid
+let _month: string | null = null;    // 'YYYY-MM' the user paged to; null = follow the shown day
 
 const MAX_ITEMS = 7;
 const DOT_ORDER: AgendaKind[] = ['transport', 'stay', 'plan', 'todo', 'spend', 'journal'];
 
 /** Reset UI state (new trip / re-init) so a stale selection can't leak across. */
-export function resetAgenda(): void { _tab = 'today'; _sel = null; }
+export function resetAgenda(): void { _tab = 'today'; _sel = null; _month = null; }
 
 /** Which date the right-hand panel shows, and whether it's a "next up" fallback. */
 function resolveDay(today: string, src: AgendaSources): { iso: string; nextUp: boolean } {
@@ -41,27 +42,39 @@ function resolveDay(today: string, src: AgendaSources): { iso: string; nextUp: b
 
 /* ── Month grid ──────────────────────────────────────────────────────────── */
 
-function renderMonth(iso: string, today: string, kinds: Map<string, Set<AgendaKind>>): string {
-  const [y, m] = iso.split('-').map(Number);
+function shiftMonth(key: string, delta: number): string {
+  const [y, m] = key.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function renderMonth(monthKey: string, today: string, selected: string, kinds: Map<string, Set<AgendaKind>>): string {
+  const [y, m] = monthKey.split('-').map(Number);
   const first = new Date(y, m - 1, 1);
   const days = new Date(y, m, 0).getDate();
   const offset = (first.getDay() + 6) % 7;                       // Monday-first
   const hdr = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<span class="ag-dow">${d}</span>`).join('');
   let cells = '<span class="ag-cell ag-empty"></span>'.repeat(offset);
   for (let d = 1; d <= days; d++) {
-    const cur = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const cur = `${monthKey}-${String(d).padStart(2, '0')}`;
     const set = kinds.get(cur);
     const dots = set
       ? DOT_ORDER.filter((k) => set.has(k)).slice(0, 3)
           .map((k) => `<i style="background:${AGENDA_COLORS[k]}"></i>`).join('')
       : '';
-    const cls = ['ag-cell', cur === today ? 'is-today' : '', cur === iso ? 'is-sel' : ''].filter(Boolean).join(' ');
-    cells += `<button type="button" class="${cls}" data-agenda-day="${cur}"><span>${d}</span><span class="ag-dots">${dots}</span></button>`;
+    const cls = ['ag-cell', cur === today ? 'is-today' : '', cur === selected ? 'is-sel' : ''].filter(Boolean).join(' ');
+    // The ring / fill sits on .ag-num (a fixed circle around the digits), with
+    // the event dots underneath — so the highlight always wraps the number.
+    cells += `<button type="button" class="${cls}" data-agenda-day="${cur}"><span class="ag-num">${d}</span><span class="ag-dots">${dots}</span></button>`;
   }
   const title = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   return `
     <div class="ag-month">
-      <div class="ag-month-title">${esc(title)}</div>
+      <div class="ag-month-nav">
+        <button type="button" class="ag-nav" data-agenda-month="-1" aria-label="Previous month">‹</button>
+        <div class="ag-month-title">${esc(title)}</div>
+        <button type="button" class="ag-nav" data-agenda-month="1" aria-label="Next month">›</button>
+      </div>
       <div class="ag-grid">${hdr}${cells}</div>
     </div>`;
 }
@@ -106,14 +119,12 @@ function renderItem(it: AgendaItem): string {
     </div>`;
 }
 
-function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean): string {
+function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean, today: string): string {
   const date = new Date(day.iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
   const where = day.leg
     ? `${esc(day.leg.flag)} ${esc(day.leg.city)}${day.dayInLeg ? ` · ${esc(t('dash.agenda.dayOf', { n: day.dayInLeg.n, total: day.dayInLeg.total }))}` : ''}`
     : '';
   const hint = dayHint(day, src);
-  // Past the final leg there's nothing left to plan — don't nudge toward the Guide.
-  const tripOver = src.legs.length > 0 && src.legs.every((l) => l.dateTo < day.iso);
 
   // The context card is the header's job here, not a row.
   const rows = day.items.filter((i) => i.kind !== 'context');
@@ -133,9 +144,7 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean): string 
 
   const body = shown.length || journal
     ? `<div class="ag-list">${shown.map(renderItem).join('')}</div>${journal}${more > 0 ? `<button type="button" class="ag-more" data-nav="calendar" data-intent='${esc(JSON.stringify({ date: day.iso }))}'>${esc(t('dash.agenda.more', { n: more }))}</button>` : ''}`
-    : tripOver
-    ? `<div class="ag-empty"><div>🎉 ${esc(t('dash.hero.complete'))}</div></div>`
-    : `<div class="ag-empty"><div>${esc(t('dash.agenda.empty'))}</div><button type="button" class="td-link" data-nav="cities">${esc(t('dash.agenda.explore'))}</button></div>`;
+    : `<div class="ag-none">${esc(t(day.iso === today ? 'dash.agenda.noEventsToday' : 'dash.agenda.empty'))}</div>`;
 
   return `
     <div class="ag-day">
@@ -166,8 +175,8 @@ export function renderAgendaWidget(src: AgendaSources, today: string): string {
         <button type="button" class="td-link" data-nav="calendar">${esc(t('dash.agenda.all'))}</button>
       </div>
       <div class="ag-body">
-        ${renderMonth(iso, today, kinds)}
-        ${renderDay(day, src, nextUp)}
+        ${renderMonth(_month ?? iso.slice(0, 7), today, iso, kinds)}
+        ${renderDay(day, src, nextUp, today)}
       </div>
     </div>`;
 }
@@ -179,6 +188,7 @@ export function wireAgenda(body: HTMLElement, render: () => void): void {
       e.stopPropagation();
       _tab = b.dataset.agendaTab as Tab;
       _sel = null;
+      _month = null;
       render();
     });
   });
@@ -186,6 +196,17 @@ export function wireAgenda(body: HTMLElement, render: () => void): void {
     b.addEventListener('click', (e) => {
       e.stopPropagation();
       _sel = b.dataset.agendaDay!;
+      _month = null;                    // the clicked day's month is the shown one
+      render();
+    });
+  });
+  // Page the month grid without changing the selected day.
+  body.querySelectorAll<HTMLElement>('[data-agenda-month]').forEach((b) => {
+    b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const shown = body.querySelector<HTMLElement>('[data-agenda-day]')?.dataset.agendaDay?.slice(0, 7) ?? '';
+      if (!shown) return;
+      _month = shiftMonth(_month ?? shown, Number(b.dataset.agendaMonth));
       render();
     });
   });

@@ -179,7 +179,6 @@ function renderHero(phase: Phase): string {
 
   // The hero's wording carries the trip's stage — layout stays identical.
   let anchor = '';
-  let cta = '';
   const today = todayIso();
 
   if (phase === 'before' && leg) {
@@ -207,7 +206,6 @@ function renderHero(phase: Phase): string {
       countries ? esc(t('dash.hero.countries', { n: countries })) : '',
       legs.length ? esc(t('dash.hero.stops', { n: legs.length })) : '',
     ].filter(Boolean).join(' · ');
-    cta = `<button type="button" class="td-hero-cta" data-nav="journal">${esc(t('dash.hero.recap'))}</button>`;
   }
 
   // Kick off weather fetch for current/next city
@@ -241,8 +239,6 @@ function renderHero(phase: Phase): string {
             <span class="td-hero-name-caret" aria-hidden="true">▾</span>
           </button>
           ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
-          ${cta}
-          ${renderRateLine()}
         </div>
       </div>
       <img class="td-hero-logo" src="${ART}logo-sm.webp" alt="On the Road" loading="lazy" decoding="async">
@@ -273,7 +269,7 @@ function flagFor(code: string): string {
   return currencyFlag(code);
 }
 
-/** One line in the hero: "1 EUR = 7.46 DKK ▾". Click toggles the converter. */
+/** One line under the Spend progress bar: "1 EUR = 7.46 DKK ▾". Click opens the converter dropdown. */
 function renderRateLine(): string {
   const base = baseCurrency();
   const [left, right] = strongerFirst(base, localCurrency());
@@ -282,14 +278,14 @@ function renderRateLine(): string {
   const eq = known ? `1 ${flagFor(left)} ${esc(left)} = <strong>${(l / r).toFixed(2)}</strong> ${flagFor(right)} ${esc(right)}` 
                    : `${flagFor(left)} ${esc(left)} → ${esc(right)} · ${esc(t('currency.rateUnavailable'))}`;
   return `
-    <button type="button" class="td-hero-rate${_rateOpen ? ' is-open' : ''}" data-rate-toggle aria-expanded="${_rateOpen}" title="${esc(t('dash.widget.currency'))}">
+    <button type="button" class="td-rate-line${_rateOpen ? ' is-open' : ''}" data-rate-toggle aria-expanded="${_rateOpen}" title="${esc(t('dash.widget.currency'))}">
       <span>${eq}${known && isApproxCurrency(right) ? ` <em title="${esc(t('currency.approx'))}">≈</em>` : ''}</span>
-      <span class="td-hero-rate-caret" aria-hidden="true">▾</span>
+      <span class="td-rate-caret" aria-hidden="true">▾</span>
     </button>`;
 }
 
-/** Expanded converter + a few reference rates, shown under the hero. */
-function renderRatePanel(): string {
+/** Converter dropdown anchored under the rate line (switch currencies + calculate). */
+function renderRatePopover(): string {
   if (!_rateOpen) return '';
   const base = baseCurrency();
   // Default the converter with the stronger currency on the left.
@@ -318,7 +314,7 @@ function renderRatePanel(): string {
   }).join('');
 
   return `
-    <div class="td-widget td-rate-panel">
+    <div class="td-rate-pop" role="dialog" aria-label="${esc(t('dash.widget.currency'))}">
       <div class="td-widget-header">
         <div class="td-widget-label">💱 ${esc(t('dash.widget.currency'))}</div>
         <span class="td-cur-source">${esc(t('dash.currency.source'))}</span>
@@ -348,27 +344,6 @@ function renderSpendWidget(): string {
   const todaySpend = _expenses.filter(e => e.date === todayIso()).reduce((s, e) => s + inBase(e), 0);
   const budget    = tripBudget();
   const today     = todayIso();
-
-  // 30-day bar chart: last 30 days bucketed by date.
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
-  const dailyMap: Record<string, number> = {};
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(thirtyDaysAgo);
-    d.setDate(d.getDate() + i);
-    dailyMap[d.toISOString().slice(0, 10)] = 0;
-  }
-  for (const e of _expenses) {
-    if (dailyMap[e.date] !== undefined) dailyMap[e.date] += inBase(e);
-  }
-  const daily = Object.entries(dailyMap).sort(([a], [b]) => a.localeCompare(b));
-  const maxDay = Math.max(...daily.map(([, v]) => v), 1);
-
-  const bars = daily.map(([date, amt]) => {
-    const h = Math.max(4, Math.round((amt / maxDay) * 52));
-    const isToday = date === today;
-    return `<span class="td-bar ${isToday ? 'is-today' : ''}" style="height:${h}px" title="${sym}${Math.round(amt)}"></span>`;
-  }).join('');
 
   // Prefer the current country's budget when one is set — it's the more
   // actionable number while you're there; otherwise fall back to the total.
@@ -411,9 +386,9 @@ function renderSpendWidget(): string {
         <div class="td-spend-today"><div class="td-spend-label">Today</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
       </div>
       ${budgetLine}
-      <div class="td-barchart-wrap">
-        <div class="td-barchart" title="Last 30 days">${bars}</div>
-        <div class="td-barchart-label">Last 30 days</div>
+      <div class="td-rate-anchor">
+        ${renderRateLine()}
+        ${_rateOpen ? renderRatePopover() : ''}
       </div>
       <form class="td-quickadd td-quickadd-v" data-quickadd>
         <div class="td-quickadd-hint">📍 ${esc(leg?.country || '—')}${leg?.city ? ' · ' + esc(leg.city) : ''} · ${currencySymbol(defaultCurrency(_legs, today))}${defaultCurrency(_legs, today)}</div>
@@ -788,7 +763,7 @@ function render(): void {
   // A rebuild must be invisible: carry typed text + focus across, and keep the
   // (expensive, async-built) map canvas node instead of recreating the map.
   const ui = captureUiState(body);
-  swapHtml(body, `${renderGreeting()}${renderHero(phase)}${renderRatePanel()}${layout(phase)}`, '#td-map-canvas');
+  swapHtml(body, `${renderGreeting()}${renderHero(phase)}${layout(phase)}`, '#td-map-canvas');
   wire(body);
   restoreUiState(body, ui);
   bootMap();
@@ -800,7 +775,25 @@ const scheduleRender = createRenderScheduler(render);
 let _mapSig = '';
 
 
+let _rateDismissWired = false;
+/** Close the converter dropdown on an outside click or Escape. Attached once at
+ *  document level because render() replaces the markup the handlers would live on. */
+function wireRateDismiss(): void {
+  if (_rateDismissWired) return;
+  _rateDismissWired = true;
+  document.addEventListener('click', (e) => {
+    if (!_rateOpen) return;
+    if ((e.target as HTMLElement | null)?.closest('.td-rate-anchor')) return;
+    _rateOpen = false;
+    render();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && _rateOpen) { _rateOpen = false; render(); }
+  });
+}
+
 function wire(body: HTMLElement): void {
+  wireRateDismiss();
   // Hero trip name → trip switcher / share menu. This is the only way to switch
   // or share trips on mobile/PWA, where the sidebar (and its trip pill) is hidden.
   body.querySelector<HTMLElement>('[data-trip-switch]')?.addEventListener('click', (e) => {
@@ -843,7 +836,7 @@ function wire(body: HTMLElement): void {
     (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value = '';
   });
 
-  // Hero rate line → expand/collapse the converter.
+  // Rate line (under the Spend bar) → open/close the converter dropdown.
   body.querySelector<HTMLElement>('[data-rate-toggle]')?.addEventListener('click', () => {
     _rateOpen = !_rateOpen;
     render();

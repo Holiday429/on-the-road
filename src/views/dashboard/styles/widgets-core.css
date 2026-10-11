@@ -98,13 +98,6 @@
 .td-quickadd-hint { font-size: 11px; font-weight: 600; color: var(--ink-faint); }
 .td-quickadd-desc:focus, .td-quickadd-cat:focus { border-color: var(--accent); }
 .td-quickadd-save { flex-shrink: 0; padding: 8px 16px; font-size: var(--fs-sm); white-space: nowrap; }
-/* Bar chart */
-.td-barchart-wrap { display: flex; flex-direction: column; gap: 2px; }
-.td-barchart { display: flex; align-items: flex-end; gap: 2px; height: 56px; padding-top: 2px; }
-.td-bar { flex: 1; min-width: 2px; background: var(--surface-4); border-radius: 2px 2px 0 0; transition: background var(--dur-fast); }
-.td-bar.is-today { background: var(--amber-400); }
-.td-bar:hover    { background: var(--amber-300); }
-.td-barchart-label { font-size: 10px; color: var(--ink-faint); text-align: right; }
 
 /* ── Map ──────────────────────────────────────────────────────────────────── */
 .td-w-map { display: flex; flex-direction: column; }
@@ -158,7 +151,26 @@
 .td-prep-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
 .td-prep-sub   { font-size: var(--fs-xs); color: var(--ink-muted); }
 
-/* Expanded converter under the hero: a slim full-width card, not a grid cell. */
-.td-rate-panel { margin-bottom: var(--sp-4); }
-.td-rate-panel .td-cur-rates { flex-direction: row; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); }
-.td-rate-panel .td-cur-converter { max-width: 560px; }
+/* ── Currency line + dropdown (inside the Spend widget) ───────────────────── */
+.td-w-spend { position: relative; }
+.td-rate-anchor { position: relative; }
+.td-rate-line {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 4px 12px; border-radius: var(--r-full);
+  background: var(--surface-3); border: 1px solid var(--rule-soft);
+  font-family: var(--font-ui); font-size: var(--fs-xs); color: var(--ink-muted); cursor: pointer;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.td-rate-line:hover, .td-rate-line.is-open { border-color: var(--amber-300, var(--amber-200)); background: var(--amber-50); }
+.td-rate-line strong { color: var(--ink); font-weight: 700; }
+.td-rate-line em { font-style: normal; color: var(--amber-700); }
+.td-rate-caret { font-size: 0.8em; opacity: 0.7; transition: transform var(--dur-fast); }
+.td-rate-line.is-open .td-rate-caret { transform: rotate(180deg); }
+.td-rate-pop {
+  position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 6px);
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  padding: var(--sp-4); background: var(--surface);
+  border: 1px solid var(--rule-soft); border-radius: var(--r-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+.td-rate-pop .td-cur-rates { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; gap: var(--sp-2) var(--sp-5); }

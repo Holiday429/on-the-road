@@ -1,13 +1,14 @@
 /* ==========================================================================
    Dashboard map thumbnail — non-interactive amCharts Europe map.
-   Shows trip legs as coloured pins AND tints each country by progress:
-   current=green, past=grey, upcoming=amber — so the trip's stage reads at a
-   glance without any layout change. Reuses loadAmCharts / mapColors.
+   Every country on the trip is tinted with its own palette colour; the trip's
+   stage is carried by the numbered pins: current=green, past=grey, upcoming=amber.
+   Reuses loadAmCharts / mapColors / countryColor from the map module.
    ========================================================================== */
 
 import { loadAmCharts } from '../map/amcharts-loader.ts';
-import { mapColors } from '../map/map-shared.ts';
-import { legStatus, countryStatuses, countryFill, PIN_COLORS } from '../map/map-status.ts';
+import { mapColors, countryColor } from '../map/map-shared.ts';
+import { legStatus, PIN_COLORS } from '../map/map-status.ts';
+import { isoFor, COUNTRY_ISO } from '../map/geo.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import { coordsFor } from '../map/geo.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
@@ -56,6 +57,8 @@ export async function initDashboardMap(
     homeZoomLevel: EUROPE_ZOOM,
     minZoomLevel:  1,
     maxZoomLevel:  16,
+    // Each +/- click steps by 1.3× rather than amCharts' default 2×.
+    zoomStep:      1.3,
   }));
 
   // Base world polygons — very subtle.
@@ -73,14 +76,19 @@ export async function initDashboardMap(
     nonScalingStroke: true,
   });
 
-  // Tint the trip's countries by progress (past / current / upcoming).
-  const statuses = countryStatuses(legs, todayIso());
-  const dark = document.documentElement.dataset.theme === 'dark';
+  // Light every country on the trip with its own colour.
+  const tripCountryISOs = new Set<string>();
+  for (const leg of legs) {
+    const iso = isoFor(leg.country)
+      ?? Object.entries(COUNTRY_ISO).find(([name]) => leg.country.includes(name))?.[1];
+    if (iso) tripCountryISOs.add(iso);
+  }
   world.events.on('datavalidated', () => {
     world.mapPolygons.each((poly: any) => {
       const id: string | undefined = poly.dataItem?.get('id');
-      const status = id ? statuses.get(id) : undefined;
-      if (status) poly.setAll({ fill: am5.color(countryFill(status, dark)), fillOpacity: 0.9 });
+      if (id && tripCountryISOs.has(id)) {
+        poly.setAll({ fill: am5.color(countryColor(id)), fillOpacity: 0.85 });
+      }
     });
   });
 
