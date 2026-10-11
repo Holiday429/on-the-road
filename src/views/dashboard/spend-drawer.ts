@@ -14,6 +14,7 @@ import { t, getLocale } from '../../core/i18n.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import { peekRateTable, allCurrencies, currencySymbol } from '../../data/rates.ts';
 import { todayIso } from '../../data/trip-phase.ts';
+import { expensesAsOf } from '../../data/as-of.ts';
 import type { StoredExpense } from '../../data/stores/expense-store.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { addExpenseWithDefaults, defaultCurrency, defaultPlace, BUILTIN_CATEGORIES } from '../expenses/expense-defaults.ts';
@@ -43,6 +44,8 @@ function rowHtml(e: Pick<StoredExpense, 'date' | 'description' | 'category' | 'a
 
 export function openSpendDrawer(opts: {
   expenses: StoredExpense[];
+  /** When looking back at a day, only entries up to it are listed. */
+  asOf?: string | null;
   legs: StoredLeg[];
   /** Which part leads: the add form (from +) or the list (from the total). */
   focus: 'form' | 'list';
@@ -50,7 +53,7 @@ export function openSpendDrawer(opts: {
 }): void {
   const today = todayIso();
   const cur = defaultCurrency(opts.legs, today);
-  const recent = [...opts.expenses]
+  const recent = [...expensesAsOf(opts.expenses, opts.asOf ?? null)]
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt ?? 0) - (a.createdAt ?? 0))
     .slice(0, RECENT);
 

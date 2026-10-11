@@ -1,12 +1,12 @@
 /* ==========================================================================
-   On the Road · Dashboard — time-travel control (testing aid)
+   On the Road · Dashboard — time-travel control
    --------------------------------------------------------------------------
-   A small 🕒 button in the greeting row (shown only after visiting with
-   ?debug=1) that opens a drawer to pick any moment, with one-tap jumps to
-   before the trip, each stop's arrival day, the last day and after — so a
-   finished trip can be viewed as it looked at any stage. While a simulation is
-   on, a pill shows the simulated time with a ✕ to return to the real clock.
-   The clock itself lives in data/sim-clock.ts.
+   A 🕒 button in the greeting row, just left of the notification bell. It opens
+   a drawer to pick any day (or moment), with one-tap jumps to before the trip,
+   each stop's arrival day, the last day and after — and the Dashboard becomes
+   that day: banner, agenda, spend, journal, map, pack. While looking back, a
+   pill shows the chosen time with a ✕ to return to now. The clock itself lives
+   in data/sim-clock.ts.
    ========================================================================== */
 
 import { openDrawer, closeDrawer } from '../../core/drawer.ts';
@@ -14,7 +14,7 @@ import { escHtml as esc } from '../../core/utils.ts';
 import { t, getLocale } from '../../core/i18n.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { addDays } from '../../data/day-agenda.ts';
-import { appNow, debugEnabled, isSimulating, nowLocalValue, setSimulatedNow } from '../../data/sim-clock.ts';
+import { appNow, isSimulating, nowLocalValue, setSimulatedNow } from '../../data/sim-clock.ts';
 import { tripSpan } from '../../data/trip-now.ts';
 
 /** Local time used when a jump picks only a date — morning, so a same-day flight is still ahead. */
@@ -47,7 +47,7 @@ function fmtNow(): string {
   catch { return nowLocalValue(); }
 }
 
-/** The greeting-row control: the pill while simulating, the 🕒 button in debug mode, else nothing. */
+/** The greeting-row control: the pill while looking back, otherwise the 🕒 button. */
 export function renderSimControl(): string {
   if (isSimulating()) {
     return `
@@ -56,7 +56,6 @@ export function renderSimControl(): string {
         <button type="button" class="td-sim-x" data-sim-reset aria-label="${esc(t('dash.sim.reset'))}" title="${esc(t('dash.sim.reset'))}">✕</button>
       </span>`;
   }
-  if (!debugEnabled()) return '';
   return `<button type="button" class="td-sim td-sim--btn" data-sim-open title="${esc(t('dash.sim.title'))}" aria-label="${esc(t('dash.sim.title'))}">🕒</button>`;
 }
 

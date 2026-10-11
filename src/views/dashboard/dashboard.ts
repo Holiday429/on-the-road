@@ -40,8 +40,9 @@ import { captureUiState, restoreUiState, swapHtml, createRenderScheduler, mapSig
 import { renderJournalWidget, wireJournal } from './dashboard-journal.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
-import { t, onLocaleChange } from '../../core/i18n.ts';
-import { appNow, onSimChange } from '../../data/sim-clock.ts';
+import { t, onLocaleChange, getLocale } from '../../core/i18n.ts';
+import { appNow, onSimChange, isSimulating } from '../../data/sim-clock.ts';
+import { expensesAsOf, todosAsOf, daySpend } from '../../data/as-of.ts';
 import { renderSimControl, wireSimControl } from './dashboard-simclock.ts';
 import { mountPrefControls } from '../../core/pref-mounts.ts';
 // Lazy (see call site below) — journal/index.ts pulls in Leaflet via capture.ts,
@@ -73,6 +74,9 @@ let _nomadSpots: StoredNomadSpot[] = [];
 let _cityIntel: StoredCityIntel[] = [];
 let _packLists: StoredPackList[] = [];
 let _homeTzPref = '';           // Profile → Home time zone ('' = infer)
+
+/** True while the time-travel control has the Dashboard looking at another day. */
+function lookingBack(): boolean { return isSimulating(); }
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 // Phase/countdown math now lives in data/trip-phase.ts (shared with the
@@ -328,10 +332,18 @@ function renderRatePopover(): string {
 function renderSpendWidget(): string {
   const base      = baseCurrency();
   const sym       = currencySymbol(base);
-  const total     = _expenses.reduce((s, e) => s + inBase(e), 0);
-  const todaySpend = _expenses.filter(e => e.date === todayIso()).reduce((s, e) => s + inBase(e), 0);
-  const budget    = tripBudget();
   const today     = todayIso();
+  // Looking back at a day: spend counts up to and on that day only.
+  const asOf      = lookingBack() ? today : null;
+  const rows      = expensesAsOf(_expenses, asOf);
+  const total     = rows.reduce((s, e) => s + inBase(e), 0);
+  const todaySpend = rows.filter(e => e.date === today).reduce((s, e) => s + inBase(e), 0);
+  const budget    = tripBudget();
+  const day       = daySpend(rows, today, inBase);
+  const dayLine   = day.count
+    ? `${t(day.count === 1 ? 'dash.spend.entry1' : 'dash.spend.entries', { n: day.count })} · ${day.top.map(c => `${EXPENSE_CATEGORIES.find(k => k.id === c.category)?.icon ?? '💶'} ${fmt(c.amount)}`).join(' · ')}`
+    : t('dash.spend.dayNone');
+  const dayLabel  = asOf ? new Date(`${today}T00:00:00`).toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' }) : t('dash.spend.today');
 
   // Prefer the current country's budget when one is set — it's the more
   // actionable number while you're there; otherwise fall back to the total.
@@ -339,7 +351,7 @@ function renderSpendWidget(): string {
   const countryCap = curCountry ? countryBudgets()[curCountry] : undefined;
   let budgetLine = '';
   if (countryCap) {
-    const spent = _expenses.filter(e => e.country === curCountry).reduce((s, e) => s + inBase(e), 0);
+    const spent = rows.filter(e => e.country === curCountry).reduce((s, e) => s + inBase(e), 0);
     const pct  = Math.min(100, Math.round((spent / countryCap) * 100));
     const over = spent > countryCap;
     const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
@@ -372,9 +384,10 @@ function renderSpendWidget(): string {
       </div>
       <div class="td-spend-top">
         <button type="button" class="td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><div class="td-spend-label">${esc(t('dash.spend.total'))}</div><div class="td-spend-big">${fmt(total)}</div></button>
-        <div class="td-spend-today"><div class="td-spend-label">${esc(t('dash.spend.today'))}</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
+        <div class="td-spend-today"><div class="td-spend-label">${esc(dayLabel)}</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
       </div>
       ${budgetLine}
+      <div class="td-spend-day" title="${esc(dayLine)}">${esc(dayLine)}</div>
       <div class="td-rate-anchor">
         ${renderRateLine()}
         ${_rateOpen ? renderRatePopover() : ''}
@@ -437,11 +450,11 @@ function layout(_phase: Phase): string {
   const today = todayIso();
   const selected = shownAgendaDay(src, today);
   const agendaWidget = renderAgendaWidget(src, today);
-  const todoWidget  = renderTodoWidget(_todos, selected, today);
+  const todoWidget  = renderTodoWidget(todosAsOf(_todos, lookingBack() ? today : null), selected, today);
   const packWidget  = renderPackWidget(_packLists[0], _legs, today);
   const spendWidget = renderSpendWidget();
   const mapWidget   = renderMapWidget();
-  const jrnWidget   = renderJournalWidget(_journal, _legs);
+  const jrnWidget   = renderJournalWidget(_journal, _legs, lookingBack() ? today : null);
   const whereHtml   = renderWhereTo({ legs: _legs, iso: selected, intel: _cityIntel, spots: _nomadSpots });
 
   return `<div class="td-grid" id="td-grid">
@@ -659,7 +672,7 @@ function wire(body: HTMLElement): void {
   body.querySelectorAll<HTMLElement>('[data-spend-open]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      openSpendDrawer({ expenses: _expenses, legs: _legs, focus: btn.dataset.spendOpen as 'form' | 'list', trigger: btn });
+      openSpendDrawer({ expenses: _expenses, asOf: lookingBack() ? todayIso() : null, legs: _legs, focus: btn.dataset.spendOpen as 'form' | 'list', trigger: btn });
     });
   });
 

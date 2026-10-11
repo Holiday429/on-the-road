@@ -61,16 +61,16 @@ describe('sim clock', () => {
   });
 });
 
-describe('?sim / ?debug URL params', () => {
+describe('?sim URL param', () => {
   it('?sim=DATE starts a simulation at 10:00; a full time is kept', () => {
-    sim.initDebugFromUrl('?sim=2026-08-07');
+    sim.initSimFromUrl('?sim=2026-08-07');
     expect(sim.nowLocalValue().slice(0, 13)).toBe('2026-08-07T10');
-    sim.initDebugFromUrl('?sim=2026-08-09T18:45');
+    sim.initSimFromUrl('?sim=2026-08-09T18:45');
     expect(sim.nowLocalValue().slice(0, 16)).toBe('2026-08-09T18:45');
   });
-  it('is a no-op without params, and debugEnabled is false without storage', () => {
-    sim.initDebugFromUrl('');
+  it('is a no-op without the param', () => {
+    sim.initSimFromUrl('');
+    sim.initSimFromUrl('?debug=1');
     expect(sim.isSimulating()).toBe(false);
-    expect(sim.debugEnabled()).toBe(false);
   });
 });

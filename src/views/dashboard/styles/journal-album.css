@@ -23,3 +23,14 @@
 .jr-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); margin-bottom: var(--sp-4); }
 .jr-photo { display: block; aspect-ratio: 1 / 1; border-radius: var(--r-md); overflow: hidden; background: var(--amber-50); }
 .jr-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Day view: an entry without a photo gets a mood + text face; no entries → a quiet note the height of a tile row */
+.jr-face { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 40px; background: var(--amber-50); text-align: left; overflow: hidden; }
+.jr-face-emoji { font-size: 22px; line-height: 1; }
+.jr-face-text { font-size: var(--fs-xs); color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.jr-tile .jr-face ~ .jr-shade { background: linear-gradient(to top, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0) 40%); }
+.jr-day-empty {
+  display: grid; place-items: center; aspect-ratio: 3 / 1; border-radius: var(--r-lg);
+  border: 1.5px dashed var(--rule); color: var(--ink-faint); font-size: var(--fs-sm); text-align: center; padding: var(--sp-3);
+}
+.jr-body { white-space: pre-wrap; font-size: var(--fs-sm); color: var(--ink); line-height: 1.55; margin: 0; }

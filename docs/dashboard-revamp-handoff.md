@@ -81,9 +81,17 @@ iOS 侧只合并过 Journal 相册的独立组件,**还没接进 Dashboard**(被
 
 ---
 
+## 3b. 时间回溯(Dashboard 右上角 🕒,通知铃铛左侧)
+
+- 点 🕒 → 抽屉:选任意日期时间,或一键跳到「出发前一周 / 每一站到达日 / 最后一天 / 旅程结束后」。回溯中,问候行变成黄色小条「回溯到 Aug 6, 10:00 ✕」,点 ✕ 回到现在。
+- `src/data/sim-clock.ts`:`appNow()` 是应用的「现在」;`trip-phase.todayIso()` 读它,所以所有用 `todayIso()` 的页面(日历、花费等)也跟着变。存的是「选定时间 − 真实时间」的偏移(时间会继续走),放 **sessionStorage**(刷新保留,关掉标签页就回到现在)。`?sim=YYYY-MM-DD[THH:MM]` 可以直接以回溯状态打开。
+- 回溯时卡片内容(尺寸不变):日程 = 那天;花费 = 截至那天的总额 + 那天金额 + 一行当天分类摘要(`data/as-of.ts`);Journal = 那天写的日记(每篇一块,无照片则 mood/文字块,点开抽屉),没有则一条提示;待办 = 当时已存在的(没有完成时间,所以「是否已完成」用当前状态);行李/地图/横幅/Where to go 本来就按日期算。**不回溯时(`isSimulating()` 为假)所有卡片行为与以前完全一致。**
+- 回溯期间新增的记录(花费、待办、计划项)会记在回溯的那一天。
+- 选的时间是浏览器本地时间,不是行程城市的当地时间。
+
 ## 4. 验证方法
 
-- Web:`npx tsc --noEmit`、`npx vitest run`(当前 765 通过)、`npx vite build`。
+- Web:`npx tsc --noEmit`、`npx vitest run`(当前 783 通过)、`npx vite build`。
 - `npx eslint src` 有 **2 处不在本轮改动范围的既有报错**:`src/core/utils.ts:50`(innerHTML)和 `src/views/expenses/expenses.ts` 的 max-lines。
 - **没有登录也能看 UI**:建临时 `_harness/*.html`,先 `import '/src/data/trip-context.ts'`,再 import `base.css`/`app.css`,给 `routeStore/journalStore/todoStore/expenseStore/packStore/cityStore` 打桩(`s.peek = () => rows; s.subscribe = cb => { cb(rows); return () => {}; }`),`nomadStore.peek` 和 `nomadStore.subscribeForTrip` 单独打桩;页面容器要加 `class="view active"`(否则 `.view` 是 display:none,截图是空白);固定「今天」就覆盖 `globalThis.Date`;`vite --port <p>` 起服务后:
   `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --hide-scrollbars --window-size=W,H --virtual-time-budget=9000 --screenshot=out.png "http://localhost:<p>/_harness/x.html"`

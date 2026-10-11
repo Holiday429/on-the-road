@@ -215,3 +215,9 @@
 }
 .dm-pin--stay { color: inherit; }
 .dm-pin--city { background: #a8a29e; font-size: 12px; }
+
+/* One reserved line summarising the day's spending, so the card is the same height with or without entries. */
+.td-spend-day {
+  min-height: 1.3em; font-size: var(--fs-xs); color: var(--ink-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
