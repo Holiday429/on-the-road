@@ -269,25 +269,20 @@
 .td-mini--minus:hover { background: var(--amber-50); }
 .td-pk-unassigned { font-size: var(--fs-xs); color: var(--ink-muted); padding: 0 var(--sp-2); }
 
-/* Pack drawer: bags on top (~70%), unassigned below (~30%), each scrolling on its own */
-.pk-drawer .otr-drawer-body { display: flex; flex-direction: column; overflow: hidden; padding: 0; }
-.pk-dr-top { flex: 7 1 0; min-height: 0; display: flex; flex-direction: column; padding: var(--sp-4) var(--sp-5) 0; gap: var(--sp-3); }
-.pk-dr-bottom { flex: 3 1 0; min-height: 0; display: flex; flex-direction: column; padding: var(--sp-2) var(--sp-5) var(--sp-4); border-top: 1px solid var(--rule-soft); background: var(--surface-3); }
-.pk-dr-bottom .td-dh { margin: var(--sp-2) 0; }
-.pk-dr-count { margin-left: 4px; padding: 0 7px; border-radius: var(--r-full); background: var(--surface); font-size: 10px; color: var(--ink-muted); }
+/* Pack drawer: the Pack page's bag card on top (~70%), its Unassigned panel below (~30%).
+   Card / tag / panel styling comes from the Pack page's own stylesheet. */
+.pk-drawer .otr-drawer-body { display: flex; flex-direction: column; overflow: hidden; padding: 0; gap: var(--sp-3); }
+.pk-dr-top { flex: 7 1 0; min-height: 0; display: flex; flex-direction: column; padding: var(--sp-4) var(--sp-5) 0; gap: var(--sp-2); }
+.pk-dr-top .pack-container-card { flex: 1; min-height: 0; max-height: none; }
+.pk-dr-bottom { flex: 3 1 0; min-height: 0; padding: 0 var(--sp-5) var(--sp-4); }
+.pk-dr-bottom .pack-unassigned-panel { height: 100%; }
 .pk-dr-pager { display: flex; align-items: center; gap: var(--sp-2); }
 .pk-dr-pager .td-expand:disabled { opacity: 0.35; cursor: default; }
-.pk-dr-bag { flex: 1; min-width: 0; text-align: center; }
-.pk-dr-bag-name { font-family: var(--font-ui); font-weight: 700; color: var(--ink); }
-.pk-dr-bag-sub { font-size: var(--fs-xs); color: var(--ink-muted); }
-.pk-dr-dots { display: flex; justify-content: center; gap: 4px; margin-top: 4px; }
+.pk-dr-dots { flex: 1; display: flex; justify-content: center; gap: 5px; }
 .pk-dr-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--rule); }
 .pk-dr-dots i.is-on { background: var(--accent-deep, var(--ink)); }
-.pk-dr-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: var(--sp-3); }
-.pk-dr-item { display: flex; align-items: baseline; gap: var(--sp-2); padding: 7px 2px; border-bottom: 1px solid var(--rule-soft); font-size: var(--fs-sm); }
-.pk-dr-name { flex: 1; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
-.pk-dr-qty { color: var(--ink-muted); }
-.pk-dr-kg { color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pk-drawer .pack-item-tag { min-width: 0; }
+.pk-drawer .pack-item-tag::after { display: none; }
 
 /* Where to go: the tabs end where the cards end (the ▶ arrow sits to the right of the strip) */
 .td-w-whereto .td-widget-header { padding-right: calc(28px + var(--sp-2)); }
