@@ -33,7 +33,7 @@ import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
 import { PIN_COLORS } from '../map/map-status.ts';
 import { AGENDA_COLORS } from '../../data/day-agenda.ts';
 import { renderAgendaWidget, wireAgenda, resetAgenda, shownAgendaDay } from './dashboard-agenda.ts';
-import { renderTodoWidget } from './dashboard-todo.ts';
+import { renderTodoWidget, wireTodo, resetTodoAdd } from './dashboard-todo.ts';
 import { renderPackWidget, wirePack } from './dashboard-pack.ts';
 import { renderWhereTo, wireWhereTo, resetWhereTo } from './dashboard-whereto.ts';
 import { captureUiState, restoreUiState, swapHtml, createRenderScheduler, mapSignature } from './dashboard-render.ts';
@@ -48,7 +48,7 @@ import { mountPrefControls } from '../../core/pref-mounts.ts';
 // Lazy (see call site below) — journal/index.ts pulls in Leaflet via capture.ts,
 // which Dashboard shouldn't eagerly load just to wire up a click handler.
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
-import { openDashboardTodoModal, openAddPlanModal } from './dashboard-modals.ts';
+import { openAddPlanModal } from './dashboard-modals.ts';
 import { renderBanner, wireBanner, startBannerClock, type BannerData } from './dashboard-banner.ts';
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
 import { resolveHomeTimezone } from '../../data/home-timezone.ts';
@@ -62,6 +62,7 @@ let _rates: RateTable = {};
 let _rateInput = '';          // currency converter amount
 let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency())
 let _rateTo    = '';          // selected "to" currency (empty = auto suggestedCurrency)
+let _quickCur  = '';          // currency picked on the quick-add badge ('' = the place's default)
 let _rateOpen  = false;       // converter panel expanded (not persisted — collapses on reload)
 let _mapCanvas: HTMLElement | null = null; // tracks which canvas element the map was booted on
 let _mapMode: 'day' | 'trip' | null = null; // user's pick; null = automatic (day, or whole trip once it's over)
@@ -330,8 +331,6 @@ function renderRatePopover(): string {
 
 /* ── Spend widget ─────────────────────────────────────────────────────────── */
 function renderSpendWidget(): string {
-  const base      = baseCurrency();
-  const sym       = currencySymbol(base);
   const today     = todayIso();
   // Looking back at a day: spend counts up to and on that day only.
   const asOf      = lookingBack() ? today : null;
@@ -339,6 +338,7 @@ function renderSpendWidget(): string {
   const total     = rows.reduce((s, e) => s + inBase(e), 0);
   const todaySpend = rows.filter(e => e.date === today).reduce((s, e) => s + inBase(e), 0);
   const budget    = tripBudget();
+  const curCode   = _quickCur || defaultCurrency(_legs, today);
   const day       = daySpend(rows, today, inBase);
   const dayLine   = day.count
     ? `${t(day.count === 1 ? 'dash.spend.entry1' : 'dash.spend.entries', { n: day.count })} · ${day.top.map(c => `${EXPENSE_CATEGORIES.find(k => k.id === c.category)?.icon ?? '💶'} ${fmt(c.amount)}`).join(' · ')}`
@@ -382,8 +382,8 @@ function renderSpendWidget(): string {
         <button type="button" class="td-expand" data-spend-analysis title="${esc(t('dash.spend.analysis'))}" aria-label="${esc(t('dash.spend.analysis'))}">⤢</button>
       </div>
       <div class="td-spend-top">
-        <button type="button" class="td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><div class="td-spend-label">${esc(t('dash.spend.total'))}</div><div class="td-spend-big">${fmt(total)}</div></button>
-        <div class="td-spend-today"><div class="td-spend-label">${esc(dayLabel)}</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
+        <button type="button" class="td-spend-fig td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><span class="td-spend-big">${fmt(total)}</span><span class="td-spend-cap">${esc(t('dash.spend.total'))}</span></button>
+        <div class="td-spend-fig td-spend-today"><span class="td-spend-mid">${fmt(todaySpend)}</span><span class="td-spend-cap">${esc(dayLabel)}</span></div>
       </div>
       ${budgetLine}
       <div class="td-spend-day" title="${esc(dayLine)}">${esc(dayLine)}</div>
@@ -392,9 +392,12 @@ function renderSpendWidget(): string {
         ${_rateOpen ? renderRatePopover() : ''}
       </div>
       <form class="td-quickadd td-quickadd-v" data-quickadd>
-        <div class="td-quickadd-hint">📍 ${esc(leg?.country || '—')}${leg?.city ? ' · ' + esc(leg.city) : ''} · ${currencySymbol(defaultCurrency(_legs, today))}${defaultCurrency(_legs, today)}</div>
+        <div class="td-quickadd-hint">📍 ${esc(leg?.country || '—')}${leg?.city ? ' · ' + esc(leg.city) : ''}</div>
         <div class="td-quickadd-row2">
-          <span class="td-quickadd-cur" title="${esc(defaultCurrency(_legs, today))}">${sym}</span>
+          <label class="td-quickadd-cur" title="${esc(t('dash.spend.currency'))}">
+            <span class="td-quickadd-sym">${esc(currencySymbol(curCode))}</span>
+            <select class="td-quickadd-curpick" aria-label="${esc(t('dash.spend.currency'))}">${currencyOptions(curCode)}</select>
+          </label>
           <input class="td-quickadd-amt" type="text" inputmode="decimal" placeholder="0.00" aria-label="${esc(t('dash.agenda.spendAmount'))}" required>
           <select class="td-quickadd-cat select" aria-label="${esc(t('dash.agenda.spendCategory'))}">
             <option value="">${esc(t('dash.agenda.spendCategory'))}…</option>
@@ -478,7 +481,7 @@ function agendaSources() {
 function quickAddSpend(amount: number, desc: string, category: string): void {
   const today = todayIso();
   const place = defaultPlace(_legs, today);
-  const currency = defaultCurrency(_legs, today);
+  const currency = _quickCur || defaultCurrency(_legs, today);
   void addExpenseWithDefaults({
     amount, currency, description: desc || 'Quick add', date: today,
     category, country: place.country, city: place.city, rates: _rates,
@@ -564,6 +567,13 @@ function wire(body: HTMLElement): void {
     });
   });
 
+  // Round currency badge: the native dropdown sits invisibly on top of it.
+  body.querySelector<HTMLSelectElement>('.td-quickadd-curpick')?.addEventListener('change', e => {
+    _quickCur = (e.target as HTMLSelectElement).value;
+    const sym = body.querySelector('.td-quickadd-sym');
+    if (sym) sym.textContent = currencySymbol(_quickCur);
+  });
+
   // Quick-add spend form.
   body.querySelector<HTMLFormElement>('[data-quickadd]')?.addEventListener('submit', e => {
     e.preventDefault();
@@ -638,13 +648,6 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Todo calendar-icon button → full modal with due date.
-  body.querySelectorAll<HTMLButtonElement>('[data-todo-add-modal]').forEach(btn => btn.addEventListener('click', e => {
-    e.stopPropagation();
-    e.preventDefault();
-    openDashboardTodoModal(shownAgendaDay(agendaSources(), todayIso()));
-  }));
-
   // Where-to-go: add to itinerary button
   body.querySelectorAll<HTMLButtonElement>('[data-wtg-add]').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -660,6 +663,7 @@ function wire(body: HTMLElement): void {
 
   wireBanner(body, () => bannerData(tripPhase()), render);
   wireSimControl(body, () => { const tr = currentTrip(); return { trip: tr ? { startDate: tr.startDate, endDate: tr.endDate } : null, legs: _legs }; });
+  wireTodo(body, render);
   wireWhereTo(body, render);
   wireAgenda(body, render, () => ({ src: agendaSources(), today: todayIso() }));
   wirePack(body, () => ({ list: _packLists[0], legs: _legs, today: todayIso() }));
@@ -782,6 +786,7 @@ export function initDashboard(): void {
   _weatherCity = '';
   resetAgenda();
   resetWhereTo();
+  resetTodoAdd();
   resetJournalCarousel();
   _mapMode = null; _mapBootMode = null;
   disposeMaps();

@@ -8,7 +8,7 @@
    Pure over plain data; weights are grams.
    ========================================================================== */
 
-import type { PackList } from './schema.ts';
+import type { PackItem, PackList, PackContainer } from './schema.ts';
 import type { StoredLeg } from './stores/route-store.ts';
 import { baggageLimitG, itemWeightG, itemsPresentAtLeg } from './packing-formula.ts';
 import { daysBetween } from './trip-phase.ts';
@@ -76,4 +76,27 @@ export function packChanges(list: PackList, legs: StoredLeg[]): PackChange[] {
     .map((it) => it.droppedLegId
       ? { name: it.name, kind: 'dropped' as const, city: cityOf(it.droppedLegId) }
       : { name: it.name, kind: 'acquired' as const, city: cityOf(it.acquiredLegId) });
+}
+
+/* ── What is in each bag right now ───────────────────────────────────────── */
+
+export interface ContainerContents { container: PackContainer; items: PackItem[]; weightG: number }
+
+/** Items you hold today (acquired by now, not yet dropped), sorted into their bags.
+ *  An item whose bag is missing or unset is "unassigned". Bag weight includes the
+ *  empty bag itself. */
+export function packContents(list: PackList, legsIn: StoredLeg[], today: string): { containers: ContainerContents[]; unassigned: PackItem[] } {
+  const legs = sortedLegs(legsIn);
+  const here = legs.find((l) => l.dateFrom <= today && l.dateTo >= today)
+    ?? legs.find((l) => l.dateFrom >= today)
+    ?? legs[legs.length - 1];
+  const present = here ? itemsPresentAtLeg(list.items, legs, here.id) : list.items.filter((it) => !it.droppedLegId);
+  const ids = new Set(list.containers.map((c) => c.id));
+  return {
+    containers: list.containers.map((container) => {
+      const items = present.filter((it) => it.containerId === container.id);
+      return { container, items, weightG: items.reduce((s, it) => s + itemWeightG(it), 0) + container.selfWeightG };
+    }),
+    unassigned: present.filter((it) => !it.containerId || !ids.has(it.containerId)),
+  };
 }

@@ -4,7 +4,7 @@ import type { PackList } from './schema.ts';
 
 vi.mock('./trip-context.ts', () => ({ currentTrip: () => null }));
 vi.mock('./stores/route-store.ts', () => ({ routeStore: { peek: () => [] } }));
-const { packSummary, packChanges } = await import('./pack-summary.ts');
+const { packSummary, packChanges, packContents } = await import('./pack-summary.ts');
 const { baggageLimitG } = await import('./packing-formula.ts');
 
 const leg = (id: string, city: string, from: string, to: string, extra: Partial<StoredLeg> = {}) =>
@@ -74,5 +74,30 @@ describe('packChanges', () => {
   it('lists every acquired/dropped item with its city', () => {
     const l = list([item('1', 'A', 1), item('2', 'B', 1, { acquiredLegId: 'b' })]);
     expect(packChanges(l, LEGS)).toEqual([{ name: 'B', kind: 'acquired', city: 'Rome' }]);
+  });
+});
+
+describe('packContents', () => {
+  const list2 = (items: unknown[]) => ({ id: 'l', name: 'x', containers: [
+    { id: 'c1', label: 'Suitcase', kind: 'suitcase', limitG: 23000, selfWeightG: 3000 },
+    { id: 'c2', label: 'Backpack', kind: 'backpack', limitG: 0, selfWeightG: 800 },
+  ], items }) as unknown as PackList;
+
+  it('sorts what you hold into bags, with the empty bag counted in its weight', () => {
+    const l = list2([item('1', 'Jacket', 1.5, { containerId: 'c1' }), item('2', 'Laptop', 1.4, { containerId: 'c2' }), item('3', 'Charger', 0.2, { containerId: 'c2', qty: 2 })]);
+    const c = packContents(l, LEGS, '2026-08-02');
+    expect(c.containers.map((x) => [x.container.label, x.items.map((i) => i.name), x.weightG])).toEqual([
+      ['Suitcase', ['Jacket'], 4500], ['Backpack', ['Laptop', 'Charger'], 800 + 1400 + 400],
+    ]);
+    expect(c.unassigned).toEqual([]);
+  });
+  it('items with no bag, or a bag that no longer exists, are unassigned', () => {
+    const l = list2([item('1', 'Scarf', 0.4), item('2', 'Mug', 0.3, { containerId: 'gone' }), item('3', 'Boots', 2, { containerId: 'c1' })]);
+    expect(packContents(l, LEGS, '2026-08-02').unassigned.map((i) => i.name)).toEqual(['Scarf', 'Mug']);
+  });
+  it('leaves out what was dropped or is not yet acquired at this stop', () => {
+    const l = list2([item('1', 'Old shoes', 1, { containerId: 'c1', droppedLegId: 'a' }), item('2', 'Souvenir', 1, { containerId: 'c1', acquiredLegId: 'b' }), item('3', 'Coat', 1, { containerId: 'c1' })]);
+    const c = packContents(l, LEGS, '2026-08-02');          // in Lisbon (leg a)
+    expect(c.containers[0].items.map((i) => i.name)).toEqual(['Coat']);
   });
 });

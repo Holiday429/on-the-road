@@ -1,14 +1,14 @@
 /* ── Journal city tiles ───────────────────────────────────────────────────────
    Three square thumbnails, one per city (or a lone city's first three photos). */
-.jr-row { display: flex; align-items: center; gap: var(--sp-3); }
-.jr-main { flex: 1; min-width: 0; }
-.jr-row > .td-plus { flex-shrink: 0; }
+.jr-row { flex: 1; min-height: 0; display: flex; align-items: stretch; gap: var(--sp-3); }
+.jr-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.jr-row > .td-plus { flex-shrink: 0; align-self: center; }
 /* Three tiles visible; with more, the track slides (dashboard-journal.ts) */
-.jr-carousel { overflow: hidden; border-radius: var(--r-lg); }
-.jr-track { display: flex; gap: var(--sp-2); transition: transform 700ms var(--ease-out); }
+.jr-carousel { flex: 1; min-height: 0; overflow: hidden; border-radius: var(--r-lg); }
+.jr-track { display: flex; gap: var(--sp-2); height: 100%; transition: transform 700ms var(--ease-out); }
 @media (prefers-reduced-motion: reduce) { .jr-track { transition: none; } }
 .jr-tile {
-  position: relative; display: block; flex: 0 0 calc((100% - 2 * var(--sp-2)) / 3); aspect-ratio: 1 / 1; padding: 0; border: 0; cursor: pointer;
+  position: relative; display: block; flex: 0 0 calc((100% - 2 * var(--sp-2)) / 3); height: 100%; min-height: 150px; padding: 0; border: 0; cursor: pointer;
   border-radius: var(--r-lg); overflow: hidden; background: var(--amber-50);
 }
 .jr-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform var(--dur-mid) var(--ease-out); }
@@ -31,7 +31,7 @@
 .jr-face-text { font-size: var(--fs-xs); color: var(--ink-soft); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .jr-tile .jr-face ~ .jr-shade { background: linear-gradient(to top, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0) 40%); }
 .jr-day-empty {
-  display: grid; place-items: center; aspect-ratio: 3 / 1; border-radius: var(--r-lg);
+  display: grid; place-items: center; flex: 1; min-height: 150px; border-radius: var(--r-lg);
   border: 1.5px dashed var(--rule); color: var(--ink-faint); font-size: var(--fs-sm); text-align: center; padding: var(--sp-3);
 }
 .jr-body { white-space: pre-wrap; font-size: var(--fs-sm); color: var(--ink); line-height: 1.55; margin: 0; }
@@ -39,3 +39,6 @@
 /* Album drawer: the Journal page's compose / export bar and first-time hint aren't wanted here (the + is on the card) */
 .jr-album-drawer .journal-compose-bar, .jr-album-drawer .journal-first-guide { display: none; }
 @container tdgrid (max-width: 900px) { .jr-row .td-plus--lg { width: 32px; height: 32px; font-size: 18px; } }
+
+/* Album drawer: just the albums — no hint line, no AI tidy, no tag groups */
+.jr-album-drawer .journal-album-hint, .jr-album-drawer [data-album-tidy], .jr-album-drawer .journal-tidy, .jr-album-drawer .journal-tidy-empty, .jr-album-drawer .journal-auto-groups, .jr-album-drawer .journal-section-kicker { display: none; }

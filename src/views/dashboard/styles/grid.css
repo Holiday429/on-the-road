@@ -11,6 +11,10 @@
   grid-template-columns: repeat(12, 1fr);
   gap: var(--sp-4);
   align-items: start;
+  /* rows: agenda · spend · journal · where to go. The map spans spend + journal; the
+     journal row is the flexible one, so whatever height the map needs beyond the spend
+     card goes to the journal, not to empty space inside Spend. */
+  grid-template-rows: auto auto 1fr auto;
 }
 
 /* All grid items: prevent intrinsic content width from blowing out 1fr tracks
@@ -28,7 +32,7 @@
 .td-w-whereto  { grid-column: 1 / span 12; align-self: start; }
 
 @container tdgrid (max-width: 900px) {
-  .td-grid { grid-template-columns: 1fr 1fr; }
+  .td-grid { grid-template-columns: 1fr 1fr; grid-template-rows: none; }
   .td-w-agenda { grid-column: 1 / span 2; }
   .td-w-todo   { grid-column: 1; }
   .td-w-pack   { grid-column: 2; }
@@ -38,7 +42,7 @@
   .td-w-journal { grid-column: 2; grid-row: auto; }
 }
 @container tdgrid (max-width: 420px) {
-  .td-grid { grid-template-columns: 1fr; }
+  .td-grid { grid-template-columns: 1fr; grid-template-rows: none; }
   .td-w-agenda, .td-w-todo, .td-w-pack, .td-w-map, .td-w-spend, .td-w-journal,
   .td-w-whereto { grid-column: 1; grid-row: auto; }
 }

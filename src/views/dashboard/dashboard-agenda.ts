@@ -16,7 +16,8 @@
    ========================================================================== */
 
 import { agendaForDay, kindsByDate, addDays, AGENDA_COLORS, type AgendaItem, type AgendaKind, type AgendaSources, type DayAgenda } from '../../data/day-agenda.ts';
-import { planCategoryIcon } from '../../data/plan-category-icon.ts';
+import { categoryById } from '../itinerary/itinerary-shared.ts';
+import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 import { openAgendaItemDrawer } from './agenda-drawer.ts';
@@ -110,21 +111,21 @@ export function dayHint(day: DayAgenda, src: AgendaSources): string {
   return '';
 }
 
-/** A planned thing: category icon on the left, then the title — no clock time
- *  (the order is the order of the day). Opens its details in the side drawer. */
-function renderItem(it: AgendaItem): string {
-  const color = AGENDA_COLORS[it.kind];
+/** A planned thing, the way the Itinerary's Plan board draws it: a tick in front (done →
+ *  filled, the title struck through), the title on the category's colour, a chevron at the
+ *  end. Ticking writes the same `done` flag the Itinerary reads; the row opens its details
+ *  in the side drawer. */
+function renderItem(it: AgendaItem, legs: StoredLeg[]): string {
+  const leg = legs.find((l) => l.id === it.legId);
+  const color = (leg && it.category ? categoryById(leg as never, it.category)?.color : undefined) ?? '#ebebeb';
   const check = it.planRef
-    ? `<button type="button" class="ag-check${it.done ? ' is-done' : ''}" data-toggle-plan="${esc(it.planRef.legId)}:${esc(it.planRef.planId)}" aria-label="${esc(t('dash.agenda.toggleDone'))}"></button>`
+    ? `<button type="button" class="ag-check${it.done ? ' is-done' : ''}" data-toggle-plan="${esc(it.planRef.legId)}:${esc(it.planRef.planId)}" aria-label="${esc(t('dash.agenda.toggleDone'))}" aria-pressed="${it.done ? 'true' : 'false'}"></button>`
     : '';
   return `
-    <div class="ag-item ag-kind-${it.kind}${it.done ? ' is-done' : ''}" data-agenda-item="${esc(it.id)}" role="button" tabindex="0" style="--ag-c:${color}">
-      <span class="ag-icon">${planCategoryIcon(it.category)}</span>
-      <span class="ag-copy">
-        <span class="ag-title">${esc(it.title)}</span>
-        ${it.subtitle ? `<span class="ag-sub">${esc(it.subtitle)}</span>` : ''}
-      </span>
+    <div class="ag-item${it.done ? ' is-done' : ''}" data-agenda-item="${esc(it.id)}" role="button" tabindex="0" style="--ag-bg:${esc(color)}">
       ${check}
+      <span class="ag-title">${esc(it.title)}</span>
+      <span class="ag-chev" aria-hidden="true">›</span>
     </div>`;
 }
 
@@ -142,7 +143,7 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean, today: s
   const more = rows.length - shown.length;
 
   const body = shown.length
-    ? `<div class="ag-list">${shown.map(renderItem).join('')}</div>${more > 0 ? `<button type="button" class="ag-more" data-nav="calendar" data-intent='${esc(JSON.stringify({ date: day.iso }))}'>${esc(t('dash.agenda.more', { n: more }))}</button>` : ''}`
+    ? `<div class="ag-list">${shown.map((i) => renderItem(i, src.legs)).join('')}</div>${more > 0 ? `<button type="button" class="ag-more" data-nav="calendar" data-intent='${esc(JSON.stringify({ date: day.iso }))}'>${esc(t('dash.agenda.more', { n: more }))}</button>` : ''}`
     : `<div class="ag-none">${esc(t(day.iso === today ? 'dash.agenda.noEventsToday' : 'dash.agenda.empty'))}</div>`;
 
   return `
@@ -154,6 +155,7 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean, today: s
         ${hint ? `<div class="ag-hint">${esc(hint)}</div>` : ''}
       </div>
       ${body}
+      ${src.legs.length ? `<button type="button" class="ag-add" data-agenda-add title="${esc(t('dash.agenda.add'))}"><span aria-hidden="true">＋</span> ${esc(t('dash.agenda.addShort'))}</button>` : ''}
     </div>`;
 }
 
@@ -171,7 +173,6 @@ export function renderAgendaWidget(src: AgendaSources, today: string): string {
       <div class="td-widget-header">
         <div class="td-widget-label">📅 ${esc(t('dash.agenda.title'))}</div>
         <div class="ag-tabs">${tab('today', t('dash.agenda.today'))}${tab('tomorrow', t('dash.agenda.tomorrow'))}</div>
-        ${src.legs.length ? `<button type="button" class="td-plus" data-agenda-add title="${esc(t('dash.agenda.add'))}" aria-label="${esc(t('dash.agenda.add'))}">+</button>` : ''}
       </div>
       <div class="ag-body">
         ${renderMonth(_month ?? iso.slice(0, 7), today, iso, kinds)}

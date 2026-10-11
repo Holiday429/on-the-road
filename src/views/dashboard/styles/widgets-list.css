@@ -26,11 +26,6 @@
   text-align: center; padding: var(--sp-4) var(--sp-2);
 }
 .td-todo-empty-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink-soft); }
-.td-todo-prompt {
-  background: none; padding: 0; cursor: pointer; text-align: center;
-  font-size: var(--fs-sm); color: var(--accent-deep); line-height: 1.4;
-}
-.td-todo-prompt:hover { text-decoration: underline; }
 .td-todo-add { display: flex; align-items: center; gap: var(--sp-2); }
 .td-todo-add-cal {
   flex-shrink: 0; font-size: 16px; line-height: 1;
@@ -144,3 +139,19 @@
 .td-expand:hover { background: var(--amber-100); color: var(--ink); }
 .td-expand:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 .td-plus--lg { width: 40px; height: 40px; font-size: 22px; }
+
+/* Inline add row (no dialog): text, 📅 due, 🔔 reminder, Add */
+.td-plus.is-open { background: var(--ink); color: var(--surface); transform: rotate(45deg); }
+.td-todo-new { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2); border-radius: var(--r-md); background: var(--surface-3); position: relative; }
+.td-todo-new .td-todo-add-input { width: 100%; box-sizing: border-box; height: 34px; }
+.td-todo-new-tools { display: flex; align-items: center; gap: 6px; }
+.td-ic {
+  display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 9px; border-radius: var(--r-full); cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--surface-4); font-size: 13px; line-height: 1; color: var(--ink-soft);
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.td-ic:hover { border-color: var(--amber-400); }
+.td-ic.is-set { background: var(--amber-50); border-color: var(--amber-400); color: var(--ink); }
+.td-ic-v { font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.td-ic-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.td-todo-new-go { margin-left: auto; height: 30px; padding: 0 14px; font-size: var(--fs-sm); }

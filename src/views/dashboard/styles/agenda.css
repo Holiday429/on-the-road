@@ -13,7 +13,7 @@
 }
 .ag-tab.is-active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
 
-.ag-body { display: grid; grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
+.ag-body { display: grid; grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1fr); gap: var(--sp-5); align-items: stretch; }
 
 /* Month */
 .ag-month { min-width: 0; }
@@ -31,11 +31,11 @@
 .ag-dow { text-align: center; font-size: 10px; font-weight: 600; color: var(--ink-faint); padding-bottom: 4px; }
 .ag-cell {
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 2px;
-  height: 34px; padding-top: 1px; background: none; cursor: pointer;
+  height: 30px; padding-top: 0; background: none; cursor: pointer;
 }
 /* The circle is the digit's own box, so a ring/fill always wraps the number. */
 .ag-num {
-  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
   font-family: var(--font-ui); font-size: 12px; line-height: 1; color: var(--ink-soft);
   transition: background var(--dur-fast);
 }
@@ -47,7 +47,7 @@
 .ag-dots i { width: 4px; height: 4px; border-radius: 50%; }
 
 /* Day panel */
-.ag-day { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.ag-day { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; align-self: stretch; }
 .ag-nextup { align-self: flex-start; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber-700); background: var(--amber-50); border-radius: var(--r-full); padding: 2px 8px; }
 .ag-day-head { display: flex; flex-direction: column; gap: 2px; }
 .ag-date { font-family: var(--font-ui); font-size: var(--fs-base); font-weight: 700; color: var(--ink); }
@@ -55,30 +55,39 @@
 .ag-hint { font-size: var(--fs-xs); font-weight: 600; color: var(--amber-700); }
 
 .ag-list { display: flex; flex-direction: column; gap: 4px; }
+/* One plan item — same look as the Itinerary's Plan board: category colour, a tick in front. */
 .ag-item {
-  display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: var(--sp-2);
-  padding: 5px 8px 5px 6px; border-radius: var(--r-md); background: var(--surface-3);
-  border-left: 3px solid var(--ag-c, var(--rule)); transition: background var(--dur-fast);
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 6px 8px; border-radius: var(--r-md); background: var(--ag-bg, #ebebeb);
+  color: #2b2b2b;                         /* the pastel category colours are light in both themes */
+  cursor: pointer; transition: filter var(--dur-fast), opacity var(--dur-fast);
 }
-.ag-item[data-nav], .ag-item[data-agenda-item] { cursor: pointer; }
-.ag-item[data-nav]:hover, .ag-item[data-agenda-item]:hover { background: var(--surface-4); }
-.ag-item[data-agenda-item]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.ag-item.is-done { opacity: 0.5; }
+.ag-item:hover { filter: brightness(0.96); }
+.ag-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.ag-item.is-done { opacity: 0.6; }
 .ag-item.is-done .ag-title { text-decoration: line-through; }
-.ag-icon { font-size: 16px; text-align: left; line-height: 1; }
-.ag-copy { display: flex; flex-direction: column; min-width: 0; }
-.ag-title, .ag-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ag-title { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); }
-.ag-sub { font-size: var(--fs-xs); color: var(--ink-faint); }
+.ag-title { flex: 1; min-width: 0; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ag-chev { flex-shrink: 0; color: rgba(0,0,0,0.35); font-size: 15px; line-height: 1; }
 .ag-check {
-  width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--ink-faint); background: none; cursor: pointer;
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; cursor: pointer;
+  border: 1.5px solid rgba(0,0,0,0.25); background: rgba(255,255,255,0.6);
+  display: grid; place-items: center; font-size: 11px; line-height: 1; color: transparent;
   transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .ag-check:hover { border-color: var(--sage-500); }
-.ag-check.is-done { background: var(--sage-500); border-color: var(--sage-500); }
+.ag-check.is-done { background: var(--sage-500); border-color: var(--sage-500); color: #fff; }
+.ag-check.is-done::after { content: '✓'; }
 
 .ag-more { align-self: flex-start; background: none; cursor: pointer; font-size: var(--fs-xs); font-weight: 600; color: var(--accent-deep); }
 .ag-more:hover { text-decoration: underline; }
+/* + sits under the list, at the bottom of the day panel */
+.ag-add {
+  margin-top: auto; align-self: stretch; padding: 5px 10px; border-radius: var(--r-md); cursor: pointer;
+  border: 1.5px dashed var(--rule); background: none; color: var(--ink-muted);
+  font-size: var(--fs-xs); font-weight: 600; text-align: center;
+  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+.ag-add:hover { background: var(--amber-50); border-color: var(--amber-400); color: var(--ink); }
 
 /* Narrow widget (phones / 3-col fallback): stack month above the day. */
 @container tdgrid (max-width: 680px) { .ag-body { grid-template-columns: minmax(0, 1fr); } }

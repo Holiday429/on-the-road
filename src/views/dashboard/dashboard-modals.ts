@@ -7,11 +7,9 @@
 
 import { openModal } from '../../core/modal.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import { todoStore } from '../../data/stores/todo-store.ts';
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { type StoredLeg } from '../../data/stores/route-store.ts';
 import { itemWeightG, itemsPresentAtLeg } from '../../data/packing-formula.ts';
-import { scheduleAllNotifications } from '../../core/notifications.ts';
 // From pack-helpers.ts (not pack.ts) — keeps Dashboard's eager bundle from
 // pulling in the full pack view module.
 import { PACK_CATEGORIES } from '../pack/pack-helpers.ts';
@@ -19,51 +17,14 @@ import { PACK_CATEGORIES } from '../pack/pack-helpers.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { planDaysFor, pickPlanDay, legForDate } from '../../data/plan-days.ts';
+import { allCategories } from '../itinerary/itinerary-shared.ts';
 import type { PlanItem } from '../../data/schema.ts';
 import { t } from '../../core/i18n.ts';
 
-/* ── New to-do modal (with due date + reminder) ──────────────────────────── */
-export function openDashboardTodoModal(defaultDate: string = todayIso()): void {
-  const handle = openModal({
-    title: `+ ${t('dash.todoModal.title')}`,
-    body: `
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <input class="input" id="db-todo-text" placeholder="${esc(t('dash.todoModal.text'))}" autofocus>
-        <div style="display:flex;gap:8px">
-          <div style="flex:1;min-width:0"><label class="field-label">${esc(t('dash.todoModal.due'))}</label>
-            <input class="input" id="db-todo-due" type="date" value="${esc(defaultDate)}"></div>
-          <div style="flex:1;min-width:0"><label class="field-label">${esc(t('dash.todoModal.remind'))}</label>
-            <input class="input" id="db-todo-remind" type="datetime-local"></div>
-        </div>
-      </div>`,
-    footer: `<button class="btn btn-ghost" id="db-todo-cancel">${esc(t('common.cancel'))}</button>
-             <button class="btn btn-primary" id="db-todo-save">${esc(t('common.add'))}</button>`,
-  });
-
-  handle.root.querySelector('#db-todo-cancel')?.addEventListener('click', () => handle.close());
-  handle.root.querySelector('#db-todo-save')?.addEventListener('click', async () => {
-    const text = (handle.root.querySelector<HTMLInputElement>('#db-todo-text'))?.value.trim() ?? '';
-    const due  = (handle.root.querySelector<HTMLInputElement>('#db-todo-due'))?.value || null;
-    const remindStr = (handle.root.querySelector<HTMLInputElement>('#db-todo-remind'))?.value || '';
-    let remindAt: number | null = null;
-    if (remindStr) {
-      const ms = new Date(remindStr).getTime();
-      if (!isNaN(ms)) remindAt = ms;
-    }
-    if (!text) { handle.root.querySelector<HTMLInputElement>('#db-todo-text')?.focus(); return; }
-    if (remindAt && 'Notification' in window && Notification.permission === 'default') {
-      await Notification.requestPermission();
-    }
-    await todoStore.add({ text, dueDate: due, remindAt });
-    handle.close();
-    scheduleAllNotifications();
-  });
-
-  handle.root.querySelector<HTMLInputElement>('#db-todo-text')?.focus();
-}
-
 /* ── Pack bag-change modal (dashboard shortcut) ──────────────────────────── */
-export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acquired' | 'left', legs: StoredLeg[]) {
+/** `containerId`: act on one bag — a purchase goes into it, a loss is picked from what's in it. */
+export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acquired' | 'left', legs: StoredLeg[], containerId?: string) {
+  const bag = containerId ? list.containers.find(c => c.id === containerId) : undefined;
   const sLegs = [...legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
   if (!sLegs.length) return;
 
@@ -81,7 +42,7 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
   ).join('');
 
   const m = openModal({
-    title: t('dash.bagModal.title'),
+    title: bag ? `${t('dash.bagModal.title')} · ${bag.label}` : t('dash.bagModal.title'),
     variant: 'sheet',
     body: `
       <label class="field-label">${esc(t('dash.bagModal.stop'))}</label>
@@ -138,7 +99,7 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
   function updateDropList() {
     const legId = m.root.querySelector<HTMLSelectElement>('#td-bc-leg')?.value;
     if (!legId) return;
-    const present = itemsPresentAtLeg(list.items, sLegs, legId).filter(it => !it.droppedLegId);
+    const present = itemsPresentAtLeg(list.items, sLegs, legId).filter(it => !it.droppedLegId && (!containerId || it.containerId === containerId));
     const el = m.root.querySelector<HTMLElement>('#td-bc-drop-list')!;
     // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     el.innerHTML = present.length
@@ -177,7 +138,7 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
     if (!legId) return;
     if (activeTab === 'acquired') {
       const existingId = m.root.querySelector<HTMLSelectElement>('#td-ac-existing')?.value;
-      if (existingId) { await packStore.updateItem(list.id, existingId, { acquiredLegId: legId }); m.close(); return; }
+      if (existingId) { await packStore.updateItem(list.id, existingId, { acquiredLegId: legId, ...(containerId ? { containerId } : {}) }); m.close(); return; }
       const name = (m.root.querySelector<HTMLInputElement>('#td-ac-name')?.value || '').trim();
       if (!name) { m.root.querySelector<HTMLInputElement>('#td-ac-name')?.focus(); return; }
       const cat = m.root.querySelector<HTMLSelectElement>('#td-ac-cat')?.value || 'gifts';
@@ -185,7 +146,7 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
       const qty = Math.max(1, parseInt(m.root.querySelector<HTMLInputElement>('#td-ac-qty')?.value || '1', 10) || 1);
       await packStore.addItem(list.id, {
         name, category: cat, qty, unitWeightG: wG,
-        containerId: null, priority: 'nice' as const,
+        containerId: containerId ?? null, priority: 'nice' as const,
         locked: false, packed: false, source: 'manual',
         acquiredLegId: legId, droppedLegId: null, consumable: false,
       });
@@ -212,7 +173,13 @@ export function openAddPlanModal(legs: StoredLeg[], opts: { date: string; title?
     title: `+ ${t('dash.plan.addTitle')}`,
     body: `
       <div style="display:flex;flex-direction:column;gap:12px">
-        <input class="input" id="ap-title" value="${esc(opts.title ?? '')}" placeholder="${esc(t('dash.plan.name'))}">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="input" id="ap-title" value="${esc(opts.title ?? '')}" placeholder="${esc(t('dash.plan.name'))}" style="flex:2;min-width:0">
+          <select class="input" id="ap-cat" aria-label="${esc(t('dash.plan.category'))}" style="flex:1;min-width:0">
+            <option value="">${esc(t('dash.plan.category'))}…</option>
+            ${allCategories(first as never).map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('')}
+          </select>
+        </div>
         <div style="display:flex;gap:8px;align-items:center">
           ${sorted.length > 1 ? `<select class="input" id="ap-leg" aria-label="${esc(t('dash.plan.city'))}" style="flex:1;min-width:0">${legOptions}</select>` : ''}
           <input class="input" id="ap-date" type="date" value="${esc(opts.date)}" aria-label="${esc(t('dash.plan.day'))}" style="flex:1;min-width:0">
@@ -233,7 +200,8 @@ export function openAddPlanModal(legs: StoredLeg[], opts: { date: string; title?
     if (!day) { m.root.querySelector<HTMLElement>('#ap-err')?.removeAttribute('hidden'); return; }
     const plans = (leg.plans ?? []) as PlanItem[];
     const maxOrder = plans.filter(p => p.dayId === day.id).reduce((mx, p) => Math.max(mx, p.order ?? 0), -1);
-    const item: PlanItem = { id: `plan-${Date.now()}`, dayId: day.id, title, category: '', done: false, order: maxOrder + 1 };
+    const category = m.root.querySelector<HTMLSelectElement>('#ap-cat')?.value ?? '';
+    const item: PlanItem = { id: `plan-${Date.now()}`, dayId: day.id, title, category, done: false, order: maxOrder + 1 };
     // Persist the day container too when it was only implied, so the date sticks.
     const planDays = (leg.planDays ?? []).some(d => d.id === day.id) ? leg.planDays : [...(leg.planDays ?? []), day];
     await routeStore.update(leg.id, { plans: [...plans, item], planDays });
