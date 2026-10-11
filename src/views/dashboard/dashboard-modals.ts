@@ -16,9 +16,11 @@ import { scheduleAllNotifications } from '../../core/notifications.ts';
 // pulling in the full pack view module.
 import { PACK_CATEGORIES } from '../pack/pack-helpers.ts';
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { todayIso } from '../../data/trip-phase.ts';
+import { routeStore } from '../../data/stores/route-store.ts';
+import { planDaysFor, pickPlanDay, legForDate } from '../../data/plan-days.ts';
+import type { PlanItem } from '../../data/schema.ts';
+import { t } from '../../core/i18n.ts';
 
 /* ── New to-do modal (with due date + reminder) ──────────────────────────── */
 export function openDashboardTodoModal(defaultDate: string = todayIso()): void {
@@ -195,4 +197,50 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
     }
     m.close();
   });
+}
+
+/* ── Add a plan item to a date ───────────────────────────────────────────── */
+/** "+ Add to itinerary": a title and a day, written straight onto the stop the
+ *  date belongs to. Used by the agenda's + button and Where-to-go's card +. */
+export function openAddPlanModal(legs: StoredLeg[], opts: { date: string; title?: string }): void {
+  const sorted = [...legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  const first = legForDate(sorted, opts.date);
+  if (!first) return;
+
+  const legOptions = sorted.map(l =>
+    `<option value="${esc(l.id)}" ${l.id === first.id ? 'selected' : ''}>${esc(l.flag || '🗺️')} ${esc(l.city)}</option>`).join('');
+
+  const m = openModal({
+    title: `+ ${t('dash.plan.addTitle')}`,
+    body: `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <input class="input" id="ap-title" value="${esc(opts.title ?? '')}" placeholder="${esc(t('dash.plan.name'))}">
+        ${sorted.length > 1 ? `<select class="input" id="ap-leg">${legOptions}</select>` : ''}
+        <div style="display:flex;gap:8px;align-items:center">
+          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">${esc(t('dash.plan.day'))}</label>
+          <input class="input" id="ap-date" type="date" value="${esc(opts.date)}">
+        </div>
+        <div id="ap-err" class="field-label" style="color:var(--coral-500);margin:0" hidden>${esc(t('dash.plan.noDays'))}</div>
+      </div>`,
+    footer: `<button class="btn btn-ghost" data-act="cancel">${esc(t('common.cancel'))}</button>
+             <button class="btn btn-primary" data-act="confirm">${esc(t('common.add'))}</button>`,
+  });
+  m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
+  m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
+    const title = (m.root.querySelector<HTMLInputElement>('#ap-title')?.value ?? '').trim();
+    if (!title) { m.root.querySelector<HTMLInputElement>('#ap-title')?.focus(); return; }
+    const date = m.root.querySelector<HTMLInputElement>('#ap-date')?.value || opts.date;
+    const legId = m.root.querySelector<HTMLSelectElement>('#ap-leg')?.value ?? first.id;
+    const leg = sorted.find(l => l.id === legId) ?? first;
+    const day = pickPlanDay(planDaysFor(leg), date);
+    if (!day) { m.root.querySelector<HTMLElement>('#ap-err')?.removeAttribute('hidden'); return; }
+    const plans = (leg.plans ?? []) as PlanItem[];
+    const maxOrder = plans.filter(p => p.dayId === day.id).reduce((mx, p) => Math.max(mx, p.order ?? 0), -1);
+    const item: PlanItem = { id: `plan-${Date.now()}`, dayId: day.id, title, category: '', done: false, order: maxOrder + 1 };
+    // Persist the day container too when it was only implied, so the date sticks.
+    const planDays = (leg.planDays ?? []).some(d => d.id === day.id) ? leg.planDays : [...(leg.planDays ?? []), day];
+    await routeStore.update(leg.id, { plans: [...plans, item], planDays });
+    m.close();
+  });
+  m.root.querySelector<HTMLInputElement>('#ap-title')?.select();
 }

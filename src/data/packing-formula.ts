@@ -72,6 +72,20 @@ export function weightCurve(
 }
 
 /**
+ * The weight a transport lets you bring, in grams: checked + carry-on (the
+ * personal item is not weighed against a packing list). A legacy single
+ * allowance counts as carry-on. 0 when nothing is set.
+ *
+ * (The itinerary editor writes the split fields and no longer writes the legacy
+ * `baggageAllowanceG`, so reading only the legacy field misses every newly
+ * entered flight.)
+ */
+export function baggageLimitG(t: { baggageAllowanceG?: number; baggageCarryOnG?: number; baggageCheckedG?: number } | undefined): number {
+  if (!t) return 0;
+  return (t.baggageCheckedG ?? 0) + (t.baggageCarryOnG ?? t.baggageAllowanceG ?? 0);
+}
+
+/**
  * Remaining allowance in grams for the transport arriving at a given leg.
  * Returns null if no allowance is set on that transport.
  */
@@ -81,7 +95,7 @@ export function baggageRemainG(
   legId: string,
 ): number | null {
   const leg = legs.find(l => l.id === legId);
-  const allowance = leg?.arrivalTransport?.baggageAllowanceG;
+  const allowance = baggageLimitG(leg?.arrivalTransport);
   if (!allowance) return null;
   return allowance - weightAtLeg(items, legs, legId);
 }

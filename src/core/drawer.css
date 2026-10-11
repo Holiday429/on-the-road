@@ -54,6 +54,7 @@ body.otr-drawer-open { overflow: hidden; }
   -webkit-overflow-scrolling: touch;
   padding: var(--sp-5);
 }
+.otr-drawer-foot .btn { white-space: nowrap; }
 .otr-drawer-foot {
   display: flex; gap: var(--sp-3); justify-content: flex-end;
   padding: var(--sp-3) var(--sp-5) var(--sp-5);

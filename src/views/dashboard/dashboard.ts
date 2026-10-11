@@ -12,7 +12,7 @@ import { journalStore, type StoredJournalEntry } from '../../data/stores/journal
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
 import { currentTrip, baseCurrency, tripBudget, countryBudgets, onTripChange, currentTripId } from '../../data/trip-context.ts';
 import {
-  type Phase, todayIso as sharedTodayIso, daysBetween as sharedDaysBetween,
+  type Phase, todayIso as sharedTodayIso,
   tripPhase as sharedTripPhase, currentLeg as sharedCurrentLeg,
 } from '../../data/trip-phase.ts';
 import { addExpenseWithDefaults, defaultPlace, defaultCurrency, suggestedCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
@@ -21,26 +21,23 @@ import { currencyForCountry } from '../../data/country-currency.ts';
 import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import type { PlanItem, PlanDay } from '../../data/schema.ts';
+import type { PlanItem } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
 import { PIN_COLORS } from '../map/map-status.ts';
-import { renderAgendaWidget, wireAgenda, resetAgenda } from './dashboard-agenda.ts';
+import { renderAgendaWidget, wireAgenda, resetAgenda, shownAgendaDay } from './dashboard-agenda.ts';
+import { renderTodoWidget } from './dashboard-todo.ts';
+import { renderPackWidget, wirePack } from './dashboard-pack.ts';
 import { captureUiState, restoreUiState, swapHtml, createRenderScheduler, mapSignature } from './dashboard-render.ts';
 import { renderJournalWidget, wireJournalAlbum, resetJournalAlbum } from './dashboard-journal.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
-import { openModal } from '../../core/modal.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { mountPrefControls } from '../../core/pref-mounts.ts';
 // Lazy (see call site below) — journal/index.ts pulls in Leaflet via capture.ts,
 // which Dashboard shouldn't eagerly load just to wire up a click handler.
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
-import { baggageRemainG } from '../../data/packing-formula.ts';
-// From pack-helpers.ts (not pack.ts) so Dashboard's eager bundle doesn't pull
-// in the full pack view module.
-import { listTotalWeight } from '../pack/pack-helpers.ts';
-import { openDashboardTodoModal, openPackBagChangeModal } from './dashboard-modals.ts';
+import { openDashboardTodoModal, openAddPlanModal } from './dashboard-modals.ts';
 import { renderBanner, wireBanner, startBannerClock, type BannerData } from './dashboard-banner.ts';
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
 import { resolveHomeTimezone } from '../../data/home-timezone.ts';
@@ -69,12 +66,8 @@ let _homeTzPref = '';           // Profile → Home time zone ('' = infer)
 // Prepare view's phase strip) — these wrap it against this module's own
 // _legs so the ~20 zero-arg call sites below don't all need touching.
 function todayIso(): string { return sharedTodayIso(); }
-function daysBetween(a: string, b: string): number { return sharedDaysBetween(a, b); }
 function tripPhase(): Phase { return sharedTripPhase(_legs); }
 function currentLeg(): StoredLeg | null { return sharedCurrentLeg(_legs); }
-function sortedLegs(): StoredLeg[] {
-  return [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
-}
 function inBase(e: StoredExpense): number {
   const target = baseCurrency();
   if (e.baseCurrency === target) return e.baseAmount;
@@ -415,132 +408,6 @@ function renderMapWidget(): string {
     </div>`;
 }
 
-/* Plan days for a leg (padded from its date range) — used by Where-to-go → add to itinerary. */
-function ensurePlanDaysLocal(leg: StoredLeg): PlanDay[] {
-  const total = daysBetween(leg.dateFrom, leg.dateTo);
-  const existing = [...(leg.planDays ?? [])].sort((a, b) => a.order - b.order);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return Array.from({ length: total }, (_, i) => {
-    const d = new Date(leg.dateFrom + 'T00:00:00');
-    d.setDate(d.getDate() + i);
-    // Build the iso in *local* time (matches route.ts ensurePlanDays). Using
-    // toISOString() here would shift to UTC and roll the date back a day in
-    // negative-offset timezones, mismatching stored planDay dates.
-    const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    return existing.find(e => e.date === iso) ?? { id: `day-${iso}`, date: iso, order: i, label: '', notes: '' };
-  });
-}
-
-/* ── To-do widget ─────────────────────────────────────────────────────────── */
-function renderTodoWidget(): string {
-  const today   = todayIso();
-  const pending = _todos
-    .filter(t => !t.done)
-    .sort((a, b) => {
-      // Items with due dates first, sorted by date; no-due-date items last
-      if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
-      if (a.dueDate) return -1;
-      if (b.dueDate) return 1;
-      return a.order - b.order;
-    })
-    .slice(0, 3);
-  const doneToday = _todos.filter(t => t.done && t.dueDate === today).length;
-
-  const rows = pending.map(t => {
-    const overdue = t.dueDate && t.dueDate < today;
-    const dueLabel = t.dueDate === today ? 'Today'
-      : overdue ? `Overdue · ${t.dueDate}`
-      : t.dueDate ? t.dueDate
-      : '';
-    return `
-      <div class="td-todo-row">
-        <button class="td-todo-check" data-toggle-todo="${esc(t.id)}:false" title="Mark done"></button>
-        <div class="td-todo-text">
-          <span class="td-todo-label">${esc(t.text)}</span>
-          ${dueLabel ? `<span class="td-todo-due ${overdue ? 'is-overdue' : ''}">${esc(dueLabel)}</span>` : ''}
-        </div>
-      </div>`;
-  }).join('');
-
-  const empty = !pending.length
-    ? `<div class="td-todo-empty">No open to-dos${doneToday ? ` · ${doneToday} done today 🎉` : ''}</div>` : '';
-
-  return `
-    <div class="td-widget td-w-todo">
-      <div class="td-widget-header">
-        <div class="td-widget-label">☑️ ${esc(t('dash.widget.todo'))}</div>
-        <button class="td-link" data-nav="calendar">${esc(t('dash.link.allTasks'))}</button>
-      </div>
-      <div class="td-todo-list">${rows}${empty}</div>
-      <form class="td-todo-add" data-todo-add>
-        <button class="td-todo-add-cal" type="button" data-todo-add-modal title="Add with due date">📅</button>
-        <input class="td-todo-add-input" type="text" placeholder="+ Quick add task…">
-        <button class="btn btn-primary td-todo-add-btn" type="submit">Add</button>
-      </form>
-    </div>`;
-}
-
-/* Pack only matters near a flight: show it when the next leg with a baggage
-   allowance starts within 2 days (or today). */
-function packVisible(): boolean {
-  if (!_packLists[0]) return false;
-  const today = todayIso();
-  const next = sortedLegs().find(l => l.dateFrom >= today && l.arrivalTransport?.baggageAllowanceG);
-  return !!next && daysBetween(today, next.dateFrom) <= 2;
-}
-
-/* ── Pack widget ─────────────────────────────────────────────────────────── */
-function renderPackWidget(): string | null {
-  const list = _packLists[0];
-  if (!list || !packVisible()) return null;
-
-  const sLegs = [..._legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
-  const today = todayIso();
-  const curLeg = sLegs.find(l => l.dateFrom <= today && l.dateTo >= today)
-    ?? sLegs.find(l => l.dateFrom >= today)
-    ?? sLegs[sLegs.length - 1];
-
-  const totalG = listTotalWeight(list);
-  const remainG = curLeg ? baggageRemainG(list.items, sLegs, curLeg.id) : null;
-  const nextLegWithAllowance = sLegs.find(l => l.dateFrom >= today && l.arrivalTransport?.baggageAllowanceG);
-  const allowanceG = nextLegWithAllowance?.arrivalTransport?.baggageAllowanceG;
-  const isOver = remainG !== null && remainG < 0;
-  const pct = allowanceG ? Math.min(100, (totalG / allowanceG) * 100) : 0;
-  const barClass = isOver ? 'is-over' : pct > 85 ? 'is-warn' : '';
-
-  const kgDisplay = (totalG / 1000).toFixed(totalG % 1000 === 0 ? 0 : 1) + 'kg';
-  const hasLegs = sLegs.length > 0;
-
-  const allowanceBar = allowanceG
-    ? `<div class="td-pk-bar"><span class="${barClass}" style="width:${pct}%"></span></div>
-       <div class="td-pk-allowance">${nextLegWithAllowance!.flag || ''} ${esc(nextLegWithAllowance!.city)} · ${allowanceG / 1000}kg limit${isOver ? ` · <strong style="color:var(--coral-500)">over by ${(Math.abs(remainG!) / 1000).toFixed(1)}kg</strong>` : ` · ${(remainG! / 1000).toFixed(1)}kg left`}</div>`
-    : '';
-
-  // Recent bag changes (last 3 acquired or dropped items)
-  const recentAcq = list.items.filter(it => it.acquiredLegId).slice(-2);
-  const recentDrop = list.items.filter(it => it.droppedLegId).slice(-1);
-  const recentHtml = (recentAcq.length || recentDrop.length)
-    ? `<div class="td-pk-recent">
-        ${recentAcq.map(it => `<span class="pk-bl-chip pk-bl-chip--add">+ ${esc(it.name)}</span>`).join('')}
-        ${recentDrop.map(it => `<span class="pk-bl-chip pk-bl-chip--drop">− ${esc(it.name)}</span>`).join('')}
-      </div>`
-    : '';
-
-  return `
-    <div class="td-widget td-w-pack">
-      <div class="td-widget-header">
-        <div class="td-widget-label">🎒 ${esc(t('dash.widget.pack'))} <span class="td-pk-header-weight ${isOver ? 'is-over' : ''}">${kgDisplay}</span></div>
-        <button class="td-link" data-nav="prep" data-intent='${esc(JSON.stringify({ listId: list.id }))}'>${esc(t('dash.link.openPack'))}</button>
-      </div>
-      ${allowanceBar}
-      ${recentHtml}
-      ${hasLegs ? `<div class="td-pk-actions">
-        <button class="td-pk-action-btn" data-pk-action="acquired">+ Add</button>
-        <button class="td-pk-action-btn" data-pk-action="left">− Left</button>
-      </div>` : ''}
-    </div>`;
-}
-
 /* ── Nomad widget — top 3 work-friendly spots for current city ────────────── */
 function renderNomadWidget(): string | null {
   const leg = currentLeg();
@@ -591,8 +458,8 @@ function renderNomadWidget(): string | null {
 }
 
 /* ── Where-to-Go widget — one pick per category, with add-to-itinerary ──────── */
-function renderWhereToGoWidget(withPack: boolean): string {
-  const cls = `td-w-whereto${withPack ? '' : ' td-w-whereto--solo'}`;
+function renderWhereToGoWidget(): string {
+  const cls = 'td-w-whereto';
   const leg = currentLeg();
   if (!leg) {
     return `
@@ -678,25 +545,32 @@ function renderWhereToGoWidget(withPack: boolean): string {
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 function layout(_phase: Phase): string {
-  const agendaWidget = renderAgendaWidget({ legs: _legs, journal: _journal, todos: _todos, expenses: _expenses }, todayIso());
-  const todoWidget  = renderTodoWidget();
+  const src = agendaSources();
+  const today = todayIso();
+  const selected = shownAgendaDay(src, today);
+  const agendaWidget = renderAgendaWidget(src, today);
+  const todoWidget  = renderTodoWidget(_todos, selected, today);
+  const packWidget  = renderPackWidget(_packLists[0], _legs, today);
   const spendWidget = renderSpendWidget();
   const mapWidget   = renderMapWidget();
   const jrnWidget   = renderJournalWidget(_journal, _legs);
   const nomadHtml   = renderNomadWidget();
-  const whereHtml   = renderWhereToGoWidget(!!renderPackWidget());
-  const packHtml    = renderPackWidget();
+  const whereHtml   = renderWhereToGoWidget();
 
   return `<div class="td-grid" id="td-grid">
     ${agendaWidget}
+    ${todoWidget}
+    ${packWidget}
     ${mapWidget}
     ${spendWidget}
     ${jrnWidget}
-    ${todoWidget}
-    ${packHtml ? `<div class="td-w-mini-col">${packHtml}</div>` : ''}
     ${whereHtml}
     ${nomadHtml ?? ''}
   </div>`;
+}
+
+function agendaSources() {
+  return { legs: _legs, journal: _journal, todos: _todos, expenses: _expenses };
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -792,17 +666,6 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Pack widget: Acquired / Left behind quick actions → open bag change modal inline.
-  body.querySelectorAll<HTMLElement>('[data-pk-action]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const list = _packLists[0];
-      if (!list) return;
-      const action = btn.dataset.pkAction as 'acquired' | 'left';
-      openPackBagChangeModal(list, action, _legs);
-    });
-  });
-
   // Quick-add spend form.
   body.querySelector<HTMLFormElement>('[data-quickadd]')?.addEventListener('submit', e => {
     e.preventDefault();
@@ -876,66 +739,18 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // Todo quick-add form.
-  body.querySelector<HTMLFormElement>('[data-todo-add]')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const form  = e.currentTarget as HTMLFormElement;
-    const input = form.querySelector<HTMLInputElement>('.td-todo-add-input');
-    const text  = input?.value.trim() ?? '';
-    if (!text) return;
-    await todoStore.add({ text, dueDate: null });
-    if (input) input.value = '';
-  });
-
   // Todo calendar-icon button → full modal with due date.
   body.querySelector<HTMLButtonElement>('[data-todo-add-modal]')?.addEventListener('click', e => {
     e.stopPropagation();
     e.preventDefault();
-    openDashboardTodoModal(todayIso());
+    openDashboardTodoModal(shownAgendaDay(agendaSources(), todayIso()));
   });
 
   // Where-to-go: add to itinerary button
   body.querySelectorAll<HTMLButtonElement>('[data-wtg-add]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const title = btn.dataset.wtgAdd ?? '';
-      const leg = currentLeg();
-      if (!leg) return;
-      const handle = openModal({
-        title: '+ Add to itinerary',
-        body: `
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <input class="input" id="wtg-plan-title" value="${esc(title)}" placeholder="Activity name">
-            <div style="display:flex;gap:8px;align-items:center">
-              <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">Day</label>
-              <input class="input" id="wtg-plan-date" type="date" value="${esc(todayIso())}">
-            </div>
-          </div>`,
-        footer: `<button class="btn btn-ghost" data-act="cancel">Cancel</button>
-                 <button class="btn btn-primary" data-act="confirm">Add</button>`,
-      });
-      handle.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => handle.close());
-      handle.root.querySelector('[data-act="confirm"]')?.addEventListener('click', async () => {
-        const itemTitle = (handle.root.querySelector<HTMLInputElement>('#wtg-plan-title')?.value ?? '').trim();
-        const dateVal   = handle.root.querySelector<HTMLInputElement>('#wtg-plan-date')?.value ?? todayIso();
-        if (!itemTitle) return;
-        const days = ensurePlanDaysLocal(leg);
-        const targetDay = days.find(d => d.date === dateVal) ?? days[0];
-        if (!targetDay) return;
-        const existingPlans = (leg.plans ?? []) as PlanItem[];
-        const maxOrder = existingPlans.filter(p => p.dayId === targetDay.id).reduce((m, p) => Math.max(m, p.order ?? 0), -1);
-        const newItem: PlanItem = {
-          id: `plan-${Date.now()}`,
-          dayId: targetDay.id,
-          title: itemTitle,
-          category: '',
-          done: false,
-          order: maxOrder + 1,
-        };
-        await routeStore.update(leg.id, { plans: [...existingPlans, newItem] });
-        handle.close();
-      });
-      handle.root.querySelector<HTMLInputElement>('#wtg-plan-title')?.select();
+      openAddPlanModal(_legs, { date: todayIso(), title: btn.dataset.wtgAdd ?? '' });
     });
   });
 
@@ -945,7 +760,8 @@ function wire(body: HTMLElement): void {
   });
 
   wireBanner(body, () => bannerData(tripPhase()));
-  wireAgenda(body, render);
+  wireAgenda(body, render, () => ({ src: agendaSources(), today: todayIso() }));
+  wirePack(body, () => ({ list: _packLists[0], legs: _legs, today: todayIso() }));
   wireJournalAlbum(body);
   wireAlertBell(body, render);
   // Language + theme controls (top-right of the greeting row).

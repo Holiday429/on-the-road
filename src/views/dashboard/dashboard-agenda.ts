@@ -14,13 +14,15 @@ import { agendaForDay, kindsByDate, addDays, AGENDA_COLORS, type AgendaItem, typ
 import { entryCover, moodEmoji } from '../journal/shared/utils.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
+import { opensDrawer, openAgendaItemDrawer } from './agenda-drawer.ts';
+import { openAddPlanModal } from './dashboard-modals.ts';
 
 type Tab = 'today' | 'tomorrow';
 let _tab: Tab = 'today';
 let _sel: string | null = null;      // explicit day picked from the month grid
 let _month: string | null = null;    // 'YYYY-MM' the user paged to; null = follow the shown day
 
-const MAX_ITEMS = 7;
+const MAX_ITEMS = 4;   // the rest sit behind "+N more" — keeps the card as short as the month grid
 const DOT_ORDER: AgendaKind[] = ['transport', 'stay', 'plan', 'todo', 'spend', 'journal'];
 
 /** Reset UI state (new trip / re-init) so a stale selection can't leak across. */
@@ -38,6 +40,11 @@ function resolveDay(today: string, src: AgendaSources): { iso: string; nextUp: b
     if (next) return { iso: next, nextUp: true };
   }
   return { iso: today, nextUp: false };
+}
+
+/** The date the widget is showing right now — the To-do widget and the + button key off it. */
+export function shownAgendaDay(src: AgendaSources, today: string): string {
+  return resolveDay(today, src).iso;
 }
 
 /* ── Month grid ──────────────────────────────────────────────────────────── */
@@ -71,9 +78,9 @@ function renderMonth(monthKey: string, today: string, selected: string, kinds: M
   return `
     <div class="ag-month">
       <div class="ag-month-nav">
-        <button type="button" class="ag-nav" data-agenda-month="-1" aria-label="Previous month">‹</button>
+        <button type="button" class="ag-nav" data-agenda-month="-1" aria-label="${esc(t('dash.agenda.prevMonth'))}">‹</button>
         <div class="ag-month-title">${esc(title)}</div>
-        <button type="button" class="ag-nav" data-agenda-month="1" aria-label="Next month">›</button>
+        <button type="button" class="ag-nav" data-agenda-month="1" aria-label="${esc(t('dash.agenda.nextMonth'))}">›</button>
       </div>
       <div class="ag-grid">${hdr}${cells}</div>
     </div>`;
@@ -104,7 +111,10 @@ function renderItem(it: AgendaItem): string {
     : it.todoId
     ? `<button type="button" class="ag-check" data-toggle-todo="${esc(it.todoId)}:false" aria-label="Mark done"></button>`
     : '';
-  const nav = it.navTo
+  // Plan / transport / stay open the side drawer; the rest tap through to their page.
+  const nav = opensDrawer(it)
+    ? ` data-agenda-item="${esc(it.id)}" role="button" tabindex="0"`
+    : it.navTo
     ? ` data-nav="${it.navTo}"${it.intent ? ` data-intent='${esc(JSON.stringify(it.intent))}'` : ''}`
     : '';
   return `
@@ -173,6 +183,7 @@ export function renderAgendaWidget(src: AgendaSources, today: string): string {
         <div class="td-widget-label">📅 ${esc(t('dash.agenda.title'))}</div>
         <div class="ag-tabs">${tab('today', t('dash.agenda.today'))}${tab('tomorrow', t('dash.agenda.tomorrow'))}</div>
         <button type="button" class="td-link" data-nav="calendar">${esc(t('dash.agenda.all'))}</button>
+        ${src.legs.length ? `<button type="button" class="td-plus" data-agenda-add title="${esc(t('dash.agenda.add'))}" aria-label="${esc(t('dash.agenda.add'))}">+</button>` : ''}
       </div>
       <div class="ag-body">
         ${renderMonth(_month ?? iso.slice(0, 7), today, iso, kinds)}
@@ -182,7 +193,29 @@ export function renderAgendaWidget(src: AgendaSources, today: string): string {
 }
 
 /** Wire tab + day-picker clicks. `render` re-renders the whole dashboard. */
-export function wireAgenda(body: HTMLElement, render: () => void): void {
+export function wireAgenda(body: HTMLElement, render: () => void, ctx: () => { src: AgendaSources; today: string }): void {
+  // Row → detail drawer.
+  body.querySelectorAll<HTMLElement>('[data-agenda-item]').forEach((row) => {
+    const open = () => {
+      const { src, today } = ctx();
+      const iso = resolveDay(today, src).iso;
+      const item = agendaForDay(iso, src).items.find((i) => i.id === row.dataset.agendaItem);
+      if (item) openAgendaItemDrawer(item, { legs: src.legs, iso, trigger: row });
+    };
+    row.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('button')) return;      // the inline tick
+      open();
+    });
+    row.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); open(); }
+    });
+  });
+  // + → add a plan item to the day being shown.
+  body.querySelector<HTMLElement>('[data-agenda-add]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const { src, today } = ctx();
+    openAddPlanModal(src.legs, { date: resolveDay(today, src).iso });
+  });
   body.querySelectorAll<HTMLElement>('[data-agenda-tab]').forEach((b) => {
     b.addEventListener('click', (e) => {
       e.stopPropagation();
