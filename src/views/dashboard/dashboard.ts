@@ -23,13 +23,20 @@ import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import type { PlanItem } from '../../data/schema.ts';
 import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
+import { dayMapModel, type DayMapPoint } from '../../data/day-map.ts';
+import { agendaForDay } from '../../data/day-agenda.ts';
+import { geocode, geocodeLocal } from '../map/geocode.ts';
+import { openStaysDrawer } from './banner-drawers.ts';
+import { openAgendaItemDrawer } from './agenda-drawer.ts';
+import { openSpendDrawer } from './spend-drawer.ts';
 import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
 import { PIN_COLORS } from '../map/map-status.ts';
+import { AGENDA_COLORS } from '../../data/day-agenda.ts';
 import { renderAgendaWidget, wireAgenda, resetAgenda, shownAgendaDay } from './dashboard-agenda.ts';
 import { renderTodoWidget } from './dashboard-todo.ts';
 import { renderPackWidget, wirePack } from './dashboard-pack.ts';
 import { captureUiState, restoreUiState, swapHtml, createRenderScheduler, mapSignature } from './dashboard-render.ts';
-import { renderJournalWidget, wireJournalAlbum, resetJournalAlbum } from './dashboard-journal.ts';
+import { renderJournalWidget, wireJournal } from './dashboard-journal.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
@@ -53,6 +60,9 @@ let _rateFrom  = '';          // selected "from" currency (empty = baseCurrency(
 let _rateTo    = '';          // selected "to" currency (empty = auto suggestedCurrency)
 let _rateOpen  = false;       // converter panel expanded (not persisted — collapses on reload)
 let _mapCanvas: HTMLElement | null = null; // tracks which canvas element the map was booted on
+let _mapMode: 'day' | 'trip' | null = null; // user's pick; null = automatic (day, or whole trip once it's over)
+let _mapBootMode: 'day' | 'trip' | null = null; // which mode the current canvas was booted for
+const _geoTried = new Set<string>();         // place lookups already attempted this session
 let _unsubs: Array<() => void> = [];
 let _weather: { icon: string; tempHigh: string; tempLow: string; rainChance: number } | null = null;
 let _weatherCity = '';
@@ -354,9 +364,10 @@ function renderSpendWidget(): string {
       <div class="td-widget-header">
         <div class="td-widget-label">💶 ${esc(t('dash.widget.spend'))}</div>
         <button class="td-link" data-nav="expenses">${esc(t('dash.link.allExpenses'))}</button>
+        <button type="button" class="td-plus" data-spend-open="form" title="${esc(t('dash.spend.addTitle'))}" aria-label="${esc(t('dash.spend.addTitle'))}">+</button>
       </div>
       <div class="td-spend-top">
-        <div><div class="td-spend-label">Total</div><div class="td-spend-big">${fmt(total)}</div></div>
+        <button type="button" class="td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><div class="td-spend-label">Total</div><div class="td-spend-big">${fmt(total)}</div></button>
         <div class="td-spend-today"><div class="td-spend-label">Today</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
       </div>
       ${budgetLine}
@@ -371,39 +382,47 @@ function renderSpendWidget(): string {
             <span class="td-quickadd-sym">${sym}</span>
             <input class="td-quickadd-amt" type="text" inputmode="decimal" placeholder="0.00" required>
           </div>
-          <select class="td-quickadd-cat select">
-            <option value="">Category…</option>
+          <select class="td-quickadd-cat select" aria-label="${esc(t('dash.agenda.spendCategory'))}">
+            <option value="">${esc(t('dash.agenda.spendCategory'))}…</option>
             ${EXPENSE_CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('')}
           </select>
-        </div>
-        <div class="td-quickadd-row2">
-          <input class="td-quickadd-desc" type="text" placeholder="What for? (optional)">
-          <button class="td-quickadd-save btn btn-primary" type="submit">Save</button>
+          <button class="td-quickadd-save btn btn-primary" type="submit" title="${esc(t('common.save'))}" aria-label="${esc(t('common.save'))}">✓</button>
         </div>
       </form>
     </div>`;
 }
 
-/* ── Map thumbnail ────────────────────────────────────────────────────────── */
+/* ── Map ──────────────────────────────────────────────────────────────────── */
+function mapMode(): 'day' | 'trip' {
+  return _mapMode ?? (tripPhase() === 'after' ? 'trip' : 'day');
+}
+
 function renderMapWidget(): string {
+  const mode = mapMode();
+  const seg = (id: 'day' | 'trip', label: string) =>
+    `<button type="button" class="ag-tab${mode === id ? ' is-active' : ''}" data-map-mode="${id}" aria-pressed="${mode === id}">${esc(label)}</button>`;
+  const legend = mode === 'trip'
+    ? `<span><span class="td-map-dot" style="background:${PIN_COLORS.current}"></span>${esc(t('dash.map.now'))}</span>
+       <span><span class="td-map-dot" style="background:${PIN_COLORS.future}"></span>${esc(t('dash.map.upcoming'))}</span>
+       <span><span class="td-map-dot" style="background:${PIN_COLORS.past}"></span>${esc(t('dash.map.past'))}</span>`
+    : `<span>🏠 ${esc(t('dash.map.stay'))}</span><span><span class="td-map-dot" style="background:${AGENDA_COLORS.plan}"></span>${esc(t('dash.map.plans'))}</span>`;
   return `
     <div class="td-widget td-w-map">
       <div class="td-widget-header">
-        <div class="td-widget-label">🗺️ ${esc(t('dash.widget.routeMap'))}</div>
+        <div class="td-widget-label">🗺️ ${esc(t('dash.widget.map'))}</div>
+        <div class="ag-tabs">${seg('day', t('dash.map.day'))}${seg('trip', t('dash.map.trip'))}</div>
         <button class="td-link" data-nav="map">${esc(t('dash.link.fullMap'))}</button>
       </div>
-      <div class="td-map-wrap">
+      <div class="td-map-wrap" data-map-mode-now="${mode}">
         <div class="td-map-container" id="td-map-canvas"></div>
+        <div class="td-map-note td-map-note--empty">${esc(t('dash.map.noPlaces'))}</div>
+        <div class="td-map-note td-map-note--locating">${esc(t('dash.map.locating'))}</div>
         <div class="td-map-zoom-controls">
-          <button class="td-map-zoom-btn" id="tdMapZoomIn"  title="Zoom in">+</button>
-          <button class="td-map-zoom-btn" id="tdMapZoomFit" title="Fit to route">⊡</button>
-          <button class="td-map-zoom-btn" id="tdMapZoomOut" title="Zoom out">−</button>
+          <button class="td-map-zoom-btn" id="tdMapZoomIn"  title="${esc(t('dash.map.zoomIn'))}">+</button>
+          <button class="td-map-zoom-btn" id="tdMapZoomFit" title="${esc(t('dash.map.fit'))}">⊡</button>
+          <button class="td-map-zoom-btn" id="tdMapZoomOut" title="${esc(t('dash.map.zoomOut'))}">−</button>
         </div>
-        <div class="td-map-legend">
-          <span><span class="td-map-dot" style="background:${PIN_COLORS.current}"></span>${esc(t('dash.map.now'))}</span>
-          <span><span class="td-map-dot" style="background:${PIN_COLORS.future}"></span>${esc(t('dash.map.upcoming'))}</span>
-          <span><span class="td-map-dot" style="background:${PIN_COLORS.past}"></span>${esc(t('dash.map.past'))}</span>
-        </div>
+        <div class="td-map-legend">${legend}</div>
       </div>
     </div>`;
 }
@@ -671,12 +690,11 @@ function wire(body: HTMLElement): void {
     e.preventDefault();
     const form = e.currentTarget as HTMLFormElement;
     const amt  = parseFloat((form.querySelector('.td-quickadd-amt') as HTMLInputElement).value);
-    const desc = (form.querySelector('.td-quickadd-desc') as HTMLInputElement).value.trim();
+    const desc = '';
     const cat  = (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value;
     if (!Number.isFinite(amt) || amt <= 0) return;
     quickAddSpend(amt, desc, cat);
     (form.querySelector('.td-quickadd-amt') as HTMLInputElement).value  = '';
-    (form.querySelector('.td-quickadd-desc') as HTMLInputElement).value = '';
     (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value = '';
   });
 
@@ -762,35 +780,97 @@ function wire(body: HTMLElement): void {
   wireBanner(body, () => bannerData(tripPhase()));
   wireAgenda(body, render, () => ({ src: agendaSources(), today: todayIso() }));
   wirePack(body, () => ({ list: _packLists[0], legs: _legs, today: todayIso() }));
-  wireJournalAlbum(body);
+  wireJournal(body, () => ({ entries: _journal, legs: _legs }));
   wireAlertBell(body, render);
   // Language + theme controls (top-right of the greeting row).
   const langMount = body.querySelector<HTMLElement>('[data-lang-mount]');
   if (langMount) mountPrefControls(langMount);
 
-  // Dashboard map zoom controls.
-  body.querySelector('#tdMapZoomIn')?.addEventListener('click', e => {
-    e.stopPropagation();
-    dashboardMapZoom('in');
+  // Spend: + → add form first; total → recent list first.
+  body.querySelectorAll<HTMLElement>('[data-spend-open]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      openSpendDrawer({ expenses: _expenses, legs: _legs, focus: btn.dataset.spendOpen as 'form' | 'list', trigger: btn });
+    });
   });
-  body.querySelector('#tdMapZoomOut')?.addEventListener('click', e => {
-    e.stopPropagation();
-    dashboardMapZoom('out');
+
+  // Map: this day / whole trip.
+  body.querySelectorAll<HTMLElement>('[data-map-mode]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const next = btn.dataset.mapMode as 'day' | 'trip';
+      if (next === mapMode()) return;
+      _mapMode = next;
+      render();             // bootMap() sees the mode change and rebuilds the canvas
+    });
   });
-  body.querySelector('#tdMapZoomFit')?.addEventListener('click', e => {
+  const zoom = (a: 'in' | 'out' | 'fit') => (e: Event) => {
     e.stopPropagation();
-    dashboardMapZoom('fit');
-  });
+    if (mapMode() === 'day') void import('./dashboard-daymap.ts').then(m => m.dayMapZoom(a));
+    else dashboardMapZoom(a);
+  };
+  body.querySelector('#tdMapZoomIn')?.addEventListener('click', zoom('in'));
+  body.querySelector('#tdMapZoomOut')?.addEventListener('click', zoom('out'));
+  body.querySelector('#tdMapZoomFit')?.addEventListener('click', zoom('fit'));
 
 }
 
 
+function disposeMaps(): void {
+  disposeDashboardMap();
+  void import('./dashboard-daymap.ts').then(m => m.disposeDayMap());
+}
+
+/** The date the map is about: whatever the agenda is showing. */
+function mapDay(): string {
+  return shownAgendaDay(agendaSources(), todayIso());
+}
+
+function pickDayPoint(p: DayMapPoint): void {
+  const iso = mapDay();
+  const leg = _legs.find(l => l.id === p.legId);
+  if (!leg) return;
+  if (p.kind === 'stay') { openStaysDrawer(leg, iso, null); return; }
+  const item = agendaForDay(iso, agendaSources()).items.find(i => i.id === p.id);
+  if (item) openAgendaItemDrawer(item, { legs: _legs, iso, trigger: null });
+}
+
+function syncDay(canvas: HTMLElement): void {
+  const model = dayMapModel(mapDay(), agendaSources(), (q, hint) => geocodeLocal(q) ?? (hint ? geocodeLocal(`${q}, ${hint}`) : null));
+  const wrap = canvas.closest<HTMLElement>('.td-map-wrap');
+  if (wrap) {
+    const unresolved = model.pending.some(p => !_geoTried.has(p.id + p.query));
+    wrap.dataset.dayState = !model.points.length && unresolved ? 'locating' : !model.points.length ? 'empty' : '';
+  }
+  void import('./dashboard-daymap.ts').then(m => m.syncDayMap(canvas, model, pickDayPoint));
+  // Look up whatever the bundled table and cache couldn't place — once each,
+  // then redraw. (A miss is remembered so a failing lookup can't loop.)
+  for (const p of model.pending) {
+    const key = p.id + p.query;
+    if (_geoTried.has(key)) continue;
+    _geoTried.add(key);
+    void geocode(p.query, p.hint).then(hit => { if (hit) scheduleRender(); });
+  }
+}
+
 function bootMap(): void {
   const canvas = document.getElementById('td-map-canvas') as HTMLElement | null;
-  // Re-init whenever render() produces a new canvas element (innerHTML replacement).
-  if (!canvas || canvas === _mapCanvas) return;
-  _mapCanvas = canvas;
-  void initDashboardMap(canvas, _legs);
+  if (!canvas) return;
+  const mode = mapMode();
+  // (Re)build when render() produced a new canvas element, or the mode changed.
+  if (canvas !== _mapCanvas || mode !== _mapBootMode) {
+    disposeMaps();
+    canvas.replaceChildren();
+    _mapCanvas = canvas;
+    _mapBootMode = mode;
+    if (mode === 'trip') {
+      void initDashboardMap(canvas, _legs, (legId) => {
+        const leg = _legs.find(l => l.id === legId);
+        if (leg) openStaysDrawer(leg, todayIso(), null);
+      });
+    }
+  }
+  if (mode === 'day') syncDay(canvas);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -814,8 +894,8 @@ export function initDashboard(): void {
   _weather     = null;
   _weatherCity = '';
   resetAgenda();
-  resetJournalAlbum();
-  disposeDashboardMap();
+  _mapMode = null; _mapBootMode = null;
+  disposeMaps();
   render();
 
   _unsubs.forEach(u => u());
@@ -825,7 +905,7 @@ export function initDashboard(): void {
       // Only rebuild the map if what it draws changed — ticking a plan item or
       // editing a note also arrives as a route update.
       const sig = mapSignature(rows);
-      if (sig !== _mapSig) { _mapSig = sig; _mapCanvas = null; disposeDashboardMap(); }
+      if (sig !== _mapSig) { _mapSig = sig; _mapCanvas = null; disposeMaps(); }
       scheduleRender();
     }),
     expenseStore.subscribe(rows => { _expenses = rows; scheduleRender(); }),
@@ -838,10 +918,9 @@ export function initDashboard(): void {
     onTripChange(() => {
       _nomadSpots = nomadStore.peek();
       _cityIntel  = cityStore.peek();
-      _mapCanvas = null; _mapSig = ''; _weather = null; _weatherCity = '';
+      _mapCanvas = null; _mapSig = ''; _weather = null; _weatherCity = ''; _mapMode = null;
       resetAgenda();
-      resetJournalAlbum();
-      disposeDashboardMap(); scheduleRender();
+      disposeMaps(); scheduleRender();
     }),
     // Re-render on language change so greeting/widget labels update in place
     // (the map has no localized text, so it is kept as-is).

@@ -25,6 +25,7 @@ let _root: any = null;
 export async function initDashboardMap(
   container: HTMLElement,
   legs: StoredLeg[],
+  onPinClick?: (legId: string) => void,
 ): Promise<void> {
   // Dispose any previous instance (reinit on trip change).
   if (_root) { try { _root.dispose(); } catch { /* ignore */ } _root = null; }
@@ -105,6 +106,7 @@ export async function initDashboardMap(
         longitude: coords.lng,
         latitude:  coords.lat,
         city:      leg.city,
+        legId:     leg.id,
         num:       String(idx + 1),
         fill:      am5.color(legStatusColor(leg)),
       };
@@ -116,7 +118,11 @@ export async function initDashboardMap(
     const color = ctx.fill ?? am5.color('#f9b830');
     const num   = ctx.num ?? '';
 
-    const container = am5.Container.new(root2, { interactive: false });
+    const container = am5.Container.new(root2, {
+      interactive: !!onPinClick,
+      cursorOverStyle: onPinClick ? 'pointer' : 'default',
+    });
+    if (onPinClick) container.events.on('click', () => onPinClick(ctx.legId));
 
     container.children.push(am5.Circle.new(root2, {
       radius:      11,

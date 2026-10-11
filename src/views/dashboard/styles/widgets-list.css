@@ -47,9 +47,9 @@
 /* ── Journal quick-entry ──────────────────────────────────────────────────── */
 .td-jq-btn {
   justify-content: center;
-  width: 100%;
+  align-self: flex-start;      /* regular width — not stretched across the card */
   margin-top: auto;
-  padding: 10px 12px;
+  padding: 8px 16px;
 }
 .td-jq-icon { font-size: 16px; line-height: 1; }
 .td-jq-label { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; }

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   On the Road · Journal places — slides for the dashboard photo carousel
+   On the Road · Journal places — city tiles for the dashboard Journal card
    --------------------------------------------------------------------------
    Turns the trip's journal entries into "a photo per place", the way a phone's
    Photos app surfaces a Place. Pure (no DOM / stores) so the grouping rules are
@@ -7,27 +7,32 @@
 
    · An entry's place is its own `destination`; failing that, the leg that
      covers the day it happened (so a photo-only entry still lands somewhere).
-   · Several places → one slide per place (newest entry's cover), newest first.
-   · Exactly one place → slides become that place's individual photos, so the
-     carousel isn't a single frozen card.
+   · Only entries with a photo count — the card is a photo wall.
+   · Places are ordered newest first; each carries every photo and entry at it,
+     for the drawer that opens when its tile is tapped.
    ========================================================================== */
 
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import type { StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { entryImages } from '../journal/shared/utils.ts';
 
-export interface PlaceSlide {
-  image: string;
+export interface PlaceGroup {
   city: string;
   flag: string;
-  /** Entries at this place (place mode) — 1 for a single-photo slide. */
-  count: number;
-  /** ISO first/last date of the entries behind the slide. */
-  from: string;
-  to: string;
+  /** Entries with photos at this place, newest first. */
+  entries: StoredJournalEntry[];
+  /** Every photo at this place, newest entry first. */
+  images: string[];
+  /** The newest entry's first photo. */
+  cover: string;
+  /** ISO date of the newest entry. */
+  latest: string;
 }
 
-const MAX_SLIDES = 8;
+export interface PlaceTile { group: PlaceGroup; image: string }
+
+/** How many tiles the card shows. */
+export const TILE_COUNT = 3;
 
 function placeFor(e: StoredJournalEntry, legs: StoredLeg[]): { city: string; flag: string } {
   const dest = e.destination?.trim();
@@ -44,43 +49,31 @@ function newestFirst(a: StoredJournalEntry, b: StoredJournalEntry): number {
   return b.happenedOn.localeCompare(a.happenedOn) || (b.createdAt ?? 0) - (a.createdAt ?? 0);
 }
 
-export function buildPlaceSlides(entries: StoredJournalEntry[], legs: StoredLeg[]): PlaceSlide[] {
+export function buildPlaceGroups(entries: StoredJournalEntry[], legs: StoredLeg[]): PlaceGroup[] {
   const withPhotos = entries.filter((e) => entryImages(e).length > 0).sort(newestFirst);
-  if (!withPhotos.length) return [];
-
-  const groups = new Map<string, { city: string; flag: string; entries: StoredJournalEntry[] }>();
+  const groups = new Map<string, PlaceGroup>();
   for (const e of withPhotos) {
     const p = placeFor(e, legs);
     const key = p.city.toLowerCase();
     let g = groups.get(key);
-    if (!g) groups.set(key, (g = { ...p, entries: [] }));
+    if (!g) groups.set(key, (g = { ...p, entries: [], images: [], cover: '', latest: e.happenedOn }));
     g.entries.push(e);
+    g.images.push(...entryImages(e));
   }
+  for (const g of groups.values()) g.cover = g.images[0];
+  return [...groups.values()].sort((a, b) => b.latest.localeCompare(a.latest));
+}
 
-  if (groups.size === 1) {
-    const g = [...groups.values()][0];
-    const out: PlaceSlide[] = [];
-    for (const e of g.entries) {
-      for (const image of entryImages(e)) {
-        out.push({ image, city: g.city, flag: g.flag, count: 1, from: e.happenedOn, to: e.happenedOn });
-        if (out.length >= MAX_SLIDES) return out;
-      }
-    }
-    return out;
+/** The tiles to draw and how many more places sit behind them.
+ *  Two or more places → one tile per place (first three), `more` = the rest.
+ *  Exactly one place → its first three photos, so the card isn't a lone tile. */
+export function journalTiles(groups: PlaceGroup[]): { tiles: PlaceTile[]; more: number } {
+  if (groups.length === 1) {
+    const g = groups[0];
+    return { tiles: g.images.slice(0, TILE_COUNT).map((image) => ({ group: g, image })), more: 0 };
   }
-
-  return [...groups.values()]
-    .map((g) => {
-      const dates = g.entries.map((e) => e.happenedOn).sort();
-      return {
-        image: entryImages(g.entries[0])[0],
-        city: g.city, flag: g.flag,
-        count: g.entries.length,
-        from: dates[0], to: dates[dates.length - 1],
-        latest: g.entries[0].happenedOn,
-      };
-    })
-    .sort((a, b) => b.latest.localeCompare(a.latest))
-    .slice(0, MAX_SLIDES)
-    .map(({ latest: _l, ...slide }) => slide);
+  return {
+    tiles: groups.slice(0, TILE_COUNT).map((g) => ({ group: g, image: g.cover })),
+    more: Math.max(0, groups.length - TILE_COUNT),
+  };
 }

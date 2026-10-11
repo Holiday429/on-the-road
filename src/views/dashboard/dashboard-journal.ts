@@ -1,59 +1,44 @@
 /* ==========================================================================
-   On the Road · Dashboard — journal widget
+   On the Road · Dashboard — Journal card
    --------------------------------------------------------------------------
-   A photo carousel of the trip's places (see journal-places.ts) with the
-   "write an entry" button pinned underneath. Falls back to the latest entries
-   as rows when nothing has a photo yet.
-
-   The dashboard re-renders wholesale on every store change, so the carousel's
-   position lives here (not in the DOM) and the timer re-attaches on each wire —
-   a Firestore tick or a weather fetch must not snap the slide back to #1.
+   Up to three square city thumbnails (name + entry count bottom-left, +N for
+   further cities bottom-right). Tapping one opens that city's photos and
+   entries in the side drawer. With no photos yet it falls back to the latest
+   entries as rows. The write buttons open the real composer.
    ========================================================================== */
 
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import type { StoredJournalEntry } from '../../data/stores/journal-store.ts';
-import { buildPlaceSlides, type PlaceSlide } from './journal-places.ts';
+import { buildPlaceGroups, journalTiles, type PlaceGroup } from './journal-places.ts';
 import { entryCover, excerpt, moodEmoji, prettyDate, titleFor } from '../journal/shared/utils.ts';
-import { escHtml as esc } from '../../core/utils.ts';
+import { openDrawer, closeDrawer } from '../../core/drawer.ts';
+import { navigateTo } from '../../core/app.ts';
+import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 
-const INTERVAL_MS = 4500;
-let _idx = 0;
-let _timer: number | undefined;
-let _paused = false;
-
-function stop(): void {
-  if (_timer !== undefined) { window.clearInterval(_timer); _timer = undefined; }
+function entriesLabel(n: number): string {
+  return n === 1 ? t('dash.journal.entry1') : t('dash.journal.entries', { n });
 }
 
-function range(s: PlaceSlide): string {
-  return s.from === s.to ? prettyDate(s.from) : `${prettyDate(s.from)} – ${prettyDate(s.to)}`;
-}
-
-function renderSlides(slides: PlaceSlide[]): string {
-  const idx = Math.min(_idx, slides.length - 1);
-  const slide = (s: PlaceSlide, i: number) => {
-    // Only the visible slide and the next one get a real src up front; the rest
-    // load as the carousel reaches them, so a trip of 8 cities isn't 8 downloads.
-    const near = i === idx || i === (idx + 1) % slides.length;
-    const place = [s.flag, s.city].filter(Boolean).join(' ');
-    const sub = s.count > 1
-      ? `${t('dash.journal.entries', { n: s.count })} · ${range(s)}`
-      : range(s);
+function renderTiles(groups: PlaceGroup[]): string {
+  const { tiles, more } = journalTiles(groups);
+  const single = groups.length === 1;
+  const html = tiles.map((tile, i) => {
+    const g = tile.group;
+    const place = [g.flag, g.city].filter(Boolean).join(' ');
+    const isLast = i === tiles.length - 1;
     return `
-      <button type="button" class="jr-slide${i === idx ? ' is-active' : ''}" data-nav="journal" aria-hidden="${i === idx ? 'false' : 'true'}" tabindex="${i === idx ? '0' : '-1'}">
-        <img ${near ? `src="${esc(s.image)}"` : `data-src="${esc(s.image)}"`} alt="" decoding="async">
+      <button type="button" class="jr-tile" data-jr-place="${groups.indexOf(g)}" aria-label="${esc(place)}">
+        <img src="${esc(tile.image)}" alt="" loading="lazy" decoding="async">
         <span class="jr-shade"></span>
         <span class="jr-cap">
           ${place ? `<span class="jr-place">${esc(place)}</span>` : ''}
-          <span class="jr-sub">${esc(sub)}</span>
+          ${!single || i === 0 ? `<span class="jr-sub">${esc(entriesLabel(g.entries.length))}</span>` : ''}
         </span>
+        ${more > 0 && isLast ? `<span class="jr-more">+${more}</span>` : ''}
       </button>`;
-  };
-  const dots = slides.length > 1
-    ? `<div class="jr-dots">${slides.map((_, i) => `<button type="button" class="jr-dot${i === idx ? ' is-active' : ''}" data-jr-dot="${i}" aria-label="${i + 1}"></button>`).join('')}</div>`
-    : '';
-  return `<div class="jr-carousel" data-jr>${slides.map(slide).join('')}${dots}</div>`;
+  }).join('');
+  return `<div class="jr-tiles">${html}</div>`;
 }
 
 function renderRecentRows(entries: StoredJournalEntry[]): string {
@@ -77,14 +62,15 @@ function renderRecentRows(entries: StoredJournalEntry[]): string {
 }
 
 export function renderJournalWidget(entries: StoredJournalEntry[], legs: StoredLeg[]): string {
-  const slides = buildPlaceSlides(entries, legs);
+  const groups = buildPlaceGroups(entries, legs);
   return `
     <div class="td-widget td-w-journal" data-widget-id="journal">
       <div class="td-widget-header">
         <div class="td-widget-label">📔 ${esc(t('dash.widget.journal'))}${entries.length ? ` <span class="td-jq-count">${entries.length}</span>` : ''}</div>
         <button class="td-link" data-nav="journal">${esc(t('dash.link.allEntries'))}</button>
+        <button type="button" class="td-plus" data-journal-new title="${esc(t('dash.journal.compose'))}" aria-label="${esc(t('dash.journal.compose'))}">+</button>
       </div>
-      ${slides.length ? renderSlides(slides) : renderRecentRows(entries)}
+      ${groups.length ? renderTiles(groups) : renderRecentRows(entries)}
       <button class="td-jq-btn btn btn-primary" data-journal-new>
         <span class="td-jq-icon">✍️</span>
         <span class="td-jq-label">${esc(t('dash.journal.compose'))}</span>
@@ -92,47 +78,34 @@ export function renderJournalWidget(entries: StoredJournalEntry[], legs: StoredL
     </div>`;
 }
 
-/** Attach dot clicks, hover-pause and the auto-advance timer to the fresh DOM. */
-export function wireJournalAlbum(body: HTMLElement): void {
-  stop();
-  const root = body.querySelector<HTMLElement>('[data-jr]');
-  if (!root) return;
-  const slides = [...root.querySelectorAll<HTMLElement>('.jr-slide')];
-  const dots = [...root.querySelectorAll<HTMLElement>('.jr-dot')];
-  if (!slides.length) return;
+/* ── City drawer ─────────────────────────────────────────────────────────── */
 
-  const load = (i: number) => {
-    const img = slides[i]?.querySelector<HTMLImageElement>('img[data-src]');
-    if (img) { img.src = img.dataset.src!; img.removeAttribute('data-src'); }
-  };
-  const show = (i: number) => {
-    _idx = (i + slides.length) % slides.length;
-    slides.forEach((s, n) => {
-      const on = n === _idx;
-      s.classList.toggle('is-active', on);
-      s.setAttribute('aria-hidden', on ? 'false' : 'true');
-      s.tabIndex = on ? 0 : -1;
-    });
-    dots.forEach((d, n) => d.classList.toggle('is-active', n === _idx));
-    load(_idx); load((_idx + 1) % slides.length);
-  };
-
-  dots.forEach((d) => d.addEventListener('click', (e) => { e.stopPropagation(); show(Number(d.dataset.jrDot)); }));
-  root.addEventListener('mouseenter', () => { _paused = true; });
-  root.addEventListener('mouseleave', () => { _paused = false; });
-  root.addEventListener('focusin', () => { _paused = true; });
-  root.addEventListener('focusout', () => { _paused = false; });
-
-  // Respect reduced motion: no auto-advance (dots still work).
-  if (slides.length < 2 || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-  _timer = window.setInterval(() => {
-    // The dashboard re-renders wholesale and may be off-screen: stop once our
-    // carousel is no longer the live one.
-    if (!root.isConnected) { stop(); return; }
-    if (_paused || document.hidden) return;
-    show(_idx + 1);
-  }, INTERVAL_MS);
+function openPlaceDrawer(g: PlaceGroup, trigger: HTMLElement | null): void {
+  const photos = g.images.map((src) => {
+    const url = safeUrl(src);
+    return url ? `<a class="jr-photo" href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="" loading="lazy" decoding="async"></a>` : '';
+  }).join('');
+  const rows = g.entries.map((e) => {
+    const hasTitle = e.title.trim().length > 0;
+    return `<div class="td-dr"><span class="td-dr-k">${esc(prettyDate(e.happenedOn))}</span><span class="td-dr-v">${esc(hasTitle ? titleFor(e) : excerpt(e.body, 60) || titleFor(e))}</span></div>`;
+  }).join('');
+  const d = openDrawer({
+    title: [g.flag, g.city].filter(Boolean).join(' ') || t('dash.widget.journal'),
+    subtitle: entriesLabel(g.entries.length),
+    body: `<div class="jr-grid">${photos}</div><section class="td-dcard">${rows}</section>`,
+    footer: `<button type="button" class="btn btn-ghost" data-d-open>${esc(t('dash.link.allEntries'))}</button>`,
+    returnFocus: trigger,
+  });
+  d.root.querySelector('[data-d-open]')?.addEventListener('click', () => { closeDrawer(); navigateTo('journal'); });
 }
 
-/** Dashboard teardown / new trip. */
-export function resetJournalAlbum(): void { stop(); _idx = 0; _paused = false; }
+/** `get` is read at click time so the drawer reflects the latest entries. */
+export function wireJournal(body: HTMLElement, get: () => { entries: StoredJournalEntry[]; legs: StoredLeg[] }): void {
+  body.querySelectorAll<HTMLElement>('[data-jr-place]').forEach((tile) => {
+    tile.addEventListener('click', () => {
+      const { entries, legs } = get();
+      const g = buildPlaceGroups(entries, legs)[Number(tile.dataset.jrPlace)];
+      if (g) openPlaceDrawer(g, tile);
+    });
+  });
+}
