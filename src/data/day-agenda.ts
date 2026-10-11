@@ -143,9 +143,17 @@ const TRANSPORT_ICON: Record<string, string> = { flight: '✈️', train: '🚆'
 
 function sorted<T>(arr: T[], cmp: (a: T, b: T) => number): T[] { return [...arr].sort(cmp); }
 
-/** plan-day id → date for one leg. */
-function planDayDates(leg: StoredLeg): Map<string, string> {
-  return new Map((leg.planDays ?? []).map((d) => [d.id, d.date]));
+/** plan-day id → date for one leg.
+ *  The Itinerary only *stores* a plan day once it is customised (label / notes); a
+ *  plain day is implied by the leg's dates — one per night, id `day-<iso>` — and plan
+ *  items placed on it carry that id without any planDays entry. Read both, or those
+ *  items (e.g. "Unpack the luggage" on day 1) never show up on their date. */
+export function planDayDates(leg: Pick<StoredLeg, 'dateFrom' | 'dateTo' | 'planDays'>): Map<string, string> {
+  const m = new Map<string, string>();
+  const nights = Math.max(0, diffDays(leg.dateFrom, leg.dateTo));
+  for (let i = 0; i < nights && i < 366; i++) { const iso = addDays(leg.dateFrom, i); m.set(`day-${iso}`, iso); }
+  for (const d of leg.planDays ?? []) m.set(d.id, d.date);          // stored days win
+  return m;
 }
 
 /* ── Leg lookup ──────────────────────────────────────────────────────────── */

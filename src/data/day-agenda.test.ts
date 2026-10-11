@@ -98,3 +98,30 @@ describe('plan item category', () => {
     expect(agendaForDay('2026-08-13', src({ legs: [blank, lisbon] })).items.find((i) => i.kind === 'plan')!.category).toBeUndefined();
   });
 });
+
+describe('implied plan days (the Itinerary stores a day only once it is customised)', () => {
+  const oslo: any = {
+    id: 'O', city: 'Oslo', country: 'Norway', flag: '🇳🇴', dateFrom: '2026-06-25', dateTo: '2026-06-28',
+    // no planDays at all — items point at the implied day ids
+    plans: [
+      { id: 'u1', title: 'Unpack the luggage', category: 'other', dayId: 'day-2026-06-25', done: true, order: 0 },
+      { id: 'u2', title: 'Walk the harbour', category: 'nature', dayId: 'day-2026-06-26', done: false, order: 0 },
+      { id: 'u3', title: 'Not scheduled', category: '', dayId: null, done: false, order: 0 },
+    ],
+  };
+  it('shows plan items on their date without any stored planDays', () => {
+    const d = agendaForDay('2026-06-25', src({ legs: [oslo] }));
+    expect(d.items.filter((i) => i.kind === 'plan').map((i) => [i.title, i.done])).toEqual([['Unpack the luggage', true]]);
+    expect(agendaForDay('2026-06-26', src({ legs: [oslo] })).items.some((i) => i.title === 'Walk the harbour')).toBe(true);
+  });
+  it('marks those dates on the month grid', () => {
+    expect(kindsByDate(src({ legs: [oslo] })).get('2026-06-25')?.has('plan')).toBe(true);
+  });
+  it('a stored day for the same date still works alongside', () => {
+    const mixed = { ...oslo, planDays: [{ id: 'custom', date: '2026-06-27', label: 'Fjords', notes: '', order: 2 }], plans: [...oslo.plans, { id: 'u4', title: 'Fjord cruise', category: '', dayId: 'custom', done: false, order: 0 }] };
+    expect(agendaForDay('2026-06-27', src({ legs: [mixed] })).items.some((i) => i.title === 'Fjord cruise')).toBe(true);
+  });
+  it('the check-out date has no implied day (days are nights)', () => {
+    expect(agendaForDay('2026-06-28', src({ legs: [oslo] })).items.some((i) => i.kind === 'plan')).toBe(false);
+  });
+});

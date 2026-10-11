@@ -1,33 +1,31 @@
 /* ==========================================================================
    On the Road · Dashboard banner — drawer contents
    --------------------------------------------------------------------------
-   What the banner's two rows open in the side drawer: every stay for the
-   current stop, and the next transport's full detail (plus how you arrived).
+   What the banner's two rows open in the side drawer: the stop's stays and the
+   next transport (plus how you arrived). They are drawn with the Itinerary's own
+   card renderers — the storefront stay card and the boarding-pass / rail / coach /
+   ferry ticket — and its stylesheet, so the drawer and the Itinerary page look
+   alike. Actions that edit are left on the page; the ticket's Booked/Not booked
+   stub still toggles (it is one tap, same field), and a booking link opens in a
+   small popup window.
    ========================================================================== */
 
 import { openDrawer, closeDrawer } from '../../core/drawer.ts';
 import { navigateTo } from '../../core/app.ts';
-import { escHtml as esc, safeUrl } from '../../core/utils.ts';
+import { escHtml as esc } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
+import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
+import { datePart } from '../../data/day-agenda.ts';
+import { legStays, tonightStay, type Transport, type TransportLeg } from '../../data/trip-now.ts';
+import { renderStayCard, renderTicket } from '../itinerary/itinerary-cards.ts';
+import { bannerDateRange, countdownLabel } from './banner-format.ts';
 import { appNow } from '../../data/sim-clock.ts';
-import type { StoredLeg } from '../../data/stores/route-store.ts';
-import { datePart, timePart } from '../../data/day-agenda.ts';
-import { legStays, stayNights, tonightStay, type Stay, type Transport, type TransportLeg } from '../../data/trip-now.ts';
-import { bannerDateRange, countdownLabel, nightsLabel } from './banner-format.ts';
 
 const TRANSPORT_ICON: Record<string, string> = { flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️' };
 
-function blank(s: string | undefined | null): string | null {
-  const v = s?.trim();
-  return v ? v : null;
-}
-
-function rows(pairs: Array<[string, string | null | undefined, boolean?]>): string {
-  return pairs
-    .filter(([, v]) => blank(v ?? ''))
-    .map(([k, v, raw]) =>
-      `<div class="td-dr"><span class="td-dr-k">${esc(k)}</span><span class="td-dr-v">${raw ? v : esc(v!)}</span></div>`)
-    .join('');
+/** The Itinerary's stylesheet (stay cards, tickets, plan feed, hero). Loaded on first use. */
+export async function loadItineraryStyles(): Promise<void> {
+  await import('../itinerary/itinerary.css');
 }
 
 /** Airbnb/Booking refuse to be framed, so a booking opens in a small popup
@@ -38,119 +36,96 @@ export function openBookingWindow(url: string): void {
   if (!w) window.open(url, '_blank', 'noopener,noreferrer');
 }
 
-function bookingButton(rawUrl: string | undefined | null): string {
-  const url = safeUrl(rawUrl);
-  return url ? `<button type="button" class="btn btn-primary td-dr-book" data-book-url="${url}">${esc(t('dash.banner.openBooking'))}</button>` : '';
+const latest = (leg: StoredLeg): StoredLeg => routeStore.peek().find((l) => l.id === leg.id) ?? leg;
+
+function footer(): string {
+  return `<button type="button" class="btn btn-ghost" data-open-itinerary>${esc(t('dash.banner.openItinerary'))}</button>`;
 }
 
-function wireDrawer(root: HTMLElement, leg: StoredLeg | null): void {
-  root.querySelectorAll<HTMLElement>('[data-book-url]').forEach((b) =>
-    b.addEventListener('click', () => openBookingWindow(b.dataset.bookUrl!)));
+/** Shared wiring: booking links in a popup, the ticket's booked toggle, the footer button. */
+function wireCards(root: HTMLElement, leg: StoredLeg | null, repaint: () => void): void {
+  root.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const link = target.closest<HTMLAnchorElement>('a.rd-map-btn--soft');
+    if (link?.href) { e.preventDefault(); openBookingWindow(link.href); return; }
+    const toggle = target.closest<HTMLElement>('[data-act="toggle-transport-confirmed"]');
+    if (toggle) {
+      const owner = toggle.closest<HTMLElement>('[data-leg]');
+      const cur = owner ? routeStore.peek().find((l) => l.id === owner.dataset.leg) : null;
+      if (cur?.arrivalTransport) {
+        void routeStore.update(cur.id, { arrivalTransport: { ...cur.arrivalTransport, confirmed: !cur.arrivalTransport.confirmed } }).then(repaint);
+      }
+    }
+  });
   root.querySelector('[data-open-itinerary]')?.addEventListener('click', () => {
     closeDrawer();
     navigateTo('route', leg ? { legId: leg.id } : undefined);
   });
 }
 
-function footer(): string {
-  return `<button type="button" class="btn btn-ghost" data-open-itinerary>${esc(t('dash.banner.openItinerary'))}</button>`;
-}
-
 /* ── Stays ───────────────────────────────────────────────────────────────── */
 
-export function stayCard(s: Stay, isTonight: boolean): string {
-  const ci = datePart(s.checkIn), co = datePart(s.checkOut);
-  const n = stayNights(s);
-  const phone = blank(s.phone);
-  const dates = ci ? `${bannerDateRange(ci, co)}${n ? ` · ${nightsLabel(n)}` : ''}` : null;
-  const times = [timePart(s.checkIn), timePart(s.checkOut)];
-  return `
-    <section class="td-dcard${isTonight ? ' is-now' : ''}">
-      <div class="td-dcard-head">
-        <div class="td-dcard-title">🏠 ${esc(s.name)}</div>
-        ${isTonight ? `<span class="td-dbadge">${esc(t('dash.banner.tonight'))}</span>` : ''}
-      </div>
-      <div class="td-dcard-sub">${dates ? `${esc(dates)} · ` : ''}<span class="${s.confirmed ? 'is-ok' : ''}">${esc(t(s.confirmed ? 'agenda.confirmed' : 'agenda.notConfirmed'))}</span></div>
-      ${rows([
-        [t('agenda.d.checkIn'), [ci ? bannerDateRange(ci) : '', times[0]].filter(Boolean).join(' · ') || null],
-        [t('agenda.d.checkOut'), [co ? bannerDateRange(co) : '', times[1]].filter(Boolean).join(' · ') || null],
-        [t('agenda.d.address'), s.address],
-        [t('agenda.d.platform'), s.platform],
-        [t('agenda.d.phone'), phone ? `<a href="tel:${esc(phone.replace(/[^+0-9]/g, ''))}">${esc(phone)}</a>` : null, true],
-        [t('agenda.d.price'), s.priceAmount != null ? `${s.priceAmount} ${s.priceCurrency ?? ''}`.trim() : s.price],
-      ])}
-      ${bookingButton(s.bookingUrl || s.link)}
-    </section>`;
-}
-
-export function openStaysDrawer(leg: StoredLeg, todayIso: string, trigger?: HTMLElement | null): void {
-  const stays = legStays(leg);
-  const tonight = tonightStay(leg, todayIso);
-  const first = datePart(stays[0]?.checkIn), lastOut = datePart(stays[stays.length - 1]?.checkOut);
+export async function openStaysDrawer(legIn: StoredLeg, todayIso: string, trigger?: HTMLElement | null): Promise<void> {
+  await loadItineraryStyles();
+  const body = (): string => {
+    const leg = latest(legIn);
+    const stays = legStays(leg);
+    const tonight = tonightStay(leg, todayIso);
+    return stays.length
+      ? `<div class="td-itn">${stays.map((s, i) => `
+          ${s === tonight ? `<span class="td-dbadge td-itn-tag">${esc(t('dash.banner.tonight'))}</span>` : ''}
+          ${renderStayCard(leg as never, s as never, i, stays.length)}`).join('')}</div>`
+      : `<p class="td-dempty">${esc(t('dash.banner.stayNone'))}</p>`;
+  };
+  const leg0 = latest(legIn);
+  const stays0 = legStays(leg0);
+  const first = datePart(stays0[0]?.checkIn), lastOut = datePart(stays0[stays0.length - 1]?.checkOut);
   const d = openDrawer({
-    title: t('dash.banner.stays', { city: leg.city }),
-    subtitle: first ? bannerDateRange(first, lastOut) : `${leg.flag} ${leg.country}`.trim(),
-    body: stays.length
-      ? stays.map((s) => stayCard(s, s === tonight)).join('')
-      : `<p class="td-dempty">${esc(t('dash.banner.stayNone'))}</p>`,
+    title: t('dash.banner.stays', { city: leg0.city }),
+    subtitle: first ? bannerDateRange(first, lastOut) : `${leg0.flag} ${leg0.country}`.trim(),
+    body: body(),
     footer: footer(),
+    className: 'td-itn-drawer',
     returnFocus: trigger,
   });
-  wireDrawer(d.root, leg);
+  wireCards(d.root, leg0, () => d.setBody(body()));
 }
 
 /* ── Transport ───────────────────────────────────────────────────────────── */
-
-export function transportBody(tr: Transport): string {
-  const bag = [
-    [t('dash.banner.bag.checked'), tr.baggageCheckedG],
-    [t('dash.banner.bag.carryOn'), tr.baggageCarryOnG ?? tr.baggageAllowanceG],
-    [t('dash.banner.bag.personal'), tr.baggagePersonalG],
-  ] as Array<[string, number | undefined]>;
-  const kg = (g: number) => `${Math.round(g / 100) / 10} kg`;
-  return rows([
-    [t('agenda.d.service'), tr.service],
-    [t('agenda.d.departs'), [blank(tr.time), blank(tr.depPlace)].filter(Boolean).join(' · ') || null],
-    [t('agenda.d.arrives'), [blank(tr.arrivalTime), blank(tr.arrPlace)].filter(Boolean).join(' · ') || null],
-    [t('agenda.d.duration'), tr.duration],
-    [t('agenda.d.via'), tr.via?.filter(Boolean).join(' · ')],
-    [t('agenda.d.booking'), tr.bookingRef],
-    [t('agenda.d.price'), tr.priceAmount != null ? `${tr.priceAmount} ${tr.priceCurrency ?? ''}`.trim() : tr.price],
-    ...bag.map(([k, g]): [string, string | null] => [k, g != null && g > 0 ? kg(g) : null]),
-    [t('agenda.d.status'), t(tr.confirmed ? 'agenda.confirmed' : 'agenda.notConfirmed')],
-    [t('agenda.d.notes'), tr.notes],
-  ]);
-}
 
 export function transportTitle(tr: Transport): string {
   return `${TRANSPORT_ICON[tr.type] ?? '🚀'} ${[tr.from, tr.to].filter(Boolean).join(' → ')}`;
 }
 
-export function openTransportDrawer(
+export async function openTransportDrawer(
   next: TransportLeg | null,
   arrival: TransportLeg | null,
   todayIso: string,
   trigger?: HTMLElement | null,
-): void {
+): Promise<void> {
   const main = next ?? arrival;
   if (!main) return;
-  const tr = main.transport;
-  const when = [tr.date ? bannerDateRange(tr.date) : '', blank(tr.time)].filter(Boolean).join(' · ');
-  const cd = next ? countdownLabel(next.depAt, next.transport.date, appNow(), todayIso) : '';
+  await loadItineraryStyles();
   const showArrival = !!arrival && arrival !== main;
+  const ticket = (e: TransportLeg): string => {
+    const cur = latest(e.leg).arrivalTransport ?? e.transport;
+    return `<div class="td-itn-ticket" data-leg="${esc(e.leg.id)}">${renderTicket(cur as never)}</div>`;
+  };
+  const body = (): string => `
+    <div class="td-itn">
+      ${ticket(main)}
+      ${showArrival ? `<h3 class="td-dh">${esc(t('dash.banner.arrivedBy'))}</h3>${ticket(arrival!)}` : ''}
+    </div>`;
+  const tr = main.transport;
+  const when = [tr.date ? bannerDateRange(tr.date) : '', tr.time?.trim()].filter(Boolean).join(' · ');
+  const cd = next ? countdownLabel(next.depAt, next.transport.date, appNow(), todayIso) : '';
   const d = openDrawer({
     title: transportTitle(tr),
     subtitle: [t(`agenda.transport.${tr.type}`), when, cd].filter(Boolean).join(' · '),
-    body: `
-      <section class="td-dcard${next ? ' is-now' : ''}">${transportBody(tr)}</section>
-      ${showArrival ? `
-        <h3 class="td-dh">${esc(t('dash.banner.arrivedBy'))}</h3>
-        <section class="td-dcard">
-          <div class="td-dcard-title">${esc(transportTitle(arrival!.transport))}</div>
-          ${transportBody(arrival!.transport)}
-        </section>` : ''}`,
+    body: body(),
     footer: footer(),
+    className: 'td-itn-drawer',
     returnFocus: trigger,
   });
-  wireDrawer(d.root, main.leg);
+  wireCards(d.root, main.leg, () => d.setBody(body()));
 }

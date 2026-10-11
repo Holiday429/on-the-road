@@ -1,10 +1,11 @@
 /* ==========================================================================
    On the Road · Dashboard — To-do widget
    --------------------------------------------------------------------------
-   Small progress ring (done/total), the open items — those due on the
-   selected day first — and a + in the corner that opens an add row inside the
-   card itself: the text, a 📅 for the due date and a 🔔 for a reminder (both
-   native pickers behind an icon), Enter or Add to save. No dialog.
+   The open items — those due on the shown day first — then, right after the last
+   one, a row with a + in front where you just type the next to-do (Enter saves).
+   While you type, a 📅 for the due date and a 🔔 for a reminder appear on the row
+   (native pickers behind an icon). The corner ring counts the shown day's own
+   to-dos: done / due that day.
    ========================================================================== */
 
 import { escHtml as esc } from '../../core/utils.ts';
@@ -16,15 +17,14 @@ import { scheduleAllNotifications } from '../../core/notifications.ts';
 
 const SHOWN = 5;
 
-/* The add row's state lives here (the dashboard re-renders wholesale): open or not,
-   the chosen due date (undefined = the day being shown) and the reminder. */
-let _adding = false;
+/* The add row's picks live here (the dashboard re-renders wholesale): the chosen due
+   date (undefined = the day being shown) and the reminder. The typed text itself is
+   carried across re-renders by dashboard-render's captureUiState. */
 let _due: string | undefined;
 let _remind = '';
-let _focusNew = false;
 
 /** New trip / re-init. */
-export function resetTodoAdd(): void { _adding = false; _due = undefined; _remind = ''; }
+export function resetTodoAdd(): void { _due = undefined; _remind = ''; }
 const R = 9;
 const C = 2 * Math.PI * R;
 
@@ -42,11 +42,14 @@ function dueLabel(due: string | null | undefined, today: string): { text: string
 
 export function renderTodoWidget(todos: StoredTodo[], selected: string, today: string): string {
   const open = openTodosFor(todos, selected, today);
-  const total = todos.length;
-  const done = total - open.length;
-  const shown = open.slice(0, _adding ? SHOWN - 1 : SHOWN);
+  // The ring is about the shown day: to-dos due on it, done / total.
+  const dayTodos = todos.filter((td) => td.dueDate === selected);
+  const dayTotal = dayTodos.length;
+  const dayDone = dayTodos.filter((td) => td.done).length;
+  const frac = dayTotal ? dayDone / dayTotal : 0;
+  // 4 rows + the add row keeps the card the height it was.
+  const shown = open.slice(0, SHOWN - 1);
   const more = open.length - shown.length;
-  const frac = total ? done / total : 0;
 
   const rows = shown.map((td) => {
     const due = dueLabel(td.dueDate, today);
@@ -61,60 +64,53 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
       </div>`;
   }).join('');
 
-  // Nothing open: say so, centred, and ask the one question that gets a first item written.
-  // Nothing open: say so, centred (the + in the corner is the way to add one).
-  const empty = !shown.length && !_adding
-    ? `<div class="td-todo-empty"><div class="td-todo-empty-title">${esc(t('dash.todo.empty'))}</div></div>` : '';
-
   const due = _due ?? selected;
   const remindShort = _remind ? new Date(_remind).toLocaleString(getLocale(), { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-  const newRow = _adding ? `
-    <form class="td-todo-new" data-todo-new>
-      <input class="td-todo-add-input" type="text" placeholder="${esc(t('dash.todoModal.text'))}" aria-label="${esc(t('dash.todoModal.text'))}" required>
-      <div class="td-todo-new-tools">
+  // The add row: always there, straight after the last item. A + where the tick would be.
+  const newRow = `
+    <form class="td-todo-row td-todo-newrow${_due !== undefined || _remind ? ' has-meta' : ''}" data-todo-new>
+      <span class="td-todo-plus" aria-hidden="true">+</span>
+      <input class="td-todo-add-input" type="text" placeholder="${esc(t('dash.todo.addRow'))}" aria-label="${esc(t('dash.todo.addRow'))}" autocomplete="off">
+      <span class="td-todo-new-tools">
         <button type="button" class="td-ic${_due !== undefined ? ' is-set' : ''}" data-todo-pick="due" title="${esc(t('dash.todoModal.due'))}"><span aria-hidden="true">📅</span><span class="td-ic-v">${esc(shortDate(due))}</span></button>
         <button type="button" class="td-ic${_remind ? ' is-set' : ''}" data-todo-pick="remind" title="${esc(t('dash.todoModal.remind'))}"><span aria-hidden="true">🔔</span>${remindShort ? `<span class="td-ic-v">${esc(remindShort)}</span>` : ''}</button>
         <input class="td-ic-input" type="date" data-todo-due value="${esc(due)}" tabindex="-1" aria-hidden="true">
         <input class="td-ic-input" type="datetime-local" data-todo-remind value="${esc(_remind)}" tabindex="-1" aria-hidden="true">
-        <button type="submit" class="btn btn-primary td-todo-new-go">${esc(t('common.add'))}</button>
-      </div>
-    </form>` : '';
+        <button type="submit" class="td-todo-go" title="${esc(t('common.add'))}" aria-label="${esc(t('common.add'))}">↵</button>
+      </span>
+    </form>`;
+
+  // Nothing open: say so, centred, under the add row.
+  const empty = !shown.length
+    ? `<div class="td-todo-empty"><div class="td-todo-empty-title">${esc(t('dash.todo.empty'))}</div></div>` : '';
 
   return `
     <div class="td-widget td-w-todo">
       <div class="td-widget-header">
         <div class="td-widget-label">☑️ ${esc(t('dash.widget.todo'))}</div>
-        ${total ? `
-          <div class="td-ring" title="${esc(t('dash.todo.progress', { done, total }))}" role="img" aria-label="${esc(t('dash.todo.progress', { done, total }))}">
+        ${dayTotal ? `
+          <div class="td-ring" title="${esc(t('dash.todo.progress', { done: dayDone, total: dayTotal }))}" role="img" aria-label="${esc(t('dash.todo.progress', { done: dayDone, total: dayTotal }))}">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
               <circle class="td-ring-track" cx="12" cy="12" r="${R}" />
               <circle class="td-ring-arc" cx="12" cy="12" r="${R}" stroke-dasharray="${(C * frac).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 12 12)" />
             </svg>
-            <span class="td-ring-n">${done}/${total}</span>
+            <span class="td-ring-n">${dayDone}/${dayTotal}</span>
           </div>` : ''}
-        <button type="button" class="td-plus${_adding ? ' is-open' : ''}" data-todo-toggle title="${esc(t('dash.todo.add'))}" aria-label="${esc(t('dash.todo.add'))}" aria-expanded="${_adding}">+</button>
       </div>
-      ${newRow}
-      <div class="td-todo-list">${rows}${empty}</div>
+      <div class="td-todo-list">${rows}${newRow}${empty}</div>
       ${more > 0 ? `<button type="button" class="td-link td-todo-more" data-nav="calendar">${esc(t('dash.todo.more', { n: more }))}</button>` : ''}
     </div>`;
 }
 
-/** Wire the corner +, the add row and its two pickers. `render` re-renders the dashboard. */
+/** Wire the add row and its two pickers. `render` re-renders the dashboard. */
 export function wireTodo(body: HTMLElement, render: () => void): void {
-  body.querySelector<HTMLElement>('[data-todo-toggle]')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    _adding = !_adding;
-    if (_adding) _focusNew = true; else { _due = undefined; _remind = ''; }
-    render();
-  });
   const form = body.querySelector<HTMLFormElement>('[data-todo-new]');
   if (!form) return;
   const input = form.querySelector<HTMLInputElement>('.td-todo-add-input')!;
-  if (_focusNew) { _focusNew = false; input.focus(); }
 
-  const close = () => { _adding = false; _due = undefined; _remind = ''; render(); };
-  input.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { input.value = ''; _due = undefined; _remind = ''; input.blur(); render(); }
+  });
 
   // Icon buttons open the native pickers that sit invisibly beside them.
   form.querySelectorAll<HTMLElement>('[data-todo-pick]').forEach((b) => b.addEventListener('click', () => {
@@ -141,6 +137,8 @@ export function wireTodo(body: HTMLElement, render: () => void): void {
     await todoStore.add({ text, dueDate, remindAt });
     scheduleAllNotifications();
     input.value = '';
-    close();
+    _due = undefined; _remind = '';
+    render();
+    document.querySelector<HTMLInputElement>('.td-todo-add-input')?.focus();   // ready for the next one
   });
 }

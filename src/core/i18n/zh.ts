@@ -168,6 +168,7 @@ export const zh: StringTable = {
   'dash.todo.overdue': '已逾期',
   'dash.todo.markDone': '标记完成',
   'dash.todo.progress': '已完成 {done}/{total}',
+  'dash.todo.addRow': '添加待办…',
   'dash.plan.city': '城市',
   'dash.pack.details': '详情 ›',
   'dash.todo.prompt': '想先记下一件要做的事吗?',

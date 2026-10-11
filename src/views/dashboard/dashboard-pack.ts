@@ -2,9 +2,9 @@
    On the Road · Dashboard — Pack widget
    --------------------------------------------------------------------------
    Always on. Near a flight with a baggage limit it shows weight vs limit;
-   otherwise what you're carrying. Below it, each bag (suitcase, backpack…) with
-   its weight and its own + / − — a purchase goes into that bag, a loss comes out of
-   it. The corner expand button (or the card) opens the side drawer, drawn like the
+   otherwise what you're carrying. Below it, an icon per bag (suitcase, backpack…)
+   with its weight — tap one to open the drawer on that bag — and, at the bottom, the
+   Bought / Lost buttons. The corner expand button (or the card) opens the side drawer, drawn like the
    Pack page itself: a bag card (name, kind, weight meter, category-coloured item
    tags) with ◀ ▶ to move between bags in the top ~70%, and the amber dashed
    Unassigned panel in the bottom ~30%. It reuses the Pack page's stylesheet. The model lives in data/pack-summary.ts.
@@ -48,24 +48,20 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
 
   const details = `<button type="button" class="td-expand" data-pk-details title="${esc(t('dash.pack.details'))}" aria-label="${esc(t('dash.pack.details'))}">⤢</button>`;
   const contents = packContents(list!, legs, today);
-  // Per-bag + / −. With no bags defined yet, fall back to one pair for the whole list.
-  const bagBtns = (id = '') => `
-    <span class="td-pk-bagbtns">
-      <button type="button" class="td-mini" data-pk-action="acquired"${id ? ` data-pk-container="${esc(id)}"` : ''} title="${esc(t('dash.pack.bought'))}" aria-label="${esc(t('dash.pack.bought'))}">+</button>
-      <button type="button" class="td-mini td-mini--minus" data-pk-action="left"${id ? ` data-pk-container="${esc(id)}"` : ''} title="${esc(t('dash.pack.lost'))}" aria-label="${esc(t('dash.pack.lost'))}">−</button>
-    </span>`;
-  const bags = !legs.length ? '' : contents.containers.length ? `
-    <div class="td-pk-bags">
-      ${contents.containers.map((c) => `
-        <div class="td-pk-bag">
-          <span class="td-pk-bag-ico" aria-hidden="true">${KIND_ICON[c.container.kind] ?? '🎒'}</span>
-          <span class="td-pk-bag-name">${esc(c.container.label)}</span>
-          <span class="td-pk-bag-kg">${kg(c.weightG)} kg</span>
-          ${bagBtns(c.container.id)}
-        </div>`).join('')}
-      ${contents.unassigned.length ? `<div class="td-pk-unassigned">${esc(t('dash.pack.unassignedN', { n: contents.unassigned.length }))}</div>` : ''}
-    </div>` : `<div class="td-pk-bag td-pk-bag--all"><span class="td-pk-bag-name">${esc(t('dash.pack.allItems'))}</span>${bagBtns()}</div>`;
-
+  const bags = !legs.length ? '' : `
+    <div class="td-pk-bagicons">
+      ${contents.containers.map((c, i) => `
+        <button type="button" class="td-pk-bagicon" data-pk-bag="${i}" title="${esc(c.container.label)} · ${kg(c.weightG)} kg" aria-label="${esc(c.container.label)}">
+          <span class="td-pk-bagicon-glyph" aria-hidden="true">${KIND_ICON[c.container.kind] ?? '🎒'}</span>
+          <span class="td-pk-bagicon-kg">${kg(c.weightG)}</span>
+        </button>`).join('')}
+      ${contents.unassigned.length ? `<span class="td-pk-unassigned">${esc(t('dash.pack.unassignedN', { n: contents.unassigned.length }))}</span>` : ''}
+    </div>`;
+  const actions = legs.length ? `
+    <div class="td-pk-actions">
+      <button type="button" class="btn btn-primary td-pk-act" data-pk-action="acquired">＋ ${esc(t('dash.pack.boughtIn'))}</button>
+      <button type="button" class="btn btn-ghost td-pk-act" data-pk-action="left">－ ${esc(t('dash.pack.lostIn'))}</button>
+    </div>` : '';
   let body: string;
   if (s.kind === 'near') {
     const barClass = s.over ? 'is-over' : s.pct > 85 ? 'is-warn' : '';
@@ -90,6 +86,7 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
       ${head(details)}
       ${body}
       ${bags}
+      ${actions}
     </div>`;
 }
 
@@ -118,9 +115,6 @@ function bagCard(c: PackContainer, items: PackItem[], weightG: number): string {
   const pct = c.limitG > 0 ? Math.min(100, (weightG / c.limitG) * 100) : 0;
   return `
     <div class="pack-container-card ${over ? 'is-over' : ''}">
-      <div class="pack-c-head">
-        <div class="pack-c-titlewrap"><span class="pack-c-name">${esc(c.label)}</span><span class="pack-c-kind">${esc(kindLabel(c.kind))}</span></div>
-      </div>
       <div class="pack-c-limits"><span>${esc(t('dash.pack.bagEmpty'))} ${esc(displayWeight(c.selfWeightG, unit))}</span>${c.limitG ? `<span>${esc(t('dash.pack.limit'))} ${esc(displayWeight(c.limitG, unit))}</span>` : ''}</div>
       <div class="pack-c-meter">
         <div class="pack-c-num ${over ? 'is-over' : ''}">${esc(displayWeight(weightG, unit))}${c.limitG > 0 ? ` / ${esc(displayWeight(c.limitG, unit))}` : ''}</div>
@@ -150,13 +144,13 @@ function unassignedPanel(items: PackItem[]): string {
 }
 
 /** Drawn like the Pack page: bag card on top (◀ ▶ between bags), Unassigned below. */
-async function openPackDrawer(list: PackList, legs: StoredLeg[], today: string, trigger: HTMLElement | null): Promise<void> {
+async function openPackDrawer(list: PackList, legs: StoredLeg[], today: string, trigger: HTMLElement | null, startIdx = 0): Promise<void> {
   await import('../prepare/styles/pack.css');
   const s = packSummary(list, legs, today);
   const summary = s.kind === 'near'
     ? `${kg(s.carriedG)} / ${kg(s.limitG)} kg · ${s.over ? t('dash.pack.overBy', { kg: kg(-s.remainG) }) : t('dash.pack.left', { kg: kg(s.remainG) })}`
     : s.kind === 'idle' ? `${formatKg(s.carriedG)} · ${piecesLabel(s.pieces)}` : '';
-  let idx = 0;
+  let idx = startIdx;
 
   const render = (): string => {
     const c = packContents(list, legs, today);
@@ -167,13 +161,16 @@ async function openPackDrawer(list: PackList, legs: StoredLeg[], today: string, 
       ? `<p class="td-dempty">${esc(t('dash.pack.noBags'))}</p>`
       : `
         <div class="pk-dr-pager">
-          <button type="button" class="td-expand" data-pk-nav="-1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.prevBag'))}">◀</button>
-          <div class="pk-dr-dots">${n > 1 ? c.containers.map((_, i) => `<i class="${i === idx ? 'is-on' : ''}"></i>`).join('') : ''}</div>
-          <button type="button" class="td-expand" data-pk-nav="1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.nextBag'))}">▶</button>
+          <span></span>
+          <div class="pk-dr-pick">
+            <button type="button" class="td-expand" data-pk-nav="-1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.prevBag'))}">◀</button>
+            <div class="pk-dr-bag"><span class="pk-dr-bag-name">${KIND_ICON[cur.container.kind] ?? '🎒'} ${esc(cur.container.label)}</span><span class="pk-dr-bag-kind">${esc(kindLabel(cur.container.kind))}${n > 1 ? ` · ${idx + 1}/${n}` : ''}</span></div>
+            <button type="button" class="td-expand" data-pk-nav="1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.nextBag'))}">▶</button>
+          </div>
           ${legs.length ? `<span class="td-pk-bagbtns">
             <button type="button" class="td-mini" data-d-pk="acquired" title="${esc(t('dash.pack.bought'))}" aria-label="${esc(t('dash.pack.bought'))}">+</button>
             <button type="button" class="td-mini td-mini--minus" data-d-pk="left" title="${esc(t('dash.pack.lost'))}" aria-label="${esc(t('dash.pack.lost'))}">−</button>
-          </span>` : ''}
+          </span>` : '<span></span>'}
         </div>
         ${bagCard(cur.container, cur.items, cur.weightG)}`;
     return `<section class="pk-dr-top">${top}</section><section class="pk-dr-bottom">${unassignedPanel(c.unassigned)}</section>`;
@@ -212,11 +209,16 @@ export function wirePack(body: HTMLElement, get: () => { list: PackList | null |
     });
   });
   const card = body.querySelector<HTMLElement>('[data-pack-open]');
-  const open = () => {
+  const open = (bag = 0, trigger: HTMLElement | null = card) => {
     const { list, legs, today } = get();
-    if (list) void openPackDrawer(list, legs, today, card);
+    if (list) void openPackDrawer(list, legs, today, trigger, bag);
   };
-  card?.addEventListener('click', (e) => { if (!(e.target as HTMLElement).closest('[data-pk-action]')) open(); });
+  card?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-pk-action]')) return;
+    const bag = target.closest<HTMLElement>('[data-pk-bag]');
+    open(bag ? Number(bag.dataset.pkBag) : 0, bag ?? card);
+  });
   card?.addEventListener('keydown', (e) => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); open(); }
   });

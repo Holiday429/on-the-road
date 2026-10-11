@@ -168,12 +168,12 @@ export function wireBanner(root: HTMLElement, getData: () => BannerData, onChang
     const stop = currentStop(d.legs, d.today, d.phase);
     if (!stop) return;
     const iso = d.phase === 'before' ? stop.leg.dateFrom : d.today;
-    openStaysDrawer(stop.leg, iso, e.currentTarget as HTMLElement);
+    void openStaysDrawer(stop.leg, iso, e.currentTarget as HTMLElement);
   });
   root.querySelector<HTMLElement>('[data-banner="city"]')?.addEventListener('click', (e) => {
     const d = getData();
     const stop = currentStop(d.legs, d.today, d.phase);
-    if (stop) openCityDrawer(stop.leg, d.today, e.currentTarget as HTMLElement);
+    if (stop) void openCityDrawer(stop.leg, d.today, e.currentTarget as HTMLElement);
   });
   root.querySelector<HTMLElement>('[data-banner="clocks"]')?.addEventListener('click', (e) => {
     const d = getData();
@@ -187,7 +187,7 @@ export function wireBanner(root: HTMLElement, getData: () => BannerData, onChang
     const next = nextTransport(list, appNow(), d.today);
     const arrival = stop ? arrivalFor(list, stop.leg) : null;
     if (!next && !arrival) { navigateTo('route'); return; }
-    openTransportDrawer(next, arrival, d.today, e.currentTarget as HTMLElement);
+    void openTransportDrawer(next, arrival, d.today, e.currentTarget as HTMLElement);
   });
 }
 

@@ -9,7 +9,7 @@
    ========================================================================== */
 
 import type { StoredLeg } from './stores/route-store.ts';
-import { agendaForDay, datePart, type AgendaSources } from './day-agenda.ts';
+import { agendaForDay, datePart, planDayDates, type AgendaSources } from './day-agenda.ts';
 import { tonightStay } from './trip-now.ts';
 import { legForDate } from './plan-days.ts';
 
@@ -66,9 +66,9 @@ export function dayMapModel(iso: string, src: AgendaSources, geo: GeoResolver): 
         stay.address?.trim() || `${stay.name}, ${leg.city}`, leg.country);
     }
 
-    const planDay = (leg.planDays ?? []).find((d) => d.date === iso);
+    const dayDates = planDayDates(leg);
     const plans = (leg.plans ?? [])
-      .filter((p) => planDay && p.dayId === planDay.id)
+      .filter((p) => p.dayId != null && dayDates.get(p.dayId) === iso)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     let n = 0;
     for (const p of plans) {

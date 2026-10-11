@@ -172,6 +172,7 @@ export const en: StringTable = {
   'dash.todo.overdue': 'Overdue',
   'dash.todo.markDone': 'Mark done',
   'dash.todo.progress': '{done} of {total} done',
+  'dash.todo.addRow': 'Add a to-do…',
   'dash.plan.city': 'City',
   'dash.pack.details': 'Details ›',
   'dash.todo.prompt': 'What’s one thing you’d like to get done?',

@@ -82,12 +82,14 @@
 .ag-more:hover { text-decoration: underline; }
 /* + sits under the list, at the bottom of the day panel */
 .ag-add {
-  margin-top: auto; align-self: stretch; padding: 5px 10px; border-radius: var(--r-md); cursor: pointer;
-  border: 1.5px dashed var(--rule); background: none; color: var(--ink-muted);
-  font-size: var(--fs-xs); font-weight: 600; text-align: center;
-  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+  margin-top: auto; align-self: stretch; padding: 7px 10px; border-radius: var(--r-md); cursor: pointer;
+  background: var(--amber-400, var(--accent)); color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; text-align: center;
+  transition: background var(--dur-fast), transform var(--dur-fast);
 }
-.ag-add:hover { background: var(--amber-50); border-color: var(--amber-400); color: var(--ink); }
+.ag-add:hover { background: var(--amber-500, var(--accent)); }
+.ag-add:active { transform: scale(0.99); }
+.ag-add:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 
 /* Narrow widget (phones / 3-col fallback): stack month above the day. */
 @container tdgrid (max-width: 680px) { .ag-body { grid-template-columns: minmax(0, 1fr); } }

@@ -140,18 +140,30 @@
 .td-expand:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 .td-plus--lg { width: 40px; height: 40px; font-size: 22px; }
 
-/* Inline add row (no dialog): text, 📅 due, 🔔 reminder, Add */
-.td-plus.is-open { background: var(--ink); color: var(--surface); transform: rotate(45deg); }
-.td-todo-new { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2); border-radius: var(--r-md); background: var(--surface-3); position: relative; }
-.td-todo-new .td-todo-add-input { width: 100%; box-sizing: border-box; height: 34px; }
-.td-todo-new-tools { display: flex; align-items: center; gap: 6px; }
+/* The add row: a + where the tick goes, then a bare input; the date / reminder icons show while typing */
+.td-todo-newrow { background: transparent; border: 1.5px dashed var(--rule); }
+.td-todo-newrow:focus-within { border-color: var(--amber-400); background: var(--surface); }
+.td-todo-plus {
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--amber-400, var(--accent)); color: var(--ink); font-weight: 700; font-size: 14px; line-height: 1;
+}
+.td-todo-newrow .td-todo-add-input {
+  flex: 1; min-width: 0; height: auto; padding: 0; border: 0; background: transparent; outline: none;
+  font-size: var(--fs-sm); color: var(--ink);
+}
+.td-todo-newrow .td-todo-add-input::placeholder { font-size: var(--fs-sm); color: var(--ink-faint); }
+.td-todo-new-tools { display: none; align-items: center; gap: 4px; flex-shrink: 0; position: relative; }
+.td-todo-newrow:focus-within .td-todo-new-tools,
+.td-todo-newrow:has(.td-todo-add-input:not(:placeholder-shown)) .td-todo-new-tools,
+.td-todo-newrow.has-meta .td-todo-new-tools { display: inline-flex; }
 .td-ic {
-  display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 9px; border-radius: var(--r-full); cursor: pointer;
-  background: var(--surface); border: 1.5px solid var(--surface-4); font-size: 13px; line-height: 1; color: var(--ink-soft);
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: var(--r-full); cursor: pointer;
+  background: var(--surface); border: 1.5px solid var(--surface-4); font-size: 12px; line-height: 1; color: var(--ink-soft);
   transition: border-color var(--dur-fast), background var(--dur-fast);
 }
 .td-ic:hover { border-color: var(--amber-400); }
 .td-ic.is-set { background: var(--amber-50); border-color: var(--amber-400); color: var(--ink); }
-.td-ic-v { font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.td-ic-v { font-size: 11px; font-weight: 600; white-space: nowrap; }
 .td-ic-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.td-todo-new-go { margin-left: auto; height: 30px; padding: 0 14px; font-size: var(--fs-sm); }
+.td-todo-go { width: 26px; height: 26px; border-radius: var(--r-full); background: var(--amber-400, var(--accent)); color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; }
+.td-todo-go:hover { background: var(--amber-500, var(--accent)); }

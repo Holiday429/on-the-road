@@ -251,12 +251,18 @@
 .td-sim-note { margin-top: var(--sp-4); font-size: var(--fs-xs); }
 @media (max-width: 560px) { .td-sim-main { max-width: 150px; overflow: hidden; text-overflow: ellipsis; } }
 
-/* Pack: bags with their own + / − */
-.td-pk-bags { display: flex; flex-direction: column; gap: 4px; margin-top: auto; }
-.td-pk-bag { display: flex; align-items: center; gap: var(--sp-2); padding: 5px 8px; border-radius: var(--r-md); background: var(--surface-3); font-size: var(--fs-sm); }
-.td-pk-bag-ico { font-size: 16px; line-height: 1; }
-.td-pk-bag-name { flex: 1; min-width: 0; font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.td-pk-bag-kg { color: var(--ink-muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: var(--fs-xs); }
+/* Pack: an icon per bag, then the Bought / Lost buttons */
+.td-pk-bagicons { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-2); margin-top: auto; }
+.td-pk-bagicon {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 1px; min-width: 52px; padding: 6px 8px; border-radius: var(--r-md);
+  background: var(--surface-3); cursor: pointer; transition: background var(--dur-fast), transform var(--dur-fast);
+}
+.td-pk-bagicon:hover { background: var(--amber-50); }
+.td-pk-bagicon:active { transform: scale(0.97); }
+.td-pk-bagicon-glyph { font-size: 22px; line-height: 1; }
+.td-pk-bagicon-kg { font-size: 11px; font-weight: 700; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.td-pk-actions { display: flex; gap: var(--sp-2); padding-top: var(--sp-1); }
+.td-pk-act { flex: 1; justify-content: center; padding: 9px 10px; font-size: var(--fs-sm); font-weight: 700; white-space: nowrap; }
 .td-pk-bagbtns { display: inline-flex; gap: 4px; flex-shrink: 0; }
 .td-mini {
   width: 26px; height: 26px; border-radius: var(--r-full); display: inline-flex; align-items: center; justify-content: center;
@@ -267,7 +273,7 @@
 .td-mini:active { transform: scale(0.92); }
 .td-mini--minus { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--rule); color: var(--ink-soft); }
 .td-mini--minus:hover { background: var(--amber-50); }
-.td-pk-unassigned { font-size: var(--fs-xs); color: var(--ink-muted); padding: 0 var(--sp-2); }
+.td-pk-unassigned { font-size: var(--fs-xs); color: var(--ink-muted); padding: 0 var(--sp-1) 6px; }
 
 /* Pack drawer: the Pack page's bag card on top (~70%), its Unassigned panel below (~30%).
    Card / tag / panel styling comes from the Pack page's own stylesheet. */
@@ -276,14 +282,30 @@
 .pk-dr-top .pack-container-card { flex: 1; min-height: 0; max-height: none; }
 .pk-dr-bottom { flex: 3 1 0; min-height: 0; padding: 0 var(--sp-5) var(--sp-4); }
 .pk-dr-bottom .pack-unassigned-panel { height: 100%; }
-.pk-dr-pager { display: flex; align-items: center; gap: var(--sp-2); }
-.pk-dr-pager .td-expand:disabled { opacity: 0.35; cursor: default; }
-.pk-dr-dots { flex: 1; display: flex; justify-content: center; gap: 5px; }
-.pk-dr-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--rule); }
-.pk-dr-dots i.is-on { background: var(--accent-deep, var(--ink)); }
+.pk-dr-pager { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--sp-2); }
+.pk-dr-pager > :last-child { justify-self: end; }
+.pk-dr-pick { display: flex; align-items: center; gap: var(--sp-2); }          /* arrows sit beside the name */
+.pk-dr-pick .td-expand:disabled { opacity: 0.35; cursor: default; }
+.pk-dr-bag { display: flex; flex-direction: column; align-items: center; min-width: 0; line-height: 1.2; }
+.pk-dr-bag-name { font-family: var(--font-ui); font-weight: 700; color: var(--ink); white-space: nowrap; }
+.pk-dr-bag-kind { font-size: var(--fs-xs); color: var(--ink-muted); }
+/* Unassigned tags flow and size like the bag's: as long as their text, wrapping onto rows */
+.pk-drawer .pack-unassigned-items { flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 5px; }
+.pk-drawer .pack-unassigned-items .pack-item-tag { width: auto; }
 .pk-drawer .pack-item-tag { min-width: 0; }
 .pk-drawer .pack-item-tag::after { display: none; }
 
 /* Where to go: the tabs end where the cards end (the ▶ arrow sits to the right of the strip) */
 .td-w-whereto .td-widget-header { padding-right: calc(28px + var(--sp-2)); }
 @media (hover: none) { .td-w-whereto .td-widget-header { padding-right: 0; } }
+
+/* Itinerary-styled drawers (stays, tickets, city plan): the page's own cards, minus its editing controls */
+.td-itn { display: flex; flex-direction: column; gap: var(--sp-3); }
+.td-itn-drawer .rd-stay-actions .rd-icon-btn { display: none; }
+.td-itn-tag { align-self: flex-start; margin-bottom: -6px; }
+.td-itn-city .rd-hero { min-height: 160px; margin-bottom: 0; }
+.td-itn-city .rd-hero-content { padding: var(--sp-4); padding-right: var(--sp-4); }
+.td-itn-city .rd-hero-city { font-size: 26px; margin: 4px 0 2px; }
+.td-itn-city .rd-hero-fallback-flag { font-size: 96px; }
+.td-itn-city .td-dh { margin: var(--sp-2) 0 0; }
+.td-itn-drawer .otr-drawer, .otr-drawer.td-itn-drawer { width: min(520px, 100%); }

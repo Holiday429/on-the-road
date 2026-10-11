@@ -157,7 +157,7 @@ export function renderTransportSection(leg: Leg): string {
 
 /** One stay as a little storefront: a striped awning (amber once confirmed,
  *  grey while pending) over a check-in → check-out reservation strip. */
-function renderStayCard(leg: Leg, a: Accommodation, i: number, total: number): string {
+export function renderStayCard(leg: Leg, a: Accommodation, i: number, total: number): string {
   const key = a.id ?? String(i);
   const price = stayPriceLabel(a, baseCurrency());
   const canSync = a.priceAmount != null;
