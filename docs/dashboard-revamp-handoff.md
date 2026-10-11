@@ -1,129 +1,129 @@
 # Dashboard 改造 · 交接文档(新对话从这里开始)
 
-> 写于 2026-10-10。给新开的 Claude 会话读:读完这一份就能接着干,不需要翻旧对话。
+> 更新于 2026-10-11(Dashboard v2 六个阶段完成后)。给新开的 Claude 会话读:读完这一份就能接着干。
 > 用户偏好:**回答简短直接,先给结论,不要事后复述;用中文沟通**。
+> 方案原文:`docs/dashboard-v2-plan.md`(v2,已执行完)、`docs/dashboard-revamp-plan.md`(v1,更早)。
 
 ---
 
 ## 0. 一句话现状
 
-网页版 Dashboard / Calendar / Currency 改造的 **Phase 0–4、6 已全部合并到 web `main`**;i18n 与重绘性能的收尾也已合并。
-iOS 侧只合并了「Journal 相册」的**独立组件**,**还没接进 Dashboard 的 Journal 卡片**(被别人未提交的 Dashboard 改动挡住)。
+网页版 Dashboard 已从「看板」改成「操作中心」(v2,阶段 1–6 全部完成,分支 `feat/dashboard-feedback-1`)。
+用户说:**阶段 6 收尾后,会再让你「统一优化细节」** —— 见第 6 节待办清单。
+iOS 侧只合并过 Journal 相册的独立组件,**还没接进 Dashboard**(被别人未提交的 Dashboard 改动挡住),v2 的新设计也**没同步到 iOS**。
 
-| 仓库 | 路径 | `main` 当前 | 备注 |
-|---|---|---|---|
-| Web | `/Users/Holiday_1/Desktop/Growth/On the Road/website/on-the-road` | `224d556` | 技术栈 Vite 8 + TS + 原生 DOM,dev 端口 5180 |
-| iOS | `/Users/Holiday_1/Desktop/Growth/On the Road/iOS` | `709c22f` | SwiftUI,scheme `On the Road` |
+| 仓库 | 路径 | 备注 |
+|---|---|---|
+| Web | `/Users/Holiday_1/Desktop/Growth/On the Road/website/on-the-road` | Vite 8 + TS + 原生 DOM,dev 端口 5180 |
+| Web 工作树 | `.../website/on-the-road-fb` | `feat/dashboard-feedback-1` 检出在这里 |
+| iOS | `/Users/Holiday_1/Desktop/Growth/On the Road/iOS` | SwiftUI,scheme `On the Road` |
 
 两个仓库是**独立的 git 仓库**。外层 `On the Road/` 和 `/Users/Holiday_1` 也是 git 仓库(指向 Marginalia),**不要混淆**。
 
 ---
 
-## 1. ⚠️ 先读:Git 与工作区的坑(这是上一轮踩过的)
+## 1. ⚠️ Git 与工作区的坑
 
-用户同时开着多个会话在写代码,所以:
+用户同时开着多个会话,所以:
 
-1. **工作目录不一定在 `main`。** 上一次发现 web 目录被别的会话切到了 `perf/instant-entry`。动手前先 `git branch --show-current`,并用 `git rev-parse main` 取 `main`,不要拿 `HEAD` 当 `main`。
-2. **`main` 工作区里有别人未提交的改动**(web 约 5 个文件、iOS 约 43 个文件)。不要 `git add -A`,不要 `git stash`(stash 栈是共享的),不要 `git checkout .`。
-3. **做新工作:`git worktree add -b <branch> ../<dir> main`**(从 `main` 切,不是 `HEAD`),在 worktree 里开发,不碰主工作区。
-   - worktree 里要补:`node_modules` 软链(`ln -s ../on-the-road/node_modules node_modules`)、`.env` / `.env.local`(web,被 gitignore)、`GoogleService-Info.plist`(iOS,被 gitignore,否则测试宿主崩溃)。
-4. **合并到 `main`:**
-   - `main` 没被任何 worktree 检出时,可以在**自己的 worktree 里** `git checkout main && git merge --ff-only <branch>`,这样不会碰别人的目录。
-   - 如果目录恰好就在 `main` 且有重叠的未提交文件:先把重叠文件的 diff 存成 patch → 反向 apply → `git reset -q`(合并要求暂存区干净,别人的 staged 删除要事后用 `git rm --cached` 恢复)→ merge → `git apply --3way` 重新应用 patch → 取消暂存。上次的合并就是这么做的,没丢东西。
-5. 提交信息结尾带:`Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`(以会话当时 system-reminder 为准)。
+1. **主工作区不一定在 `main`,且常有别人未提交的改动**(当前:`scripts/notion-sync.mjs`、`src/sw.ts`、`src/views/journal/shared/utils.ts`)。不要 `git add -A`,不要 `git stash`(栈是共享的),不要 `git checkout .`。
+2. 做新工作:`git worktree add -b <branch> ../<dir> main`,在 worktree 里开发。worktree 里要补 `node_modules` 软链(`ln -s ../on-the-road/node_modules node_modules`)和 `.env` / `.env.local`(被 gitignore)。
+3. **合并到 `main` 的做法(本轮一直这么做)**:先确认 `git merge-base --is-ancestor main <branch>`;若 `main` 前进了,先在 worktree 里 `git merge main`;然后在主目录 `git merge --ff-only <branch>`。主目录里别人未提交的文件只要和分支改动不重叠就不受影响(先 `git diff --name-only main <branch>` 对一下)。**合并只在本地,从未 push。**
+4. 提交信息结尾带 `Co-Authored-By: …`(以会话当时 system-reminder 为准)。
 
 ---
 
-## 2. 已确认的产品决策(不要再讨论)
+## 2. v2 已确认的产品决策(不要再讨论)
 
-- **不做阶段化布局。** before/during/after 不切换布局;阶段感通过**内容**体现(地图国家着色、agenda 提示、hero 文案)。理由:74 天、9 国的长途旅行,三阶段布局切换没意义,且会让用户困惑。
-- **Currency**:地理定候选币种,近期消费修正(最近 3 天同国 ≥3 笔、主力币种不同 → 用实际币种);Dashboard 只显示 hero 里的一行 `1 EUR = 7.46 DKK ▾`,点击展开换算器。frankfurter.app 只有约 31 种实时币种 → 其余为「估算」或用户自定义(手填汇率)。自定义币种**只在 Expenses 页管理**。
-- **Calendar**:侧边栏独立入口(钉在 Dashboard 旁,**仅桌面**,手机从 agenda 的「日历 ›」进);完整双栏版面。iOS 侧边栏本来就有 Calendar。
-- **Safety 组件已删**;**Pack 只在下一段有行李限额的交通前 ≤2 天出现**。
-- **Journal**:「记一笔」按钮在最下方、黄色填充(同 Spend 的 Save);空白区做成按城市轮播的照片集。
+延续 v1:不做阶段化布局(阶段感靠内容);Currency/Calendar/Journal 决策见 `dashboard-revamp-plan.md`。v2 新增:
 
-完整方案原文:web 仓库 `docs/dashboard-revamp-plan.md`(已在 `main`)。
-
----
-
-## 3. Web 已完成的内容与文件地图
-
-### Phase 0 清理
-- 删 Safety;Pack 条件渲染(`packVisible()` 在 `dashboard.ts`)。
-- To-do 的 Add 改黄色;组件标题/链接/Journal 文案全部走 i18n;hero 天气加降水概率 `☔`。
-- 侧边栏**收窄态**:日期数字按位数缩字号(`data-len` → 22/18/14px),图标 36px、间距加大,分组标题变细分割线(`mobile-nav.css` 与 `responsive.css` 两处同步)。
-
-### Phase 1 Currency
-- `src/data/country-currency.ts`:完整国家→币种表,`currencyForCountry()` / `knownCurrencyForCountry()`。
-- `src/data/rates.ts`:`CURRENCIES`(31 个实时)+ `EXTRA_CURRENCIES`(18 个静态估算)+ 自定义币种;读取时 `finalize()` 叠加估算与手填汇率;请求 frankfurter 时**不带 `symbols`**(避免某币种被下架导致整个请求 422)。
-- `src/data/schema/user-trip.ts`:`TripSchema.customCurrencies`;`trip-context.ts`:`customCurrencies()` / `setCustomCurrency()`,并通过 `registerCustomCurrencySource` 注入 rates(避免循环依赖)。
-- `src/views/expenses/expense-defaults.ts`:`suggestedCurrency()`。
-- `src/views/expenses/currency-manager.ts`:Expenses 页「＋」弹窗(增删自定义币种)。
-- Dashboard:hero 一行 `renderRateLine()`,展开面板 `renderRatePanel()`。
-
-### Phase 2 Agenda(核心)
-- **`src/data/day-agenda.ts`**:按**日期**聚合的纯函数,移植自 iOS `CalendarStore.day(on:)`。`agendaForDay(iso, src)`、`kindsByDate(src)`、`undatedTodos()`、`AGENDA_COLORS`。**Dashboard agenda 与 Calendar 视图共用它,不要写第二份聚合。** 换城市当天 `leg` 取"当天开始的那一程",同时给出 `leavingLeg`;`flags` 提供抵达日/离开前一天/最后一天等。
-- `src/views/dashboard/dashboard-agenda.ts`:左侧紧凑月历 + 右侧当日日程;今天/明天切换;点月历任一天;今天无内容时跳到「Next up」;行程项/待办可内联勾选。
-- 删除了旧的 Upcoming feed、月历小组件、hero 的交通/住宿 chips。
-
-### Phase 3 Calendar
-- `src/core/app.ts` `NAV_ITEMS` 增 `calendar`(emoji 🗓️,`section:'pinned'`,`desktopOnly:true`);`sidebar.ts` 的 `NavItem` 增 `desktopOnly`,手机底栏过滤掉。
-- `src/views/calendar/calendar.ts` + `calendar.css` 整体重写:左侧月历 + 图例 + 本月统计 + 全部待办;右侧常驻日面板(航班/住宿/行程/日记/待办/消费,可展开详情、可点进对应页);窄屏堆叠。支持 `navigateTo('calendar', { date })` 的 intent(含已挂载时的 `otr:nav-intent`)。**补上了消费聚合**(网页此前缺)。
-
-### Phase 4 用内容表达阶段
-- `src/views/map/map-status.ts`:`legStatus` / `countryStatuses`;Dashboard 地图国家按 过去(灰)/当前(绿)/未来(琥珀)着色(`dashboard-map.ts`),图例走 i18n。
-- hero 文案按阶段(`dash.hero.*`),after 阶段有「查看旅行回顾」按钮 → Journal。
-- `src/data/trip-phase.ts` 的 `todayIso()` 从 UTC 改成**本地日期**(影响全 app,是修 bug)。
-
-### Phase 6 Journal 相册(网页)
-- `src/views/dashboard/journal-places.ts`(纯分组,有测试)+ `dashboard-journal.ts`(轮播渲染/定时器,尊重 `prefers-reduced-motion`,图片懒加载)+ `styles/journal-album.css`。
-- 规则:place = `entry.destination`,否则当天所在行程城市;多个城市 → 每城一张、最新在前;只有一个城市 → 展开成该城的单张照片;最多 8 张。
-
-### 收尾(已合并 `224d556`)
-- i18n:`day-agenda.ts` / `calendar.ts` 的副标题、详情标签、图例走 `t()`,**en + zh**(其他语言回退英文)。
-- 性能:`dashboard-render.ts` —— `createRenderScheduler`(store 回调合并成一次渲染)、`swapHtml`(保留地图 canvas 节点)、`captureUiState/restoreUiState`(保留输入内容与焦点)、`mapSignature`(只有地图相关的行程字段变化才重建地图)。
-
-### 网格布局(`styles/grid.css`)
-12 栏:agenda(1–6)/ spend(1–6)/ map(7–12,跨两行);journal(1–8)/ todo(9–12);pack(1–4,仅临近飞行)+ whereto(5–12,无 pack 时 1–12);nomad(12,有数据才显示)。三档容器查询(680/580/420)。
+- 全页「看详情」统一走**右侧抽屉**(窄屏变底部半屏)。
+- 横幅:天气 | 表盘+国家 | 今晚住宿 / 下一班交通(带倒计时)| 这里/家 两个时钟 | 小人。
+- 「家的时区」存用户级,缺省按出发城市推断(哈尔滨 → 北京时间),**不用浏览器时区**。
+- 行李**永远显示**(不再「临近飞行才出现」)。
+- Nomad 并入 Where to go 的「办公」标签;Where to go 无任何数据时整块不渲染。
+- **布局(用户在阶段 3 后改过)**:第二行 日历(6)/待办(3)/行李(3);第三、四行:**地图在左(6 栏,跨两行),花费叠在 Journal 上(右 6 栏,等宽)**;底部 Where to go。方案图里原本是 4/4/4 三列并排,已被用户推翻。
+- 容器 < 900px 两列:横幅 → 日历 → 待办+行李 → 地图 → 花费 → Journal → Where to go;< 420px 单列。
 
 ---
 
-## 4. iOS 状态
+## 3. 文件地图(v2 新增/改动)
 
-- 已合并(`709c22f`),**全是新增独立文件**,无 UI 变化:
-  - `Features/Dashboard/JournalPlaces.swift`(分组,`PlaceSlide`)
-  - `Features/Dashboard/JournalAlbumStore.swift`(订阅 journalEntries + legs)
-  - `Features/Dashboard/JournalAlbumCarousel.swift`(轮播视图)
-  - `On the RoadTests/JournalPlacesTests.swift`(7 个测试,已通过)
-- **未做:接入 Dashboard。** 待 `main` 上那批未提交的 Dashboard 改动(`DashboardMiniCard` / `BagQuickCard` / 新 Hero 等,当时是 untracked 或 modified)提交后,基于最新 `main` 重建分支,在半宽 Journal 卡里持有一个 `JournalAlbumStore`,把「N entries」数字区换成 `JournalAlbumCarousel`;无照片时保持原样。轮播**实际画面还没人看过**(预览用的是假 URL)。
-- iOS 测试要点:`xcodebuild` 部署目标是 iOS 26.5,需要 26.5 模拟器;没有现成设备时 `xcrun simctl create` 一个,用完 `simctl delete`。
+### 通用
+- `src/core/drawer.ts` / `drawer.css` — `openDrawer({title, subtitle?, body, footer?, returnFocus?, onClose?})` → `{root, body, setBody, close}`;`closeDrawer()`、`isDrawerOpen()`。同时只开一个,Esc/遮罩/✕ 关,焦点锁在内,尊重 reduced-motion。z-index 1100(低于 modal 的 1200)。
+
+### 数据层(`src/data/`,纯函数 + 测试)
+- `trip-now.ts` — 横幅模型:`currentStop`、`tonightStay`、`tripTransports`(把交通的当地时刻按「出发地时区」转成时刻)、`nextTransport`、`countdownTo`、`tripDial`、`tripSpan`。
+- `tz-math.ts` / `country-timezone.ts` / `home-timezone.ts` — 时区运算、国家/城市→IANA、家的时区解析(设置 → 行程 homeCity → 第一班交通出发地)。
+- `stores/user-prefs-store.ts` + `schema/user-trip.ts` 的 `UserPrefsSchema` — `users/{uid}/userPrefs/me`,目前只有 `homeTimezone`。Profile 页「偏好设置」里有下拉框(`views/profile/profile-home-tz.ts`)。
+- `pack-summary.ts` + `packing-formula.ts` 的 `baggageLimitG` — 行李三态(none / near / idle)。**限额口径 = 托运 + 随身(旧的单值算随身)**。原因:行程编辑器现在只写分项字段、不再写旧的 `baggageAllowanceG`,原先只读旧字段的逻辑读不到新录入的航班。
+- `todo-order.ts` — 选中日到期 → 逾期 → 之后 → 无日期。
+- `plan-days.ts` — `planDaysFor`(一晚一天,和行程页一致)、`pickPlanDay`(退房日/范围外就近落点)、`legForDate`。
+- `day-map.ts` — 「这一天」地图模型(住宿 + 当天计划项 + 换城市当天的出发城市),坐标走同步解析器,解析不了的进 `pending`。
+- `whereto-model.ts` — 标签与卡片;`tripHasRecommendations` 决定整块渲不渲染。
+- `day-agenda.ts` — v1 就有,**Dashboard agenda 与 Calendar 视图共用,不要写第二份聚合**。
+
+### 视图(`src/views/dashboard/`)
+- `dashboard.ts` — 编排:state、layout、wire、init。仍是最大的文件。
+- `dashboard-banner.ts`(渲染 + 20 秒 tick 更新指针/倒计时,不整页重渲染)、`banner-drawers.ts`(住宿/交通抽屉)、`banner-format.ts`。
+- `dashboard-agenda.ts` + `agenda-drawer.ts` — 紧凑月历 + 当日日程;计划/交通/住宿行点开抽屉(计划项有「地图 ↗」和一行「记一笔」),其余类型照旧跳页;`+` 通过 `openAddPlanModal` 加到当天。
+- `dashboard-todo.ts`、`dashboard-pack.ts`(含行李抽屉)。
+- `dashboard-map.ts`(amCharts,「整个旅程」)、`dashboard-daymap.ts`(Leaflet,「这一天」,**懒加载**)。模式切换在卡片头部;默认「这一天」,旅程结束后默认「整个旅程」。
+- `spend-drawer.ts` — 花费 `+`(表单在前)/点总额(列表在前)。
+- `dashboard-journal.ts` + `journal-places.ts` — 三张城市方形缩略图 + 城市抽屉(旧轮播已删)。
+- `dashboard-whereto.ts` — 标签 + 横向卡片轨道,轨道滚动位置跨重渲染保留。
+- `dashboard-modals.ts` — 待办弹窗、行李变动弹窗、`openAddPlanModal`(Where to go 的 `+` 也用它)。
+- 样式:`styles/{grid,banner,agenda,widgets-*,journal-album}.css`;共用的圆形 `+` 在 `widgets-list.css` 的 `.td-plus`。
+
+### i18n
+`src/core/i18n/{en,zh}.ts` 已覆盖 Dashboard v2 全部新文案(含待办/行李弹窗);es/fr/ja/ko 回退英文。
+`src/core/i18n/dashboard-keys.test.ts` 扫描 Dashboard 相关源码里所有 `t('…')`(含条件式和已登记的模板键),断言 en 与 zh 都存在 —— **新增文案漏了翻译会直接红**。模板键要在该测试的 `EXPANSIONS` 里登记。
 
 ---
 
-## 5. 下一步(按优先级)
+## 4. 验证方法
 
-1. **iOS:把相册接进 Dashboard Journal 卡**(前置:`main` 上 Dashboard 改动已提交 —— 先问用户是否已提交)。
-2. 其他语言(es/fr/ja/ko)补 agenda / calendar / currency / hero 的新文案(现在回退英文)。
-3. 真机/真数据走查:登录态、`customCurrencies` 写 Firestore、Expenses「＋」弹窗(这些**没有**实际验证过)。
-4. 可选:Calendar 在手机上的入口体验、agenda 的 plan 副标题还是原始分类 id(如 `food`)。
-
----
-
-## 6. 验证方法(可直接复用)
-
-- Web:`npx tsc --noEmit`、`npx vitest run`(当前 673 通过)、`npx vite build`。
-- **没有登录也能看 UI 的办法**:建一个临时 `_harness/*.html`,import 真实模块,给 `routeStore/journalStore/todoStore/expenseStore/packStore/nomadStore/cityStore` 打桩(`s.peek = () => rows; s.subscribe = cb => { cb(rows); return () => {} }`),用 `vite --port <p>` 提供,再用 headless Chrome 截图:
-  `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --hide-scrollbars --window-size=1250,1500 --virtual-time-budget=15000 --screenshot=out.png "http://localhost:<p>/_harness/x.html"`
-  - 注意 ① 要先 `import '/src/data/trip-context.ts'`,否则 `db.ts ↔ trip-context.ts` 循环依赖会报 `_myTripIdsResolver` 未初始化;② 想"固定今天"就覆盖 `globalThis.Date`;③ headless Chrome 窗口最窄约 500px,要测手机宽度请给容器设固定 `width`;④ 用完删除 `_harness/`,提交时用 `git add -A -- . ':(exclude)_harness'`。
-- Vitest 默认 `environment: 'node'`;需要 DOM 的测试文件顶部加 `/** @vitest-environment jsdom */`。
-- Vite 8 的 `*.test.ts` 里 `localStorage` 不存在(代码里读写都包了 try/catch)。
+- Web:`npx tsc --noEmit`、`npx vitest run`(当前 765 通过)、`npx vite build`。
+- `npx eslint src` 有 **2 处不在本轮改动范围的既有报错**:`src/core/utils.ts:50`(innerHTML)和 `src/views/expenses/expenses.ts` 的 max-lines。
+- **没有登录也能看 UI**:建临时 `_harness/*.html`,先 `import '/src/data/trip-context.ts'`,再 import `base.css`/`app.css`,给 `routeStore/journalStore/todoStore/expenseStore/packStore/cityStore` 打桩(`s.peek = () => rows; s.subscribe = cb => { cb(rows); return () => {}; }`),`nomadStore.peek` 和 `nomadStore.subscribeForTrip` 单独打桩;页面容器要加 `class="view active"`(否则 `.view` 是 display:none,截图是空白);固定「今天」就覆盖 `globalThis.Date`;`vite --port <p>` 起服务后:
+  `"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --hide-scrollbars --window-size=W,H --virtual-time-budget=9000 --screenshot=out.png "http://localhost:<p>/_harness/x.html"`
+  - **点击后截抽屉**:在页面里 `setTimeout(() => document.querySelector(sel)?.click(), 1500)`,并给页面加 `.otr-drawer-scrim,.otr-drawer{animation:none!important}`(否则无头截图可能截到动画起点,抽屉不可见)。
+  - 窄屏用给 `#view-today` 设固定 `width` 来模拟(无头 Chrome 窗口最窄约 500px)。
+  - 沙箱里 OSM 瓦片和 Nominatim 被拦,**地图底图是灰的、住宿点出不来**;frankfurter 汇率也会报 CORS。
+  - zsh 下 `--include=*.ts` 这类通配要加引号。
+  - 用完删 `_harness/`,提交时别带上。
+- Vitest 默认 `environment: 'node'`;要 DOM 的测试文件顶部加 `/** @vitest-environment jsdom */`。测 `data/` 里依赖 `trip-phase.ts` 的模块时,要 `vi.mock('./trip-context.ts')` 和 `vi.mock('./stores/route-store.ts')`。
 
 ---
 
-## 7. 代码约定速记
+## 5. 代码约定速记
 
-- Web:原生 DOM + 字符串模板;所有插值走 `esc()`(`escHtml`);`innerHTML` 处有 `eslint-disable-next-line no-restricted-syntax -- audited` 注释。
-- i18n:`src/core/i18n/{en,zh,es,fr,ja,ko}.ts`;`t(key, vars)` 缺失时回退 en。新文案**至少补 en + zh**。
+- 原生 DOM + 字符串模板;所有插值走 `esc()`(`escHtml`),外部 URL 走 `safeUrl()`(只放行 http/https,**data: URI 会被拒**);`innerHTML` 处加 `eslint-disable-next-line no-restricted-syntax -- audited` 注释。
+- 抽屉/弹窗的点击处理要「点击时再取最新数据」(`get: () => state`),不要闭包捕获渲染时的数组。
 - 设计 token:`var(--amber-*)`、`--ink-*`、`--surface-*`、`--rule-soft`;按钮 `btn btn-primary`(黄)/`btn btn-ghost`。
-- 地图:amCharts5(CDN 懒加载),Dashboard 缩略图在 `dashboard-map.ts`;完整 `/map` 用自己的"逐国点亮"调色板,**没改**。
-- iOS:`Color.otr*` 自适应色板、`OTRRadius`、`OTRCachedImage`;`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`(纯值类型的静态成员/测试要注意隔离)。
+- Dashboard 整页是 `render()` 整体重绘 + `swapHtml` 保留地图画布节点;store 回调走 `scheduleRender`(合并),用户动作直接 `render()`。
+- iOS:`Color.otr*`、`OTRRadius`、`OTRCachedImage`;`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`。
+
+---
+
+## 6. 待办
+
+### 用户已说「阶段 6 后统一优化」的细节(按我记下的清单)
+1. **日历卡片「垂直高度回到改版前」没法精确做** —— 没量过改版前的像素高度,目前约 345px(原来约 370)。需要用户给目标值或看截图判断。
+2. Journal 标题右上角 `+` 与底部「Write an entry」按钮功能重复(方案原话两个都要)。
+3. 窄屏下横幅的两个时钟会单独占一行,偏占高度。
+4. 抽屉内容不随 store 更新(打开后数据变了要关了再开)。
+5. 天气块两位数温度时折成两行(原有行为,方案要求不动)。
+6. 窄屏下 Journal 缩略图在 2 列/单列时变得很大。
+
+### 需要在真实环境验证(沙箱里做不到)
+- 地图底图(OSM 瓦片)是否加载、街道级缩放观感;住宿地理编码定位流程(Nominatim)。
+- 地理编码结果目前只缓存在 localStorage,**没有写回 Firestore**(行程页原有逻辑会写回计划项坐标)。
+- 登录态下:Profile「家的时区」保存、`customCurrencies` 写 Firestore、花费/「记一笔」真正写入、行李 `+`/`−` 弹窗保存、「+ 添加到这一天」弹窗。
+- 滑入动画与 `prefers-reduced-motion` 只看过静态截图;没有真机/手机实测。
+
+### 其他
+- 交通数据没有预订链接字段,所以交通抽屉**没有**「打开预订 ↗」(住宿有)。要做得先在行程页加字段与编辑入口。
+- es/fr/ja/ko 补 v2 文案(现在回退英文)。
+- 把 v2 设计同步到 iOS;iOS 把相册接进 Dashboard Journal 卡(前置:`main` 上别人的 Dashboard 未提交改动先提交)。
+- 日程 `plan` 副标题还是原始分类 id(如 `food`);`day-agenda.ts` 的 `contextItems` 里 "Day N of M in …" 仍是硬编码英文(目前 Dashboard 不展示它,Calendar 视图可能用到)。

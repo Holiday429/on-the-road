@@ -214,3 +214,13 @@
   transition: opacity var(--dur-fast), background var(--dur-fast);
 }
 .td-ba-dismiss:hover { opacity: 1; background: rgb(0 0 0 / 0.08); }
+
+/* Where to go on narrow containers: label on its own line, tabs scroll sideways
+   instead of overflowing the card. */
+@container tdgrid (max-width: 560px) {
+  .td-w-whereto .td-widget-header { flex-wrap: wrap; row-gap: var(--sp-2); }
+  .td-w-whereto .td-widget-label { flex-basis: 100%; white-space: nowrap; }
+  .td-w-whereto .wtg-tabs { flex: 1 1 0; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .td-w-whereto .wtg-tabs::-webkit-scrollbar { display: none; }
+  .td-w-whereto .ag-tab { white-space: nowrap; }
+}

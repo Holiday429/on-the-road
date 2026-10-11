@@ -207,7 +207,7 @@ function renderHero(phase: Phase): string {
           <span class="td-hero-weather-high">${esc(_weather.tempHigh)}</span>
           ${_weather.tempLow ? `<span class="td-hero-weather-low">/ ${esc(_weather.tempLow)}</span>` : ''}
         </div>
-        ${_weather.rainChance >= 40 ? `<div class="td-hero-weather-rain" title="Chance of rain today">☔ ${_weather.rainChance}%</div>` : ''}
+        ${_weather.rainChance >= 40 ? `<div class="td-hero-weather-rain" title="${esc(t('dash.hero.rain'))}">☔ ${_weather.rainChance}%</div>` : ''}
       </div>`
     : (weatherCity
         ? `<div class="td-hero-weather-sq td-hero-weather-sq--loading">
@@ -368,8 +368,8 @@ function renderSpendWidget(): string {
         <button type="button" class="td-plus" data-spend-open="form" title="${esc(t('dash.spend.addTitle'))}" aria-label="${esc(t('dash.spend.addTitle'))}">+</button>
       </div>
       <div class="td-spend-top">
-        <button type="button" class="td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><div class="td-spend-label">Total</div><div class="td-spend-big">${fmt(total)}</div></button>
-        <div class="td-spend-today"><div class="td-spend-label">Today</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
+        <button type="button" class="td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><div class="td-spend-label">${esc(t('dash.spend.total'))}</div><div class="td-spend-big">${fmt(total)}</div></button>
+        <div class="td-spend-today"><div class="td-spend-label">${esc(t('dash.spend.today'))}</div><div class="td-spend-mid">${fmt(todaySpend)}</div></div>
       </div>
       ${budgetLine}
       <div class="td-rate-anchor">

@@ -107,9 +107,9 @@ function renderItem(it: AgendaItem): string {
   const color = AGENDA_COLORS[it.kind];
   // Plan items and to-dos tick inline; everything else is a plain tap-through.
   const check = it.planRef
-    ? `<button type="button" class="ag-check${it.done ? ' is-done' : ''}" data-toggle-plan="${esc(it.planRef.legId)}:${esc(it.planRef.planId)}" aria-label="Toggle done"></button>`
+    ? `<button type="button" class="ag-check${it.done ? ' is-done' : ''}" data-toggle-plan="${esc(it.planRef.legId)}:${esc(it.planRef.planId)}" aria-label="${esc(t('dash.agenda.toggleDone'))}"></button>`
     : it.todoId
-    ? `<button type="button" class="ag-check" data-toggle-todo="${esc(it.todoId)}:false" aria-label="Mark done"></button>`
+    ? `<button type="button" class="ag-check" data-toggle-todo="${esc(it.todoId)}:false" aria-label="${esc(t('dash.todo.markDone'))}"></button>`
     : '';
   // Plan / transport / stay open the side drawer; the rest tap through to their page.
   const nav = opensDrawer(it)

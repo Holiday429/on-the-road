@@ -25,21 +25,21 @@ import { t } from '../../core/i18n.ts';
 /* ── New to-do modal (with due date + reminder) ──────────────────────────── */
 export function openDashboardTodoModal(defaultDate: string = todayIso()): void {
   const handle = openModal({
-    title: '+ New to-do',
+    title: `+ ${t('dash.todoModal.title')}`,
     body: `
       <div style="display:flex;flex-direction:column;gap:12px">
-        <input class="input" id="db-todo-text" placeholder="What do you need to do?" autofocus>
+        <input class="input" id="db-todo-text" placeholder="${esc(t('dash.todoModal.text'))}" autofocus>
         <div style="display:flex;gap:8px;align-items:center">
-          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">Due date</label>
+          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">${esc(t('dash.todoModal.due'))}</label>
           <input class="input" id="db-todo-due" type="date" value="${esc(defaultDate)}">
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">Remind me</label>
+          <label class="field-label" style="margin:0;white-space:nowrap;flex-shrink:0">${esc(t('dash.todoModal.remind'))}</label>
           <input class="input" id="db-todo-remind" type="datetime-local">
         </div>
       </div>`,
-    footer: `<button class="btn btn-ghost" id="db-todo-cancel">Cancel</button>
-             <button class="btn btn-primary" id="db-todo-save">Add</button>`,
+    footer: `<button class="btn btn-ghost" id="db-todo-cancel">${esc(t('common.cancel'))}</button>
+             <button class="btn btn-primary" id="db-todo-save">${esc(t('common.add'))}</button>`,
   });
 
   handle.root.querySelector('#db-todo-cancel')?.addEventListener('click', () => handle.close());
@@ -83,39 +83,39 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
   ).join('');
 
   const m = openModal({
-    title: 'Record bag change',
+    title: t('dash.bagModal.title'),
     variant: 'sheet',
     body: `
-      <label class="field-label">City / stop</label>
+      <label class="field-label">${esc(t('dash.bagModal.stop'))}</label>
       <select class="input" id="td-bc-leg">${legOptions}</select>
 
       <div style="display:flex;gap:0;margin-top:var(--sp-4);border:1.5px solid var(--rule-soft);border-radius:var(--r-md);overflow:hidden">
         <button class="td-bc-tab ${defaultAction === 'acquired' ? 'is-active' : ''}" data-tab="acquired"
           style="flex:1;border:none;padding:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
                  background:${defaultAction === 'acquired' ? 'var(--ink)' : 'var(--surface)'};
-                 color:${defaultAction === 'acquired' ? '#fff' : 'var(--ink-soft)'}">+ Acquired</button>
+                 color:${defaultAction === 'acquired' ? '#fff' : 'var(--ink-soft)'}">+ ${esc(t('dash.pack.boughtIn'))}</button>
         <button class="td-bc-tab ${defaultAction === 'left' ? 'is-active' : ''}" data-tab="left"
           style="flex:1;border:none;border-left:1.5px solid var(--rule-soft);padding:8px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;
                  background:${defaultAction === 'left' ? 'var(--ink)' : 'var(--surface)'};
-                 color:${defaultAction === 'left' ? '#fff' : 'var(--ink-soft)'}">− Left behind</button>
+                 color:${defaultAction === 'left' ? '#fff' : 'var(--ink-soft)'}">− ${esc(t('dash.pack.lostIn'))}</button>
       </div>
 
       <div id="td-bc-acquired-panel" ${defaultAction === 'left' ? 'hidden' : ''} style="margin-top:var(--sp-4)">
-        <label class="field-label">New item name</label>
-        <input class="input" id="td-ac-name" placeholder="e.g. Souvenir scarf">
+        <label class="field-label">${esc(t('dash.bagModal.itemName'))}</label>
+        <input class="input" id="td-ac-name" placeholder="${esc(t('dash.bagModal.itemPh'))}">
         <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-3)">
-          <div style="flex:1"><label class="field-label">Category</label>
+          <div style="flex:1"><label class="field-label">${esc(t('dash.agenda.spendCategory'))}</label>
             <select class="input" id="td-ac-cat">${catOptions}</select></div>
-          <div style="width:90px"><label class="field-label">Weight (kg)</label>
+          <div style="width:90px"><label class="field-label">${esc(t('dash.bagModal.weight'))}</label>
             <input class="input" id="td-ac-weight" type="number" min="0" step="any" placeholder="0"></div>
-          <div style="width:72px"><label class="field-label">Qty</label>
+          <div style="width:72px"><label class="field-label">${esc(t('dash.bagModal.qty'))}</label>
             <input class="input" id="td-ac-qty" type="number" min="1" step="1" value="1"></div>
         </div>
         ${list.items.filter(it => !it.acquiredLegId && !it.droppedLegId).length ? `
           <div style="margin-top:var(--sp-4)">
-            <label class="field-label">Or tag existing item</label>
+            <label class="field-label">${esc(t('dash.bagModal.existing'))}</label>
             <select class="input" id="td-ac-existing">
-              <option value="">— select item —</option>
+              <option value="">${esc(t('dash.bagModal.select'))}</option>
               ${list.items.filter(it => !it.acquiredLegId && !it.droppedLegId).map(it =>
                 `<option value="${it.id}">${esc(it.name)}</option>`).join('')}
             </select>
@@ -123,15 +123,15 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
       </div>
 
       <div id="td-bc-left-panel" ${defaultAction === 'acquired' ? 'hidden' : ''} style="margin-top:var(--sp-4)">
-        <label class="field-label">Items left behind</label>
+        <label class="field-label">${esc(t('dash.bagModal.leftItems'))}</label>
         <div class="pk-drop-checklist" id="td-bc-drop-list">
-          <div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-2)">Loading…</div>
+          <div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-2)">${esc(t('common.loading'))}</div>
         </div>
       </div>
     `,
     footer: `
-      <button class="btn btn-ghost" data-act="cancel">Cancel</button>
-      <button class="btn btn-primary" data-act="confirm">Save</button>
+      <button class="btn btn-ghost" data-act="cancel">${esc(t('common.cancel'))}</button>
+      <button class="btn btn-primary" data-act="confirm">${esc(t('common.save'))}</button>
     `,
   });
 
@@ -150,7 +150,7 @@ export function openPackBagChangeModal(list: StoredPackList, defaultAction: 'acq
             <span>${esc(it.name)}</span>
             <span class="pk-drop-weight">${(itemWeightG(it) / 1000).toFixed(1)}kg</span>
           </label>`).join('')
-      : `<div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-2)">No items at this stop.</div>`;
+      : `<div style="font-size:var(--fs-sm);color:var(--ink-muted);padding:var(--sp-2)">${esc(t('dash.bagModal.none'))}</div>`;
   }
 
   function switchTab(tab: 'acquired' | 'left') {
