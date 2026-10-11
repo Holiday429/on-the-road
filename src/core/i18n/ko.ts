@@ -65,8 +65,6 @@ export const ko: StringTable = {
   'dash.link.allSpots': '전체 장소 ›',
   'dash.link.guide': '가이드 ›',
   'dash.link.openPack': '짐 열기 ›',
-  'dash.daysToGo':        '{n}일 남음',
-  'dash.dayToGo':         '{n}일 남음',
   'dash.todoPlaceholder': '+ 빠른 작업 추가…',
 
   'app.title':           'On the Road',

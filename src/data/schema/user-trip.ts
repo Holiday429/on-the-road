@@ -23,6 +23,15 @@ export const UserProfileSchema = doc({
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;
 
+/* ── User preferences (user-scoped, not trip-scoped) ───────────────────── */
+// Single doc id 'me' in users/{uid}/userPrefs. Holds settings that follow the
+// traveller across trips, e.g. the zone "home" clocks should show.
+export const UserPrefsSchema = doc({
+  // IANA zone (e.g. 'Asia/Shanghai'); '' = infer from the trip's home city.
+  homeTimezone: z.string().default(''),
+});
+export type UserPrefs = z.infer<typeof UserPrefsSchema>;
+
 export const TRAVEL_STYLES = ['solo', 'couple', 'family', 'friends', 'group'] as const;
 export type TravelStyle = typeof TRAVEL_STYLES[number];
 

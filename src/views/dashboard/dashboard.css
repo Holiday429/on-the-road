@@ -4,6 +4,7 @@
    Split by area under ./styles/. @import preserves the original cascade order.
    ========================================================================== */
 @import './styles/hero.css';
+@import './styles/banner.css';
 @import './styles/grid.css';
 @import './styles/agenda.css';
 @import './styles/journal-album.css';

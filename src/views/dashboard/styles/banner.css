@@ -1,0 +1,117 @@
+/* ==========================================================================
+   On the Road · Dashboard banner (dial · stay/transport · clocks) + drawer bits
+   ========================================================================== */
+
+/* Progress dial + country (one element) */
+.td-dial {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding-right: var(--sp-5);
+  border-right: 1px solid var(--rule-soft);
+  align-self: stretch;
+}
+.td-dial-ring { position: relative; width: 52px; height: 52px; flex-shrink: 0; }
+.td-dial-ring svg { display: block; }
+.td-dial-track { fill: none; stroke: var(--rule-soft); stroke-width: 4; }
+.td-dial-arc { fill: none; stroke: var(--amber-500, var(--accent)); stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray var(--dur-slow) var(--ease-out); }
+.td-dial[data-kind="after"] .td-dial-arc { stroke: var(--sage-500, var(--accent)); }
+.td-dial-num {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-ui); font-weight: 700; color: var(--ink);
+  font-size: 18px; line-height: 1;
+}
+.td-dial-num[data-len="3"] { font-size: 15px; }
+.td-dial-num[data-len="4"], .td-dial-num[data-len="5"] { font-size: 12px; }
+.td-dial-text { min-width: 0; }
+.td-dial-country {
+  font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 700; color: var(--ink);
+  line-height: 1.2; white-space: nowrap;
+}
+.td-dial-sub { font-size: var(--fs-sm); color: var(--ink-soft); margin-top: 2px; white-space: nowrap; }
+
+/* Stay over transport */
+.td-hero-info { flex: 1; min-width: 0; }
+.td-banner-rows { display: flex; flex-direction: column; gap: 4px; }
+.td-banner-row {
+  display: flex; align-items: center; gap: var(--sp-2);
+  width: 100%; min-width: 0;
+  padding: 5px var(--sp-2);
+  margin: 0 calc(var(--sp-2) * -1);
+  border-radius: var(--r-md);
+  background: none; border: none; text-align: left;
+  font-size: var(--fs-sm); color: var(--ink);
+}
+button.td-banner-row { cursor: pointer; transition: background var(--dur-fast); }
+button.td-banner-row:hover { background: color-mix(in srgb, var(--amber-500, var(--accent)) 10%, transparent); }
+button.td-banner-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.td-banner-ico { flex-shrink: 0; font-size: 15px; line-height: 1; }
+.td-banner-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-banner-meta { color: var(--ink-soft); }
+.td-banner-cd { color: var(--accent-deep); font-weight: 600; }
+.td-banner-caret { flex-shrink: 0; color: var(--ink-faint); font-size: 16px; line-height: 1; }
+button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
+.td-banner-row--empty, .td-banner-row--none { color: var(--ink-muted); }
+.td-banner-summary { font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: 600; color: var(--ink); }
+
+/* Mini clocks */
+.td-hero-clocks {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding-left: var(--sp-4);
+  border-left: 1px solid var(--rule-soft);
+}
+.td-clock-pair { display: flex; gap: var(--sp-3); }
+.td-clock { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 52px; }
+.td-clock-face { fill: var(--surface); stroke: var(--rule); stroke-width: 1.5; }
+.td-clock-ticks line { stroke: var(--ink-faint); stroke-width: 1.2; stroke-linecap: round; }
+.td-clock-h, .td-clock-m { stroke: var(--ink); stroke-linecap: round; }
+.td-clock-h { stroke-width: 2.4; }
+.td-clock-m { stroke-width: 1.6; }
+.td-clock-pin { fill: var(--accent-deep, var(--ink)); }
+.td-clock-cap { font-size: 10px; color: var(--ink-muted); max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-clock-diff {
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; color: var(--accent-deep);
+  background: color-mix(in srgb, var(--amber-500, var(--accent)) 14%, transparent);
+  border-radius: var(--r-full); padding: 0 8px;
+}
+
+/* Trip switcher on narrow screens (the sidebar pill is hidden there) */
+.td-hero-name--mobile { display: none; }
+@media (max-width: 768px) {
+  .td-hero-name--mobile { display: inline-flex; order: -1; flex-basis: 100%; font-size: var(--fs-md); }
+}
+
+/* Narrow: let the blocks wrap instead of squeezing */
+@container tdgrid (max-width: 900px) {
+  .td-hero-inner { flex-wrap: wrap; row-gap: var(--sp-3); }
+  .td-hero-info { flex-basis: 100%; order: 3; }
+}
+@container tdgrid (max-width: 560px) {
+  .td-dial { border-right: 0; padding-right: 0; }
+  .td-hero-clocks { border-left: 0; padding-left: 0; margin-left: auto; }
+  .td-dial-country, .td-dial-sub { white-space: normal; }
+}
+
+/* ── Drawer contents (stay / transport detail) ─────────────────────────── */
+.td-dcard {
+  border: 1px solid var(--rule-soft); border-radius: var(--r-xl);
+  padding: var(--sp-4); margin-bottom: var(--sp-3);
+  background: var(--surface);
+}
+.td-dcard.is-now { border-color: color-mix(in srgb, var(--amber-500, var(--accent)) 55%, var(--rule-soft)); background: color-mix(in srgb, var(--amber-500, var(--accent)) 6%, var(--surface)); }
+.td-dcard-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+.td-dcard-title { font-family: var(--font-ui); font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.td-dcard-sub { font-size: var(--fs-sm); color: var(--ink-muted); margin: 2px 0 var(--sp-2); }
+.td-dcard-sub .is-ok { color: var(--sage-600, var(--sage-500, var(--ink-soft))); }
+.td-dbadge {
+  flex-shrink: 0; font-size: var(--fs-xs); font-weight: 700; color: var(--accent-deep);
+  background: color-mix(in srgb, var(--amber-500, var(--accent)) 18%, transparent);
+  border-radius: var(--r-full); padding: 1px 8px;
+}
+.td-dr { display: flex; gap: var(--sp-3); padding: 4px 0; font-size: var(--fs-sm); }
+.td-dr-k { flex: 0 0 92px; color: var(--ink-muted); }
+.td-dr-v { flex: 1; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.td-dr-book { margin-top: var(--sp-3); }
+.td-dh { margin: var(--sp-4) 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; }
+.td-dempty { color: var(--ink-muted); }

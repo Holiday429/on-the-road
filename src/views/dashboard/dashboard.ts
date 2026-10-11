@@ -41,6 +41,9 @@ import { baggageRemainG } from '../../data/packing-formula.ts';
 // in the full pack view module.
 import { listTotalWeight } from '../pack/pack-helpers.ts';
 import { openDashboardTodoModal, openPackBagChangeModal } from './dashboard-modals.ts';
+import { renderBanner, wireBanner, startBannerClock, type BannerData } from './dashboard-banner.ts';
+import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
+import { resolveHomeTimezone } from '../../data/home-timezone.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
@@ -59,6 +62,7 @@ let _weatherCity = '';
 let _nomadSpots: StoredNomadSpot[] = [];
 let _cityIntel: StoredCityIntel[] = [];
 let _packLists: StoredPackList[] = [];
+let _homeTzPref = '';           // Profile → Home time zone ('' = infer)
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
 // Phase/countdown math now lives in data/trip-phase.ts (shared with the
@@ -170,43 +174,22 @@ function renderGreeting(): string {
 }
 
 /* ── Hero banner ─────────────────────────────────────────────────────────── */
+function bannerData(phase: Phase): BannerData {
+  const trip = currentTrip();
+  return {
+    phase,
+    legs: _legs,
+    trip: trip ? { startDate: trip.startDate, endDate: trip.endDate } : null,
+    today: todayIso(),
+    homeTz: resolveHomeTimezone(_homeTzPref, trip?.homeCity, _legs),
+  };
+}
+
 function renderHero(phase: Phase): string {
   const trip = currentTrip();
   const name = trip?.name ?? 'Your trip';
-  const legs = sortedLegs();
   const leg  = currentLeg();
   const ART  = `${(import.meta as any).env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
-
-  // The hero's wording carries the trip's stage — layout stays identical.
-  let anchor = '';
-  const today = todayIso();
-
-  if (phase === 'before' && leg) {
-    const d = daysBetween(today, leg.dateFrom);
-    const lead = d <= 0 ? esc(t('dash.hero.departToday'))
-      : t(d === 1 ? 'dash.dayToGo' : 'dash.daysToGo', { n: `<strong>${d}</strong>` });
-    anchor = `${lead} · ${esc(t('dash.hero.nextStop', { place: `${leg.flag} ${leg.city}` }))}`;
-  } else if (phase === 'during' && leg) {
-    const idx  = legs.findIndex(l => l.id === leg.id) + 1;
-    const dayN = daysBetween(leg.dateFrom, today) + 1;
-    const tot  = daysBetween(leg.dateFrom, leg.dateTo) + 1;
-    const lastDay = legs.length > 0 && today === legs[legs.length - 1].dateTo;
-    anchor = [
-      `${esc(leg.flag)} ${esc(leg.city)}`,
-      esc(t('dash.hero.stop', { i: idx, n: legs.length })),
-      esc(t('dash.agenda.dayOf', { n: dayN, total: tot })),
-      lastDay ? `🏁 ${esc(t('dash.agenda.hint.lastDay'))}` : '',
-    ].filter(Boolean).join(' · ');
-  } else if (phase === 'after') {
-    const countries = new Set(legs.map(l => l.country)).size;
-    const len = trip ? daysBetween(trip.startDate, trip.endDate) + 1 : null;
-    anchor = [
-      esc(t('dash.hero.complete')),
-      len ? esc(t('dash.hero.days', { n: len })) : '',
-      countries ? esc(t('dash.hero.countries', { n: countries })) : '',
-      legs.length ? esc(t('dash.hero.stops', { n: legs.length })) : '',
-    ].filter(Boolean).join(' · ');
-  }
 
   // Kick off weather fetch for current/next city
   const weatherCity = leg?.city ?? '';
@@ -232,14 +215,12 @@ function renderHero(phase: Phase): string {
   return `
     <div class="td-hero" data-phase="${phase}">
       <div class="td-hero-inner">
+        <button type="button" class="td-hero-name td-hero-name--mobile" data-trip-switch aria-haspopup="true" title="${esc(t('app.currentTripPill'))}">
+          <span class="td-hero-name-text">${esc(name)}</span>
+          <span class="td-hero-name-caret" aria-hidden="true">▾</span>
+        </button>
         ${weatherBlock}
-        <div class="td-hero-left">
-          <button type="button" class="td-hero-name" data-trip-switch aria-haspopup="true" title="${esc(t('app.currentTripPill'))}">
-            <span class="td-hero-name-text">${esc(name)}</span>
-            <span class="td-hero-name-caret" aria-hidden="true">▾</span>
-          </button>
-          ${anchor ? `<div class="td-hero-anchor">${anchor}</div>` : ''}
-        </div>
+        ${renderBanner(bannerData(phase))}
       </div>
       <img class="td-hero-logo" src="${ART}logo-sm.webp" alt="On the Road" loading="lazy" decoding="async">
     </div>`;
@@ -963,6 +944,7 @@ function wire(body: HTMLElement): void {
     openNewTrip();
   });
 
+  wireBanner(body, () => bannerData(tripPhase()));
   wireAgenda(body, render);
   wireJournalAlbum(body);
   wireAlertBell(body, render);
@@ -1010,6 +992,7 @@ export function initDashboard(): void {
   _todos       = todoStore.peek();
   _nomadSpots  = nomadStore.peek();
   _cityIntel   = cityStore.peek();
+  _homeTzPref  = userPrefsStore.peek()?.homeTimezone ?? '';
   _mapCanvas   = null;
   _mapSig      = mapSignature(_legs);
   _weather     = null;
@@ -1035,6 +1018,7 @@ export function initDashboard(): void {
     packStore.subscribe(rows => { _packLists = rows; scheduleRender(); }),
     nomadStore.subscribeForTrip(currentTripId(), rows => { _nomadSpots = rows; scheduleRender(); }),
     cityStore.subscribe(rows => { _cityIntel = rows; scheduleRender(); }),
+    userPrefsStore.subscribe(p => { const tz = p?.homeTimezone ?? ''; if (tz !== _homeTzPref) { _homeTzPref = tz; scheduleRender(); } }),
     onTripChange(() => {
       _nomadSpots = nomadStore.peek();
       _cityIntel  = cityStore.peek();
@@ -1048,5 +1032,6 @@ export function initDashboard(): void {
     onLocaleChange(() => { scheduleRender(); }),
   ];
 
+  startBannerClock(todayIso);
   void getRateTable(baseCurrency()).then(table => { _rates = table; scheduleRender(); });
 }

@@ -65,8 +65,6 @@ export const es: StringTable = {
   'dash.link.allSpots': 'Todos los lugares ›',
   'dash.link.guide': 'Guía ›',
   'dash.link.openPack': 'Abrir equipaje ›',
-  'dash.daysToGo':        'Faltan {n} días',
-  'dash.dayToGo':         'Falta {n} día',
   'dash.todoPlaceholder': '+ Añadir tarea…',
 
   'app.title':           'On the Road',

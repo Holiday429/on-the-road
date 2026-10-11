@@ -102,7 +102,6 @@
   color: var(--info, var(--ink-muted));
   white-space: nowrap;
 }
-.td-hero-left { flex: 1; min-width: 0; }
 .td-hero-name {
   display: inline-flex;
   align-items: center;
@@ -140,12 +139,6 @@
 @media (max-width: 768px) {
   .td-hero-name-caret { display: inline; }
 }
-.td-hero-anchor {
-  font-size: var(--fs-sm);
-  color: var(--ink-soft);
-  margin-top: var(--sp-1);
-}
-.td-hero-anchor strong { color: var(--accent-deep); font-weight: 700; }
 .td-hero-logo {
   width: 68px; height: 68px;
   object-fit: contain;

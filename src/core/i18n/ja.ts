@@ -65,8 +65,6 @@ export const ja: StringTable = {
   'dash.link.allSpots': 'すべてのスポット ›',
   'dash.link.guide': 'ガイド ›',
   'dash.link.openPack': '荷造りを開く ›',
-  'dash.daysToGo':        'あと {n} 日',
-  'dash.dayToGo':         'あと {n} 日',
   'dash.todoPlaceholder': '+ タスクを追加…',
 
   'app.title':           'On the Road',

@@ -84,3 +84,6 @@
 @media (max-width: 600px) {
   .profile-emergency-form-grid { grid-template-columns: 1fr; }
 }
+
+.profile-hometz { margin-top: var(--sp-4); max-width: 420px; }
+.profile-hint { font-size: var(--fs-xs); color: var(--ink-muted); }

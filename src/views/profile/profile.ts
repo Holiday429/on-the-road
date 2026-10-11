@@ -9,6 +9,7 @@
 import './profile.css';
 import { renderAccountSection, wireAccountSection } from './profile-account.ts';
 import { renderEmergencySection, wireEmergencySection, subscribeEmergencySection } from './profile-emergency.ts';
+import { renderHomeTzSection, wireHomeTzSection } from './profile-home-tz.ts';
 import { mountPrefControls } from '../../core/pref-mounts.ts';
 import { t } from '../../core/i18n.ts';
 
@@ -33,10 +34,12 @@ function render(): void {
     <section class="profile-section">
       <h2 class="profile-section-title">${t('profile.sectionPreferences')}</h2>
       <div class="profile-prefs-mount" data-prefs-mount></div>
+      ${renderHomeTzSection()}
     </section>`;
 
   wireAccountSection(body);
   wireEmergencySection(body);
+  wireHomeTzSection(body);
 
   const prefsMount = body.querySelector<HTMLElement>('[data-prefs-mount]');
   if (prefsMount) mountPrefControls(prefsMount);
