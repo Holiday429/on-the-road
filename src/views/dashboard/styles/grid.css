@@ -2,8 +2,7 @@
    12 equal tracks.
    Row 2: agenda(1-6) | to-do(7-9) | pack(10-12)
    Rows 3-4: map(1-6, spans both rows) | spend(7-12) over journal(7-12)
-   Row 5: where to go(1-12)
-   Row 6: nomad(1-12, only with data)
+   Row 5: where to go(1-12, only when some city has recommendations)
    Narrow (container < 900px): two columns — agenda · to-do + pack · map ·
    spend · journal · where to go.
    ─────────────────────────────────────────────────────────────────────────── */
@@ -27,19 +26,18 @@
 .td-w-journal  { grid-column: 7 / span 6;  align-self: stretch; }
 
 .td-w-whereto  { grid-column: 1 / span 12; align-self: start; }
-.td-w-nomad    { grid-column: 1 / span 12; }
 
 @container tdgrid (max-width: 900px) {
   .td-grid { grid-template-columns: 1fr 1fr; }
   .td-w-agenda { grid-column: 1 / span 2; }
   .td-w-todo   { grid-column: 1; }
   .td-w-pack   { grid-column: 2; }
-  .td-w-map, .td-w-spend, .td-w-journal, .td-w-whereto, .td-w-nomad { grid-column: 1 / span 2; grid-row: auto; }
+  .td-w-map, .td-w-spend, .td-w-journal, .td-w-whereto { grid-column: 1 / span 2; grid-row: auto; }
 }
 @container tdgrid (max-width: 420px) {
   .td-grid { grid-template-columns: 1fr; }
   .td-w-agenda, .td-w-todo, .td-w-pack, .td-w-map, .td-w-spend, .td-w-journal,
-  .td-w-whereto, .td-w-nomad { grid-column: 1; grid-row: auto; }
+  .td-w-whereto { grid-column: 1; grid-row: auto; }
 }
 
 /* ── Widget shell ─────────────────────────────────────────────────────────── */

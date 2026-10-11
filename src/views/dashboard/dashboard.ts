@@ -35,6 +35,7 @@ import { AGENDA_COLORS } from '../../data/day-agenda.ts';
 import { renderAgendaWidget, wireAgenda, resetAgenda, shownAgendaDay } from './dashboard-agenda.ts';
 import { renderTodoWidget } from './dashboard-todo.ts';
 import { renderPackWidget, wirePack } from './dashboard-pack.ts';
+import { renderWhereTo, wireWhereTo, resetWhereTo } from './dashboard-whereto.ts';
 import { captureUiState, restoreUiState, swapHtml, createRenderScheduler, mapSignature } from './dashboard-render.ts';
 import { renderJournalWidget, wireJournal } from './dashboard-journal.ts';
 import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
@@ -427,141 +428,6 @@ function renderMapWidget(): string {
     </div>`;
 }
 
-/* ── Nomad widget — top 3 work-friendly spots for current city ────────────── */
-function renderNomadWidget(): string | null {
-  const leg = currentLeg();
-  if (!leg) return null;
-
-  const spots = _nomadSpots.filter(s =>
-    s.city.toLowerCase() === leg.city.toLowerCase()
-  ).slice(0, 3);
-
-  if (!spots.length) return null;
-
-  const TYPE_ICON: Record<string, string> = {
-    'Café': '☕', 'Co-working': '💼', 'Library': '📚', 'Hotel lobby': '🏨',
-  };
-
-  const RATING_LABEL: Record<string, string> = {
-    wifi: '📶', power: '🔌', noise: '🔊', coffee: '☕', value: '💰',
-  };
-
-  const cards = spots.map(s => {
-    const icon = TYPE_ICON[s.type] ?? '📍';
-    const ratings = s.ratings ?? {};
-    const ratingPills = Object.entries(ratings)
-      .filter(([, v]) => v != null && v > 0)
-      .slice(0, 3)
-      .map(([k, v]) => `<span class="td-nomad-rating">${RATING_LABEL[k] ?? k} ${v}/5</span>`)
-      .join('');
-    return `
-      <div class="td-nomad-card">
-        <div class="td-nomad-card-header">
-          <span class="td-nomad-type-icon">${icon}</span>
-          <span class="td-nomad-name">${esc(s.name)}</span>
-          <span class="td-nomad-type">${esc(s.type)}</span>
-        </div>
-        ${ratingPills ? `<div class="td-nomad-ratings">${ratingPills}</div>` : ''}
-        ${s.comment ? `<div class="td-nomad-comment">${esc(s.comment)}</div>` : ''}
-      </div>`;
-  }).join('');
-
-  return `
-    <div class="td-widget td-w-nomad" data-widget-id="nomad">
-      <div class="td-widget-header">
-        <div class="td-widget-label">💻 ${esc(t('dash.widget.workSpots'))} · ${esc(leg.city)}</div>
-        <button class="td-link" data-nav="nomad">${esc(t('dash.link.allSpots'))}</button>
-      </div>
-      <div class="td-nomad-cards">${cards}</div>
-    </div>`;
-}
-
-/* ── Where-to-Go widget — one pick per category, with add-to-itinerary ──────── */
-function renderWhereToGoWidget(): string {
-  const cls = 'td-w-whereto';
-  const leg = currentLeg();
-  if (!leg) {
-    return `
-      <div class="td-widget ${cls}">
-        <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))}</div>
-        <div class="td-whereto-empty">Add stops in Route view to get recommendations.</div>
-      </div>`;
-  }
-
-  const intel = _cityIntel.find(c =>
-    c.city.toLowerCase() === leg.city.toLowerCase()
-  );
-
-  if (!intel || (!intel.attractions?.length && !intel.restaurants?.length && !intel.experiences?.length && !intel.cafes?.length)) {
-    return `
-      <div class="td-widget ${cls}">
-        <div class="td-widget-header">
-          <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))} · ${esc(leg.flag)} ${esc(leg.city)}</div>
-          <button class="td-link" data-nav="cities">${esc(t('dash.link.guide'))}</button>
-        </div>
-        <div class="td-whereto-empty">No guide data for ${esc(leg.city)} yet.<br>Open Guide to generate recommendations.</div>
-      </div>`;
-  }
-
-  const CATEGORIES: Array<{ key: string; icon: string; type: string }> = [
-    { key: 'attractions', icon: '🏛️', type: 'attraction'  },
-    { key: 'restaurants', icon: '🍽️', type: 'restaurant'  },
-    { key: 'experiences', icon: '✨', type: 'experience'  },
-    { key: 'cafes',       icon: '☕', type: 'cafe'        },
-  ];
-  const WTG_TINTS = ['#fef3c7','#dbeafe','#dcfce7','#fae8ff','#fee2e2','#ffedd5'];
-  const WTG_TYPE_EMOJI: Record<string,string> = { attraction:'🏛️', restaurant:'🍽️', cafe:'☕', experience:'✨' };
-
-  const picks: Array<{ icon: string; type: string; title: string; highlight?: string; cost?: string; imageUrl?: string; photographer?: string; photographerUrl?: string }> = [];
-  for (const cat of CATEGORIES) {
-    const arr = ((intel as any)[cat.key] as any[] | undefined) ?? [];
-    for (const item of arr) {
-      if (item.title) picks.push({
-        icon: cat.icon, type: cat.type, title: item.title,
-        highlight: item.highlight, cost: item.cost,
-        imageUrl: item.imageUrl || '',
-        photographer: item.photographer || '',
-        photographerUrl: item.photographerUrl || '',
-      });
-      if (picks.length >= 6) break;
-    }
-    if (picks.length >= 6) break;
-  }
-
-  const cards = picks.map((c, idx) => {
-    const hasImg = !!c.imageUrl;
-    const tint = WTG_TINTS[idx % WTG_TINTS.length];
-    const emoji = WTG_TYPE_EMOJI[c.type] ?? c.icon;
-    const media = hasImg
-      ? `<div class="td-whereto-photo" style="background-image:url('${esc(c.imageUrl!)}')">
-          ${c.photographer ? `<a class="td-whereto-photo-credit" href="${esc(c.photographerUrl || '#')}" target="_blank" rel="noopener">${esc(c.photographer)} / Unsplash</a>` : ''}
-         </div>`
-      : `<div class="td-whereto-tint" style="--wtg-tint:${tint}"><span class="td-whereto-tint-emoji">${emoji}</span></div>`;
-    return `
-    <div class="td-whereto-card has-photo">
-      ${media}
-      <div class="td-whereto-card-body">
-        <div class="td-whereto-card-top">
-          <span class="td-whereto-type-icon">${c.icon}</span>
-          <button class="td-whereto-add-btn" data-wtg-add="${esc(c.title)}" title="Add to itinerary">+</button>
-        </div>
-        <div class="td-whereto-name">${esc(c.title)}</div>
-        ${c.cost ? `<div class="td-whereto-cost">${esc(c.cost)}</div>` : ''}
-        ${c.highlight ? `<div class="td-whereto-highlight">${esc(c.highlight)}</div>` : ''}
-      </div>
-    </div>`;
-  }).join('');
-
-  return `
-    <div class="td-widget ${cls}">
-      <div class="td-widget-header">
-        <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))} · ${esc(leg.flag)} ${esc(leg.city)}</div>
-        <button class="td-link" data-nav="cities">${esc(t('dash.link.guide'))}</button>
-      </div>
-      <div class="td-whereto-cards">${cards}</div>
-    </div>`;
-}
-
 /* ── Layout ───────────────────────────────────────────────────────────────── */
 function layout(_phase: Phase): string {
   const src = agendaSources();
@@ -573,8 +439,7 @@ function layout(_phase: Phase): string {
   const spendWidget = renderSpendWidget();
   const mapWidget   = renderMapWidget();
   const jrnWidget   = renderJournalWidget(_journal, _legs);
-  const nomadHtml   = renderNomadWidget();
-  const whereHtml   = renderWhereToGoWidget();
+  const whereHtml   = renderWhereTo({ legs: _legs, iso: selected, intel: _cityIntel, spots: _nomadSpots });
 
   return `<div class="td-grid" id="td-grid">
     ${agendaWidget}
@@ -584,7 +449,6 @@ function layout(_phase: Phase): string {
     ${spendWidget}
     ${jrnWidget}
     ${whereHtml}
-    ${nomadHtml ?? ''}
   </div>`;
 }
 
@@ -768,7 +632,7 @@ function wire(body: HTMLElement): void {
   body.querySelectorAll<HTMLButtonElement>('[data-wtg-add]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      openAddPlanModal(_legs, { date: todayIso(), title: btn.dataset.wtgAdd ?? '' });
+      openAddPlanModal(_legs, { date: mapDay(), title: btn.dataset.wtgAdd ?? '' });
     });
   });
 
@@ -778,6 +642,7 @@ function wire(body: HTMLElement): void {
   });
 
   wireBanner(body, () => bannerData(tripPhase()));
+  wireWhereTo(body, render);
   wireAgenda(body, render, () => ({ src: agendaSources(), today: todayIso() }));
   wirePack(body, () => ({ list: _packLists[0], legs: _legs, today: todayIso() }));
   wireJournal(body, () => ({ entries: _journal, legs: _legs }));
@@ -894,6 +759,7 @@ export function initDashboard(): void {
   _weather     = null;
   _weatherCity = '';
   resetAgenda();
+  resetWhereTo();
   _mapMode = null; _mapBootMode = null;
   disposeMaps();
   render();
@@ -920,6 +786,7 @@ export function initDashboard(): void {
       _cityIntel  = cityStore.peek();
       _mapCanvas = null; _mapSig = ''; _weather = null; _weatherCity = ''; _mapMode = null;
       resetAgenda();
+      resetWhereTo();
       disposeMaps(); scheduleRender();
     }),
     // Re-render on language change so greeting/widget labels update in place

@@ -53,7 +53,6 @@ export const fr: StringTable = {
   'dash.widget.todo':     'À faire',
   'dash.widget.safety':   'Sécurité',
   'dash.widget.bag':      'Sac',
-  'dash.widget.workSpots':'Espaces de travail',
   'dash.widget.whereToGo':'Où aller',
   'dash.widget.pack': 'Bagages',
   'dash.journal.compose': 'Écrire une note',

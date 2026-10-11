@@ -53,7 +53,6 @@ export const ko: StringTable = {
   'dash.widget.todo':     '할 일',
   'dash.widget.safety':   '안전',
   'dash.widget.bag':      '가방',
-  'dash.widget.workSpots':'작업 공간',
   'dash.widget.whereToGo':'어디로 갈까',
   'dash.widget.pack': '짐',
   'dash.journal.compose': '한 줄 기록',

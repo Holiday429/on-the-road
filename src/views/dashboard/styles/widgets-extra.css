@@ -1,37 +1,32 @@
-/* ── Nomad widget ─────────────────────────────────────────────────────────── */
-.td-nomad-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
-@container tdgrid (max-width: 700px) { .td-nomad-cards { grid-template-columns: 1fr 1fr; } }
-@container tdgrid (max-width: 440px) { .td-nomad-cards { grid-template-columns: 1fr; } }
-.td-nomad-card {
-  background: var(--surface-3); border-radius: var(--r-md);
-  padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-1);
-  border: 1px solid var(--rule-soft);
-}
-.td-nomad-card-header { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.td-nomad-type-icon { font-size: 16px; flex-shrink: 0; }
-.td-nomad-name {
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink);
-  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.td-nomad-type {
-  font-size: 10px; font-weight: 600; color: var(--ink-muted);
-  background: var(--surface-4); border-radius: var(--r-sm); padding: 1px 6px; flex-shrink: 0;
-}
 .td-nomad-ratings { display: flex; flex-wrap: wrap; gap: 4px; }
 .td-nomad-rating {
   font-size: 10px; font-weight: 600; color: var(--ink-soft);
   background: var(--surface); border: 1px solid var(--rule-soft);
   border-radius: var(--r-full); padding: 1px 7px;
 }
-.td-nomad-comment {
-  font-size: var(--fs-xs); color: var(--ink-muted); font-style: italic;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.td-nomad-type {
+  font-size: 10px; font-weight: 600; color: var(--ink-muted);
+  background: var(--surface-4); border-radius: var(--r-sm); padding: 1px 6px; flex-shrink: 0; margin-right: auto; margin-left: 6px;
 }
 
 /* ── Where-to-Go widget ───────────────────────────────────────────────────── */
-.td-whereto-cards {
-  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2);
+/* Horizontally scrolling rail with ◀ ▶ */
+.wtg-rail { position: relative; display: flex; align-items: stretch; gap: var(--sp-2); }
+.wtg-strip {
+  flex: 1; min-width: 0; display: flex; gap: var(--sp-3); overflow-x: auto; scroll-snap-type: x proximity;
+  scrollbar-width: none; padding: 2px;
 }
+.wtg-strip::-webkit-scrollbar { display: none; }
+.wtg-card { flex: 0 0 200px; scroll-snap-align: start; }
+.wtg-card--work .td-whereto-card-body { padding-top: var(--sp-3); }
+.wtg-arrow {
+  flex: none; align-self: center; width: 28px; height: 28px; border-radius: var(--r-full);
+  background: var(--surface-3); color: var(--ink-soft); font-size: 10px; cursor: pointer;
+  transition: background var(--dur-fast);
+}
+.wtg-arrow:hover { background: var(--amber-100); color: var(--ink); }
+.wtg-tabs { flex-wrap: nowrap; }
+@media (hover: none) { .wtg-arrow { display: none; } }
 .td-whereto-card {
   background: var(--surface-3); border-radius: var(--r-md);
   border: 1px solid var(--rule-soft); overflow: hidden;

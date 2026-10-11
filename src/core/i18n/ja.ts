@@ -53,7 +53,6 @@ export const ja: StringTable = {
   'dash.widget.todo':     'やること',
   'dash.widget.safety':   '安全',
   'dash.widget.bag':      '荷物',
-  'dash.widget.workSpots':'作業スポット',
   'dash.widget.whereToGo':'どこへ行く',
   'dash.widget.pack': '荷造り',
   'dash.journal.compose': 'ひとこと記録',
