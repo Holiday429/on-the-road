@@ -14,9 +14,11 @@
    ========================================================================== */
 
 /// <reference lib="webworker" />
+import { CacheableResponsePlugin } from 'workbox-cacheable-response';
+import { ExpirationPlugin } from 'workbox-expiration';
 import { precacheAndRoute, PrecacheFallbackPlugin } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
-import { NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -58,6 +60,22 @@ registerRoute(
     url.origin === self.location.origin
     && /\.(js|css|png|jpg|jpeg|svg|gif|webp|woff2?|ico|mp4|webm)(\?.*)?$/.test(url.pathname),
   new StaleWhileRevalidate({ cacheName: 'otr-static-assets' }),
+);
+
+// Journal photos live in Firebase Storage (a different origin, so the
+// same-origin route above never matches them) and are immutable once
+// uploaded — each upload path is timestamped, never overwritten. Cache-first
+// means a photo is fetched once and then reused on every re-render and while
+// offline, instead of hitting the network every time the feed redraws.
+registerRoute(
+  ({ url }) => url.origin === 'https://firebasestorage.googleapis.com',
+  new CacheFirst({
+    cacheName: 'otr-journal-images',
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 500, maxAgeSeconds: 60 * 24 * 60 * 60, purgeOnQuotaError: true }),
+    ],
+  }),
 );
 
 // ── Notifications (unchanged from the hand-written SW) ──────────────────────

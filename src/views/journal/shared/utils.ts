@@ -131,24 +131,23 @@ export function photoGridColumns(count: number): number {
   return 3;
 }
 
-export type CoverShape = 'portrait' | 'landscape' | 'square';
+export type CoverShape = 'portrait' | 'landscape';
 
 /**
- * Cover shape from the first photo's width/height ratio. The feed sizes its
- * hero by this so a portrait shot gets a tall 3:4 frame and a landscape shot a
- * wide 4:3 one, instead of everything being cropped into the same letterbox.
- * Unknown ratio (older entries never measured one) reads as portrait, which is
- * the dominant case for phone photos and the shape the magazine layout wants.
+ * Cover shape from the first photo's width/height ratio: anything taller
+ * than wide is portrait, everything else is landscape. Xiaohongshu-style
+ * feed — two fixed frames, not the photo's true ratio, so a 2:3 portrait and
+ * a 3:2/16:9 landscape both still crop to a predictable card height instead
+ * of some cards running narrow and tall and others short and wide. Unknown
+ * ratio (older entries never measured one) reads as portrait, the dominant
+ * case for phone photos.
  */
 export function coverShape(ratio: number | undefined): CoverShape {
   if (typeof ratio !== 'number' || !Number.isFinite(ratio) || ratio <= 0) return 'portrait';
-  if (ratio < 0.9) return 'portrait';
-  if (ratio > 1.15) return 'landscape';
-  return 'square';
+  return ratio < 1 ? 'portrait' : 'landscape';
 }
 
-/** CSS aspect-ratio value matching coverShape(). */
+/** CSS aspect-ratio value matching coverShape() — pair with object-fit:cover. */
 export function coverAspect(ratio: number | undefined): string {
-  const shape = coverShape(ratio);
-  return shape === 'portrait' ? '3 / 4' : shape === 'landscape' ? '4 / 3' : '1 / 1';
+  return coverShape(ratio) === 'landscape' ? '4 / 3' : '3 / 4';
 }
