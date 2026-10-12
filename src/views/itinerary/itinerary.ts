@@ -55,6 +55,7 @@ import {
   renderPlanBoardView, renderPlanCategoryView, renderPlanFeedView,
   renderPlanCalendarView, renderPlanMapView,
 } from './itinerary-plan-views.ts';
+import { openLegExport } from './itinerary-export.ts';
 
 // Re-exported for the dashboard, which imports BUILTIN_CATEGORIES from here.
 export { BUILTIN_CATEGORIES, CATEGORY_PALETTE };
@@ -1329,6 +1330,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     patchLeg(leg.id, { plans });
   });
   on('open-plan', (el) => openPlanItemDrawer(timeline, leg, el.dataset.plan!));
+  on('export-day', (el) => openLegExport(leg, el.dataset.dayId));
   on('del-plan', (el) => {
     const id = el.dataset.plan!;
     patchLeg(leg.id, { plans: (leg.plans ?? []).filter(p => p.id !== id) });

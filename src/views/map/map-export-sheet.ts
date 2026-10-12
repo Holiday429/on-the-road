@@ -5,6 +5,7 @@
    resulting scopes to the shared Google Maps export sheet.
    ========================================================================== */
 
+import { t as tr } from '../../core/i18n.ts';
 import { openExportSheet } from '../../core/export-sheet.ts';
 import { exportScopes } from '../../data/places-export.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
@@ -14,5 +15,5 @@ import { currentTripId } from '../../data/trip-context.ts';
 export function openMapExport(): void {
   const tripId = currentTripId();
   const nomad = nomadStore.peek().filter(s => s.tripId === tripId);
-  openExportSheet({ title: 'Export to Google Maps', scopes: exportScopes(routeStore.peek(), nomad) });
+  openExportSheet({ title: tr('export.title'), scopes: exportScopes(routeStore.peek(), nomad) });
 }
