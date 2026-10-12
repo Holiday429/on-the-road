@@ -59,6 +59,7 @@ export function renderPlanBoardView(leg: Leg): string {
           <span class="rd-plan-day-num">${tr('route.dayPrefix', { n: idx + 1 })}</span>
           <span class="rd-plan-day-date">${dateLabel}</span>
           ${day.label ? `<span class="rd-plan-day-label">${esc(day.label)}</span>` : ''}
+          ${items.length ? `<button class="rd-plan-day-nav" data-act="export-day" data-day-id="${esc(day.id)}" title="${esc(tr('export.navigateDay'))}" aria-label="${esc(tr('export.navigateDay'))}">↗</button>` : ''}
         </div>
         <div class="rd-plan-drop-zone pk-drop-zone" data-day-id="${esc(day.id)}">
           ${items.map(p => renderPlanItem(p, leg)).join('')}

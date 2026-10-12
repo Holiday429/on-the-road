@@ -13,7 +13,7 @@
    ========================================================================== */
 
 import './map.css';
-import { renderViewTitleMarkup, navigateTo } from '../../core/app.ts';
+import { renderViewTitleMarkup } from '../../core/app.ts';
 import { resolveCityLocations, isoFor, EUROPE_CENTER } from './geo.ts';
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
@@ -43,7 +43,8 @@ import {
 } from '../../data/trip-context.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import { openSheet } from '../../core/modal.ts';
+import { openCityActionSheet } from './map-city-sheet.ts';
+import { openMapExport } from './map-export-sheet.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
@@ -340,42 +341,6 @@ function clearDrillOverlays() {
   _countryPinOverlays = clearOverlayItems(_countryPinOverlays, 'mapCountryPins');
 }
 
-/* ── City action sheet (Guide / Safety / Itinerary) — pick where to dive in ── */
-function openCityActionSheet(city: string): void {
-  const m = openSheet({
-    title: city,
-    body: `
-      <button class="map-sheet-action" data-go="cities">
-        <span class="map-sheet-icon">🗺️</span>
-        <span><strong>City guide</strong><small>Attractions, food, culture</small></span>
-        <span class="map-sheet-arrow">›</span>
-      </button>
-      <button class="map-sheet-action" data-go="safety">
-        <span class="map-sheet-icon">🛡️</span>
-        <span><strong>Safety</strong><small>Emergency, scams, embassy</small></span>
-        <span class="map-sheet-arrow">›</span>
-      </button>
-      <button class="map-sheet-action" data-go="route">
-        <span class="map-sheet-icon">🧭</span>
-        <span><strong>Itinerary</strong><small>This leg's plan & stays</small></span>
-        <span class="map-sheet-arrow">›</span>
-      </button>`,
-  });
-
-  m.root.querySelectorAll<HTMLElement>('.map-sheet-action').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      // 'safety' is now Guide's Safety tab, not its own view — route there too.
-      const go = btn.dataset.go as 'cities' | 'safety' | 'route';
-      m.close();
-      navigateTo(go === 'safety' ? 'cities' : go);
-      if (go === 'cities' || go === 'safety') {
-        setTimeout(() => import('../guide/guide.ts').then(({ openGuideCity }) =>
-          openGuideCity(city, go === 'safety' ? 'safety' : undefined)), 80);
-      }
-    });
-  });
-}
-
 /* ── Pin-layer helpers ────────────────────────────────────────────────────── */
 function clearPinLayer(id: PinLayerId) {
   const pl = _pinLayers[id];
@@ -660,6 +625,7 @@ function stageInnerMarkup(): string {
     </div>
     <div class="map-toolbar">
       <button class="map-tool-btn" id="mapReplay" title="Replay route">▶ Replay route</button>
+      <button class="map-tool-btn" id="mapExport" title="Export to Google Maps">Export ↗</button>
       <button class="map-tool-btn" id="mapBack" title="Back to overview" hidden>← Back</button>
     </div>
     <div class="map-zoom-controls">
@@ -1112,6 +1078,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     }
   });
 
+  document.getElementById('mapExport')?.addEventListener('click', openMapExport);
   document.getElementById('mapBack')?.addEventListener('click', () => {
     stopReplayMotion();
     backToOverview();

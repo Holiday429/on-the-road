@@ -4,6 +4,7 @@
 
 import './guide.css';
 import L from 'leaflet';
+import { buildDeepLinks } from '../../data/maps-deeplink.ts';
 import 'leaflet/dist/leaflet.css';
 import travelGif from '../../../assets/travel.webp';
 import locationGif from '../../../assets/location.webp';
@@ -985,18 +986,24 @@ async function setupWalkMap(
 
   if (!resolved.length) { mapEl.style.display = 'none'; return; }
 
-  // Build the Google Maps multi-stop directions deep link (origin → … → dest).
+  // Build the Google Maps multi-stop directions deep link(s). Walks too long for
+  // one URL are split into consecutive parts, each linked separately.
   if (routeLink) {
-    const origin = resolved[0];
-    const dest = resolved[resolved.length - 1];
-    const mids = resolved.slice(1, -1);
-    const params = new URLSearchParams({
-      api: '1', travelmode: 'walking',
-      origin: `${origin.lat},${origin.lng}`,
-      destination: `${dest.lat},${dest.lng}`,
-    });
-    if (mids.length) params.set('waypoints', mids.map(m => `${m.lat},${m.lng}`).join('|'));
-    routeLink.href = `https://www.google.com/maps/dir/?${params.toString()}`;
+    const places = resolved.map(r => ({ ...r, source: 'walk' as const }));
+    const { segments } = buildDeepLinks(places, { travelMode: 'walking' });
+    const label = routeLink.textContent ?? '';
+    if (segments[0]) routeLink.href = segments[0].url;
+    if (segments.length > 1) {
+      routeLink.textContent = `${label} (1/${segments.length})`;
+      let prev = routeLink;
+      segments.slice(1).forEach((seg, i) => {
+        const next = routeLink.cloneNode(true) as HTMLAnchorElement;
+        next.href = seg.url;
+        next.textContent = `${label} (${i + 2}/${segments.length})`;
+        prev.after(next);
+        prev = next;
+      });
+    }
   }
 
   // Draw the Leaflet route once layout settles.

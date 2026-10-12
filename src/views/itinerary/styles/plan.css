@@ -219,8 +219,16 @@
   .rd-plan-columns { --rd-col-min: 100%; }
 }
 .rd-plan-day-head {
+  position: relative;
   margin-bottom: var(--sp-2);
 }
+.rd-plan-day-nav {
+  position: absolute; top: 0; right: 0;
+  width: 24px; height: 24px; border-radius: var(--r-full);
+  font-size: var(--fs-sm); line-height: 1; cursor: pointer;
+  color: var(--ink-muted); background: var(--surface-2);
+}
+.rd-plan-day-nav:hover { background: var(--surface-3); color: var(--ink); }
 .rd-plan-day-num {
   display: block;
   font-family: var(--font-ui); font-size: var(--fs-xs);
