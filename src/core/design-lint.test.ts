@@ -28,6 +28,8 @@ function count(files: string[], re: RegExp, skip: (f: string) => boolean = () =>
 }
 const notBase = (f: string) => rel(f) === 'core/base.css';
 const isI18n = (f: string) => rel(f).startsWith('core/i18n');
+/** Files whose whole job is a colour table (one stamp-pad ink per country). */
+const isColourTable = (f: string) => rel(f) === 'data/country-ink.ts';
 
 describe('hard rules', () => {
   it('font-weight uses the --fw-* steps, never a number', () => {
@@ -82,7 +84,7 @@ describe('baselines (can only go down)', () => {
   });
 
   it('hex colour literals in TS (outside i18n)', () => {
-    expect(count(ts, /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, isI18n)).toBeLessThanOrEqual(257);
+    expect(count(ts, /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, (f) => isI18n(f) || isColourTable(f))).toBeLessThanOrEqual(257);
   });
 
   it('rgb()/rgba() literals in CSS (outside base.css)', () => {

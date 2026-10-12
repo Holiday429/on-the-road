@@ -20,6 +20,10 @@ import { createDestinationInput, type DestinationInputInstance } from '../../cor
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { flagForCountry } from '../../data/destinations.ts';
+import { stampsFor, stampForLeg, type StampLeg } from '../../data/stamps.ts';
+import type { StampSpec } from '../../core/paper/stamp.ts';
+import { todayIso as stampToday } from '../../data/trip-phase.ts';
+import { passportStrip, stampSticker, wirePassportOpeners } from '../passport/passport.ts';
 import {
   uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
   legStays, NOTE_COLORS, noteColor, resolveNoteColor, dayColour, bearing,
@@ -194,10 +198,23 @@ async function setLegCover(leg: Leg, url: string | null) {
 
 /* ── Render: list (timeline grouped by country) ─────────────────────────── */
 
+/** The earned passport stamp for a stop (memoised per render), if it has been reached. */
+let _stampMemo: { legs: Leg[]; today: string; stamps: StampSpec[] } | null = null;
+function legStamp(leg: Leg): StampSpec | undefined {
+  const today = stampToday();
+  if (!_stampMemo || _stampMemo.legs !== legs || _stampMemo.today !== today) {
+    _stampMemo = { legs, today, stamps: stampsFor(legs as unknown as StampLeg[], today) };
+  }
+  const s = stampForLeg(_stampMemo.stamps, leg.id);
+  return s?.earned ? s : undefined;
+}
+
 function renderLegCard(leg: Leg): string {
   const days = daysBetween(leg.dateFrom, leg.dateTo);
   const status = legStatus(leg);
-  const statusLabel = status === 'active' ? tr('route.statusActive') : status === 'past' ? tr('route.statusPast') : '';
+  // Visited stops wear their passport stamp instead of a "visited" label; only "now" keeps a pill.
+  const statusLabel = status === 'active' ? tr('route.statusActive') : '';
+  const stamp = legStamp(leg);
   return `
     <div class="route-leg status-${status}" data-id="${leg.id}">
       <div class="route-leg-dot"></div>
@@ -205,6 +222,7 @@ function renderLegCard(leg: Leg): string {
         <div class="route-leg-cover">
           ${legCoverArt(leg, 'route-leg-cover')}
           ${statusLabel ? `<span class="route-leg-status">${statusLabel}</span>` : ''}
+          ${stamp ? `<span class="route-leg-stamp">${stampSticker(stamp, 76)}</span>` : ''}
         </div>
         <div class="route-leg-body">
           <div class="route-leg-header">
@@ -260,6 +278,7 @@ function renderTimeline(): string {
 
   return `
     ${renderAddForm()}
+    ${passportStrip(legs as unknown as StampLeg[])}
     ${sections}
     <div class="route-add-wrap">
       <button class="route-add-btn" id="route-add-toggle">
@@ -765,13 +784,14 @@ function renderDetail(leg: Leg): string {
       <header class="rd-hero ${hasCover ? 'has-cover' : ''}">
         ${legCoverArt(leg, 'rd-hero', true)}
         <div class="rd-hero-shade"></div>
+        ${legStamp(leg) ? `<div class="rd-hero-stamp">${stampSticker(legStamp(leg)!, 104)}</div>` : ''}
         <div class="rd-hero-tools">
           <button class="rd-glass-btn" data-act="open-guide">${tr('route.btnCityGuide')}</button>
           <button class="rd-glass-btn" data-act="open-compare">${tr('route.btnCompare')}</button>
         </div>
         <div class="rd-hero-content">
           <div class="rd-hero-kicker">
-            <span class="rd-status-pill status-${status}">${status === 'active' ? tr('route.statusActive') : status === 'past' ? tr('route.statusPast') : tr('route.statusUpcoming')}</span>
+            ${status === 'past' ? '' : `<span class="rd-status-pill status-${status}">${status === 'active' ? tr('route.statusActive') : tr('route.statusUpcoming')}</span>`}
             <span>${leg.flag || ''} ${esc(leg.country)}</span>
           </div>
           <h2 class="rd-hero-city">${esc(leg.city)}</h2>
@@ -893,6 +913,7 @@ function mountAddFormPickers(timeline: HTMLElement) {
 }
 
 function wireList(timeline: HTMLElement) {
+  wirePassportOpeners(timeline);
   timeline.querySelector('#route-add-toggle')?.addEventListener('click', () => openAddForm(timeline));
   timeline.querySelector('#route-link-trip')?.addEventListener('click', () => {
     openTripChooser({ title: tr('route.linkTripTitle'), subtitle: tr('route.linkTripSubtitle') });
@@ -949,6 +970,7 @@ function persistStays(leg: Leg, stays: Accommodation[]) {
 }
 
 function wireDetail(timeline: HTMLElement, leg: Leg) {
+  wirePassportOpeners(timeline);
   const on = (act: string, fn: (el: HTMLElement, e: Event) => void) => {
     timeline.querySelectorAll<HTMLElement>(`[data-act="${act}"]`).forEach((el) => {
       el.addEventListener('click', (e) => fn(el, e));

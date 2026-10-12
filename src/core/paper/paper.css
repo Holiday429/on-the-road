@@ -176,3 +176,33 @@
 @media (max-width: 700px) {
   .paper-slip-host { right: 16px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ── Passport stamp (core/paper/stamp.ts) ───────────────────────────────── */
+.pp-stamp {
+  --ink-c: var(--danger);
+  display: inline-block; line-height: 0; flex: none;
+  color: var(--ink-c); transform: rotate(var(--rot, 0deg)); mix-blend-mode: multiply; opacity: .92;
+  user-select: none;
+}
+/* On a dark page the ink is lightened toward the paper colour instead of multiplied. */
+:root[data-theme='dark'] .pp-stamp { color: color-mix(in srgb, var(--ink-c) 52%, var(--ink)); mix-blend-mode: normal; opacity: .9; }
+.pp-stamp svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.pp-line { fill: none; stroke: currentColor; stroke-width: 1.3; }
+.pp-thick { stroke-width: 3; }
+.pp-dash { stroke-dasharray: 3 2.4; }
+.pp-t { fill: currentColor; font-family: var(--font-data); font-weight: 600; text-transform: uppercase; }
+.pp-xs { font-size: 6.4px; }
+.pp-sm { font-size: 7.4px; }
+.pp-md { font-size: 11px; }
+.pp-lg { font-size: 11.5px; }
+.pp-xl { font-size: 17px; font-weight: 700; letter-spacing: .5px; }
+.pp-stamp.is-ghost { opacity: .22; filter: grayscale(.4); }
+:root[data-theme='dark'] .pp-stamp.is-ghost { opacity: .26; }
+.pp-stamp.is-pressed { animation: pp-thunk 520ms cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes pp-thunk {
+  0%   { opacity: 0; transform: rotate(var(--rot, 0deg)) scale(2.4); }
+  55%  { opacity: 1; transform: rotate(var(--rot, 0deg)) scale(.93); }
+  75%  { transform: rotate(var(--rot, 0deg)) scale(1.04); }
+  100% { opacity: .92; transform: rotate(var(--rot, 0deg)) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .pp-stamp.is-pressed { animation: none; } }

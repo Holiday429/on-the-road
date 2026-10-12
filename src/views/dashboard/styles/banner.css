@@ -126,3 +126,18 @@ button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
 .td-dr-book { margin-top: var(--sp-3); }
 .td-dh { margin: var(--sp-4) 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; }
 .td-dempty { color: var(--ink-muted); }
+
+/* Passport stamp pressed on the banner's top edge, in the empty space beside the greeting
+   (it floats; it does not take a grid cell). The banner lets it overhang. */
+.td-hero:has(.td-banner-stamp) { overflow: visible; }
+.td-banner-stamp {
+  position: absolute; z-index: 3; top: -42px; right: 392px;
+  padding: 0; border: 0; background: none; cursor: pointer; line-height: 0;
+}
+.td-banner-stamp:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; border-radius: var(--r-md); }
+/* Narrow dashboard: tuck it into the banner's corner instead. */
+@container (max-width: 900px) {
+  .td-hero:has(.td-banner-stamp) { overflow: hidden; }
+  .td-banner-stamp { right: 8px; top: 8px; }
+  .td-banner-stamp .pp-stamp svg { width: 58px; height: 58px; }
+}

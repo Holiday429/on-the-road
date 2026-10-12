@@ -25,6 +25,7 @@ import { showSlip } from '../../core/paper/slip.ts';
 | **Stamp** `paperStamp({text, tone?, corner?, pressed?})` | rotated ink-stamp label; `pressed` plays the thunk | Over-budget on the Expenses summary, slips, (passport stamps) |
 | **Tag** `paperTag({verdict, sub?, tone?})` | luggage tag with a punched hole | Luggage scale |
 | **LED** `.paper-led` / `.paper-led-num` / `.paper-led-aux` | dark glass, mono digits; `.is-good` / `.is-bad` | Expense checkout display, luggage scale |
+| **Passport stamp** `renderStamp(spec, {size, pressed})` (`core/paper/stamp.ts`; specs from `data/stamps.ts`) | SVG ink stamp: 7 frames (circle, double ring, rounded, hex, oval, octagon, country-entry), worn-ink filter, per-country ink, ±10° tilt; `is-ghost` for stamps still to come | Passport drawer, Itinerary cards + hero (`stampSticker`), Dashboard banner |
 | **Tear line** `.paper-perf` | dashed rule with half-moon notches | Checkout tape, summary |
 | **Barcode** `.paper-barcode` | CSS-only bars | Receipts, tickets |
 | **Print-in** `printIn(el)` | the "a new line was just printed" motion | Tape lines |
@@ -42,4 +43,4 @@ Tones: `neutral` · `good` · `bad` · `warn`. Ticket modes map to category tone
 ## Not yet on the kit (candidates)
 - Compare candidates (train / flight / stay) could reuse Ticket / Storefront — needs structured fields on candidates first. **Deferred to the end** (see docs/ui-ux-upgrade-plan.md §9).
 - Journal's `ticket` card format (`.journal-fmt-ticket` in `journal/styles/feed.css`, used by `note` entries) duplicates tear line + notch — to be switched to `.paper-perf` when the owner asks for the Journal pass. **Don't touch Journal until then.**
-- Passport stamps (P4) will extend `paperStamp` (shapes + country ink).
+- Passport across trips (one book for every trip) — the drawer currently shows the open trip only.

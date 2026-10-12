@@ -1,0 +1,79 @@
+/* ==========================================================================
+   On the Road · Passport
+   The book (drawer), stamp stickers and the Itinerary strip. The stamp itself
+   is drawn by the paper kit (.pp-stamp in core/paper/paper.css).
+   ========================================================================== */
+
+.pp-book { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+/* Cover: what this passport is and how full it is. */
+.pp-cover {
+  display: flex; align-items: center; gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, var(--select-bg) 13%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--select-bg) 30%, var(--rule));
+}
+.pp-cover-emblem { font-size: 38px; line-height: 1; }
+.pp-cover-text { min-width: 0; flex: 1; }
+.pp-cover-name { font-family: var(--font-display); font-weight: var(--fw-medium); font-size: var(--fs-lg); color: var(--ink); overflow-wrap: anywhere; }
+.pp-cover-count { font-size: var(--fs-sm); color: var(--ink-soft); }
+.pp-cover-bar { height: 5px; margin-top: var(--sp-2); border-radius: var(--r-full); background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.pp-cover-bar span { display: block; height: 100%; border-radius: inherit; background: var(--select-bg); }
+.pp-cover-more { margin-top: 4px; font-size: var(--fs-xs); color: var(--ink-muted); }
+
+/* A page: paper, a faint guilloche, a page number. */
+.pp-page {
+  position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-3) var(--sp-6);
+  border: 1px solid var(--rule); border-radius: var(--r-md);
+  background:
+    repeating-radial-gradient(circle at 18% 8%, transparent 0 9px, color-mix(in srgb, var(--ink) 3.5%, transparent) 9px 10px),
+    var(--paper-grain), var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.pp-page::after {
+  content: '— ' attr(data-page) ' —';
+  position: absolute; left: 0; right: 0; bottom: 8px; text-align: center;
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .12em; color: var(--ink-faint);
+}
+.pp-slot {
+  display: grid; place-items: center; aspect-ratio: 1 / 1; padding: 0; border: 0; background: none;
+  cursor: pointer; border-radius: var(--r-md);
+  transform: translate(var(--dx, 0), var(--dy, 0));
+}
+.pp-slot .pp-stamp { width: 86%; }
+.pp-slot .pp-stamp svg { width: 100%; height: auto; }
+.pp-slot .pp-stamp.is-pressed { animation-delay: var(--delay, 0ms); }
+.pp-slot:hover .pp-stamp:not(.is-ghost) { opacity: 1; }
+.pp-slot:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+.pp-slot.is-ghost { cursor: default; }
+.pp-empty { padding: var(--sp-8) var(--sp-4); text-align: center; color: var(--ink-muted); }
+
+/* Sticker: a stamp on a scrap of paper, so it reads on top of any photo. */
+.pp-sticker {
+  display: inline-grid; place-items: center; padding: 4px; border: 0; cursor: pointer;
+  border-radius: var(--r-md); background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: var(--shadow-sm); backdrop-filter: blur(2px);
+}
+.pp-sticker:hover { box-shadow: var(--shadow-md); }
+.pp-sticker:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+
+/* Itinerary: one slim row that opens the book. */
+.pp-strip {
+  display: flex; align-items: center; gap: var(--sp-3); width: 100%; margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4); text-align: left; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: var(--r-md);
+  background: var(--paper-grain), var(--surface); box-shadow: var(--shadow-sm);
+  font: inherit; color: var(--ink-soft); font-size: var(--fs-sm);
+}
+.pp-strip:hover { box-shadow: var(--shadow-md); }
+.pp-strip strong { color: var(--ink); font-weight: var(--fw-semibold); }
+.pp-strip-emblem { font-size: 20px; line-height: 1; }
+.pp-strip-text { flex: 1; min-width: 0; }
+.pp-strip-go { color: var(--ink-faint); font-size: 18px; }
+
+/* Where the sticker sits on an Itinerary card / hero. */
+.route-leg-stamp { position: absolute; right: 8px; bottom: 8px; z-index: 2; }
+.rd-hero-stamp { position: absolute; right: var(--sp-6); bottom: 68px; z-index: 2; }
+@media (max-width: 700px) { .rd-hero-stamp { right: var(--sp-4); bottom: 60px; } .rd-hero-stamp .pp-stamp svg { width: 80px; height: 80px; } }
