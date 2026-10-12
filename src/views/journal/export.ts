@@ -3,7 +3,7 @@ import { entryImages, moodEmoji } from './shared/utils.ts';
 
 /**
  * Plain-data export of journal entries — Markdown for reading/archiving, JSON
- * for tooling (scripts/notion-sync.mjs reads the JSON shape below).
+ * for tooling (the JSON shape below is stable, one object per entry).
  *
  * Photos are exported as their Storage URLs, not file contents: that keeps the
  * export a single small text file, at the cost of the links living as long as
