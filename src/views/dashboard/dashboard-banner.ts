@@ -109,7 +109,8 @@ function renderSummary(d: Extract<Dial, { kind: 'after' }>, legs: StoredLeg[]): 
     countries ? t('dash.hero.countries', { n: countries }) : '',
     legs.length ? t('dash.hero.stops', { n: legs.length }) : '',
   ].filter(Boolean);
-  return `<div class="td-banner-summary">${esc(parts.join(' · '))}</div>`;
+  // The whole line opens the trip wrap.
+  return `<button type="button" class="td-banner-row td-banner-row--wrap" data-banner="wrap"><span class="td-banner-text td-banner-summary">${esc(parts.join(' · '))}</span><span class="td-banner-cta">${esc(t('wrap.open'))}</span></button>`;
 }
 
 /* ── Clocks ──────────────────────────────────────────────────────────────── */
@@ -199,6 +200,7 @@ export function wireBanner(root: HTMLElement, getData: () => BannerData, onChang
     const stop = currentStop(d.legs, d.today, d.phase);
     openClocksDrawer({ leg: stop?.leg ?? null, homeTz: d.homeTz, onChange, trigger: e.currentTarget as HTMLElement });
   });
+  root.querySelector<HTMLElement>('[data-banner="wrap"]')?.addEventListener('click', () => { void navigateTo('wrap'); });
   root.querySelector<HTMLElement>('[data-banner="transport"]')?.addEventListener('click', (e) => {
     const d = getData();
     const stop = currentStop(d.legs, d.today, d.phase);

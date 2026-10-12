@@ -11,7 +11,7 @@ import { openTripPopover, closeTripPopover, wireTripCalendarHover, cancelCalenda
 import { openNewTripModal } from './trip-modals.ts';
 import profileIcon from '../../icon/profile.png';
 
-export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile';
+export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap';
 
 export interface NavItem {
   id: ViewId;
@@ -212,6 +212,7 @@ function buildTripPill(): string {
   // The collapsed badge above keeps its plain day count — there's no room there
   // for anything else.
   let daysText = '';
+  let wrapLink = '';
   if (trip) {
     const today = todayIso();
     if (today < trip.startDate) {
@@ -219,6 +220,7 @@ function buildTripPill(): string {
       daysText = t('app.departingIn', { n });
     } else if (trip.endDate && today > trip.endDate) {
       daysText = t('app.tripEnded', { n: daysBetween(trip.endDate, today) });
+      wrapLink = `<button type="button" class="trip-pill-wrap" data-open-wrap>${t('wrap.open')}</button>`;
     } else {
       const total = trip.endDate ? daysBetween(trip.startDate, trip.endDate) + 1 : 0;
       const day = daysBetween(trip.startDate, today) + 1;
@@ -246,6 +248,7 @@ function buildTripPill(): string {
       <div class="trip-pill-name">${escapeHtml(name)}</div>
       <div class="trip-pill-date ${compactClass}" data-len="${compactBadge.length}">${compactBadge}</div>
       <div class="trip-pill-days">${daysText}</div>
+      ${wrapLink}
       ${roleBadge}
       ${reqBadge}
     </div>
@@ -279,6 +282,10 @@ export function buildSidebar() {
 
   if (user) {
     wireTripSwitcher(sidebar);
+    // The trip card's "View wrap ›" opens the wrap page, not the trip switcher the card itself opens.
+    const wrapBtn = sidebar.querySelector<HTMLElement>('[data-open-wrap]');
+    wrapBtn?.addEventListener('click', (e) => { e.stopPropagation(); host!.navigateTo('wrap'); });
+    wrapBtn?.addEventListener('keydown', (e) => e.stopPropagation());
     // Re-apply the current request count (the pill was just rebuilt) and wire
     // the badge to open the Share modal (stopping the pill's own click).
     updateRequestBadge(_pendingRequestCount);

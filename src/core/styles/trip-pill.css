@@ -40,6 +40,12 @@
   color: var(--ink-muted);
   margin-top: 4px;
 }
+.trip-pill-wrap {
+  margin-top: 2px; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--accent-deep);
+}
+.trip-pill-wrap:hover { text-decoration: underline; }
+.trip-pill-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
 .trip-pill-days strong {
   font-weight: var(--fw-semibold);
   color: var(--amber-700);

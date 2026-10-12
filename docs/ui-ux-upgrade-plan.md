@@ -412,3 +412,5 @@ P1 处理掉了大部分,P3 在此基础上加「材质」。
 2. **Journal 的「票据」卡片格式**(`journal/styles/feed.css` 的 `.journal-fmt-ticket`,`note` 类日记使用)与纸质组件库有重复(撕口 + 缺口),改并入 `.paper-perf`。owner 会另行指定何时改 Journal,**现在不动**。
 
 **仍按计划:** P4 护照印章 → P5 地图(做之前先出完整规划)→ P6 行程收官页。
+
+**P6 旅程回顾页(已合入本地 main,未 push)**:`#wrap` 视图(hash 路由,当前行程),入口 = Dashboard 横幅摘要(结束后整行可点)+ 侧栏行程卡「查看回顾 ›」。数据全由 `data/trip-wrap.ts` 的纯函数 `tripWrap()` 推导,页面在 `views/wrap/`(`wrap-chapters.ts` 各章 HTML、`wrap-map.ts` 路线草图 SVG、`wrap-nav.ts` 键盘翻章)。Story / Portrait 直达不改 Journal 代码:跳到 journal 后点它已渲染的模式按钮(`openJournalMode`)。Journal 内的回顾入口没做(Journal 暂不动)。分享图导出、`/wrap/:tripId`、Journal 入口留到以后。

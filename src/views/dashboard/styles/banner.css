@@ -64,6 +64,7 @@ button.td-banner-row:focus-visible { outline: 2px solid var(--accent); outline-o
 button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
 .td-banner-row--empty, .td-banner-row--none { color: var(--ink-muted); }
 .td-banner-summary { font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: var(--fw-medium); color: var(--ink); }
+.td-banner-cta { flex-shrink: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--accent-deep); white-space: nowrap; }
 
 /* World clocks — here and home, one button that opens the clocks drawer */
 .td-hero-clocks {
