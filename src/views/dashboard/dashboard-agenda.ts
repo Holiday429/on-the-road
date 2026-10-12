@@ -11,7 +11,7 @@
    spend and journal in their own cards, to-dos in the To-do card — so none of
    them repeat here.
 
-   All aggregation lives in data/day-agenda.ts — shared with the Calendar view
+   All aggregation lives in data/day-agenda.ts — shared with the Agenda view
    and mirroring iOS — so this file is rendering and a little UI state only.
    ========================================================================== */
 
@@ -136,7 +136,7 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean, today: s
   const more = rows.length - shown.length;
 
   const body = shown.length
-    ? `<div class="ag-list">${shown.map((i) => renderItem(i, src.legs)).join('')}</div>${more > 0 ? `<button type="button" class="ag-more" data-nav="calendar" data-intent='${esc(JSON.stringify({ date: day.iso }))}'>${esc(t('dash.agenda.more', { n: more }))}</button>` : ''}`
+    ? `<div class="ag-list">${shown.map((i) => renderItem(i, src.legs)).join('')}</div>${more > 0 ? `<button type="button" class="ag-more" data-nav="agenda" data-intent='${esc(JSON.stringify({ date: day.iso }))}'>${esc(t('dash.agenda.more', { n: more }))}</button>` : ''}`
     : `<div class="ag-none">${esc(t(day.iso === today ? 'dash.agenda.noEventsToday' : 'dash.agenda.empty'))}</div>`;
 
   return `

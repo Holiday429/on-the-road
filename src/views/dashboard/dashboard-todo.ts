@@ -98,7 +98,7 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
           </div>` : ''}
       </div>
       <div class="td-todo-list">${rows}${newRow}${empty}</div>
-      ${more > 0 ? `<button type="button" class="td-link td-todo-more" data-nav="calendar">${esc(t('dash.todo.more', { n: more }))}</button>` : ''}
+      ${more > 0 ? `<button type="button" class="td-link td-todo-more" data-nav="agenda">${esc(t('dash.todo.more', { n: more }))}</button>` : ''}
     </div>`;
 }
 

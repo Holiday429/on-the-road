@@ -52,7 +52,7 @@ describe('shareablePages', () => {
     expect(pages).toContain('prep');
     // Aggregator/user-level pages have no collections of their own.
     expect(pages).not.toContain('today');
-    expect(pages).not.toContain('calendar');
+    expect(pages).not.toContain('agenda');
     expect(pages).not.toContain('profile');
     pages.forEach((p) => expect(PAGE_COLLECTIONS[p].length).toBeGreaterThan(0));
   });

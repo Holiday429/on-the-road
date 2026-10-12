@@ -33,7 +33,7 @@ export const PAGE_COLLECTIONS: Record<PageId, string[]> = {
   journal:  ['journalEntries', 'journalStories', 'journalTemplates'],
   map:      ['legs'],           // Map renders from leg geo data (shares with route)
   today:    [],                 // Dashboard aggregates other pages — not shareable alone
-  calendar: [],                 // Calendar aggregates other pages — not shareable alone
+  agenda: [],                   // Agenda aggregates other pages — not shareable alone
   profile:  [],                 // User-level data (account/emergency card) — not trip-shareable
 };
 

@@ -18,6 +18,7 @@
    ========================================================================== */
 
 import './expenses.css';
+import { renderRecordTag as recordTag } from './expense-record-tag.ts';
 import { t } from '../../core/i18n.ts';
 import { escHtml } from '../../core/utils.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
@@ -141,10 +142,6 @@ function countrySpend(country: string): number {
 
 function fmt(n: number): string {
   return `${currencySymbol(baseCurrency())}${Math.round(n).toLocaleString()}`;
-}
-
-function fmtRaw(amount: number, currency: string): string {
-  return `${currencySymbol(currency)}${amount.toFixed(2)}`;
 }
 
 /* ── Render: summary (2 equal hero buttons) ──────────────────────────────── */
@@ -664,25 +661,9 @@ function renderRecordsPanel() {
   renderRecordsScrollContent(scroll);
 }
 
-/** A compact, category-tinted record chip — mirrors the route plan-tag logic:
- *  colour-filled by category, click to open, ✕ to delete. */
 function renderRecordTag(e: StoredExpense): string {
-  const cat = categoryById(e.category);
-  const color = categoryDisplayColor(cat?.color ?? '#f3f4f6');
   const baseStr = e.currency !== baseCurrency() ? ` · ${fmt(inBase(e))}` : '';
-  const place = [e.city, e.country].filter(Boolean).join(', ');
-  const tip = [cat?.label ?? 'Unsorted', place].filter(Boolean).join(' · ');
-  const tagsHtml = (e.tags ?? []).length
-    ? `<span class="exp-tag-labels">${(e.tags ?? []).map((t) => `<span class="exp-tag-label">${escHtml(t)}</span>`).join('')}</span>`
-    : '';
-  return `
-    <div class="exp-tag-item ${e.category === UNCLASSIFIED ? 'unsorted' : ''}"
-         data-id="${escHtml(e.id)}" style="background:${color}"${tip ? ` data-tooltip="${escHtml(tip)}"` : ''}>
-      <span class="exp-tag-icon">${escHtml(cat?.icon) || '🗂️'}</span>
-      <span class="exp-tag-name">${escHtml(e.description)}${tagsHtml}</span>
-      <span class="exp-tag-amount">${fmtRaw(e.amount, e.currency)}${baseStr}</span>
-      <button class="exp-tag-del" data-id="${escHtml(e.id)}" title="Delete">✕</button>
-    </div>`;
+  return recordTag(e, categoryById(e.category), baseStr);
 }
 
 /* ── Per-item editor (overlay, mirrors the route plan-item editors) ──────── */

@@ -26,7 +26,7 @@ import { initDashboard } from './views/dashboard/dashboard.ts';
 // navigation, and boot-shell's prefetchViewChunks() warms all of them into the
 // SW cache so any view opens offline even if the user never visited it online first.
 const VIEW_CHUNK_LOADERS = [
-  () => import('./views/calendar/calendar.ts'),
+  () => import('./views/agenda/agenda.ts'),
   () => import('./views/prepare/prepare.ts'),
   () => import('./views/itinerary/itinerary.ts'),
   () => import('./views/expenses/expenses.ts'),
@@ -42,7 +42,7 @@ setViewChunkLoaders(VIEW_CHUNK_LOADERS);
 // every other view is a lazy loader — app.ts dynamic-imports the module the
 // first time the view is opened, then caches the resolved init fn.
 registerView('today',    initDashboard);
-registerView('calendar', () => import('./views/calendar/calendar.ts').then(m => m.initCalendar));
+registerView('agenda', () => import('./views/agenda/agenda.ts').then(m => m.initAgenda));
 registerView('prep',     () => import('./views/prepare/prepare.ts').then(m => m.initPrepare));
 registerView('route',    () => import('./views/itinerary/itinerary.ts').then(m => m.initRoute));
 registerView('expenses', () => import('./views/expenses/expenses.ts').then(m => m.initExpenses));

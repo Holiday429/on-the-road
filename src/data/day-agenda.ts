@@ -6,7 +6,7 @@
    iOS `CalendarStore.day(on:)` / `kindsByDate`, kept deliberately in step with
    it so the two platforms show the same day the same way.
 
-   Used by both the dashboard agenda widget and the full Calendar view; do not
+   Used by both the dashboard agenda widget and the full Agenda view; do not
    fork a second aggregation. Pure functions over plain arrays (no stores, no
    DOM) so it is trivially testable.
 
@@ -65,6 +65,8 @@ export interface AgendaItem {
   /** Plan items / todos can be ticked inline: the owning ids. */
   planRef?: { legId: string; planId: string };
   todoId?: string;
+  /** Stays: the accommodation's id (or `<legId>-<index>`), to find it again for the detail card. */
+  stayKey?: string;
 }
 
 /** Day-shape flags the UI turns into phase-aware hints ("arrived today",
@@ -225,7 +227,7 @@ function stayItems(legs: StoredLeg[], iso: string): AgendaItem[] {
       add(t('agenda.d.platform'), a.platform);
       add(t('agenda.d.phone'), a.phone);
       add(t('agenda.d.status'), t(a.confirmed ? 'agenda.confirmed' : 'agenda.notConfirmed'));
-      const base = { kind: 'stay' as const, title: a.name, icon: '🏠', details, legId: leg.id, navTo: 'route' as ViewId, intent: { legId: leg.id } };
+      const base = { kind: 'stay' as const, stayKey: key, title: a.name, icon: '🏠', details, legId: leg.id, navTo: 'route' as ViewId, intent: { legId: leg.id } };
       const ci = datePart(a.checkIn), co = datePart(a.checkOut);
       // Both cards share the house icon; subRank orders check-out → check-in,
       // the order a travel day actually happens in.
@@ -267,7 +269,7 @@ function todoItems(todos: StoredTodo[], iso: string): AgendaItem[] {
   return todos.filter((td) => td.dueDate === iso && !td.done).map((td) => ({
     id: `todo-${td.id}`, kind: 'todo' as const, time: null, title: td.text,
     subtitle: t('agenda.dueToday'), icon: '☑️', details: [], done: td.done, subRank: 0,
-    navTo: 'calendar' as ViewId, todoId: td.id,
+    navTo: 'agenda' as ViewId, todoId: td.id,
   }));
 }
 

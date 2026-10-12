@@ -1,5 +1,5 @@
 /* ==========================================================================
-   On the Road · Calendar view
+   On the Road · Agenda view
    --------------------------------------------------------------------------
    The whole trip, day by day. Left: a month grid with kind-coloured dots, a
    legend, month totals and the open to-do list. Right: a persistent day panel
@@ -12,11 +12,14 @@
    Narrow screens stack the panel under the month instead of a modal.
    ========================================================================== */
 
-import './calendar.css';
+import './agenda.css';
+import '../itinerary/itinerary.css';
+import '../expenses/styles/records.css';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
+import { expenseCategoryStore } from '../../data/stores/expense-category-store.ts';
 import { agendaForDay, kindsByDate, undatedTodos, AGENDA_COLORS, type AgendaItem, type AgendaKind, type AgendaSources } from '../../data/day-agenda.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import { currencySymbol, peekRateTable } from '../../data/rates.ts';
@@ -27,6 +30,11 @@ import { openModal } from '../../core/modal.ts';
 import { scheduleAllNotifications, clearAllNotificationTimers } from '../../core/notifications.ts';
 import { entryCover, excerpt, moodEmoji, titleFor } from '../journal/shared/utils.ts';
 import { dayHint } from '../dashboard/dashboard-agenda.ts';
+import { openBookingWindow } from '../dashboard/banner-drawers.ts';
+import { renderStayCard, renderTicket } from '../itinerary/itinerary-cards.ts';
+import { legStays } from '../itinerary/itinerary-utils.ts';
+import { renderRecordTag } from '../expenses/expense-record-tag.ts';
+import { BUILTIN_CATEGORIES, type Category } from '../expenses/expense-helpers.ts';
 import type { PlanItem } from '../../data/schema.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
@@ -49,6 +57,19 @@ function todayIso(): string {
 }
 function sources(): AgendaSources {
   return { legs: _legs, journal: _journal, todos: _todos, expenses: _expenses };
+}
+/** An expense in the current base currency (re-expressed via the live cross-rate if the base changed). */
+function inBase(e: StoredExpense): number {
+  const base = baseCurrency();
+  if (e.baseCurrency === base) return e.baseAmount;
+  const cross = peekRateTable(base)[e.baseCurrency];
+  return cross ? e.baseAmount * cross : e.baseAmount;
+}
+function categoryFor(id: string): Category | undefined {
+  const builtin = BUILTIN_CATEGORIES.find((c) => c.id === id);
+  if (builtin) return builtin;
+  const c = expenseCategoryStore.peek().find((x) => x.id === id);
+  return c ? { id: c.id, label: c.label, icon: c.icon, color: c.color, builtin: false } : undefined;
 }
 function fmtMoney(n: number): string {
   return `${currencySymbol(baseCurrency())}${Math.round(n).toLocaleString()}`;
@@ -82,8 +103,7 @@ function renderMonthGrid(kinds: Map<string, Set<AgendaKind>>): string {
     const city = leg && (iso === leg.dateFrom || d === 1) ? `<span class="cal-city">${esc(leg.flag)} ${esc(leg.city)}</span>` : '';
     cells += `
       <button type="button" class="${cls}" data-day="${iso}">
-        <span class="cal-daynum">${d}</span>
-        ${city}
+        <span class="cal-cell-top"><span class="cal-daynum">${d}</span>${city}</span>
         <span class="cal-dots">${dots}</span>
       </button>`;
   }
@@ -100,42 +120,63 @@ function renderStats(): string {
     }
   }
   const journals = _journal.filter((e) => e.happenedOn.startsWith(prefix)).length;
-  const base = baseCurrency();
-  const rates = peekRateTable(base);
-  const spend = _expenses.filter((e) => e.date.startsWith(prefix)).reduce((s, e) => {
-    if (e.baseCurrency === base) return s + e.baseAmount;
-    const cross = rates[e.baseCurrency];
-    return s + (cross ? e.baseAmount * cross : e.baseAmount);
-  }, 0);
-  const stat = (n: string, label: string) => `<div class="cal-stat"><strong>${esc(n)}</strong><span>${esc(label)}</span></div>`;
+  const spend = _expenses.filter((e) => e.date.startsWith(prefix)).reduce((sum, e) => sum + inBase(e), 0);
+  const stat = (n: string, label: string) => `<span class="cal-stat"><strong>${esc(n)}</strong> ${esc(label)}</span>`;
   return `<div class="cal-stats">${stat(String(tripDays.size), t('cal.stat.days'))}${stat(String(journals), t('cal.stat.journal'))}${stat(fmtMoney(spend), t('cal.stat.spend'))}</div>`;
 }
 
 /* ── Day panel ───────────────────────────────────────────────────────────── */
+/** The full card behind a row's chevron: transport and stays are drawn with the
+ *  Itinerary's ticket / storefront cards, spend with the "All records" chips;
+ *  everything else keeps the plain label/value list. */
+function expandedBody(it: AgendaItem): string {
+  const leg = it.legId ? _legs.find((l) => l.id === it.legId) : undefined;
+  if (it.kind === 'transport' && leg?.arrivalTransport) {
+    return `<div class="cal-itn" data-leg="${esc(leg.id)}">${renderTicket(leg.arrivalTransport as never)}</div>`;
+  }
+  if (it.kind === 'stay' && leg) {
+    const raw = leg.accommodations?.length ? leg.accommodations : leg.accommodation ? [leg.accommodation] : [];
+    const idx = raw.findIndex((a, i) => (a.id ?? `${leg.id}-${i}`) === it.stayKey);
+    const a = raw[idx];
+    if (a) {
+      const ordered = legStays(leg as never);
+      const pos = a.id ? ordered.findIndex((s) => s.id === a.id) : idx;
+      return `<div class="cal-itn">${renderStayCard(leg as never, a as never, Math.max(0, pos), ordered.length)}</div>`;
+    }
+  }
+  if (it.kind === 'spend') {
+    const rows = _expenses.filter((e) => `spend-${e.date}` === it.id).sort((x, y) => y.baseAmount - x.baseAmount);
+    const base = baseCurrency();
+    return `<div class="cal-itn"><div class="exp-tags">${rows.map((e) =>
+      renderRecordTag(e, categoryFor(e.category), e.currency !== base ? ` · ${fmtMoney(inBase(e))}` : '', false)).join('')}</div></div>`;
+  }
+  return it.details.length
+    ? `<dl class="cal-details">${it.details.map((r) => `<div><dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl>`
+    : '';
+}
+
 function renderItem(it: AgendaItem): string {
   const open = _expanded.has(it.id);
   const nav = it.navTo ? ` data-nav="${it.navTo}"${it.intent ? ` data-intent='${esc(JSON.stringify(it.intent))}'` : ''}` : '';
   const check = it.planRef
     ? `<button type="button" class="cal-check${it.done ? ' is-done' : ''}" data-toggle-plan="${esc(it.planRef.legId)}:${esc(it.planRef.planId)}" aria-label="Toggle done">${it.done ? '✓' : ''}</button>`
     : '';
-  const chevron = it.details.length
+  const expandable = it.details.length > 0 || it.kind === 'transport' || it.kind === 'stay';
+  const chevron = expandable
     ? `<button type="button" class="cal-chev${open ? ' is-open' : ''}" data-expand="${esc(it.id)}" aria-expanded="${open}" aria-label="Details">▾</button>`
-    : '';
-  const details = open
-    ? `<dl class="cal-details">${it.details.map((r) => `<div><dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl>`
     : '';
   return `
     <div class="cal-item${it.done ? ' is-done' : ''}" style="--ag-c:${AGENDA_COLORS[it.kind]}">
       <div class="cal-item-row"${nav}>
-        <span class="cal-item-time">${esc(it.time ?? '')}</span>
         <span class="cal-item-icon">${it.icon}</span>
         <span class="cal-item-copy">
           <span class="cal-item-title">${esc(it.title)}</span>
           ${it.subtitle ? `<span class="cal-item-sub">${esc(it.subtitle)}</span>` : ''}
         </span>
+        ${it.time ? `<span class="cal-item-time">${esc(it.time)}</span>` : ''}
         ${check}${chevron}
       </div>
-      ${details}
+      ${open ? expandedBody(it) : ''}
     </div>`;
 }
 
@@ -296,7 +337,7 @@ function openTodoModal(opts: { mode: 'add'; dueDate: string } | { mode: 'edit'; 
 
 /* ── Render + wire ───────────────────────────────────────────────────────── */
 function render(): void {
-  const body = document.querySelector<HTMLElement>('#view-calendar .cal-body');
+  const body = document.querySelector<HTMLElement>('#view-agenda .cal-body');
   if (!body) return;
   const kinds = kindsByDate(sources());
   const monthName = new Date(_year, _month, 1).toLocaleString(undefined, { month: 'long' });
@@ -312,8 +353,10 @@ function render(): void {
           <button class="cal-today-btn" data-go-today>${esc(t('dash.agenda.today'))}</button>
         </div>
         ${renderMonthGrid(kinds)}
-        <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${esc(t(`cal.kind.${k}`))}</span>`).join('')}</div>
-        ${renderStats()}
+        <div class="cal-meta">
+          <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${esc(t(`cal.kind.${k}`))}</span>`).join('')}</div>
+          ${renderStats()}
+        </div>
         ${renderTodosPanel()}
       </div>
       ${renderDayPanel()}
@@ -361,6 +404,21 @@ function wire(body: HTMLElement): void {
     });
   });
 
+  // Cards borrowed from other pages: the ticket's booked stub toggles, booking
+  // links open in a popup, expense chips jump to the ledger.
+  body.querySelector('#cal-panel')?.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const link = target.closest<HTMLAnchorElement>('a.rd-map-btn--soft');
+    if (link?.href) { e.preventDefault(); openBookingWindow(link.href); return; }
+    const toggle = target.closest<HTMLElement>('[data-act="toggle-transport-confirmed"]');
+    if (toggle) {
+      const cur = _legs.find((l) => l.id === toggle.closest<HTMLElement>('[data-leg]')?.dataset.leg);
+      if (cur?.arrivalTransport) void routeStore.update(cur.id, { arrivalTransport: { ...cur.arrivalTransport, confirmed: !cur.arrivalTransport.confirmed } });
+      return;
+    }
+    if (target.closest('.cal-itn .exp-tag-item')) navigateTo('expenses');
+  });
+
   body.querySelectorAll<HTMLElement>('[data-toggle-plan]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -402,13 +460,13 @@ function wire(body: HTMLElement): void {
 /* ── Init ────────────────────────────────────────────────────────────────── */
 let _intentWired = false;
 function applyIntent(): boolean {
-  const intent = consumeNavIntent('calendar');
+  const intent = consumeNavIntent('agenda');
   if (intent?.date && /^\d{4}-\d{2}-\d{2}$/.test(intent.date)) { select(intent.date); return true; }
   return false;
 }
 
-export function initCalendar(): void {
-  const root = document.getElementById('view-calendar');
+export function initAgenda(): void {
+  const root = document.getElementById('view-agenda');
   if (!root) return;
 
   _legs     = routeStore.peek();
@@ -417,12 +475,12 @@ export function initCalendar(): void {
   _expenses = expenseStore.peek();
 
   // A tap-through from the dashboard ("+3 more ›") lands on that date.
-  if (!applyIntent() && !document.querySelector('#view-calendar .cal-root')) select(todayIso());
+  if (!applyIntent() && !document.querySelector('#view-agenda .cal-root')) select(todayIso());
   // Already mounted when the intent arrives (init won't re-run) → listen for it.
   if (!_intentWired) {
     _intentWired = true;
     window.addEventListener('otr:nav-intent', (e) => {
-      if ((e as CustomEvent<{ view: string }>).detail?.view !== 'calendar') return;
+      if ((e as CustomEvent<{ view: string }>).detail?.view !== 'agenda') return;
       if (applyIntent()) render();
     });
   }

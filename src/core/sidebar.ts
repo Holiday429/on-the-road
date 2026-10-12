@@ -10,7 +10,7 @@ import { openTripPopover, closeTripPopover, wireTripCalendarHover, cancelCalenda
 import { openNewTripModal } from './trip-modals.ts';
 import profileIcon from '../../icon/profile.png';
 
-export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'calendar' | 'profile';
+export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile';
 
 export interface NavItem {
   id: ViewId;

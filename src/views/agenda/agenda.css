@@ -1,12 +1,12 @@
 /* ==========================================================================
-   On the Road · Calendar view
+   On the Road · Agenda view
    --------------------------------------------------------------------------
-   Two columns on desktop (month + to-dos | persistent day panel), one column
+   Two columns on desktop (compact month + to-dos | persistent day panel), one column
    below 860px. Kind colours come from AGENDA_COLORS so the dots, the agenda
    rows and the iOS calendar all agree.
    ========================================================================== */
 
-#view-calendar { animation: fadeUp var(--dur-mid) var(--ease-out); }
+#view-agenda { animation: fadeUp var(--dur-mid) var(--ease-out); }
 
 .cal-root {
   display: grid;
@@ -14,7 +14,7 @@
   gap: var(--sp-5);
   align-items: start;
 }
-.cal-main { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.cal-main { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
 /* Stacked: month → totals → the selected day → all open to-dos. `contents` lifts
    .cal-main's children into the root's flex flow so the panel can slot between. */
 @media (max-width: 860px) {
@@ -42,10 +42,10 @@
 
 /* ── Grid ─────────────────────────────────────────────────────────────────── */
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
-.cal-hdr { text-align: center; font-size: 11px; font-weight: 700; color: var(--ink-faint); padding: 2px 0 6px; letter-spacing: 0.04em; }
+.cal-hdr { text-align: center; font-size: 11px; font-weight: 700; color: var(--ink-faint); padding: 0 0 2px; letter-spacing: 0.04em; }
 .cal-cell {
   position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
-  min-height: 78px; padding: 6px 8px; border-radius: var(--r-md); text-align: left; cursor: pointer;
+  min-height: 46px; padding: 3px 6px; gap: 2px; border-radius: var(--r-md); text-align: left; cursor: pointer;
   background: var(--surface); border: 1px solid var(--rule-soft);
   transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast);
 }
@@ -54,25 +54,22 @@
 .cal-cell:not(.cal-empty):hover { border-color: var(--amber-300, var(--amber-200)); }
 .cal-cell.is-today .cal-daynum { background: var(--amber-400); color: #fff; }
 .cal-cell.is-sel { border-color: var(--amber-500); box-shadow: 0 0 0 2px var(--amber-200); }
+.cal-cell-top { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; }
 .cal-daynum {
-  display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; border-radius: var(--r-full);
+  flex-shrink: 0; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; border-radius: var(--r-full);
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
 }
-.cal-city { max-width: 100%; font-size: 10px; font-weight: 600; color: var(--amber-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-city { min-width: 0; flex: 1; font-size: 10px; font-weight: 600; color: var(--amber-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cal-dots { display: flex; gap: 3px; height: 6px; align-items: center; }
 .cal-dots i { width: 6px; height: 6px; border-radius: 50%; }
 
+.cal-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-1) var(--sp-4); }
 .cal-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); font-size: var(--fs-xs); color: var(--ink-muted); }
 .cal-legend span { display: inline-flex; align-items: center; gap: 4px; }
 .cal-legend i { width: 8px; height: 8px; border-radius: 50%; }
 
-.cal-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
-.cal-stat {
-  display: flex; flex-direction: column; gap: 2px; padding: var(--sp-3) var(--sp-4);
-  background: var(--surface); border: 1px solid var(--rule-soft); border-radius: var(--r-lg);
-}
-.cal-stat strong { font-family: var(--font-ui); font-size: var(--fs-lg, 18px); font-weight: 700; color: var(--ink); }
-.cal-stat span { font-size: var(--fs-xs); color: var(--ink-muted); }
+.cal-stats { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-xs); color: var(--ink-muted); }
+.cal-stat strong { font-family: var(--font-ui); font-size: var(--fs-md, 15px); font-weight: 700; color: var(--ink); }
 
 /* ── Day panel ────────────────────────────────────────────────────────────── */
 .cal-panel {
@@ -92,25 +89,33 @@
 .cal-item { border-radius: var(--r-md); background: var(--surface-3); border-left: 3px solid var(--ag-c, var(--rule)); overflow: hidden; }
 .cal-item.is-done { opacity: 0.55; }
 .cal-item.is-done .cal-item-title { text-decoration: line-through; }
-.cal-item-row { display: grid; grid-template-columns: 44px 24px minmax(0, 1fr) auto auto; align-items: center; gap: var(--sp-2); padding: 8px 10px 8px 8px; }
+.cal-item-row { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 10px 8px 10px; }
 .cal-item-row[data-nav] { cursor: pointer; }
 .cal-item-row[data-nav]:hover { background: var(--surface-4); }
-.cal-item-time { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
-.cal-item-icon { font-size: 16px; text-align: center; }
-.cal-item-copy { display: flex; flex-direction: column; min-width: 0; }
+.cal-item-time { flex-shrink: 0; font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.cal-item-icon { flex-shrink: 0; width: 24px; font-size: 16px; text-align: left; }
+.cal-item-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .cal-item-title { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-item-sub { font-size: var(--fs-xs); color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-check {
-  width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--ink-faint); background: none; cursor: pointer;
+  flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--ink-faint); background: none; cursor: pointer;
   font-size: 12px; font-weight: 700; color: transparent; display: grid; place-items: center;
 }
 .cal-check.is-done { background: var(--sage-500); border-color: var(--sage-500); color: #fff; }
-.cal-chev { width: 24px; height: 24px; background: none; color: var(--ink-faint); cursor: pointer; transition: transform var(--dur-fast); }
+.cal-chev { flex-shrink: 0; width: 24px; height: 24px; background: none; color: var(--ink-faint); cursor: pointer; transition: transform var(--dur-fast); }
 .cal-chev.is-open { transform: rotate(180deg); }
-.cal-details { margin: 0; padding: 4px 12px 10px 78px; display: flex; flex-direction: column; gap: 4px; }
+.cal-details { margin: 0; padding: 4px 12px 10px 44px; display: flex; flex-direction: column; gap: 4px; }
 .cal-details div { display: flex; gap: var(--sp-3); font-size: var(--fs-xs); }
 .cal-details dt { flex: 0 0 76px; color: var(--ink-faint); font-weight: 600; }
 .cal-details dd { margin: 0; color: var(--ink-soft); min-width: 0; overflow-wrap: anywhere; }
+
+/* Expanded transport / stay / spend cards — the Itinerary's own ticket and stay
+   card, and the Expenses "All records" chips, shown as they are on those pages
+   (their edit buttons stay on the pages). */
+.cal-itn { padding: 2px 8px 10px; --tk-notch: var(--surface-3); }
+.cal-itn .rd-stay-actions .rd-icon-btn { display: none; }
+.cal-itn .exp-tags { grid-template-columns: 1fr; }
+.cal-itn .exp-tag-item::after { display: none; }
 
 .cal-sec { display: flex; flex-direction: column; gap: 6px; }
 .cal-sec-label { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; color: var(--ink-muted); letter-spacing: 0.02em; }
@@ -166,9 +171,8 @@
 /* ── Phone: tighter cells, city label hidden (the panel names the city) ───── */
 @media (max-width: 560px) {
   .cal-grid { gap: 2px; }
-  .cal-cell { min-height: 54px; padding: 4px; }
+  .cal-cell { min-height: 44px; padding: 3px; }
   .cal-city { display: none; }
   .cal-hdr { font-size: 9px; }
-  .cal-stats { gap: var(--sp-2); }
-  .cal-stat { padding: var(--sp-2) var(--sp-3); }
+  .cal-stats { gap: var(--sp-1) var(--sp-4); }
 }

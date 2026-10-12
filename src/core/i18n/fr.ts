@@ -12,7 +12,7 @@ export const fr: StringTable = {
   'nav.safety':   'Sécurité',
   'nav.expenses': 'Dépenses',
   'nav.journal':  'Journal',
-  'nav.calendar': 'Calendrier',
+  'nav.agenda': 'Agenda',
   'nav.sectionBefore': 'Avant le départ',
   'nav.sectionDuring': 'En route',
   'nav.sectionAfter':  'Rétrospective',

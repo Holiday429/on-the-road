@@ -2,7 +2,7 @@
    On the Road · To-Do store
    Trip-scoped (lives at trips/{tripId}/todos) so trip members share the same
    to-do list. Each doc also carries a tripId tag for convenience. Per-trip
-   consumers (dashboard, calendar, notifications) use subscribe(), which reads
+   consumers (dashboard, agenda, notifications) use subscribe(), which reads
    the current trip's list.
    ========================================================================== */
 

@@ -28,10 +28,10 @@ export { renderViewTitleMarkup, openTripSwitcher };
 const NAV_ITEMS: NavItem[] = [
   // Pinned
   { id: 'today',    label: 'Dashboard', iconSrc: '🏠',  emoji: true, section: 'pinned' },
-  // Calendar is a cross-cutting time view, not a content area — pinned beside the
+  // Agenda is a cross-cutting time view, not a content area — pinned beside the
   // Dashboard rather than inside a Before/During/After group. On phones it is
   // reached from the dashboard agenda instead of the (already full) bottom bar.
-  { id: 'calendar', label: 'Calendar',  iconSrc: '🗓️', emoji: true, section: 'pinned', desktopOnly: true },
+  { id: 'agenda',   label: 'Agenda',    iconSrc: '🗓️', emoji: true, section: 'pinned', desktopOnly: true },
   // Before
   { id: 'prep',     label: 'Prepare',   iconSrc: checklistIcon, section: 'before' },
   { id: 'budget',   label: 'Compare',   iconSrc: stayIcon,      section: 'before' },
@@ -51,6 +51,7 @@ const LEGACY_VIEW_MAP: Partial<Record<string, ViewId>> = {
   nomad: 'cities',
   safety: 'cities',
   pack: 'prep',
+  calendar: 'agenda',
 };
 
 function resolveLegacyView(id: string): ViewId {

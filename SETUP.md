@@ -76,7 +76,7 @@ All routes are shipped and in active use.
 | `/safety`   | Emergency numbers, embassy info, local scams, personal medical card |
 | `/expenses` | Multi-currency expense tracking, category/day/country breakdown |
 | `/journal`  | Travel journal with photo capture, AI-generated trip recap |
-| `/calendar` | Full calendar view (accessible from the Dashboard) |
+| `/agenda` | Full agenda view (accessible from the Dashboard) |
 
 ## Build
 

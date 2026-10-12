@@ -90,12 +90,12 @@ function nextFrame(): Promise<void> {
 // have their own view (folded into Guide's cafe/safety tabs), and pack was
 // folded into Prepare (see product-restructure P5), so a stale #nomad,
 // #safety, or #pack hash lands on its replacement instead.
-const LEGACY_VIEW: Partial<Record<string, ViewId>> = { nomad: 'cities', safety: 'cities', pack: 'prep' };
+const LEGACY_VIEW: Partial<Record<string, ViewId>> = { nomad: 'cities', safety: 'cities', pack: 'prep', calendar: 'agenda' };
 
 function currentViewOrDefault(): ViewId {
   const raw = window.location.hash.replace('#', '');
   const hash = (LEGACY_VIEW[raw] ?? raw) as ViewId;
-  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'cities', 'budget', 'journal', 'map', 'calendar', 'profile'];
+  const valid: ViewId[] = ['today', 'prep', 'route', 'expenses', 'cities', 'budget', 'journal', 'map', 'agenda', 'profile'];
   return valid.includes(hash) ? hash : 'today';
 }
 

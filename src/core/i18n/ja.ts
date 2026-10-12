@@ -12,7 +12,7 @@ export const ja: StringTable = {
   'nav.safety':   '安全',
   'nav.expenses': '支出',
   'nav.journal':  '日記',
-  'nav.calendar': 'カレンダー',
+  'nav.agenda': 'スケジュール',
   'nav.sectionBefore': '出発前',
   'nav.sectionDuring': '旅の途中',
   'nav.sectionAfter':  'ふり返り',

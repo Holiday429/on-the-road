@@ -12,7 +12,7 @@ export const ko: StringTable = {
   'nav.safety':   '안전',
   'nav.expenses': '지출',
   'nav.journal':  '일지',
-  'nav.calendar': '캘린더',
+  'nav.agenda': '일정',
   'nav.sectionBefore': '출발 전',
   'nav.sectionDuring': '여행 중',
   'nav.sectionAfter':  '돌아보기',
