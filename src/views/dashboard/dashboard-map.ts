@@ -115,7 +115,7 @@ export async function initDashboardMap(
 
   pinSeries.bullets.push(function (root2: any, _s: any, dataItem: any) {
     const ctx   = (dataItem.dataContext as any) ?? {};
-    const color = ctx.fill ?? am5.color('#f9b830');
+    const color = ctx.fill ?? am5.color('#e3b866');
     const num   = ctx.num ?? '';
 
     const container = am5.Container.new(root2, {

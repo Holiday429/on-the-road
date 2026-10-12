@@ -331,7 +331,7 @@ export async function createTrip(input: NewTripInput): Promise<string> {
     startDate: input.startDate,
     endDate: input.endDate,
     baseCurrency: input.baseCurrency ?? 'EUR',
-    coverColor: input.coverColor ?? '#f9b830',
+    coverColor: input.coverColor ?? '#e3b866',
     status: 'planning',
     travelStyle: input.travelStyle,
     destinations: input.destinations,

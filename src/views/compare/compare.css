@@ -27,7 +27,7 @@
   transition: all .15s;
 }
 .cmp-tab:hover { color: var(--ink); background: var(--surface-4); }
-.cmp-tab.active { background: var(--amber-100); color: var(--amber-700); border-color: var(--amber-300); }
+.cmp-tab.active { background: var(--select-soft-bg); color: var(--select-soft-ink); border-color: var(--select-bg); }
 .cmp-new-btn { flex-shrink: 0; }
 
 /* ── Group cards ─────────────────────────────────────────────────────────── */
@@ -214,7 +214,7 @@
   font-size: var(--fs-xs); font-weight: 700; padding: 4px 14px; border-radius: var(--r-full);
   background: var(--surface-3); color: var(--ink-muted);
 }
-.cmp-toggle.on { background: var(--amber-400); color: var(--on-accent); }
+.cmp-toggle.on { background: var(--select-bg); color: var(--select-ink); }
 
 .cmp-price-cell { gap: 6px; }
 .cmp-price-display { font-family: var(--font-ui); font-weight: 800; font-size: var(--fs-md); color: var(--ink); }

@@ -109,9 +109,9 @@ export function legNoteCardsOf(leg: Leg): NoteCard[] {
 
 /* ── Plan-day palette ────────────────────────────────────────────────────── */
 export const DAY_COLOURS = [
-  '#f97316','#3b82f6','#22c55e','#a855f7','#ec4899',
-  '#14b8a6','#eab308','#ef4444','#6366f1','#84cc16',
-  '#f43f5e','#0ea5e9','#d97706','#8b5cf6',
+  '#d98a52','#6f93b3','#5f9d86','#9a8bc4','#c97a8c',
+  '#4f9a9a','#d4ae60','#bf6670','#7f86b8','#8fae6a',
+  '#c9747f','#7fb0cc','#b88a3e','#8f7bb8',
 ];
 
 export function dayColour(idx: number): string {

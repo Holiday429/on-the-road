@@ -35,7 +35,7 @@ export const FONT = {
 };
 
 /** The brand amber, for the key-sentence highlight and the dot. */
-const AMBER = '#f9b830';
+const AMBER = '#e3b866';
 
 type Ctx = CanvasRenderingContext2D;
 

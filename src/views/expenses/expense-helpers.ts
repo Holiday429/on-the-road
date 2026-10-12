@@ -17,37 +17,36 @@ export const BUILTIN_CATEGORIES: Category[] = [
   { id: 'misc',          label: 'Misc',      icon: '📌', color: '#e8e8e8', builtin: true }, // neutral
 ];
 
-/* ── Dark-mode color remap ──────────────────────────────────────────────────
-   Category colors are stored/rendered as literal hex (inline style, and as
-   SVG stroke on the donut chart) rather than CSS custom properties, so they
-   can't just flip via a var() — a dark counterpart has to be looked up and
-   substituted at render time. Every color a category can currently have is
-   one of these 8 fixed light pastels (the 7 builtins above, plus '#e5e7eb'
-   — the single fixed color new custom categories are created with, since
-   there's no color picker yet); anything else (e.g. from an older custom
-   category) is passed through unchanged. */
-const DARK_REMAP: Record<string, string> = {
-  '#ddeeff': '#1e3a52', // accommodation
-  '#fdf3dd': '#4a3d1a', // food
-  '#d1f5e8': '#1a4a3a', // transport
-  '#fce4e4': '#4a2530', // activities
-  '#ede8fb': '#332a4d', // shopping
-  '#ffecd6': '#4d3520', // health
-  '#e8e8e8': '#3a3a3a', // misc
-  '#d1d5db': '#3a3d42', // "Unsorted" row in analysisRows
-  '#e5e7eb': '#35383d', // default color for new custom categories
-  '#f3f4f6': '#3a3a3a', // fallback when a record's category id no longer resolves
+/* ── Category colours ───────────────────────────────────────────────────────
+   A category stores one literal hex (the 7 builtins below, or the grey custom
+   categories are created with). Rather than remapping hex values per theme, the
+   known ones resolve to CSS tokens, so light and dark both come from base.css:
+     chart  → --cat-*        strokes / dots / bars (≥3:1 on the card surface)
+     tint   → --tint-*       chip / tag background
+     ink    → --tint-*-ink   text on that tint (same hue, deep)
+   Anything unknown (an older custom colour) passes through unchanged. */
+const CAT_KEY: Record<string, string> = {
+  '#ddeeff': 'stay', '#fdf3dd': 'food', '#d1f5e8': 'transport', '#fce4e4': 'activities',
+  '#ede8fb': 'shopping', '#ffecd6': 'health',
+  '#e8e8e8': 'misc', '#e5e7eb': 'misc', '#d1d5db': 'misc', '#f3f4f6': 'misc', // misc, custom default, "Unsorted", unresolved
 };
 
-function isDarkTheme(): boolean {
-  try { return document.documentElement.dataset.theme === 'dark'; } catch { return false; }
+/** Soft fill for a chip or tag. */
+export function categoryDisplayColor(color: string): string {
+  const k = CAT_KEY[color];
+  return k ? `var(--tint-${k})` : color;
 }
 
-/** Resolve a stored category color to the one that should actually render,
- *  given the current theme. Pass any raw category.color through this before
- *  using it as a background/stroke — never read .color directly for display. */
-export function categoryDisplayColor(color: string): string {
-  return isDarkTheme() ? (DARK_REMAP[color] ?? color) : color;
+/** Text colour that sits on `categoryDisplayColor(color)`. */
+export function categoryInkColor(color: string): string {
+  const k = CAT_KEY[color];
+  return k ? `var(--tint-${k}-ink)` : 'var(--ink)';
+}
+
+/** Stroke / dot / bar colour for charts. */
+export function categoryChartColor(color: string): string {
+  const k = CAT_KEY[color];
+  return k ? `var(--cat-${k})` : color;
 }
 
 export const UNCLASSIFIED = '';
@@ -81,7 +80,7 @@ export function renderDonut(rows: Array<{ sum: number; color: string }>, fmt: (n
     const dash = frac * circ;
     const gap = circ - dash;
     const slice = `<circle cx="${cx}" cy="${cy}" r="${R}"
-      fill="none" stroke="${r.color}" stroke-width="${stroke}"
+      fill="none" style="stroke:${r.color}" stroke-width="${stroke}"
       stroke-dasharray="${dash.toFixed(2)} ${gap.toFixed(2)}"
       stroke-dashoffset="${(-offset * circ / 1).toFixed(2)}"
       transform="rotate(-90 ${cx} ${cy})" />`;

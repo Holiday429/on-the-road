@@ -111,7 +111,7 @@
   border: 1.5px solid transparent;
   transition: all var(--dur-fast);
 }
-.exp-city-pill.active { background: var(--amber-100); color: var(--amber-700); border-color: var(--amber-300); }
+.exp-city-pill.active { background: var(--select-soft-bg); color: var(--select-soft-ink); border-color: var(--select-bg); }
 
 /* ── Country-budget reminder (above the form) ───────────────────────────────── */
 .exp-country-reminder-slot:empty { display: none; }
@@ -124,9 +124,9 @@
   font-size: var(--fs-sm);
   border: 1px solid transparent;
 }
-.exp-country-reminder.ok   { background: var(--success-bg-soft); border-color: #bbf7d0; color: var(--success); }
+.exp-country-reminder.ok   { background: var(--success-bg-soft); border-color: var(--sage-400); color: var(--success); }
 .exp-country-reminder.warn { background: var(--warning-bg-soft); border-color: var(--amber-200); color: var(--amber-700); }
-.exp-country-reminder.over { background: var(--danger-bg-soft); border-color: #fecaca; color: var(--coral-500); }
+.exp-country-reminder.over { background: var(--danger-bg-soft); border-color: var(--coral-400); color: var(--coral-500); }
 .exp-country-reminder-place { font-weight: 700; }
 .exp-country-reminder-figs { color: var(--ink-muted); }
 .exp-country-reminder.over .exp-country-reminder-figs,

@@ -12,7 +12,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  border: 1.5px solid var(--border, #e5e7eb);
+  border: 1.5px solid var(--border);
   border-radius: var(--r-md);
   padding: 7px 10px;
   min-height: 44px;
@@ -22,7 +22,7 @@
 }
 .dest-input-field:focus-within {
   border-color: var(--amber-500);
-  box-shadow: 0 0 0 3px rgba(249, 184, 48, 0.15);
+  box-shadow: 0 0 0 3px rgba(227,184,102,0.15);
 }
 
 /* Selected tags */

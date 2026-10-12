@@ -60,7 +60,7 @@
 .cal-cell.cal-empty { visibility: hidden; cursor: default; }
 .cal-cell.in-leg { background: var(--amber-50); }
 .cal-cell:not(.cal-empty):hover { border-color: var(--amber-300, var(--amber-200)); }
-.cal-cell.is-today .cal-daynum { background: var(--amber-400); color: #fff; }
+.cal-cell.is-today .cal-daynum { background: var(--amber-400); color: var(--on-accent); }
 .cal-cell.is-sel { border-color: var(--amber-500); box-shadow: 0 0 0 2px var(--amber-200); }
 .cal-cell-top { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; }
 .cal-daynum {
@@ -117,7 +117,7 @@
   flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; border: 1.5px solid var(--ink-faint); background: none; cursor: pointer;
   font-size: 12px; font-weight: 700; color: transparent; display: grid; place-items: center;
 }
-.cal-check.is-done { background: var(--sage-500); border-color: var(--sage-500); color: #fff; }
+.cal-check.is-done { background: var(--sage-500); border-color: var(--sage-500); color: var(--on-solid); }
 .cal-chev {
   flex-shrink: 0; position: relative; width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
   background: var(--surface); color: var(--ink-soft); border: 1px solid var(--rule);
@@ -166,7 +166,7 @@
   display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: transparent;
   background: transparent; transition: background var(--dur-fast), border-color var(--dur-fast); margin-top: 1px;
 }
-.is-done .cal-todo-check { background: var(--sage-500); border-color: var(--sage-500); color: #fff; }
+.is-done .cal-todo-check { background: var(--sage-500); border-color: var(--sage-500); color: var(--on-solid); }
 .cal-todo-check:hover { border-color: var(--sage-400); }
 .cal-remind-tag { font-size: 10px; color: var(--ink-faint); background: var(--surface-3); border-radius: var(--r-sm); padding: 1px 6px; }
 .cal-todo-edit, .cal-todo-del {

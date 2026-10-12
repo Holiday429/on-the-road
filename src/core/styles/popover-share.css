@@ -115,7 +115,7 @@
 .share-email-row .btn { white-space: nowrap; }
 .share-page-chip {
   font-size: 10px; font-weight: 600; color: var(--ink-soft);
-  background: #f3f4f6; border-radius: var(--r-full); padding: 2px 8px;
+  background: var(--surface-3); border-radius: var(--r-full); padding: 2px 8px;
 }
 
 /* Pending edit requests */

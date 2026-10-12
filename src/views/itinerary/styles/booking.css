@@ -232,7 +232,7 @@
   overflow: hidden;
   min-width: 0;
 }
-.rd-stay-card.is-confirmed { --aw-a: var(--amber-400); --aw-b: #fff7e0; }
+.rd-stay-card.is-confirmed { --aw-a: var(--amber-400); --aw-b: var(--amber-50); }
 :root[data-theme='dark'] .rd-stay-card.is-confirmed { --aw-b: var(--amber-200); }
 
 /* Striped awning with a scalloped hem. */

@@ -39,7 +39,7 @@ export const TripSchema = doc({
   name: z.string(),
   startDate: z.string(),          // ISO date 'YYYY-MM-DD'
   endDate: z.string(),
-  coverColor: z.string().default('#f9b830'),
+  coverColor: z.string().default('#e3b866'),
   status: z.enum(['planning', 'active', 'past']).default('planning'),
   baseCurrency: z.string().default('EUR'),
   // Extended profile fields (optional for backwards-compat)

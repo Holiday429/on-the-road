@@ -69,7 +69,7 @@ export const CityIntelSchema = doc({
   city: z.string(),
   country: z.string(),
   flag: z.string().default(''),
-  bannerColor: z.string().default('#f9b830'),
+  bannerColor: z.string().default('#e3b866'),
   // ── Know (cultural background) ──────────────────────────────────────────
   intro: z.string().default(''),                    // 3-4 sentence city portrait
   funFacts: z.array(z.string()).default([]),         // 3-5 short punchy facts

@@ -42,7 +42,7 @@ import {
   convert, addExpenseWithDefaults, knownCurrencyForCountry,
 } from './expense-defaults.ts';
 import {
-  type Category, BUILTIN_CATEGORIES, UNCLASSIFIED, categoryDisplayColor,
+  type Category, BUILTIN_CATEGORIES, UNCLASSIFIED, categoryDisplayColor, categoryInkColor, categoryChartColor,
   type AnalysisDim, ANALYSIS_DIMS, nightCount, renderDonut,
 } from './expense-helpers.ts';
 import {
@@ -534,7 +534,7 @@ function dayLabel(iso: string): string {
 function filterBtnStyle(catId: string | null): string {
   if (catId === null || catId === 'all') return '';
   const raw = categoryById(catId)?.color;
-  return raw ? `background:${categoryDisplayColor(raw)};border-color:${categoryDisplayColor(raw)}` : '';
+  return raw ? `background:${categoryDisplayColor(raw)};border-color:${categoryDisplayColor(raw)};color:${categoryInkColor(raw)}` : '';
 }
 
 function renderRecordsScrollContent(scroll: HTMLElement) {
@@ -808,12 +808,12 @@ function analysisRows(): Row[] {
       .map((cat) => ({
         label: `${cat.icon} ${cat.label}`,
         sum: expenses.filter((e) => e.category === cat.id).reduce((s, e) => s + inBase(e), 0),
-        color: categoryDisplayColor(cat.color === '#f3f4f6' ? '#d1d5db' : cat.color),
+        color: categoryChartColor(cat.color === '#f3f4f6' ? '#d1d5db' : cat.color),
         catId: cat.id,
         budget: caps[cat.id],
       }));
     const unsorted = expenses.filter((e) => e.category === UNCLASSIFIED).reduce((s, e) => s + inBase(e), 0);
-    if (unsorted > 0) rows.push({ label: '🗂️ Unsorted', sum: unsorted, color: categoryDisplayColor('#d1d5db') });
+    if (unsorted > 0) rows.push({ label: '🗂️ Unsorted', sum: unsorted, color: categoryChartColor('#d1d5db') });
     // Keep a row if it has spend OR a budget cap (so you can watch an empty cap fill up).
     return rows
       .filter((r) => r.sum > 0 || (r.budget ?? 0) > 0)
@@ -991,7 +991,7 @@ function renderBreakdown(el: HTMLElement) {
       const budgetY = dailyBudget ? (chartH - (dailyBudget / maxAmt) * chartH).toFixed(1) : null;
       const budgetLine = budgetY
         ? `<line x1="0" y1="${budgetY}" x2="${W}" y2="${budgetY}"
-               stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4 3"/>`
+               style="stroke:var(--amber-500)" stroke-width="1.5" stroke-dasharray="4 3"/>`
         : '';
       content = `
         <div class="exp-barchart-wrap">

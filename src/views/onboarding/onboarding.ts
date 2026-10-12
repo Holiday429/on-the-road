@@ -20,7 +20,7 @@ const STYLE_META: Record<TravelStyle, { icon: string; label: string }> = {
   group:   { icon: '👥', label: 'Group'   },
 };
 
-const COVER_COLORS = ['#f9b830', '#e07b54', '#5b9bd5', '#6abf69', '#9b7dd4', '#e05c7a'];
+const COVER_COLORS = ['#e3b866', '#d98a6a', '#7fa8c6', '#7fb08a', '#a597cf', '#cf7f93'];
 
 export interface OnboardingOptions {
   /** 'first' = a new user's first trip (default). 'new' = "+ New trip" from a signed-in

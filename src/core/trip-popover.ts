@@ -69,7 +69,7 @@ export function openTripPopover(anchor?: HTMLElement | null) {
     return `
     <div class="trip-menu-row" data-trip-id="${escapeHtml(t.id)}">
       <button class="trip-menu-item${t.id === activeId ? ' is-active' : ''}" data-trip-id="${escapeHtml(t.id)}">
-        <span class="trip-menu-dot" style="background:${escapeHtml(t.coverColor || '#f9b830')}"></span>
+        <span class="trip-menu-dot" style="background:${escapeHtml(t.coverColor || '#e3b866')}"></span>
         <span class="trip-menu-name">${escapeHtml(t.name)}</span>
         ${t.id === activeId ? '<span class="trip-menu-check">✓</span>' : ''}
       </button>

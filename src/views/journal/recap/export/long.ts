@@ -107,8 +107,8 @@ export function renderLongImage(input: LongInput): HTMLCanvasElement {
   ctx.fillStyle = '#f7f5f0';
   ctx.fillRect(0, 0, plan.width, plan.height);
   const wash = ctx.createLinearGradient(0, 0, 0, plan.headerH + 200);
-  wash.addColorStop(0, 'rgba(249,184,48,0.20)');
-  wash.addColorStop(1, 'rgba(249,184,48,0)');
+  wash.addColorStop(0, 'rgba(227,184,102,0.20)');
+  wash.addColorStop(1, 'rgba(227,184,102,0)');
   ctx.fillStyle = wash;
   ctx.fillRect(0, 0, plan.width, plan.headerH + 200);
 

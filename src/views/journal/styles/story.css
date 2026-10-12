@@ -13,7 +13,7 @@
   border-radius: var(--r-lg);
   background: var(--danger-bg-soft);
   color: var(--coral-500);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--coral-400);
   font-size: var(--fs-sm);
 }
 .journal-story-hero {

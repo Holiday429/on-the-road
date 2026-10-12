@@ -132,11 +132,11 @@
   text-transform: uppercase;
   padding: 3px 10px;
   border-radius: var(--r-full);
-  background: var(--amber-400); color: #1c1917;
+  background: var(--amber-400); color: var(--on-accent);
   text-shadow: none;
 }
-.rd-status-pill.status-active { background: var(--sage-500); color: #fff; }
-.rd-status-pill.status-past   { background: rgba(255,255,255,0.85); color: #44403c; }
+.rd-status-pill.status-active { background: var(--sage-500); color: var(--on-solid); }
+.rd-status-pill.status-past   { background: rgba(255,255,255,0.85); color: var(--ink-soft); }
 
 @media (max-width: 640px) {
   #view-route .view-header.has-back { padding-right: 0; }
@@ -357,7 +357,7 @@
   background: var(--warning-bg-soft);
   border: 1px solid var(--amber-200);
   border-radius: var(--r-md);
-  font-size: var(--fs-sm); color: #78350f;
+  font-size: var(--fs-sm); color: var(--warning);
 }
 .rd-share-bar-icon { flex-shrink: 0; }
 .rd-share-bar-text { line-height: 1.4; }

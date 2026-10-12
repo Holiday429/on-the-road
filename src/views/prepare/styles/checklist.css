@@ -212,9 +212,9 @@
 }
 .tag-filter:hover { border-color: var(--amber-300); color: var(--ink); }
 .tag-filter.active {
-  background: var(--amber-400);
-  border-color: var(--amber-400);
-  color: var(--on-accent);
+  background: var(--select-bg);
+  border-color: var(--select-bg);
+  color: var(--select-ink);
 }
 
 /* ── Template picker modal ───────────────────────────────────────────────── */

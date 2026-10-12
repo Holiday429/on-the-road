@@ -18,5 +18,5 @@ export function legStatus(leg: Pick<DatedLeg, 'dateFrom' | 'dateTo'>, today: str
 
 /** Pin colours (solid) — shared with the dashboard legend. */
 export const PIN_COLORS: Record<LegStatus, string> = {
-  past: '#a8a29e', current: '#22c55e', future: '#f9b830',
+  past: '#9a948a', current: '#4f9a86', future: '#e3b866',
 };

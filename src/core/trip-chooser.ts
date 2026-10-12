@@ -57,7 +57,7 @@ export async function openTripChooser(opts: TripChooserOptions = {}) {
 
   const tripRows = trips.map((t) => `
     <button class="tc-trip-row${t.id === activeId ? ' is-active' : ''}" data-id="${esc(t.id)}" type="button">
-      <span class="tc-trip-dot" style="background:${esc(t.coverColor || '#f9b830')}"></span>
+      <span class="tc-trip-dot" style="background:${esc(t.coverColor || '#e3b866')}"></span>
       <span class="tc-trip-name">${esc(t.name)}</span>
       <span class="tc-trip-dates">${t.startDate ? `${t.startDate.slice(0, 7)}` : ''}</span>
       ${t.id === activeId ? '<span class="tc-trip-check">✓</span>' : ''}

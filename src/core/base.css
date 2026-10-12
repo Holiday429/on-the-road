@@ -11,36 +11,39 @@
 
 :root {
   /* ── Brand palette ─────────────────────────────────────────────────── */
-  --amber-50:  #fffbf0;
-  --amber-100: #fef3c7;
-  --amber-200: #fde68a;
-  --amber-300: #fcd34d;
-  --amber-400: #f9b830;
-  --amber-500: #f59e0b;
-  --amber-600: #d97706;
-  --amber-700: #b45309;
+  /* Matte, Morandi-leaning: chalky mustard instead of signal yellow, dusty
+     rose / sage / blue instead of primary red / green / cyan. Preview + contrast
+     table: docs/ui-preview/tokens.html */
+  --amber-50:  #faf4e1;
+  --amber-100: #f4e7bf;
+  --amber-200: #ecd698;
+  --amber-300: #e8c67c;
+  --amber-400: #e3b866;
+  --amber-500: #c0902f;
+  --amber-600: #a07226;
+  --amber-700: #7a5518;
 
-  --coral-400: #f87171;
-  --coral-500: #ef4444;
+  --coral-400: #d38a92;
+  --coral-500: #bf6670;
 
-  --sky-400:   #38bdf8;
-  --sky-500:   #0ea5e9;
+  --sky-400:   #8fb0cf;
+  --sky-500:   #6a93b8;
 
-  --sage-400:  #86efac;
-  --sage-500:  #22c55e;
+  --sage-400:  #86bfae;
+  --sage-500:  #4f9a86;
 
-  --ink:       #1c1917;
-  --ink-soft:  #44403c;
-  --ink-muted: #78716c;
-  --ink-faint: #a8a29e;
+  --ink:       #24211d;
+  --ink-soft:  #4a453e;
+  --ink-muted: #6c665c;
+  --ink-faint: #85806f;
 
-  --surface:   #ffffff;
-  --surface-2: #fafaf9;
-  --surface-3: #f5f5f4;
-  --surface-4: #e7e5e4;
+  --surface:   #fbfaf6;
+  --surface-2: #eeece5;
+  --surface-3: #e4e2da;
+  --surface-4: #d6d3c9;
 
-  --rule:      rgba(28,25,23,0.08);
-  --rule-soft: rgba(28,25,23,0.05);
+  --rule:      rgba(36,33,29,0.10);
+  --rule-soft: rgba(36,33,29,0.06);
 
   /* ── Semantic ──────────────────────────────────────────────────────── */
   --accent:        var(--amber-400);
@@ -53,22 +56,45 @@
      Those three tokens are NOT re-themed below — they're brand amber in both
      modes — so their text needs a color that's likewise fixed, not var(--ink)
      (which flips light in dark mode and would put light text on light amber). */
-  --on-accent: #1c1917;
+  --on-accent: #3b2a0e;
+  /* Glyph/text on solid sage / coral / sky fills (check marks, badges). */
+  --on-solid: #ffffff;
+
+  /* Selected state (nav item, active chip / tab / toggle): a burnt orange, not
+     the near-black pill — warm enough for travel, deep enough to read as
+     "this one". Yellow stays for the primary action (.btn-primary). */
+  --select-bg:       #b05a24;
+  --select-ink:      #fff6ea;
+  --select-soft-bg:  #f3dfcf;
+  --select-soft-ink: #7a3a12;
 
   /* Status colours — text-on-light-tint pairs. `-bg` is the chip/badge tint,
      `-bg-soft` the barely-there panel wash. */
-  --success:      #15803d;
-  --success-bg:   #dcfce7;
-  --success-bg-soft: #f0fdf4;
-  --success-on-ink: #4ade80; /* readable on the dark var(--ink) chip/toast bg in light mode */
-  --danger:       #b91c1c;
-  --danger-bg:    #fee2e2;
-  --danger-bg-soft: #fef2f2;
-  --warning:      #92400e;
-  --warning-bg:   #fef3c7;
-  --warning-bg-soft: #fffbeb;
-  --info:         #0369a1;
-  --info-bg:      #e0f2fe;
+  --success:      #2f6a56;
+  --success-bg:   #dcebe3;
+  --success-bg-soft: #edf5f0;
+  --success-on-ink: #8ccaa3; /* readable on the dark var(--ink) chip/toast bg in light mode */
+  --danger:       #9c3f48;
+  --danger-bg:    #f2dcdd;
+  --danger-bg-soft: #f8ecec;
+  --warning:      #7a5518;
+  --warning-bg:   #f4e7bf;
+  --warning-bg-soft: #faf3df;
+  --info:         #2f5d80;
+  --info-bg:      #dbe7f1;
+
+  /* Category / chart tones. --cat-* are chart strokes and dots (≥3:1 on
+     --surface); --tint-* + --tint-*-ink are the soft fill + same-hue deep text
+     pair for chips and tiles. */
+  --cat-stay: #5d86ab;   --cat-food: #b3862a;   --cat-transport: #4a9580; --cat-activities: #b8636f;
+  --cat-shopping: #8577b3; --cat-health: #c0794a; --cat-misc: #8c8a80;
+  --tint-stay: #cddbea;  --tint-stay-ink: #22425d;
+  --tint-food: #ecd29b;  --tint-food-ink: #593c0d;
+  --tint-transport: #b4d9cf; --tint-transport-ink: #1d5143;
+  --tint-activities: #e2bbc0; --tint-activities-ink: #5a2430;
+  --tint-shopping: #cdc7e3; --tint-shopping-ink: #382f63;
+  --tint-health: #ebcab4; --tint-health-ink: #5d3215;
+  --tint-misc: #d3d6cb;  --tint-misc-ink: #3c4035;
 
   /* Sticky-note tints (see src/data/palette.ts noteColorVar) */
   --note-0: #ece2f3;
@@ -120,10 +146,10 @@
   --r-full: 9999px;
 
   /* ── Shadows ───────────────────────────────────────────────────────── */
-  --shadow-sm:  0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md:  0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
-  --shadow-lg:  0 8px 24px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.04);
-  --shadow-amber: 0 4px 16px rgba(249,184,48,0.30);
+  --shadow-sm:  0 1px 2px rgba(60,48,30,0.06), 0 1px 1px rgba(60,48,30,0.04);
+  --shadow-md:  0 4px 12px rgba(60,48,30,0.08), 0 2px 4px rgba(60,48,30,0.04);
+  --shadow-lg:  0 8px 24px rgba(60,48,30,0.10), 0 4px 8px rgba(60,48,30,0.04);
+  --shadow-amber: 0 4px 16px rgba(192,144,47,0.26);
 
   /* ── Motion ────────────────────────────────────────────────────────── */
   --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
@@ -147,38 +173,69 @@
    prefers-color-scheme branch.
    Warm stone scale to stay in the amber brand family: page < card < hover.
    ══════════════════════════════════════════════════════════════════════════ */
+
 :root[data-theme='dark'] {
-  /* Amber tints that act as *backgrounds* in light mode become deep ambers.
-     The 300–700 range (used as fills/accents) stays untouched. */
-  --amber-50:  #2e2513;
-  --amber-100: #3b2f16;
-  --amber-200: #55431d;
+  /* 50–200 are backgrounds (deep amber); 300–700 are fills / text / borders and
+     are re-themed too: 600–700 become light ambers so amber text stays readable
+     on the dark surfaces. */
+  --amber-50:  #2b2415;
+  --amber-100: #372d19;
+  --amber-200: #4d3f22;
+  --amber-300: #a88a4a;
+  --amber-400: #c9a24e;
+  --amber-500: #d4ae60;
+  --amber-600: #dcba74;
+  --amber-700: #e6c98e;
 
-  --ink:       #f0ebe2;
-  --ink-soft:  #cfc8bc;
-  --ink-muted: #9c9486;
-  --ink-faint: #6e675c;
+  --coral-400: #b8736a;
+  --coral-500: #d3857a;
+  --sky-400:   #6f93b3;
+  --sky-500:   #7fa8c6;
+  --sage-400:  #5f8f72;
+  --sage-500:  #78a98a;
 
-  --surface:   #262320;
-  --surface-2: #191714;
-  --surface-3: #322e29;
-  --surface-4: #423d36;
+  --ink:       #ece6da;
+  --ink-soft:  #c9c1b2;
+  --ink-muted: #9a9283;
+  --ink-faint: #6f685c;
 
-  --rule:      rgba(240,235,226,0.10);
-  --rule-soft: rgba(240,235,226,0.06);
+  --surface:   #211e1a;
+  --surface-2: #171512;
+  --surface-3: #2b2723;
+  --surface-4: #3a352f;
 
-  --success:      #4ade80;
-  --success-bg:   #143321;
-  --success-bg-soft: #10281b;
-  --success-on-ink: #15803d; /* --ink flips light in dark mode — needs a dark green instead */
-  --danger:       #f87171;
-  --danger-bg:    #3b1b1b;
-  --danger-bg-soft: #2e1616;
-  --warning:      #fbbf24;
-  --warning-bg:   #37290f;
-  --warning-bg-soft: #2a2110;
-  --info:         #38bdf8;
-  --info-bg:      #122a3a;
+  --rule:      rgba(236,230,218,0.12);
+  --rule-soft: rgba(236,230,218,0.07);
+
+  --on-accent: #1f1a12;
+  --on-solid: #14231b;
+  --select-bg:       #d98b52;
+  --select-ink:      #2b1708;
+  --select-soft-bg:  #3d2616;
+  --select-soft-ink: #f0c9a6;
+
+  --success:      #7fc096;
+  --success-bg:   #1b2e22;
+  --success-bg-soft: #16261c;
+  --success-on-ink: #2f6a56; /* --ink flips light in dark mode — needs a dark green instead */
+  --danger:       #e49488;
+  --danger-bg:    #35201d;
+  --danger-bg-soft: #2b1a18;
+  --warning:      #e0bd78;
+  --warning-bg:   #322a17;
+  --warning-bg-soft: #2a2314;
+  --info:         #8dbbd8;
+  --info-bg:      #1b2a35;
+
+  --cat-stay: #6f93b3;   --cat-food: #b99a5a;   --cat-transport: #6aa68c; --cat-activities: #b8736a;
+  --cat-shopping: #8e7fb5; --cat-health: #b98a5c; --cat-misc: #7f796e;
+  --tint-stay: #2d3a47;  --tint-stay-ink: #bcd3ea;
+  --tint-food: #41351d;  --tint-food-ink: #ecd29b;
+  --tint-transport: #25403a; --tint-transport-ink: #a9d9cb;
+  --tint-activities: #432b2f; --tint-activities-ink: #e8b9c0;
+  --tint-shopping: #353048; --tint-shopping-ink: #cdc6ea;
+  --tint-health: #433024; --tint-health-ink: #ecc7ad;
+  --tint-misc: #34362f;  --tint-misc-ink: #d3d6cb;
 
   --note-0: #322b3a;
   --note-1: #2b333a;
@@ -191,7 +248,7 @@
   --shadow-sm:  0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
   --shadow-md:  0 4px 12px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);
   --shadow-lg:  0 8px 24px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.4);
-  --shadow-amber: 0 4px 16px rgba(249,184,48,0.12);
+  --shadow-amber: 0 4px 16px rgba(201,162,78,0.14);
 
   color-scheme: dark;
 }

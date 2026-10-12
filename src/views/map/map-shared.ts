@@ -5,7 +5,7 @@ import { MAP_PALETTE, MAP_PALETTE_DARK, hashStr } from '../../data/palette.ts';
 const MAP_COLORS_LIGHT = {
   land:        '#f0ead6',
   landStroke:  '#d6c9a8',
-  route:       '#c0392b',
+  route:       '#b5535a',
   ink:         '#3a1d6e',
   hover:       '#e07b54',
   miniLand:    '#f7f5f0',

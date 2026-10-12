@@ -71,9 +71,9 @@
 }
 .guide-tab:hover { background: var(--surface-3); color: var(--ink); }
 .guide-tab.tab-do.active {
-  background: var(--amber-400);
-  border-color: var(--amber-600);
-  color: var(--on-accent);
+  background: var(--select-bg);
+  border-color: var(--select-bg);
+  color: var(--select-ink);
 }
 .guide-tab.tab-know.active {
   background: var(--surface-3);

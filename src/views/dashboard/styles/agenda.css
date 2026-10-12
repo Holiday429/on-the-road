@@ -72,7 +72,7 @@
   transition: background var(--dur-fast), border-color var(--dur-fast);
 }
 .ag-check:hover { border-color: var(--sage-500); }
-.ag-check.is-done { background: var(--sage-500); border-color: var(--sage-500); color: #fff; }
+.ag-check.is-done { background: var(--sage-500); border-color: var(--sage-500); color: var(--on-solid); }
 .ag-check.is-done::after { content: '✓'; }
 
 .ag-more { align-self: flex-start; background: none; cursor: pointer; font-size: var(--fs-xs); font-weight: 600; color: var(--accent-deep); }

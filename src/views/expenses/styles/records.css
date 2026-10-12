@@ -136,7 +136,7 @@ body.exp-records-lock { overflow: hidden; }
   cursor: pointer;
   transition: all var(--dur-fast);
 }
-.exp-budget-tab.active { background: var(--amber-100); color: var(--amber-700); border-color: var(--amber-300); }
+.exp-budget-tab.active { background: var(--select-soft-bg); color: var(--select-soft-ink); border-color: var(--select-bg); }
 .exp-budget-rows { display: flex; flex-direction: column; gap: var(--sp-2); max-height: 46vh; overflow-y: auto; }
 .exp-budget-row {
   display: flex; align-items: center; gap: var(--sp-3);

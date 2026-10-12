@@ -157,9 +157,9 @@ a.guide-icon-btn { text-decoration: none; }
   background: var(--amber-50);
 }
 .guide-map-btn:hover {
-  background: #e8f0fe;
-  border-color: #4285f4;
-  color: #1a73e8;
+  background: var(--info-bg);
+  border-color: var(--info);
+  color: var(--info);
 }
 .guide-commit-btn:hover {
   background: var(--accent);
@@ -167,18 +167,15 @@ a.guide-icon-btn { text-decoration: none; }
   color: var(--on-accent);
 }
 .guide-nomad-btn:hover {
-  background: #fef3e2;
+  background: var(--amber-100);
   border-color: var(--amber-300);
   color: var(--amber-700);
 }
 .guide-nomad-btn.saved {
-  background: var(--sage-400);
+  background: var(--success-bg);
   border-color: var(--sage-500);
-  color: #14532d;
+  color: var(--success);
 }
 
 
 /* ── Dark theme ──────────────────────────────────────────────────────────── */
-:root[data-theme='dark'] .guide-map-btn:hover { background: var(--info-bg); border-color: var(--info); color: var(--info); }
-:root[data-theme='dark'] .guide-nomad-btn:hover { background: var(--amber-50); }
-:root[data-theme='dark'] .guide-nomad-btn.saved { color: #14532d; }

@@ -157,7 +157,7 @@ a.rd-clip-card-title:hover { color: var(--info); text-decoration: underline; }
 .rd-clip-preview-img {
   width: 100%; border-radius: var(--r-md);
   object-fit: contain; display: block;
-  background: var(--surface-2, #f1f1f1);
+  background: var(--surface-2);
   /* Cap very tall images so a single portrait shot can't dominate the modal. */
   max-height: min(60vh, 460px);
 }

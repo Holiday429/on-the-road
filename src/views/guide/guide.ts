@@ -115,7 +115,7 @@ async function generateGuide(city: string, country: string, query: string): Prom
 
     const intel: Partial<CityIntel> & { id: string } = {
       id, city, country,
-      bannerColor: '#fde68a',
+      bannerColor: '#ecd698',
       generatedQuery: query,
     };
     _liveIntel = intel;
@@ -584,7 +584,7 @@ function renderWalkCard(walk: CityWalk, _city: string, idx: number): string {
 }
 
 // Soft pastel tints for imageless cards (restaurants/cafés or photo misses).
-const CARD_TINTS = ['#fef3c7', '#dbeafe', '#dcfce7', '#fae8ff', '#fee2e2', '#ffedd5', '#cffafe', '#fce7f3'];
+const CARD_TINTS = ['#f4e7bf', '#dbe7f1', '#dcebe3', '#e8dcef', '#f2dcdd', '#f3dfcf', '#d9ece9', '#f1dde6'];
 
 function renderKnowTab(intel: StoredCityIntel): string {
   if (!intel.greetings?.length && !intel.customs?.length) return renderSectionLoading(t('guide.loadingCulture'));
@@ -1019,7 +1019,7 @@ function drawWalkRoute(mapEl: HTMLElement, stops: { name: string; lat: number; l
 
   // Dashed route line.
   if (latlngs.length >= 2) {
-    L.polyline(latlngs, { color: '#f59e0b', weight: 3, opacity: 0.85, dashArray: '6 5' }).addTo(map);
+    L.polyline(latlngs, { color: '#c0902f', weight: 3, opacity: 0.85, dashArray: '6 5' }).addTo(map);
   }
 
   // Numbered pins.
@@ -1144,7 +1144,7 @@ function showCommitToast(title: string) {
 function getMockIntel(city: string, country: string): Omit<CityIntel, 'id' | 'createdAt' | 'updatedAt' | 'schemaVersion'> {
   const enc = (s: string) => encodeURIComponent(s);
   return {
-    city, country, flag: '🗺️', bannerColor: '#fde68a', generatedQuery: '',
+    city, country, flag: '🗺️', bannerColor: '#ecd698', generatedQuery: '',
     intro: `${city} is a city full of character waiting to be explored. From its historic streets to its vibrant food scene, there's always something to discover around each corner.`,
     funFacts: [
       'Local markets open at sunrise and are gone by noon',

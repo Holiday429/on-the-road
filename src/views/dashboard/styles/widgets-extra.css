@@ -98,7 +98,7 @@
 .td-pk-weight small { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted); }
 .td-pk-weight.is-over { color: var(--coral-500); }
 .td-pk-bar { height: 7px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
-.td-pk-bar span { display: block; height: 100%; background: #34d399; border-radius: var(--r-full); transition: width var(--dur-mid) var(--ease-out); }
+.td-pk-bar span { display: block; height: 100%; background: var(--sage-500); border-radius: var(--r-full); transition: width var(--dur-mid) var(--ease-out); }
 .td-pk-bar span.is-warn { background: var(--amber-400); }
 .td-pk-bar span.is-over { background: var(--coral-500); }
 .td-pk-allowance { font-size: var(--fs-xs); color: var(--ink-muted); }
@@ -108,8 +108,8 @@
   display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--fs-xs); font-weight: 600; padding: 2px 8px; border-radius: var(--r-full); border: 1px solid transparent;
 }
-.td-pk-chip--add { background: var(--success-bg-soft, #dcfce7); border-color: var(--sage-400, #86efac); color: #166534; }
-.td-pk-chip--drop { background: var(--danger-bg-soft, #fee2e2); border-color: var(--coral-400, #fca5a5); color: var(--danger, #b91c1c); }
+.td-pk-chip--add { background: var(--success-bg-soft); border-color: var(--sage-400); color: var(--success); }
+.td-pk-chip--drop { background: var(--danger-bg-soft); border-color: var(--coral-400); color: var(--danger); }
 .td-pk-empty { font-size: var(--fs-sm); color: var(--ink-muted); }
 .td-pk-create { align-self: flex-start; }
 
@@ -192,7 +192,7 @@
   font-size: var(--fs-sm);
   text-align: left;
 }
-.td-ba-row.is-over    { background: var(--danger-bg-soft); border-color: #fecaca; color: var(--coral-700, var(--danger)); }
+.td-ba-row.is-over    { background: var(--danger-bg-soft); border-color: var(--coral-400); color: var(--coral-700, var(--danger)); }
 .td-ba-row.is-warning { background: var(--warning-bg-soft); border-color: var(--amber-200); color: var(--warning); }
 .td-ba-flag { font-size: 1.1em; flex-shrink: 0; }
 .td-ba-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }

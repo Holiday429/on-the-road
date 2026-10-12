@@ -18,7 +18,7 @@ import { tripHasRecommendations, wtgCards, WTG_TABS, type WtgCard, type WtgTab }
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 
-const TINTS = ['#fef3c7', '#dbeafe', '#dcfce7', '#fae8ff', '#fee2e2', '#ffedd5'];
+const TINTS = ['#f4e7bf', '#dbe7f1', '#dcebe3', '#e8dcef', '#f2dcdd', '#f3dfcf'];
 const TYPE_EMOJI: Record<string, string> = { attraction: '🏛️', experience: '✨', restaurant: '🍽️', cafe: '☕', work: '💼' };
 
 let _tab: WtgTab = 'all';

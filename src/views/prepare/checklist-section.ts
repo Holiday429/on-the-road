@@ -809,7 +809,7 @@ function renderCelebrate(container: HTMLElement) {
 }
 
 function launchConfetti(container: HTMLElement) {
-  const colors = ['#f9b830', '#ef4444', '#22c55e', '#38bdf8', '#a78bfa', '#f472b6'];
+  const colors = ['#e3b866', '#bf6670', '#4f9a86', '#8fb0cf', '#a597cf', '#d38a9c'];
   for (let i = 0; i < 80; i++) {
     const el = document.createElement('div');
     el.className = 'confetti-piece';
