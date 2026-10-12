@@ -335,7 +335,7 @@ function renderForm(el: HTMLElement) {
             </button>
           `).join('')}
           <button type="button" class="ck-key ck-key--new" id="exp-cat-manage" title="Manage categories">
-            <span class="ck-key-emoji" aria-hidden="true">＋</span>
+            <span class="ck-key-emoji" aria-hidden="true">+</span>
             <span class="ck-key-label">${escHtml(t('expenses.mart.newKey'))}</span>
           </button>
         </div>
