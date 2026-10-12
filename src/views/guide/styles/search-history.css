@@ -88,7 +88,7 @@
 .guide-refine-toggle.active {
   background: var(--accent-bg);
   border-color: var(--accent);
-  color: var(--ink);
+  color: var(--on-accent);
 }
 
 /* Refine row — hidden by default, shown on toggle */

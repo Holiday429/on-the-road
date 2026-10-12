@@ -40,7 +40,7 @@
 }
 .ag-cell:not(.ag-empty):hover .ag-num { background: var(--amber-50); }
 .ag-cell.is-today .ag-num { box-shadow: inset 0 0 0 1.5px var(--amber-400); font-weight: var(--fw-semibold); color: var(--ink); }
-.ag-cell.is-sel .ag-num { background: var(--amber-300, var(--amber-200)); box-shadow: none; font-weight: var(--fw-semibold); color: var(--ink); }
+.ag-cell.is-sel .ag-num { background: var(--amber-300, var(--amber-200)); box-shadow: none; font-weight: var(--fw-semibold); color: var(--on-accent); }
 .ag-cell.is-today.is-sel .ag-num { box-shadow: inset 0 0 0 1.5px var(--amber-500); }
 
 /* Day panel */

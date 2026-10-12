@@ -129,7 +129,7 @@
   border-style: solid;
   border-color: var(--accent);
   background: var(--accent-bg);
-  color: var(--ink);
+  color: var(--on-accent);
 }
 .guide-more-btn:disabled { opacity: 0.7; cursor: default; }
 

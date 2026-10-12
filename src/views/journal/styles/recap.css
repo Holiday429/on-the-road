@@ -616,7 +616,7 @@
   border: 1px solid var(--accent);
   border-radius: var(--r-full);
   background: var(--accent-light);
-  color: var(--ink);
+  color: var(--on-accent);
   font-family: var(--font-ui);
   font-size: 2.8cqw;
   font-weight: var(--fw-medium);
