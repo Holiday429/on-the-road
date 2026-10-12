@@ -109,7 +109,7 @@
 .td-plus {
   flex-shrink: 0; width: 26px; height: 26px; border-radius: var(--r-full);
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--amber-400, var(--accent)); color: var(--ink);
+  background: var(--amber-400, var(--accent)); color: var(--on-accent);
   font-family: var(--font-ui); font-size: 17px; font-weight: 700; line-height: 1; cursor: pointer;
   transition: background var(--dur-fast), transform var(--dur-fast);
 }
@@ -145,7 +145,7 @@
 .td-todo-newrow:focus-within { border-color: var(--amber-400); background: var(--surface); }
 .td-todo-plus {
   flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--amber-400, var(--accent)); color: var(--ink); font-weight: 700; font-size: 14px; line-height: 1;
+  background: var(--amber-400, var(--accent)); color: var(--on-accent); font-weight: 700; font-size: 14px; line-height: 1;
 }
 .td-todo-newrow .td-todo-add-input {
   flex: 1; min-width: 0; height: auto; min-height: 20px; padding: 0; margin: 0; border: 0; background: transparent; outline: none;
@@ -166,5 +166,5 @@
 .td-ic.is-set { background: var(--amber-50); border-color: var(--amber-400); color: var(--ink); }
 .td-ic-v { font-size: 11px; font-weight: 600; white-space: nowrap; }
 .td-ic-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.td-todo-go { width: 24px; height: 24px; border-radius: var(--r-full); background: var(--amber-400, var(--accent)); color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer; }
+.td-todo-go { width: 24px; height: 24px; border-radius: var(--r-full); background: var(--amber-400, var(--accent)); color: var(--on-accent); font-size: 14px; font-weight: 700; cursor: pointer; }
 .td-todo-go:hover { background: var(--amber-500, var(--accent)); }

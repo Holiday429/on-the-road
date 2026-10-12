@@ -80,7 +80,7 @@
 /* + sits under the list, at the bottom of the day panel */
 .ag-add {
   margin-top: auto; align-self: stretch; padding: 5px 10px; border-radius: var(--r-md); cursor: pointer;
-  background: var(--amber-400, var(--accent)); color: var(--ink);
+  background: var(--amber-400, var(--accent)); color: var(--on-accent);
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; text-align: center;
   transition: background var(--dur-fast), transform var(--dur-fast);
 }

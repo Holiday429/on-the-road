@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>On the Road · 哑光色板预览</title>
+<link rel="stylesheet" href="../../public/fonts/fonts.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* ── Token sets ─────────────────────────────────────────────────────────────
+   "now"   = values copied from src/core/base.css today
+   "matte" = proposal. Same token names, so a swap is a value change only.   */
+.pv[data-set="now"][data-mode="light"] {
+  --a50:#fffbf0; --a100:#fef3c7; --a200:#fde68a; --a300:#fcd34d; --a400:#f9b830; --a500:#f59e0b; --a600:#d97706; --a700:#b45309;
+  --coral:#ef4444; --sage:#22c55e; --sky:#0ea5e9;
+  --ink:#1c1917; --ink-soft:#44403c; --ink-muted:#78716c; --ink-faint:#a8a29e;
+  --page:#fafaf9; --surface:#ffffff; --surface3:#f5f5f4; --surface4:#e7e5e4; --rule:rgba(28,25,23,.08);
+  --on-accent:#1c1917;
+  --ok:#15803d; --ok-bg:#dcfce7; --bad:#b91c1c; --bad-bg:#fee2e2; --warn:#92400e; --warn-bg:#fef3c7; --info:#0369a1; --info-bg:#e0f2fe;
+  --c-stay:#ddeeff; --c-food:#fdf3dd; --c-trans:#d1f5e8; --c-act:#fce4e4; --c-shop:#ede8fb; --c-health:#ffecd6; --c-misc:#e8e8e8;
+  --nav-bg:#f0cb73; --nav-ink:#754500;
+}
+.pv[data-set="now"][data-mode="dark"] {
+  --a50:#2e2513; --a100:#3b2f16; --a200:#55431d; --a300:#fcd34d; --a400:#f9b830; --a500:#f59e0b; --a600:#d97706; --a700:#b45309;
+  --coral:#ef4444; --sage:#22c55e; --sky:#0ea5e9;
+  --ink:#f0ebe2; --ink-soft:#cfc8bc; --ink-muted:#9c9486; --ink-faint:#6e675c;
+  --page:#191714; --surface:#262320; --surface3:#322e29; --surface4:#423d36; --rule:rgba(240,235,226,.10);
+  --on-accent:#1c1917;
+  --ok:#4ade80; --ok-bg:#143321; --bad:#f87171; --bad-bg:#3b1b1b; --warn:#fbbf24; --warn-bg:#37290f; --info:#38bdf8; --info-bg:#122a3a;
+  --c-stay:#ddeeff; --c-food:#fdf3dd; --c-trans:#d1f5e8; --c-act:#fce4e4; --c-shop:#ede8fb; --c-health:#ffecd6; --c-misc:#e8e8e8;
+  --nav-bg:#f0cb73; --nav-ink:#754500;
+}
+.pv[data-set="matte"][data-mode="light"] {
+  --a50:#f8f2e3; --a100:#f0e5c6; --a200:#e4d3a2; --a300:#d9bf80; --a400:#d0a74f; --a500:#a07829; --a600:#86662a; --a700:#74561f;
+  --coral:#b5574b; --sage:#5f8d6e; --sky:#5b8bad;
+  --ink:#27221d; --ink-soft:#4f473e; --ink-muted:#766d61; --ink-faint:#8d8477;
+  --page:#f5f1e9; --surface:#fcfaf5; --surface3:#eee9de; --surface4:#e0d9ca; --rule:rgba(39,34,29,.11);
+  --on-accent:#27221d;
+  --ok:#2f6b47; --ok-bg:#dfeadf; --bad:#a3382d; --bad-bg:#f1dcd8; --warn:#74561f; --warn-bg:#f0e5c6; --info:#335f80; --info-bg:#dce7ef;
+  --c-stay:#5b88ab; --c-food:#9f7b30; --c-trans:#4f9a7e; --c-act:#bd6f64; --c-shop:#8776b3; --c-health:#c68854; --c-misc:#8f897f;
+  --nav-bg:#e4d3a2; --nav-ink:#5e4519;
+}
+.pv[data-set="matte"][data-mode="dark"] {
+  --a50:#2b2415; --a100:#372d19; --a200:#4d3f22; --a300:#a88a4a; --a400:#c9a24e; --a500:#d4ae60; --a600:#dcba74; --a700:#e6c98e;
+  --coral:#d3857a; --sage:#78a98a; --sky:#7fa8c6;
+  --ink:#ece6da; --ink-soft:#c9c1b2; --ink-muted:#9a9283; --ink-faint:#6f685c;
+  --page:#171512; --surface:#211e1a; --surface3:#2b2723; --surface4:#3a352f; --rule:rgba(236,230,218,.12);
+  --on-accent:#1f1a12;
+  --ok:#7fc096; --ok-bg:#1b2e22; --bad:#e49488; --bad-bg:#35201d; --warn:#e0bd78; --warn-bg:#322a17; --info:#8dbbd8; --info-bg:#1b2a35;
+  --c-stay:#6f93b3; --c-food:#b99a5a; --c-trans:#6aa68c; --c-act:#b8736a; --c-shop:#8e7fb5; --c-health:#b98a5c; --c-misc:#7f796e;
+  --nav-bg:#4d3f22; --nav-ink:#e6c98e;
+}
+
+/* ── Page ──────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'DM Sans', system-ui, sans-serif; background: #e8e4dc; color: #27221d; padding: 28px 20px 64px; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+h1 { font-family: 'Sora', system-ui, sans-serif; font-size: 24px; margin: 0 0 6px; }
+.lede { color: #5c554b; max-width: 70ch; margin: 0 0 24px; line-height: 1.55; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+.colhead { font-family: 'Sora', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; color: #5c554b; margin: 10px 0 0; }
+
+.pv { background: var(--page); color: var(--ink); border-radius: 14px; padding: 18px; border: 1px solid rgba(0,0,0,.08); display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pv .tag { font: 600 11px 'JetBrains Mono', monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); }
+.ramp { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.ramp i { display: block; height: 34px; border-radius: 6px; border: 1px solid var(--rule); }
+.ramp-lbl { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; font: 10px 'JetBrains Mono', monospace; color: var(--ink-faint); text-align: center; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { font: 600 13px 'Sora', sans-serif; padding: 9px 16px; border-radius: 999px; border: 1px solid transparent; cursor: default; }
+.btn-p { background: var(--a400); color: var(--on-accent); }
+.btn-g { background: var(--surface); color: var(--ink); border-color: var(--rule); }
+.chip { font: 600 12px 'DM Sans', sans-serif; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink-soft); }
+.chip.sel { background: var(--a400); color: var(--on-accent); border-color: transparent; }
+.chip.soft { background: var(--a100); color: var(--a700); border-color: transparent; }
+.nav { padding: 8px 14px; border-radius: 10px; font: 600 13px 'Sora', sans-serif; background: var(--nav-bg); color: var(--nav-ink); }
+.pill { font: 700 11px 'DM Sans', sans-serif; padding: 3px 9px; border-radius: 999px; }
+.p-ok { background: var(--ok-bg); color: var(--ok); } .p-bad { background: var(--bad-bg); color: var(--bad); }
+.p-warn { background: var(--warn-bg); color: var(--warn); } .p-info { background: var(--info-bg); color: var(--info); }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 14px; padding: 14px; }
+.bars { display: grid; gap: 9px; }
+.bar { height: 7px; background: var(--surface3); border-radius: 99px; overflow: hidden; }
+.bar b { display: block; height: 100%; border-radius: 99px; }
+.barrow { display: grid; grid-template-columns: 70px 1fr 46px; gap: 10px; align-items: center; font-size: 12px; color: var(--ink-muted); }
+.bad-text { color: var(--bad); font-weight: 700; }
+.donut-wrap { display: flex; gap: 16px; align-items: center; }
+.legend { display: grid; gap: 5px; font-size: 12px; color: var(--ink-soft); }
+.legend span i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+/* ticket (matches booking.css structure, simplified) */
+.ticket { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; overflow: hidden; }
+.tk-head { background: var(--sky); color: #fff; padding: 7px 14px; display: flex; justify-content: space-between; font: 600 11px 'JetBrains Mono', monospace; letter-spacing: .12em; }
+.tk-body { padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; }
+.tk-code { font: 600 22px 'JetBrains Mono', monospace; color: var(--ink); }
+.tk-city { font-size: 12px; color: var(--ink-muted); }
+.tk-foot { border-top: 1.5px dashed var(--rule); padding: 8px 14px; font: 11px 'JetBrains Mono', monospace; color: var(--ink-muted); }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* contrast table */
+table { width: 100%; border-collapse: collapse; font-size: 12px; background: #fff; border-radius: 10px; overflow: hidden; }
+th, td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #eee; }
+th { background: #f3efe6; font-weight: 600; }
+.pass { color: #2f6b47; font-weight: 700; } .fail { color: #a3382d; font-weight: 700; }
+h2 { font-family: 'Sora', sans-serif; font-size: 16px; margin: 34px 0 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>哑光色板预览</h1>
+  <p class="lede">左边是现在 <code>base.css</code> 里的值，右边是哑光方案，token 名字完全相同，替换只是改值。每个面板里都是真实会出现的组件。深色模式下，琥珀 300–700 现在是“不变”的，方案里改成了单独的深色值。页面底部的对比度表是用面板里的实际值实时算出来的。</p>
+
+  <div class="grid" id="panels"></div>
+
+  <h2>对比度检查（WCAG，正文需 ≥ 4.5，大字 / 图形需 ≥ 3）</h2>
+  <div id="contrast"></div>
+</div>
+
+<template id="panel">
+  <div class="pv">
+    <div class="tag"></div>
+    <div>
+      <div class="ramp"><i style="background:var(--a50)"></i><i style="background:var(--a100)"></i><i style="background:var(--a200)"></i><i style="background:var(--a300)"></i><i style="background:var(--a400)"></i><i style="background:var(--a500)"></i><i style="background:var(--a600)"></i><i style="background:var(--a700)"></i></div>
+      <div class="ramp-lbl"><span>50</span><span>100</span><span>200</span><span>300</span><span>400</span><span>500</span><span>600</span><span>700</span></div>
+    </div>
+    <div class="row">
+      <span class="btn btn-p">+ New trip</span><span class="btn btn-g">Cancel</span>
+      <span class="chip sel">🍜 Food</span><span class="chip">🏠 Stay</span><span class="chip soft">Booked</span>
+    </div>
+    <div class="row"><span class="nav">🏠 Dashboard</span>
+      <span class="pill p-ok">Confirmed</span><span class="pill p-warn">Pending</span><span class="pill p-bad">Over</span><span class="pill p-info">Info</span></div>
+    <div class="card">
+      <div class="bars">
+        <div class="barrow"><span>Stay</span><div class="bar"><b style="width:39%;background:var(--sage)"></b></div><span class="mono">39%</span></div>
+        <div class="barrow"><span>Food</span><div class="bar"><b style="width:86%;background:var(--a500)"></b></div><span class="mono">86%</span></div>
+        <div class="barrow"><span>Transport</span><div class="bar"><b style="width:100%;background:var(--coral)"></b></div><span class="mono bad-text">113%</span></div>
+      </div>
+    </div>
+    <div class="card donut-wrap">
+      <svg width="92" height="92" viewBox="0 0 42 42" aria-hidden="true">
+        <circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--surface3)" stroke-width="5"/>
+        <g fill="none" stroke-width="5" transform="rotate(-90 21 21)">
+          <circle cx="21" cy="21" r="15.9" stroke="var(--c-stay)"   stroke-dasharray="39 61" stroke-dashoffset="0"/>
+          <circle cx="21" cy="21" r="15.9" stroke="var(--c-trans)"  stroke-dasharray="27 73" stroke-dashoffset="-39"/>
+          <circle cx="21" cy="21" r="15.9" stroke="var(--c-food)"   stroke-dasharray="22 78" stroke-dashoffset="-66"/>
+          <circle cx="21" cy="21" r="15.9" stroke="var(--c-act)"    stroke-dasharray="5 95"  stroke-dashoffset="-88"/>
+          <circle cx="21" cy="21" r="15.9" stroke="var(--c-shop)"   stroke-dasharray="4 96"  stroke-dashoffset="-93"/>
+          <circle cx="21" cy="21" r="15.9" stroke="var(--c-health)" stroke-dasharray="3 97"  stroke-dashoffset="-97"/>
+        </g>
+      </svg>
+      <div class="legend">
+        <span><i style="background:var(--c-stay)"></i>Stay 39%</span><span><i style="background:var(--c-trans)"></i>Transport 27%</span>
+        <span><i style="background:var(--c-food)"></i>Food 22%</span><span><i style="background:var(--c-act)"></i>Activities 5%</span>
+        <span><i style="background:var(--c-shop)"></i>Shopping 4%</span><span><i style="background:var(--c-misc)"></i>Misc</span>
+      </div>
+    </div>
+    <div class="ticket">
+      <div class="tk-head"><span>BOARDING PASS</span><span>CA597</span></div>
+      <div class="tk-body">
+        <div><div class="tk-code">16:30</div><div class="tk-city">Harbin</div></div>
+        <div style="color:var(--sky)">✈ ─ ─ ─</div>
+        <div style="text-align:right"><div class="tk-code">20:15</div><div class="tk-city">Copenhagen</div></div>
+      </div>
+      <div class="tk-foot">GATE T3 · SEAT 41A · ¥74,081</div>
+    </div>
+  </div>
+</template>
+
+<script>
+const SETS = [
+  ['now', 'light', '现在 · 亮色'], ['matte', 'light', '哑光 · 亮色'],
+  ['now', 'dark',  '现在 · 暗色'], ['matte', 'dark',  '哑光 · 暗色'],
+];
+const host = document.getElementById('panels');
+const tpl = document.getElementById('panel');
+const panels = SETS.map(([set, mode, label]) => {
+  const el = tpl.content.firstElementChild.cloneNode(true);
+  el.dataset.set = set; el.dataset.mode = mode;
+  el.querySelector('.tag').textContent = label;
+  host.appendChild(el);
+  return { el, set, mode, label };
+});
+
+/* WCAG contrast from the panels' real computed values */
+function parse(c) {
+  const m = c.match(/rgba?\(([^)]+)\)/); if (m) return m[1].split(',').slice(0, 3).map(Number);
+  const h = c.trim().replace('#', ''); const n = h.length === 3 ? h.split('').map(x => x + x).join('') : h;
+  return [0, 2, 4].map(i => parseInt(n.slice(i, i + 2), 16));
+}
+const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }; return .2126 * f(r) + .7152 * f(g) + .0722 * f(b); };
+const ratio = (a, b) => { const [x, y] = [lum(parse(a)), lum(parse(b))].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+const PAIRS = [
+  ['按钮文字 on 主黄 (--on-accent / --a400)', '--on-accent', '--a400', 4.5],
+  ['正文 on 卡片 (--ink / --surface)', '--ink', '--surface', 4.5],
+  ['次要文字 on 卡片 (--ink-muted / --surface)', '--ink-muted', '--surface', 4.5],
+  ['弱化文字 on 页面 (--ink-faint / --page)', '--ink-faint', '--page', 3],
+  ['强调文字 on 浅黄底 (--a700 / --a100)', '--a700', '--a100', 4.5],
+  ['导航选中 (--nav-ink / --nav-bg)', '--nav-ink', '--nav-bg', 4.5],
+  ['成功 pill (--ok / --ok-bg)', '--ok', '--ok-bg', 4.5],
+  ['危险 pill (--bad / --bad-bg)', '--bad', '--bad-bg', 4.5],
+  ['提醒 pill (--warn / --warn-bg)', '--warn', '--warn-bg', 4.5],
+  ['进度条 80% 琥珀 on 轨道 (--a500 / --surface3)', '--a500', '--surface3', 3],
+  ['进度条 超支 on 轨道 (--coral / --surface3)', '--coral', '--surface3', 3],
+  ['环形图 住宿 on 轨道 (--c-stay / --surface3)', '--c-stay', '--surface3', 3],
+  ['环形图 餐饮 on 轨道 (--c-food / --surface3)', '--c-food', '--surface3', 3],
+];
+let html = '<table><thead><tr><th>组合</th>' + panels.map(p => `<th>${p.label}</th>`).join('') + '</tr></thead><tbody>';
+for (const [name, fg, bg, need] of PAIRS) {
+  html += `<tr><td>${name} <span style="color:#999">≥${need}</span></td>`;
+  for (const p of panels) {
+    const cs = getComputedStyle(p.el);
+    const r = ratio(cs.getPropertyValue(fg), cs.getPropertyValue(bg));
+    html += `<td class="${r >= need ? 'pass' : 'fail'}">${r.toFixed(2)}</td>`;
+  }
+  html += '</tr>';
+}
+document.getElementById('contrast').innerHTML = html + '</tbody></table>';
+</script>
+</body>
+</html>
