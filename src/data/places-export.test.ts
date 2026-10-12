@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  resolvePlaceRef, textQuery, legGroups, nomadGroups, tripGroups, groupsPlaces,
+  resolvePlaceRef, textQuery, legGroups, nomadGroups, tripGroups, groupsPlaces, exportScopes,
   type ExportPlace,
 } from './places-export.ts';
 import type { Leg, NomadSpot } from './schema.ts';
@@ -106,5 +106,27 @@ describe('nomadGroups / tripGroups', () => {
     const l0 = leg({ id: 'l0', city: 'Paris', order: 0, plans: [item('b', 'Louvre', null)] as Leg['plans'] });
     const names = groupsPlaces(tripGroups([l1, l0], [spot('Cafe', 'Rome')]));
     expect(names.map(p => p.name)).toEqual(['Louvre', 'Colosseum', 'Cafe']);
+  });
+});
+
+describe('exportScopes', () => {
+  const spot = (name: string, city: string) => ({ id: name, name, city, type: 'Café' }) as unknown as NomadSpot;
+  const paris = leg({ id: 'p', city: 'Paris', flag: '🇫🇷', order: 0, plans: [item('a', 'Louvre', null)] as Leg['plans'] });
+  const empty = leg({ id: 'e', city: 'Nowhere', order: 1 });
+  const rome = leg({ id: 'r', city: 'Rome', order: 2, plans: [item('b', 'Colosseum', null)] as Leg['plans'] });
+
+  it('leads with the whole trip, then one scope per leg that has places', () => {
+    const scopes = exportScopes([rome, empty, paris], [spot('Cafe', 'rome')]);
+    expect(scopes.map(s => s.id)).toEqual(['trip', 'p', 'r']);
+    expect(scopes[1].label).toBe('🇫🇷 Paris');
+  });
+
+  it('attaches nomad spots to the matching city case-insensitively', () => {
+    const rome2 = exportScopes([rome], [spot('Cafe', ' ROME ')]).find(s => s.id === 'r')!;
+    expect(groupsPlaces(rome2.groups).map(p => p.name)).toEqual(['Colosseum', 'Cafe']);
+  });
+
+  it('returns no scopes when nothing is exportable', () => {
+    expect(exportScopes([empty])).toEqual([]);
   });
 });

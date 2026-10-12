@@ -208,3 +208,26 @@ export function tripGroups(legs: Leg[], nomadSpots: NomadSpot[] = [], opts: LegG
 export function groupsPlaces(groups: ExportGroup[]): ExportPlace[] {
   return groups.flatMap(g => g.places);
 }
+
+/* ── Scopes (what the user picks in the export sheet) ─────────────────────── */
+
+export interface ExportScope {
+  id: string;
+  label: string;
+  groups: ExportGroup[];
+}
+
+/**
+ * "Whole trip" first, then one scope per city/leg (that leg's days + stays +
+ * any nomad spots filed under the same city). Scopes with no places are dropped.
+ */
+export function exportScopes(legs: Leg[], nomadSpots: NomadSpot[] = [], opts: LegGroupOptions = {}): ExportScope[] {
+  const ordered = [...legs].sort((a, b) => byOrder(a, b) || a.dateFrom.localeCompare(b.dateFrom));
+  const scopes: ExportScope[] = [{ id: 'trip', label: 'Whole trip', groups: tripGroups(legs, nomadSpots, opts) }];
+  for (const leg of ordered) {
+    const cityKey = leg.city.trim().toLowerCase();
+    const cityNomad = nomadGroups(nomadSpots.filter(s => s.city.trim().toLowerCase() === cityKey));
+    scopes.push({ id: leg.id, label: `${leg.flag} ${leg.city}`.trim(), groups: [...legGroups(leg, opts), ...cityNomad] });
+  }
+  return scopes.filter(s => groupsPlaces(s.groups).length > 0);
+}
