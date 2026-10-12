@@ -12,7 +12,7 @@ import {
 } from '../../data/stores/checklist-store.ts';
 import { currentTrip, currentTripId } from '../../data/trip-context.ts';
 import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/schema.ts';
-import { noteVar } from '../../data/palette.ts';
+import { noteVar, hashStr } from '../../data/palette.ts';
 import { escHtml } from '../../core/utils.ts';
 import { postJson } from '../../core/api.ts';
 import { aiLanguage, t } from '../../core/i18n.ts';
@@ -479,6 +479,20 @@ function groupTilt(id: string): number {
 }
 
 
+/** How a note is held to the board: tape, corner tape, a thumbtack or a safety pin —
+ *  picked from the group id, so it varies between notes but never between renders. */
+const PIN_COLOURS = ['var(--coral-500)', 'var(--sky-500)', 'var(--sage-500)', 'var(--amber-500)'];
+const FASTENERS = ['tape', 'corner', 'pin', 'safety', 'tape', 'pin'] as const;
+function fastener(id: string): string {
+  const h = hashStr(id);
+  const kind = FASTENERS[h % FASTENERS.length];
+  const colour = PIN_COLOURS[(h >> 3) % PIN_COLOURS.length];
+  const safety = kind === 'safety'
+    ? '<svg viewBox="0 0 44 18"><path d="M6 5 H34 a5 5 0 0 1 0 8 H8 a4 4 0 0 1 0 -8 H30"/><circle cx="6" cy="9" r="3.4"/></svg>'
+    : '';
+  return `<span class="prep-group-fix prep-group-fix--${kind}" style="--pin:${colour}" aria-hidden="true">${safety}</span>`;
+}
+
 function renderGroup(checklistId: string, group: ChecklistGroup, index: number): string {
   const done = group.items.filter(i => i.done).length;
   const total = group.items.length;
@@ -494,7 +508,7 @@ function renderGroup(checklistId: string, group: ChecklistGroup, index: number):
          data-group-id="${group.id}"
          draggable="true"
          style="--tilt:${tilt}deg; --note-bg:${color}">
-      <span class="prep-group-tape" aria-hidden="true"></span>
+      ${fastener(group.id)}
       ${allDone ? `<span class="paper-stamp paper-stamp--good prep-group-stamp">${escHtml(t('prep.groupDone'))}</span>` : ''}
       <div class="prep-group-header">
         <span class="group-icon">${escHtml(group.icon)}</span>
