@@ -63,6 +63,32 @@ export function countryColor(iso: string): string {
   return table[iso] ?? palette[hashStr(iso) % palette.length];
 }
 
+/* ── World palette ────────────────────────────────────────────────────────────
+   The World view paints from the app's CSS tokens (read when called, so a theme
+   switch just needs another call) rather than from colour literals. */
+function token(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || 'rgb(128,128,128)';
+}
+
+export interface WorldPalette {
+  ocean: string; land: string; border: string; graticule: string;
+  /** Visited ramp, 1 visit → 4+ visits. */
+  visited: [string, string, string, string];
+  planned: string; plannedLine: string;
+}
+
+export function worldPalette(): WorldPalette {
+  return {
+    ocean: token('--surface'),
+    land: token('--surface-3'),
+    border: token('--ink-faint'),
+    graticule: token('--ink-faint'),
+    visited: [token('--amber-300'), token('--amber-400'), token('--amber-500'), token('--amber-600')],
+    planned: token('--amber-300'),
+    plannedLine: token('--amber-500'),
+  };
+}
+
 /* ── Repaint registry ─────────────────────────────────────────────────────── */
 const _repaints = new Set<() => void>();
 let _listening = false;

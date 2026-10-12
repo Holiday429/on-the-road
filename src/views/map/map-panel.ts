@@ -11,11 +11,10 @@ import { escHtml as esc } from '../../core/utils.ts';
 import { fmtRange, nights } from './map-geo.ts';
 import { fmtKm, type FlightChain, type PlottedLeg, type RouteSummary } from './map-stats.ts';
 import { legVisitState } from './map-status.ts';
+import type { UnlocatedStop } from './map-plot.ts';
 
 export type MapScope = 'trip' | 'all';
 
-/** A stop geocoding could not place (shown instead of silently dropped). */
-export interface UnlocatedStop { legId: string; place: string; }
 
 export function scopeToggleMarkup(scope: MapScope): string {
   return `

@@ -1,0 +1,78 @@
+import { describe, expect, it } from 'vitest';
+import { overviewMarkup, countryMarkup, emptyMarkup, countryTip } from './world-panel.ts';
+import { buildWorldModel } from './world-model.ts';
+import { buildCountryDetail } from './country-model.ts';
+import type { PlottedLeg } from '../map-stats.ts';
+
+const legs: PlottedLeg[] = [
+  { id: '1', city: 'Copenhagen', country: 'Denmark', flag: '🇩🇰', dateFrom: '2026-04-01', dateTo: '2026-04-05', lat: 55, lng: 12, iso: 'DK', tripId: 'a', stops: [{ key: 'copenhagen', name: 'Copenhagen', lat: 55, lng: 12 }] },
+  { id: '2', city: 'Rome', country: 'Italy', flag: '🇮🇹', dateFrom: '2026-12-01', dateTo: '2026-12-05', lat: 41, lng: 12, iso: 'IT', tripId: 'b', stops: [{ key: 'rome', name: 'Rome', lat: 41, lng: 12 }] },
+];
+const trips = [
+  { id: 'a', name: 'Spring <b>trip</b>', color: 'rgb(1,2,3)', startDate: '2026-04-01', endDate: '2026-04-05' },
+  { id: 'b', name: 'Winter', color: 'rgb(4,5,6)', startDate: '2026-12-01', endDate: '2026-12-05' },
+];
+const TODAY = '2026-07-10';
+const model = buildWorldModel(legs, trips, TODAY);
+const base = { model, mode: 'count' as const, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
+
+describe('overviewMarkup', () => {
+  const html = overviewMarkup(base);
+  it('shows totals that exclude the planned country', () => {
+    expect(html).toContain('map-stat-num">1<');   // countries
+  });
+  it('offers "open current route" only when the current trip has stops', () => {
+    expect(html).toContain('data-act="open-route"');
+    expect(overviewMarkup({ ...base, currentTripId: 'zzz' })).not.toContain('data-act="open-route"');
+    expect(overviewMarkup({ ...base, currentTripId: null })).not.toContain('data-act="open-route"');
+  });
+  it('lists every trip as a chip and marks the active filter', () => {
+    expect(html.match(/data-trip="/g)).toHaveLength(2);
+    expect(overviewMarkup({ ...base, onlyTripId: 'b' })).toMatch(/world-trip active[^>]*data-trip="b"/);
+  });
+  it('lists countries as buttons and tags the planned one', () => {
+    expect(html).toContain('data-country="DK"');
+    expect(html).toMatch(/world-country planned" data-country="IT"/);
+  });
+  it('marks the colour mode', () => {
+    expect(html).toMatch(/map-scope-btn active" data-color="count"/);
+    expect(overviewMarkup({ ...base, mode: 'trip' })).toMatch(/map-scope-btn active" data-color="trip"/);
+  });
+  it('shows the passport card only when there are stamps', () => {
+    expect(html).toContain('data-open-passport');
+    expect(overviewMarkup({ ...base, passport: null })).not.toContain('data-open-passport');
+  });
+  it('escapes trip names', () => {
+    expect(html).not.toContain('<b>trip</b>');
+    expect(html).toContain('&lt;b&gt;');
+  });
+  it('lists stops that could not be placed', () => {
+    expect(overviewMarkup({ ...base, unlocated: [{ legId: 'x', place: 'Nowhere' }] })).toContain('<li>Nowhere</li>');
+  });
+});
+
+describe('countryMarkup', () => {
+  it('shows header, stats, stamps, trips and the route/back actions', () => {
+    const detail = buildCountryDetail('DK', legs, model, TODAY)!;
+    const html = countryMarkup({ detail, locale: 'en-US', stampHtml: (s) => `<i data-stamp="${s.id}"></i>` });
+    expect(html).toContain('Denmark');
+    expect(html).toContain('data-act="back"');
+    expect(html).toContain('data-route-trip="a"');
+    expect(html).toContain('data-act="guide"');
+    expect(html.match(/data-stamp=/g)!.length).toBe(detail.stamps.length);
+    expect(html).not.toContain('world.country');   // every key resolved
+  });
+  it('says so for a planned country', () => {
+    const detail = buildCountryDetail('IT', legs, model, TODAY)!;
+    expect(countryMarkup({ detail, locale: 'en-US', stampHtml: () => '' })).toContain('Planned — not visited yet');
+  });
+});
+
+describe('misc', () => {
+  it('has an empty state and pluralised tooltips', () => {
+    expect(emptyMarkup()).toContain('No stops on the map yet');
+    expect(countryTip('Denmark', '🇩🇰', 1, false)).toBe('🇩🇰 Denmark · 1 visit');
+    expect(countryTip('Denmark', '🇩🇰', 3, false)).toBe('🇩🇰 Denmark · 3 visits');
+    expect(countryTip('Italy', '', 0, true)).toBe('Italy · planned');
+  });
+});

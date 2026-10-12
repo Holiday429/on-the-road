@@ -13,15 +13,14 @@
    ========================================================================== */
 
 import './map.css';
-import { renderViewTitleMarkup } from '../../core/app.ts';
-import { resolveCityLocations } from './geo.ts';
-import { isoForCountry, EUROPE_CENTER } from '../../data/geo-index.ts';
+import { EUROPE_CENTER } from '../../data/geo-index.ts';
+import { plotStoredLegs, type StoredLegInput } from './map-plot.ts';
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
 import { createMapRoot, disposeRoot, motionMs, prefersReducedMotion } from './amcharts-boot.ts';
 import { mapColors as C, countryColor, onMapRepaint } from './map-theme.ts';
 import { legVisitState } from './map-status.ts';
-import { t, getLocale, onLocaleChange } from '../../core/i18n.ts';
+import { t, getLocale } from '../../core/i18n.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import {
   type GeoPt, arcPoints, chainWaypoints,
@@ -57,15 +56,6 @@ const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
 const HERO_GIF  = `${ART}logo.webp`;
 const PLANE_PNG = `${ART}plane.png`;
 
-interface StoredLegInput {
-  id: string; city: string; country: string; flag: string;
-  dateFrom: string; dateTo: string; notes?: string;
-  order?: number; lat?: number; lng?: number;
-  tripId?: string | null;
-  arrivalTransport?: {
-    type: string; from: string; to: string; via?: string[];
-  };
-}
 // PlottedLeg, FlightChain, CountryStop are defined in ./map-stats.ts (imported
 // above) so the pure route-stats logic can be tested without this module.
 interface OverlayItem {
@@ -145,35 +135,10 @@ function setReplayBtnLabel(playing: boolean) {
 const loc = () => getLocale();
 
 /* ── Data ─────────────────────────────────────────────────────────────────── */
-/**
- * Resolve every leg's cities to coordinates (saved → bundled → online),
- * persisting the anchor coords back onto the leg so we don't re-geocode next
- * time. Legs whose city can't be located at all are left off the map but
- * recorded in `_unlocated`, which the side panel lists.
- */
 async function plotLegs(stored: StoredLegInput[]): Promise<PlottedLeg[]> {
-  const out: PlottedLeg[] = [];
-  _unlocated = [];
-  for (const leg of stored) {
-    // Saved coords anchor the first stop for free; the rest go through geo.ts.
-    const { stops, iso, missing } = await resolveCityLocations(leg.city, leg.country, { lat: leg.lat, lng: leg.lng });
-    for (const place of missing) _unlocated.push({ legId: leg.id, place });
-    const anchor = stops[0];
-    if (!anchor) continue;
-    const resolvedIso = iso ?? isoForCountry(leg.country, leg.flag);
-    const tripName = leg.tripId ? _tripNames.get(leg.tripId) : undefined;
-    out.push({
-      id: leg.id, city: leg.city, country: leg.country, flag: leg.flag,
-      dateFrom: leg.dateFrom, dateTo: leg.dateTo, notes: leg.notes,
-      tripId: leg.tripId, tripName,
-      lat: anchor.lat, lng: anchor.lng, iso: resolvedIso, stops,
-    });
-    // Persist anchor coords if missing/changed, so subsequent loads are instant.
-    if (leg.lat !== anchor.lat || leg.lng !== anchor.lng) {
-      routeStore.update(leg.id, { lat: anchor.lat, lng: anchor.lng }).catch(() => {});
-    }
-  }
-  return out;
+  const r = await plotStoredLegs(stored, _tripNames);
+  _unlocated = r.unlocated;
+  return r.legs;
 }
 
 /**
@@ -584,42 +549,33 @@ function zoomToCountryPoly(poly: Am5Obj) {
 }
 
 /* ── Boot ─────────────────────────────────────────────────────────────────── */
-export function initMap() {
+/**
+ * Mount the Route view into `host` (the page owns the header and the World ↔
+ * Route switch). Called once, the first time the Route tab is opened.
+ */
+export function initRoute(host: HTMLElement) {
   if (_initialized) return; _initialized = true;
-  const view = document.getElementById('view-map'); if (!view) return;
-
-  renderHeader(view);
-
-  const body = view.querySelector('.stub-body');
-  if (body) {
-    body.outerHTML = stageMarkup();
-  }
+  // eslint-disable-next-line no-restricted-syntax -- audited: stageMarkup() escapes every interpolation (map-panel.ts)
+  host.innerHTML = stageMarkup();
 
   // Subscribe to legs for the active scope. Re-runnable: on scope change or
   // trip switch we tear down the chart and re-subscribe so the route rebuilds.
-  subscribeLegs(view as HTMLElement);
+  subscribeLegs(host);
 
   // Trip switch: re-subscribe under the new trip (unless viewing all trips).
   onTripChange(() => {
-    if (_scope === 'trip') subscribeLegs(view as HTMLElement);
+    if (_scope === 'trip') subscribeLegs(host);
   });
 
-  // Theme switch: recolour the live chart in place (app.ts' re-init can't reach
-  // us — initMap is guarded by _initialized — and a rebuild would lose the view).
+  // Theme switch: recolour the live chart in place (a rebuild would lose the view).
   onMapRepaint(repaintChart);
-  onLocaleChange(() => refreshText(view as HTMLElement));
+  _host = host;
 }
 
-function renderHeader(view: HTMLElement) {
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  view.querySelector('.view-header')!.innerHTML = `
-    <div class="view-title">${renderViewTitleMarkup('map', t('map.title'))}</div>
-    <div class="view-subtitle">${esc(t('map.subtitle'))}</div>`;
-}
+let _host: HTMLElement | null = null;
 
 /** Re-apply translated text after a language switch (the chart is left alone). */
-function refreshText(view: HTMLElement) {
-  renderHeader(view);
+export function refreshRouteText() {
   const set = (id: string, text: string, title?: string) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -633,7 +589,12 @@ function refreshText(view: HTMLElement) {
   set('mapZoomIn', '', t('map.zoomIn'));
   set('mapZoomOut', '', t('map.zoomOut'));
   set('mapZoomFit', '', t('map.zoomFit'));
-  if (_chart && _legsRef.length > 0) renderPanel(view, _legsRef);
+  if (_host && _chart && _legsRef.length > 0) renderPanel(_host, _legsRef);
+}
+
+/** The Route tab was shown again after being hidden: re-fit the camera. */
+export function routeShown() {
+  if (_chart && _legsRef.length > 0 && !_drillSeries) fitToRoute(_legsRef, 0);
 }
 
 function stageMarkup(): string {
