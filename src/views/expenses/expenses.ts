@@ -37,7 +37,9 @@ import {
 import { budgetBarColor } from '../../data/budget-tone.ts';
 import { openModal } from '../../core/modal.ts';
 import '../../core/paper/paper.css';
-import { renderTape, convertedHint, type TapeEntry } from './checkout.ts';
+import { convertedHint } from './checkout.ts';
+import { initMart, martVfd, refreshMart, startIdle, vfdError, runScan } from './checkout-wire.ts';
+import { beepEnabled, setBeepEnabled } from './checkout-fx.ts';
 import { paperStamp } from '../../core/paper/paper.ts';
 import { openCurrencyManager } from './currency-manager.ts';
 import {
@@ -264,9 +266,6 @@ function countryReminderHtml(): string {
 
 /* ── Checkout counter helpers ────────────────────────────────────────────── */
 
-/** Ids already on the tape, so only a newly added line prints in. */
-let tapeSeen: Set<string> | null = null;
-
 /** Keeps the readout's symbol and the "≈ home currency" line in step with what is typed. */
 function syncCounter(el: HTMLElement): void {
   const amount = parseFloat((el.querySelector('#exp-amount') as HTMLInputElement | null)?.value ?? '');
@@ -275,28 +274,6 @@ function syncCounter(el: HTMLElement): void {
   if (sym) sym.textContent = currencySymbol(currency);
   const aux = el.querySelector('#exp-led-aux');
   if (aux) aux.textContent = convertedHint(amount, currency, baseCurrency(), (a, c) => convert(rates, a, c).baseAmount, fmt);
-}
-
-/** The day's tape under the Pay button. `reset` re-baselines which lines count as new. */
-function refreshTape(el: HTMLElement, reset: boolean): void {
-  const tape = el.querySelector<HTMLElement>('#exp-tape');
-  if (!tape) return;
-  const iso = (el.querySelector('#exp-date') as HTMLInputElement | null)?.value || new Date().toISOString().split('T')[0];
-  const day = expenses.filter((e) => e.date === iso);
-  if (reset || !tapeSeen) tapeSeen = new Set(day.map((e) => e.id));
-  const fresh = new Set(day.filter((e) => !tapeSeen!.has(e.id)).map((e) => e.id));
-  fresh.forEach((id) => tapeSeen!.add(id));
-  const entries: TapeEntry[] = day.map((e) => {
-    const cat = categoryById(e.category);
-    return {
-      id: e.id, icon: cat?.icon ?? '🗂️', name: e.description || cat?.label || t('dash.spend.unlabelled'),
-      baseAmount: inBase(e),
-      original: e.currency !== baseCurrency() ? `${currencySymbol(e.currency)}${e.amount.toFixed(2)}` : undefined,
-    };
-  });
-  const dateLabel = new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-  // eslint-disable-next-line no-restricted-syntax -- audited: renderTape escapes every value
-  tape.innerHTML = renderTape({ entries, dateLabel, fmt, fresh });
 }
 
 function renderForm(el: HTMLElement) {
@@ -336,20 +313,32 @@ function renderForm(el: HTMLElement) {
     <div class="exp-form paper">
       <div class="exp-form-head">
         <div class="exp-form-title">${t('expenses.formTitle')}</div>
-        <label class="exp-base-picker">
-          <span>${t('expenses.showTotalsIn')}</span>
-          <select class="input select" id="exp-base">
-            ${currencyOptions(base, CURRENCIES)}
-          </select>
-        </label>
+        <div class="ck-head-tools">
+          <button type="button" class="ck-beep" id="exp-beep" aria-pressed="${beepEnabled()}" title="${escHtml(t('expenses.mart.beep'))}" aria-label="${escHtml(t('expenses.mart.beep'))}">${beepEnabled() ? '🔊' : '🔇'}</button>
+          <label class="exp-base-picker">
+            <span>${t('expenses.showTotalsIn')}</span>
+            <select class="input select" id="exp-base">
+              ${currencyOptions(base, CURRENCIES)}
+            </select>
+          </label>
+        </div>
       </div>
-      <div class="exp-cat-chips" id="exp-cat-chips">
-        ${categories().map((c) => `
-          <button class="exp-cat-chip ${c.id === selectedCategory ? 'selected' : ''}" data-cat="${escHtml(c.id)}">
-            ${escHtml(c.icon)} ${escHtml(c.label)}
+      ${martVfd(dateValue)}
+      <div class="ck-keys-head"><span>${escHtml(t('expenses.mart.keys'))}</span></div>
+      <div class="ck-keybed">
+        <div class="ck-keys" id="exp-cat-chips" role="group" aria-label="${escHtml(t('expenses.mart.keys'))}">
+          ${categories().map((c, i) => `
+            <button type="button" class="ck-key ${c.id === selectedCategory ? 'is-on' : ''}" data-cat="${escHtml(c.id)}" aria-pressed="${c.id === selectedCategory}" style="--kc:${categoryDisplayColor(c.color)};--kink:${categoryInkColor(c.color)}">
+              <span class="ck-key-code" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
+              <span class="ck-key-emoji" aria-hidden="true">${escHtml(c.icon)}</span>
+              <span class="ck-key-label">${escHtml(c.label)}</span>
+            </button>
+          `).join('')}
+          <button type="button" class="ck-key ck-key--new" id="exp-cat-manage" title="Manage categories">
+            <span class="ck-key-emoji" aria-hidden="true">＋</span>
+            <span class="ck-key-label">${escHtml(t('expenses.mart.newKey'))}</span>
           </button>
-        `).join('')}
-        <button class="exp-cat-chip exp-cat-manage" id="exp-cat-manage" type="button" title="Manage categories">+ New</button>
+        </div>
       </div>
       <div class="exp-country-reminder-slot">${countryReminderHtml()}</div>
       <div class="ck-display paper-led" id="exp-led">
@@ -385,13 +374,12 @@ function renderForm(el: HTMLElement) {
           <select class="input select" id="exp-city">${cityOpts}</select>
         </div>` : '<div></div>'}
       </div>
-      <button class="btn btn-primary ck-pay" id="exp-add-btn">${t('expenses.btnAdd')}</button>
-      <div class="paper-perf" aria-hidden="true"></div>
-      <div class="ck-tape" id="exp-tape"></div>
+      <button class="ck-scanbtn" id="exp-add-btn" type="button"><span>${escHtml(t('expenses.mart.scan'))}</span><span class="ck-scanbtn-hint">${escHtml(t('expenses.mart.enter'))}</span></button>
     </div>
   `;
   syncCounter(el);
-  refreshTape(el, true);
+  refreshMart(el, true);
+  startIdle();
 
   const curInput = el.querySelector('#exp-currency') as HTMLSelectElement;
   const countrySel = el.querySelector('#exp-country') as HTMLSelectElement;
@@ -431,56 +419,63 @@ function renderForm(el: HTMLElement) {
 
   for (const sel of ['#exp-amount', '#exp-currency']) el.querySelector(sel)?.addEventListener('input', () => syncCounter(el));
   el.querySelector('#exp-currency')?.addEventListener('change', () => syncCounter(el));
-  el.querySelector('#exp-date')?.addEventListener('change', () => refreshTape(el, true));
-  el.querySelector('#exp-tape')?.addEventListener('click', (ev) => {
-    if ((ev.target as HTMLElement).closest('[data-act="open-records"]')) openRecords();
+  el.querySelector('#exp-date')?.addEventListener('change', () => refreshMart(el, true, true));
+  el.querySelector('#exp-beep')?.addEventListener('click', (ev) => {
+    const btn = ev.currentTarget as HTMLButtonElement;
+    const on = !beepEnabled();
+    setBeepEnabled(on);
+    btn.setAttribute('aria-pressed', String(on));
+    btn.textContent = on ? '🔊' : '🔇';
   });
+  for (const sel of ['#exp-amount', '#exp-desc']) {
+    el.querySelector(sel)?.addEventListener('keydown', (ev) => {
+      if ((ev as KeyboardEvent).key === 'Enter') { ev.preventDefault(); (el.querySelector('#exp-add-btn') as HTMLButtonElement).click(); }
+    });
+  }
 
-  el.querySelectorAll('.exp-cat-chip[data-cat]').forEach((btn) => {
+  el.querySelectorAll('.ck-key[data-cat]').forEach((btn) => {
     btn.addEventListener('click', () => {
       selectedCategory = (btn as HTMLElement).dataset.cat!;
-      el.querySelectorAll('.exp-cat-chip').forEach((b) => b.classList.remove('selected'));
-      btn.classList.add('selected');
+      el.querySelectorAll('.ck-key[data-cat]').forEach((b) => { b.classList.remove('is-on'); b.setAttribute('aria-pressed', 'false'); });
+      btn.classList.add('is-on');
+      btn.setAttribute('aria-pressed', 'true');
     });
   });
 
   el.querySelector('#exp-cat-manage')?.addEventListener('click', () => openCategoryManager(el));
 
-  el.querySelector('#exp-add-btn')?.addEventListener('click', async () => {
+  el.querySelector('#exp-add-btn')?.addEventListener('click', () => {
     const amountInput = el.querySelector('#exp-amount') as HTMLInputElement;
+    const descInput = el.querySelector('#exp-desc') as HTMLInputElement;
     const amount = parseFloat(amountInput.value);
     const currency = curInput.value;
-    const desc = (el.querySelector('#exp-desc') as HTMLInputElement).value;
+    const desc = descInput.value;
     const date = (el.querySelector('#exp-date') as HTMLInputElement).value;
     const country = formCountry === WHOLE_TRIP ? '' : formCountry;
     const btn = el.querySelector('#exp-add-btn') as HTMLButtonElement;
+    if (btn.disabled) return;
 
-    // Only the amount is required — an empty amount just refocuses the field.
-    if (!amount) { amountInput.focus(); return; }
+    // Only the amount is required — an empty one makes the display ask for it.
+    if (!amount) { vfdError(); amountInput.focus(); return; }
 
+    const cat = categoryById(selectedCategory);
+    const typed = { amount: amountInput.value, desc };
     btn.disabled = true;
-    try {
-      const ok = await addExpenseWithDefaults({
+    // The product label carries the typed values across the scan window, so the
+    // one-off fields clear straight away (currency/date stay as sticky defaults).
+    draftAmount = ''; draftDesc = '';
+    amountInput.value = ''; descInput.value = '';
+    syncCounter(el);
+    void runScan(el, {
+      amount, currency, icon: cat?.icon ?? '🗂️',
+      label: desc.trim() || cat?.label || t('dash.spend.unlabelled'),
+      save: () => addExpenseWithDefaults({
         amount, currency, description: desc, date,
         category: selectedCategory, country, city: formCity, rates,
-      });
-      if (ok) {
-        // Reset the one-off fields (keep currency/date as sticky defaults).
-        draftAmount = '';
-        draftDesc = '';
-        amountInput.value = '';
-        (el.querySelector('#exp-desc') as HTMLInputElement).value = '';
-        syncCounter(el);
-        amountInput.focus();
-      }
-    } catch (err) {
-      // A rejected write (not signed in, offline-then-denied, rules) used to
-      // fail silently and look like a dead button. Surface it instead.
-      console.error('Failed to add expense:', err);
-      alert(t('expenses.addFailed'));
-    } finally {
-      btn.disabled = false;
-    }
+      }),
+      restore: () => { amountInput.value = typed.amount; descInput.value = typed.desc; syncCounter(el); },
+      onFailed: () => alert(t('expenses.addFailed')),
+    }).finally(() => { btn.disabled = false; amountInput.focus(); });
   });
 }
 
@@ -515,7 +510,7 @@ function openCategoryManager(formEl: HTMLElement) {
       <button class="btn btn-primary" id="exp-new-add">Add</button>
     </div>
   `;
-  formEl.querySelector('.exp-cat-chips')!.after(panel);
+  formEl.querySelector('.ck-keybed')!.after(panel);
 
   const labelInput = panel.querySelector('#exp-new-label') as HTMLInputElement;
   const iconInput = panel.querySelector('#exp-new-icon') as HTMLSelectElement;
@@ -1165,7 +1160,7 @@ function render() {
   if (!root) return;
   renderSummary(root.querySelector('.exp-summary')!);
   const formEl = root.querySelector<HTMLElement>('.exp-form-wrap');
-  if (formEl) refreshTape(formEl, false);
+  if (formEl) refreshMart(formEl, false);
   renderRecordsPanel();
   renderBreakdown(root.querySelector('.exp-breakdown-wrap')!);
 }
@@ -1204,6 +1199,12 @@ export function initExpenses() {
     renderSummaryOnly,
     renderSummaryRoot,
     renderForm: () => renderForm(root.querySelector('.exp-form-wrap') as HTMLElement),
+  });
+
+  initMart({
+    expenses: () => expenses, inBase, fmt, categoryById,
+    place: () => ({ city: formCity, country: formCountry === WHOLE_TRIP ? '' : formCountry }),
+    remove: deleteExpense,
   });
 
   // Close fixed overlays when navigating away from expenses.
