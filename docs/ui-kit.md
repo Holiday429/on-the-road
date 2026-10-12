@@ -40,6 +40,6 @@ Tones: `neutral` · `good` · `bad` · `warn`. Ticket modes map to category tone
 5. Update this table.
 
 ## Not yet on the kit (candidates)
-- Compare candidates (train / flight / stay) could reuse Ticket / Storefront — needs structured fields on candidates first.
-- Journal's "ticket" card format duplicates tear line + notch — switch to `.paper-perf` when that view is next touched.
+- Compare candidates (train / flight / stay) could reuse Ticket / Storefront — needs structured fields on candidates first. **Deferred to the end** (see docs/ui-ux-upgrade-plan.md §9).
+- Journal's `ticket` card format (`.journal-fmt-ticket` in `journal/styles/feed.css`, used by `note` entries) duplicates tear line + notch — to be switched to `.paper-perf` when the owner asks for the Journal pass. **Don't touch Journal until then.**
 - Passport stamps (P4) will extend `paperStamp` (shapes + country ink).

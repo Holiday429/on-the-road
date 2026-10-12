@@ -397,3 +397,16 @@ P1 处理掉了大部分,P3 在此基础上加「材质」。
 | Q6 | 未分配物品算不算总重量? | 算(现在 Dashboard 的行为),但 schema 注释要改,Pack 页要标注「含未分配 2.0 kg」 |
 | Q7 | 改过基础币种后,历史花费会按**今天**的汇率重算,总额会漂移(`trip-context.ts:186` 的 `setBaseCurrency`) | 这一轮不改。要修需要在每笔花费上存「记账当天的汇率」,schema 会变,也会影响 iOS。单独立项 |
 | Q8 | 收官页的路由:`/wrap` 还是放进 Journal? | 独立的 `/wrap`;Journal 里放一个入口 |
+
+
+---
+
+## 9. 进度与延后事项(2026-10-12 更新)
+
+已合入 main:P0 数据修复 · P1 视觉统一(色板 / emoji 图标 / 字体 / 符号 / 暗色)· P2 行李秤 · P3 纸质组件库(`src/core/paper/`,目录见 `docs/ui-kit.md`)+ Expenses 结算台与小票。
+
+**延后,放到最后做:**
+1. **Compare 复用票据 / 遮阳棚组件**(Ticket / Storefront)。前置:先给 Compare 候选补结构化字段(出发地、到达地、起止时刻、车次 / 航班号、住宿名与入离日期),再让候选卡用 `renderTicket` / `renderStayCard`。涉及数据结构改动,单独立项。
+2. **Journal 的「票据」卡片格式**(`journal/styles/feed.css` 的 `.journal-fmt-ticket`,`note` 类日记使用)与纸质组件库有重复(撕口 + 缺口),改并入 `.paper-perf`。owner 会另行指定何时改 Journal,**现在不动**。
+
+**仍按计划:** P4 护照印章 → P5 地图(做之前先出完整规划)→ P6 行程收官页。
