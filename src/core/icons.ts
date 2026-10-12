@@ -36,6 +36,14 @@ export function transportIcon(type: string | undefined | null): string {
 
 export const STAY_ICON = '🏨';
 
+/** Pack containers, by kind. */
+export const BAG_ICON: Record<string, string> = { suitcase: '🧳', backpack: '🎒', personal: '👜' };
+export const BAG_FALLBACK_ICON = '🎒';
+
+export function bagIcon(kind: string | undefined | null): string {
+  return (kind && BAG_ICON[kind]) || BAG_FALLBACK_ICON;
+}
+
 /** Built-in expense categories, by id. */
 export const EXPENSE_ICON = {
   accommodation: STAY_ICON,

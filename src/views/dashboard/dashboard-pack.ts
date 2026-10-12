@@ -22,7 +22,7 @@ import { categoryColor, categoryLabel, displayWeight, kindLabel, priRank, PRIORI
 import type { PackContainer, PackItem } from '../../data/schema.ts';
 import { openPackBagChangeModal } from './dashboard-modals.ts';
 
-import { WIDGET_ICON } from '../../core/icons.ts';
+import { WIDGET_ICON, bagIcon } from '../../core/icons.ts';
 /* The bag picked on the card (container id): Bought / Lost then act on that bag. Lives here
    because the dashboard re-renders wholesale. A second tap on the bag un-picks it. */
 let _bag: string | null = null;
@@ -30,7 +30,6 @@ let _bag: string | null = null;
 export function resetPackSelection(): void { _bag = null; }
 
 const piecesLabel = (n: number) => (n === 1 ? t('dash.pack.piece1') : t('dash.pack.pieces', { n }));
-const KIND_ICON: Record<string, string> = { suitcase: '🧳', backpack: '🎒', personal: '👜' };
 const kg = (g: number) => (g / 1000).toFixed(Math.abs(g) % 1000 === 0 ? 0 : 1);
 
 function chip(c: PackChange): string {
@@ -61,7 +60,7 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
     <div class="td-pk-bagicons">
       ${contents.containers.map((c) => `
         <button type="button" class="td-pk-bagicon${c.container.id === _bag ? ' is-sel' : ''}" data-pk-bag="${esc(c.container.id)}" aria-pressed="${c.container.id === _bag}" title="${esc(c.container.label)} · ${kg(c.weightG)} kg" aria-label="${esc(c.container.label)}">
-          <span class="td-pk-bagicon-glyph" aria-hidden="true">${KIND_ICON[c.container.kind] ?? '🎒'}</span>
+          <span class="td-pk-bagicon-glyph" aria-hidden="true">${bagIcon(c.container.kind)}</span>
           <span class="td-pk-bagicon-kg">${kg(c.weightG)}</span>
         </button>`).join('')}
       ${contents.unassigned.length ? `<span class="td-pk-unassigned">${esc(t('dash.pack.unassignedN', { n: contents.unassigned.length }))}</span>` : ''}
@@ -173,7 +172,7 @@ async function openPackDrawer(list: PackList, legs: StoredLeg[], today: string, 
           <span></span>
           <div class="pk-dr-pick">
             <button type="button" class="td-expand" data-pk-nav="-1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.prevBag'))}">‹</button>
-            <div class="pk-dr-bag"><span class="pk-dr-bag-name">${KIND_ICON[cur.container.kind] ?? '🎒'} ${esc(cur.container.label)}</span><span class="pk-dr-bag-kind">${esc(kindLabel(cur.container.kind))}${n > 1 ? ` · ${idx + 1}/${n}` : ''}</span></div>
+            <div class="pk-dr-bag"><span class="pk-dr-bag-name">${bagIcon(cur.container.kind)} ${esc(cur.container.label)}</span><span class="pk-dr-bag-kind">${esc(kindLabel(cur.container.kind))}${n > 1 ? ` · ${idx + 1}/${n}` : ''}</span></div>
             <button type="button" class="td-expand" data-pk-nav="1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.nextBag'))}">›</button>
           </div>
           ${legs.length ? `<span class="td-pk-bagbtns">

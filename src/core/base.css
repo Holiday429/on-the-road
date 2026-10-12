@@ -60,6 +60,13 @@
   /* Glyph/text on solid sage / coral / sky fills (check marks, badges). */
   --on-solid: #ffffff;
 
+  /* Luggage-scale readout (same in both themes: it is dark glass with LED digits). */
+  --scrim: rgba(24, 19, 13, 0.46);   /* modal backdrop, dark in both themes */
+  --scale-glass: #1d1a16;
+  --scale-led: #e6d6a4;
+  --scale-led-ok: #94d3ab;
+  --scale-led-over: #f0968c;
+
   /* Selected state (nav item, active chip / tab / toggle): a burnt orange, not
      the near-black pill — warm enough for travel, deep enough to read as
      "this one". Yellow stays for the primary action (.btn-primary). */

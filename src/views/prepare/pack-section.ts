@@ -22,6 +22,8 @@ import { itemWeightG, formatKg, itemsPresentAtLeg } from '../../data/packing-for
 import { buildPackSuggestions } from '../../data/pack-suggestions.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
 import { escHtml } from '../../core/utils.ts';
+import { openWeighIn } from './weigh-scale.ts';
+import { weighIn } from '../pack/weigh-in.ts';
 import { t } from '../../core/i18n.ts';
 import { consumeNavIntent } from '../../core/app.ts';
 import {
@@ -75,6 +77,27 @@ let _onDataChange: (() => void) | null = null;
 
 function getRoot(): HTMLElement | null {
   return _zone;
+}
+
+/* ── Weigh-in (luggage scale) ───────────────────────────────────────────────
+   Editing a bag's empty weight / limit, adding a bag, or changing an item's
+   weight plays the scale for just that bag once the edit has settled. The Weigh
+   button plays every bag. Display only — nothing here touches pack data. */
+let weighTimer = 0;
+
+/** Debounced: plays the scale for one bag (given, or the newest one not in `knownBags`). */
+function scheduleWeigh(bagId: string | undefined, knownBags?: Set<string>): void {
+  clearTimeout(weighTimer);
+  weighTimer = window.setTimeout(() => {
+    const l = activeList();
+    if (!l) return;
+    const target = bagId ?? (knownBags ? l.containers.find(b => !knownBags.has(b.id))?.id : undefined);
+    if (!target) return;
+    const rows = weighIn(l, target);
+    // Nothing to show for an empty bag with no limit.
+    if (!rows.length || (rows[0].weightG === 0 && rows[0].verdict === 'nolimit')) return;
+    openWeighIn({ rows, fmt: bagWeight, mode: 'one' });
+  }, 600);
 }
 
 function activeList(): StoredPackList | undefined {
@@ -289,6 +312,7 @@ function renderDetail(c: HTMLElement, l: PackList) {
         <button class="btn btn-ghost pk-sm" id="pk-back">${t('pack.btnBackAllLists')}</button>
         <div class="pack-detail-title">${escHtml(l.name)}</div>
         <div class="pack-detail-actions">
+          ${l.containers.length ? `<button class="btn btn-ghost pk-sm" id="pk-weigh">${t('pack.weigh.btn')}</button>` : ''}
           ${hasLegs ? `<button class="btn btn-ghost pk-sm" id="pk-record-change">${t('pack.btnRecordChange')}</button>` : ''}
           <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">${t('pack.btnAddBag')}</button>
           <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> ${t('pack.packCheck')}</label>
@@ -836,6 +860,11 @@ function bindDetail(c: HTMLElement, l: PackList) {
   const id = l.id;
 
   c.querySelector('#pk-back')?.addEventListener('click', () => { screen = 'list'; activeId = null; render(); });
+  c.querySelector<HTMLButtonElement>('#pk-weigh')?.addEventListener('click', (e) => {
+    clearTimeout(weighTimer);
+    const fresh = activeList() ?? l;
+    openWeighIn({ rows: weighIn(fresh), fmt: bagWeight, mode: 'all', returnFocus: e.currentTarget as HTMLElement });
+  });
   c.querySelector('#pk-check-mode')?.addEventListener('change', e => { packCheckMode = (e.target as HTMLInputElement).checked; render(); });
 
   // "Record change" button → unified leg-picker modal
@@ -877,12 +906,14 @@ function bindDetail(c: HTMLElement, l: PackList) {
       const label = (m.root.querySelector<HTMLInputElement>('#pk-c-label')?.value || '').trim();
       if (!label) { m.root.querySelector<HTMLInputElement>('#pk-c-label')?.focus(); return; }
       const kind = (m.root.querySelector<HTMLSelectElement>('#pk-c-kind')?.value || 'backpack') as PackContainer['kind'];
+      const knownBags = new Set((activeList()?.containers ?? []).map(b => b.id));
       await packStore.addContainer(id, {
         label, kind,
         selfWeightG: toGrams(num(m.root.querySelector<HTMLInputElement>('#pk-c-self')?.value || '0'), weightUnit),
         limitG:      toGrams(num(m.root.querySelector<HTMLInputElement>('#pk-c-limit')?.value || '0'), weightUnit),
       });
       m.close();
+      scheduleWeigh(undefined, knownBags);
     };
     m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', confirmAddBag);
     m.root.querySelector<HTMLInputElement>('#pk-c-label')?.addEventListener('keydown', e => {
@@ -898,11 +929,13 @@ function bindDetail(c: HTMLElement, l: PackList) {
   c.querySelectorAll<HTMLInputElement>('.pk-c-limit-edit').forEach(inp => {
     inp.addEventListener('change', async () => {
       await packStore.updateContainer(id, inp.dataset.id!, { limitG: toGrams(num(inp.value), weightUnit) });
+      scheduleWeigh(inp.dataset.id);
     });
   });
   c.querySelectorAll<HTMLInputElement>('.pk-c-self-edit').forEach(inp => {
     inp.addEventListener('change', async () => {
       await packStore.updateContainer(id, inp.dataset.id!, { selfWeightG: toGrams(num(inp.value), weightUnit) });
+      scheduleWeigh(inp.dataset.id);
     });
   });
 
@@ -963,12 +996,12 @@ function bindDetail(c: HTMLElement, l: PackList) {
         const category = pop.querySelector<HTMLSelectElement>('.pk-ep-cat')?.value || DEFAULT_CATEGORY;
         const wRaw = num(pop.querySelector<HTMLInputElement>('.pk-ep-weight')?.value || '0');
         const priority = (pop.querySelector<HTMLSelectElement>('.pk-ep-pri')?.value || 'essential') as PackPriority;
-        await packStore.updateItem(id, itemId, {
-          name, category,
-          unitWeightG: toGrams(wRaw, weightUnit),
-          priority,
-        });
+        const before = activeList()?.items.find(i => i.id === itemId);
+        const unitWeightG = toGrams(wRaw, weightUnit);
+        await packStore.updateItem(id, itemId, { name, category, unitWeightG, priority });
         close();
+        // A changed item weight re-weighs the bag it sits in.
+        if (before && before.unitWeightG !== unitWeightG) scheduleWeigh(before.containerId ?? undefined);
       };
 
       pop.querySelector('.pk-ep-save')?.addEventListener('click', e => { e.stopPropagation(); void save(); });
