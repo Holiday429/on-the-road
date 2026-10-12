@@ -136,7 +136,7 @@
   text-shadow: none;
 }
 .rd-status-pill.status-active { background: var(--sage-500); color: var(--on-solid); }
-.rd-status-pill.status-past   { background: rgba(255,255,255,0.85); color: var(--ink-soft); }
+.rd-status-pill.status-past   { background: color-mix(in srgb, var(--surface) 85%, transparent); color: var(--ink-soft); }
 
 @media (max-width: 640px) {
   #view-route .view-header.has-back { padding-right: 0; }

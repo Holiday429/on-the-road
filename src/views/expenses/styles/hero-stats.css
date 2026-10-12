@@ -29,6 +29,7 @@
   font-size: 1.5rem; font-weight: var(--fw-bold);
   color: var(--ink); line-height: 1.15;
   margin: 1px 0;
+  letter-spacing: -0.04em;
 }
 .exp-hero-empty { color: var(--ink-faint); }
 .exp-hero-label {

@@ -58,6 +58,7 @@
   line-height: 1;
   color: var(--accent-deep);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
 }
 .prep-hero-count-label {
   margin-top: var(--sp-1);

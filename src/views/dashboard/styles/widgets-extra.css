@@ -94,6 +94,7 @@
 .td-pk-weight {
   font-family: var(--font-data); font-size: 28px; font-weight: var(--fw-bold); line-height: 1.1; color: var(--ink);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
 }
 .td-pk-weight small { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-muted); }
 .td-pk-weight.is-over { color: var(--coral-500); }

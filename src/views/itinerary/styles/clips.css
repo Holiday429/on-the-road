@@ -124,7 +124,7 @@ a.rd-clip-card-title:hover { color: var(--info); text-decoration: underline; }
 .rd-clip-img-uploading {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,0.55);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
   font-size: 16px;
   animation: rd-uploading-pulse 0.8s ease-in-out infinite alternate;
 }

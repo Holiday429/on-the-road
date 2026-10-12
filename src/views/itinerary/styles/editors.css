@@ -178,7 +178,7 @@ a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
 .rd-pmap-pin-label {
   padding: 2px 6px;
   border-radius: var(--r-full);
-  background: rgba(255,255,255,0.92);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
   font-family: var(--font-ui); font-size: var(--fs-2xs); font-weight: var(--fw-semibold); color: var(--ink);
   box-shadow: var(--shadow-sm);
   white-space: nowrap;
@@ -186,7 +186,7 @@ a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
   max-width: 120px; overflow: hidden; text-overflow: ellipsis;
 }
 .rd-pmap-pin--city .rd-pmap-pin-label {
-  font-size: var(--fs-xs); background: rgba(255,255,255,0.96);
+  font-size: var(--fs-xs); background: color-mix(in srgb, var(--surface) 96%, transparent);
   border: 1px solid var(--rule-soft);
 }
 

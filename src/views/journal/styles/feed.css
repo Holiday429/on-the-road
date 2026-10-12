@@ -188,7 +188,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px;
   border-radius: var(--r-full);
-  background: rgba(255,255,255,0.95);
+  background: color-mix(in srgb, var(--surface) 95%, transparent);
   box-shadow: var(--shadow-sm);
   font-size: 13px; line-height: 1; color: var(--ink-soft);
   transition: transform var(--dur-fast), background var(--dur-fast);

@@ -79,7 +79,7 @@
   width: 34px; height: 34px;
   border-radius: 50%;
   border: none;
-  background: rgba(255,255,255,0.92);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter: blur(4px);
   font-size: 17px;
   line-height: 1;

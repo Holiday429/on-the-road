@@ -358,7 +358,7 @@
   transform: translateX(-50%);
   width: 48px;
   height: 20px;
-  background: rgba(255,255,255,0.55);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
   border-radius: 2px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.10);
   z-index: 1;
@@ -406,7 +406,7 @@
 .group-name-input {
   flex: 1;
   font-weight: var(--fw-semibold);
-  background: rgba(255,255,255,0.6);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
   border-color: rgba(0,0,0,0.12);
 }
 
@@ -440,7 +440,7 @@
   transition: background var(--dur-fast);
 }
 .prep-item:last-child { border-bottom: none; }
-.prep-item:hover { background: rgba(255,255,255,0.45); }
+.prep-item:hover { background: color-mix(in srgb, var(--surface) 45%, transparent); }
 .prep-item.done { opacity: 0.6; }
 .prep-item.done .item-text { text-decoration: line-through; color: var(--ink-muted); }
 .prep-item.dragging { opacity: 0.4; }
@@ -450,7 +450,7 @@
   height: 22px;
   border: 2px solid rgba(0,0,0,0.30);
   border-radius: 6px;
-  background: rgba(255,255,255,0.55);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -516,12 +516,12 @@
 }
 .add-item-row .input {
   flex: 1;
-  background: rgba(255,255,255,0.6);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
   border-color: rgba(0,0,0,0.12);
   font-size: var(--fs-sm);
   padding: 7px 12px;
 }
-.add-item-row .input:focus { background: rgba(255,255,255,0.9); }
+.add-item-row .input:focus { background: color-mix(in srgb, var(--surface) 90%, transparent); }
 /* The + button inside notes matches the + Add button below */
 .add-item-btn {
   width: 36px;

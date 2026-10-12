@@ -38,18 +38,19 @@
   top: var(--sp-3); right: var(--sp-3);
   font-size: var(--fs-xs); font-weight: var(--fw-semibold);
   color: var(--amber-700);
-  background: rgba(255,255,255,0.55);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
   padding: 3px 8px;
   border-radius: var(--r-full);
   cursor: pointer;
 }
-.exp-stat-chip:hover { background: rgba(255,255,255,0.85); }
+.exp-stat-chip:hover { background: color-mix(in srgb, var(--surface) 85%, transparent); }
 .exp-stat-num {
   font-family: var(--font-data);
   font-size: var(--fs-2xl);
   font-weight: var(--fw-semibold);
   color: var(--ink);
   line-height: 1;
+  letter-spacing: -0.04em;
 }
 .exp-stat-label {
   font-size: var(--fs-xs);

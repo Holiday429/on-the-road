@@ -52,6 +52,10 @@ describe('hard rules', () => {
     expect(count(ts, /from\s+['"][./]+icon\/[A-Za-z]+\.png['"]/g)).toBeLessThanOrEqual(1); // profile.png only
   });
 
+  it('dark-mode safety: no hard-white translucent backgrounds (use a --surface mix); only the 3 over-photo overlays remain', () => {
+    expect(count(css, /background(-color)?:\s*rgba\(\s*255/g)).toBeLessThanOrEqual(3);
+  });
+
   it('dark-mode safety: text on a solid amber fill uses --on-accent, not --ink', () => {
     const bad: string[] = [];
     for (const f of css) {
@@ -76,7 +80,7 @@ describe('baselines (can only go down)', () => {
   });
 
   it('rgb()/rgba() literals in CSS (outside base.css)', () => {
-    expect(count(css, /rgba?\(\s*\d/g, notBase)).toBeLessThanOrEqual(200);
+    expect(count(css, /rgba?\(\s*\d/g, notBase)).toBeLessThanOrEqual(175);
   });
 
   it('border-radius in px (use --r-* tokens)', () => {

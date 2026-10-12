@@ -108,7 +108,7 @@
 .journal-lmap-pin-label {
   padding: 3px 8px;
   border-radius: var(--r-full);
-  background: rgba(255,255,255,0.92);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   font-weight: var(--fw-semibold);

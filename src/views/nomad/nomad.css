@@ -191,7 +191,7 @@
   letter-spacing: 0.05em;
   padding: 3px 9px;
   border-radius: var(--r-full);
-  background: rgba(255,255,255,0.9);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
   color: var(--ink-soft);
   backdrop-filter: blur(4px);
 }
