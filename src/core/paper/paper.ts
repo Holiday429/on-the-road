@@ -86,9 +86,9 @@ export function paperReceipt(o: PaperReceiptOpts): string {
   return `<div class="${cls}"${o.attrs ? ` ${o.attrs}` : ''}>
     <div class="paper-receipt-head"><div class="paper-receipt-title">${esc(o.title)}</div>${o.meta ? `<div class="paper-receipt-meta">${esc(o.meta)}</div>` : ''}</div>
     <div class="paper-rows">${rows}</div>
+    ${o.stamp ? `<div class="paper-receipt-stamp">${paperStamp(o.stamp)}</div>` : ''}
     ${o.barcode ? '<div class="paper-barcode" aria-hidden="true"></div>' : ''}
     ${o.footer ? `<div class="paper-receipt-foot">${esc(o.footer)}</div>` : ''}
-    ${o.stamp ? paperStamp({ corner: true, ...o.stamp }) : ''}
   </div>`;
 }
 

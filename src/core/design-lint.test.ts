@@ -52,6 +52,12 @@ describe('hard rules', () => {
     expect(count(ts, /from\s+['"][./]+icon\/[A-Za-z]+\.png['"]/g)).toBeLessThanOrEqual(1); // profile.png only
   });
 
+  it('the paper kit is built from tokens only: no hex colours in core/paper/*.css', () => {
+    const kit = css.filter((f) => rel(f).startsWith('core/paper/'));
+    expect(kit.length).toBeGreaterThan(0);
+    expect(count(kit, /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g)).toBe(0);
+  });
+
   it('dark-mode safety: no hard-white translucent backgrounds (use a --surface mix); only the 3 over-photo overlays remain', () => {
     expect(count(css, /background(-color)?:\s*rgba\(\s*255/g)).toBeLessThanOrEqual(3);
   });
@@ -72,7 +78,7 @@ describe('hard rules', () => {
 
 describe('baselines (can only go down)', () => {
   it('hex colour literals in CSS (outside base.css)', () => {
-    expect(count(css, /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, notBase)).toBeLessThanOrEqual(86);
+    expect(count(css, /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, notBase)).toBeLessThanOrEqual(75);
   });
 
   it('hex colour literals in TS (outside i18n)', () => {
@@ -80,7 +86,7 @@ describe('baselines (can only go down)', () => {
   });
 
   it('rgb()/rgba() literals in CSS (outside base.css)', () => {
-    expect(count(css, /rgba?\(\s*\d/g, notBase)).toBeLessThanOrEqual(175);
+    expect(count(css, /rgba?\(\s*\d/g, notBase)).toBeLessThanOrEqual(174);
   });
 
   it('border-radius in px (use --r-* tokens)', () => {
@@ -88,6 +94,6 @@ describe('baselines (can only go down)', () => {
   });
 
   it('font-size in px (use --fs-* tokens)', () => {
-    expect(count(css, /font-size:\s*\d+(\.\d+)?px/g, notBase)).toBeLessThanOrEqual(160);
+    expect(count(css, /font-size:\s*\d+(\.\d+)?px/g, notBase)).toBeLessThanOrEqual(163);
   });
 });

@@ -15,6 +15,7 @@ import {
   type Phase, todayIso as sharedTodayIso,
   tripPhase as sharedTripPhase, currentLeg as sharedCurrentLeg,
 } from '../../data/trip-phase.ts';
+import { expenseSlip } from '../expenses/expense-slip.ts';
 import { addExpenseWithDefaults, defaultPlace, defaultCurrency, suggestedCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, allCurrencies, currencyFlag, isKnownCurrency, isApproxCurrency } from '../../data/rates.ts';
 import { currencyForCountry } from '../../data/country-currency.ts';
@@ -484,10 +485,12 @@ function quickAddSpend(amount: number, desc: string, category: string): void {
   const today = todayIso();
   const place = defaultPlace(_legs, today);
   const currency = _quickCur || defaultCurrency(_legs, today);
-  void addExpenseWithDefaults({
+  const input = {
     amount, currency, description: desc || 'Quick add', date: today,
     category, country: place.country, city: place.city, rates: _rates,
-  });
+  };
+  const printSlip = expenseSlip(input);
+  void addExpenseWithDefaults(input).then((ok) => { if (ok) printSlip(); });
 }
 
 /* ══════════════════════════════════════════════════════════════════════════

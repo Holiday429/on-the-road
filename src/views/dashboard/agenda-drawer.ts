@@ -14,6 +14,7 @@ import { baseCurrency } from '../../data/trip-context.ts';
 import { peekRateTable } from '../../data/rates.ts';
 import type { AgendaItem } from '../../data/day-agenda.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
+import { expenseSlip } from '../expenses/expense-slip.ts';
 import { addExpenseWithDefaults, defaultCurrency, BUILTIN_CATEGORIES } from '../expenses/expense-defaults.ts';
 
 export interface AgendaDrawerCtx {
@@ -97,12 +98,14 @@ export function openAgendaItemDrawer(it: AgendaItem, ctx: AgendaDrawerCtx): void
     const category = form.querySelector<HTMLSelectElement>('.td-dspend-cat')!.value;
     const btn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     btn.disabled = true;
-    const ok = await addExpenseWithDefaults({
+    const spend = {
       amount, currency: cur, description: it.title, date: ctx.iso, category,
       country: leg?.country ?? '', city: leg?.city ?? '',
       rates: peekRateTable(baseCurrency()),
-    }).catch(() => false);
-    if (ok) { btn.textContent = '✓'; setTimeout(() => closeDrawer(), 600); }
+    };
+    const printSlip = expenseSlip(spend);
+    const ok = await addExpenseWithDefaults(spend).catch(() => false);
+    if (ok) { btn.textContent = '✓'; printSlip(); setTimeout(() => closeDrawer(), 600); }
     else btn.disabled = false;
   });
 }

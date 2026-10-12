@@ -42,7 +42,8 @@ describe('paper kit markup', () => {
     });
     expect(html).toContain('paper--zigzag');
     expect(html).toContain('paper-row is-strong is-total');
-    expect(html).toContain('paper-stamp paper-stamp--corner');
+    expect(html).toContain('paper-receipt-stamp');
+    expect(html).toContain('<span class="paper-stamp">Over</span>');
     expect(html).toContain('paper-barcode');
     expect(paperRows([{ label: 'a', value: 'b' }])).toContain('paper-rows');
   });

@@ -17,6 +17,7 @@ import { todayIso } from '../../data/trip-phase.ts';
 import { expensesAsOf } from '../../data/as-of.ts';
 import type { StoredExpense } from '../../data/stores/expense-store.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
+import { expenseSlip } from '../expenses/expense-slip.ts';
 import { addExpenseWithDefaults, defaultCurrency, defaultPlace, BUILTIN_CATEGORIES } from '../expenses/expense-defaults.ts';
 
 import { WIDGET_ICON } from '../../core/icons.ts';
@@ -111,10 +112,12 @@ export function openSpendDrawer(opts: {
       amount, currency: v('currency'), description: v('note'), date, category: v('category'),
       country: place.country, city: place.city, rates: peekRateTable(baseCurrency()),
     };
+    const printSlip = expenseSlip(input);
     const ok = await addExpenseWithDefaults(input).catch(() => false);
     btn.disabled = false;
     if (!ok) { msg.textContent = t('dash.spend.failed'); return; }
     msg.textContent = `✓ ${t('dash.spend.saved')}`;
+    printSlip();
     // Show it at the top without waiting for the store round-trip.
     const listEl = d.root.querySelector<HTMLElement>('[data-spend-list]');
     const fresh = rowHtml({ ...input, baseAmount: amount, baseCurrency: input.currency });
