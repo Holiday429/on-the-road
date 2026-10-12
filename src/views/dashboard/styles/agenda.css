@@ -55,8 +55,8 @@
 /* One plan item — same look as the Itinerary's Plan board: category colour, a tick in front. */
 .ag-item {
   display: flex; align-items: center; gap: var(--sp-2);
-  padding: 4px 8px; border-radius: var(--r-md); background: var(--ag-bg, #ebebeb);
-  color: #2b2b2b;                         /* the pastel category colours are light in both themes */
+  padding: 4px 8px; border-radius: var(--r-md); background: var(--ag-bg, var(--surface-3));
+  color: var(--ink);                          /* dark mode sinks --ag-bg into the surface (base.css) */
   cursor: pointer; transition: filter var(--dur-fast), opacity var(--dur-fast);
 }
 .ag-item:hover { filter: brightness(0.96); }

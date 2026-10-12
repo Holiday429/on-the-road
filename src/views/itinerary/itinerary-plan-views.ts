@@ -36,7 +36,7 @@ export function renderPlanItem(p: PlanItem, leg: Leg): string {
   const tooltipParts = [cat?.label, p.note, p.duration, p.cost].filter(Boolean);
   const tooltip = tooltipParts.join(' · ');
   return `
-    <div class="rd-plan-tag ${p.done ? 'is-done' : ''}" data-id="${esc(p.id)}" data-drag="plan-item" style="background:${esc(color)}"${tooltip ? ` data-tooltip="${esc(tooltip)}"` : ''}>
+    <div class="rd-plan-tag ${p.done ? 'is-done' : ''}" data-id="${esc(p.id)}" data-drag="plan-item" style="--tint-bg:${esc(color)}"${tooltip ? ` data-tooltip="${esc(tooltip)}"` : ''}>
       <button class="rd-plan-tag-check" data-act="toggle-plan" data-plan="${esc(p.id)}" title="Mark done">
         ${p.done ? '✓' : ''}
       </button>

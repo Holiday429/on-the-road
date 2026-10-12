@@ -406,7 +406,7 @@ function renderItemTag(i: PackItem, isDropCandidate: boolean): string {
   return `
     <div class="pack-item-tag ${i.packed ? 'is-packed' : ''}"
          data-id="${i.id}" data-drag="item" data-tooltip="${escHtml(tooltip)}"
-         style="background:${bgColor};${dropStyle}">
+         style="--tint-bg:${bgColor};${dropStyle}">
       ${packCheckMode ? `<input type="checkbox" class="pk-packed" data-id="${i.id}" ${i.packed ? 'checked' : ''} style="flex-shrink:0">` : ''}
       <span class="tag-drag-handle">⠿</span>
       <span class="tag-name">${isCore ? '🔒 ' : ''}${escHtml(i.name)}${i.qty > 1 ? `<span class="tag-qty-badge">×${i.qty}</span>` : ''}</span>

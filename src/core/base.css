@@ -665,3 +665,10 @@ body.otr-modal-open { overflow: hidden; }
     font-size: 16px;
   }
 }
+
+/* Pastel category / note colours arrive as inline custom properties (--tint-bg,
+   --ag-bg) so dark mode can sink them into the surface instead of showing a
+   bright block with light text on it. */
+:root[data-theme='dark'] .rd-plan-tag,
+:root[data-theme='dark'] .pack-item-tag { background: color-mix(in srgb, var(--tint-bg, var(--surface-3)) 34%, var(--surface)); }
+:root[data-theme='dark'] .ag-item { background: color-mix(in srgb, var(--ag-bg, var(--surface-3)) 34%, var(--surface)); color: var(--ink); }

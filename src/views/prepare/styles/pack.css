@@ -294,6 +294,7 @@
 }
 
 .pack-item-tag {
+  background: var(--tint-bg, var(--surface-3));
   position: relative;
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 8px 4px 5px;
@@ -391,7 +392,7 @@
 .pack-add-name { flex: 1; min-width: 80px; }
 .pack-add-cat { width: 130px; flex-shrink: 0; }
 .pack-add-weight { width: 70px; flex-shrink: 0; }
-.pack-add-pri { width: 100px; flex-shrink: 0; }
+.pack-add-pri { width: 116px; flex-shrink: 0; }
 .pack-add-btn { flex-shrink: 0; white-space: nowrap; min-width: 80px; }
 
 /* Hide spinner arrows on number inputs in the add panel */

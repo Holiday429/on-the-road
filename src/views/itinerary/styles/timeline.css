@@ -149,8 +149,14 @@
 .rd-hero-fallback {
   display: flex; align-items: center; justify-content: center;
   background:
-    radial-gradient(120% 90% at 85% 10%, hsl(calc(var(--city-hue) + 40) 80% 78% / 0.9), transparent 60%),
-    linear-gradient(135deg, hsl(var(--city-hue) 70% 86%), hsl(calc(var(--city-hue) + 25) 65% 72%));
+    radial-gradient(120% 90% at 85% 10%, hsl(calc(var(--city-hue) + 40) 38% 76% / 0.9), transparent 60%),
+    linear-gradient(135deg, hsl(var(--city-hue) 32% 86%), hsl(calc(var(--city-hue) + 25) 30% 72%));
+}
+:root[data-theme='dark'] .route-leg-cover-fallback,
+:root[data-theme='dark'] .rd-hero-fallback {
+  background:
+    radial-gradient(120% 90% at 85% 10%, hsl(calc(var(--city-hue) + 40) 24% 30% / 0.9), transparent 60%),
+    linear-gradient(135deg, hsl(var(--city-hue) 20% 22%), hsl(calc(var(--city-hue) + 25) 20% 28%));
 }
 .route-leg-cover-fallback-flag {
   font-size: 44px;

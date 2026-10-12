@@ -111,7 +111,7 @@ function itemTag(i: PackItem): string {
   const pri = PRIORITIES.find((p) => p.value === i.priority)?.label ?? i.priority;
   const tip = `${categoryLabel(i.category)} · ${displayWeight(itemWeightG(i), unit)}${i.qty > 1 ? ` ×${i.qty}` : ''} · ${pri}`;
   return `
-    <div class="pack-item-tag ${i.packed ? 'is-packed' : ''}" data-tooltip="${esc(tip)}" style="background:${categoryColor(i.category)}">
+    <div class="pack-item-tag ${i.packed ? 'is-packed' : ''}" data-tooltip="${esc(tip)}" style="--tint-bg:${categoryColor(i.category)}">
       <span class="tag-name">${i.source === 'core' ? '🔒 ' : ''}${esc(i.name)}${i.qty > 1 ? `<span class="tag-qty-badge">×${i.qty}</span>` : ''}</span>
     </div>`;
 }
