@@ -67,7 +67,7 @@
 .journal-gallery-label {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
 }
 .journal-gallery-meta {
   font-size: var(--fs-sm);

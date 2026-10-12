@@ -16,16 +16,16 @@
 .td-todo-check:hover { border-color: var(--sage-500); background: var(--amber-50); }
 .td-todo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .td-todo-label {
-  font-size: var(--fs-sm); font-weight: 600; color: var(--ink-soft); line-height: 1.3;
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-soft); line-height: 1.3;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
-.td-todo-due { font-size: 10px; color: var(--ink-faint); }
-.td-todo-due.is-overdue { color: var(--coral-500); font-weight: 600; }
+.td-todo-due { font-size: var(--fs-2xs); color: var(--ink-faint); }
+.td-todo-due.is-overdue { color: var(--coral-500); font-weight: var(--fw-medium); }
 .td-todo-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-2);
   text-align: center; padding: var(--sp-4) var(--sp-2);
 }
-.td-todo-empty-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink-soft); }
+.td-todo-empty-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink-soft); }
 .td-todo-add { display: flex; align-items: center; gap: var(--sp-2); }
 .td-todo-add-cal {
   flex-shrink: 0; font-size: 16px; line-height: 1;
@@ -56,7 +56,7 @@
   padding: 8px 16px;
 }
 .td-jq-icon { font-size: 16px; line-height: 1; }
-.td-jq-label { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; }
+.td-jq-label { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .td-jq-hint { font-size: var(--fs-xs); color: var(--ink-faint); text-align: center; }
 
 /* Latest entries. flex-basis 0 + min-height 0 so this block can only fill the
@@ -90,13 +90,13 @@
   height: 30px;
   border-radius: var(--r-sm);
   background: var(--amber-50);
-  font-size: 14px;
+  font-size: var(--fs-base);
   overflow: hidden;
 }
 .td-jq-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .td-jq-copy { display: flex; flex-direction: column; min-width: 0; }
 .td-jq-title, .td-jq-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.td-jq-title { font-size: var(--fs-sm); font-weight: 500; color: var(--ink-soft); }
+.td-jq-title { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-soft); }
 .td-jq-meta { font-size: var(--fs-xs); color: var(--ink-faint); }
 
 /* Journal composer modal */
@@ -110,7 +110,7 @@
   flex-shrink: 0; width: 26px; height: 26px; border-radius: var(--r-full);
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--amber-400, var(--accent)); color: var(--on-accent);
-  font-family: var(--font-ui); font-size: 17px; font-weight: 700; line-height: 1; cursor: pointer;
+  font-family: var(--font-ui); font-size: 17px; font-weight: var(--fw-semibold); line-height: 1; cursor: pointer;
   transition: background var(--dur-fast), transform var(--dur-fast);
 }
 .td-plus:hover { background: var(--amber-500, var(--accent)); }
@@ -125,7 +125,7 @@
 .td-ring { display: inline-flex; align-items: center; gap: 5px; }
 .td-ring-track { fill: none; stroke: var(--rule-soft); stroke-width: 3; }
 .td-ring-arc { fill: none; stroke: var(--sage-500); stroke-width: 3; stroke-linecap: round; }
-.td-ring-n { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.td-ring-n { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .td-todo-row.is-sel { background: color-mix(in srgb, var(--amber-400, var(--accent)) 14%, var(--surface-3)); }
 .td-todo-more { align-self: flex-start; }
 
@@ -145,7 +145,7 @@
 .td-todo-newrow:focus-within { border-color: var(--amber-400); background: var(--surface); }
 .td-todo-plus {
   flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--amber-400, var(--accent)); color: var(--on-accent); font-weight: 700; font-size: 14px; line-height: 1;
+  background: var(--amber-400, var(--accent)); color: var(--on-accent); font-weight: var(--fw-semibold); font-size: var(--fs-base); line-height: 1;
 }
 .td-todo-newrow .td-todo-add-input {
   flex: 1; min-width: 0; height: auto; min-height: 20px; padding: 0; margin: 0; border: 0; background: transparent; outline: none;
@@ -159,12 +159,12 @@
 .td-todo-newrow.has-meta .td-todo-new-tools { display: flex; }
 .td-ic {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; min-width: 24px; padding: 0 6px; border-radius: var(--r-full); cursor: pointer;
-  background: var(--surface); border: 1.5px solid var(--surface-4); font-size: 12px; line-height: 1; color: var(--ink-soft);
+  background: var(--surface); border: 1.5px solid var(--surface-4); font-size: var(--fs-sm); line-height: 1; color: var(--ink-soft);
   transition: border-color var(--dur-fast), background var(--dur-fast);
 }
 .td-ic:hover { border-color: var(--amber-400); }
 .td-ic.is-set { background: var(--amber-50); border-color: var(--amber-400); color: var(--ink); }
-.td-ic-v { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.td-ic-v { font-size: var(--fs-xs); font-weight: var(--fw-medium); white-space: nowrap; }
 .td-ic-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.td-todo-go { width: 24px; height: 24px; border-radius: var(--r-full); background: var(--amber-400, var(--accent)); color: var(--on-accent); font-size: 14px; font-weight: 700; cursor: pointer; }
+.td-todo-go { width: 24px; height: 24px; border-radius: var(--r-full); background: var(--amber-400, var(--accent)); color: var(--on-accent); font-size: var(--fs-base); font-weight: var(--fw-semibold); cursor: pointer; }
 .td-todo-go:hover { background: var(--amber-500, var(--accent)); }

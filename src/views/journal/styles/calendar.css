@@ -18,7 +18,7 @@
   padding: var(--sp-2) var(--sp-2) var(--sp-1);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink-faint);
   text-align: center;
 }
@@ -36,7 +36,7 @@
 .journal-calendar-day {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink-muted);
   text-align: right;
   margin-bottom: var(--sp-1);
@@ -65,9 +65,9 @@
   width: 100%;
   padding: 3px 6px;
   border-radius: var(--r-sm);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   text-align: left;
   background: var(--amber-50);
   color: var(--amber-700);
@@ -83,9 +83,9 @@
   min-width: 0;
 }
 .journal-calendar-more {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--ink-faint);
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   padding-left: 4px;
 }

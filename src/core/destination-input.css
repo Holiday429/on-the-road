@@ -35,19 +35,19 @@
   border-radius: 999px;
   padding: 3px 10px 3px 8px;
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--amber-800, var(--warning));
   white-space: nowrap;
   max-width: 180px;
 }
-.dest-tag-flag { font-size: 14px; line-height: 1; }
+.dest-tag-flag { font-size: var(--fs-base); line-height: 1; }
 .dest-tag-label { overflow: hidden; text-overflow: ellipsis; }
 .dest-tag-remove {
   border: none;
   background: none;
   padding: 0;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1;
   color: var(--amber-500);
   flex-shrink: 0;
@@ -95,8 +95,8 @@
 }
 .dest-dropdown-section-label {
   padding: 2px 14px 4px;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.06em;
   color: var(--ink-faint);
 }
@@ -120,7 +120,7 @@
 .dest-dropdown-item-flag { font-size: 16px; line-height: 1; flex-shrink: 0; }
 .dest-dropdown-item-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dest-dropdown-item-type {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--ink-faint);
   flex-shrink: 0;
   letter-spacing: 0.04em;

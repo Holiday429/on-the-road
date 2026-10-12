@@ -107,14 +107,30 @@
   color-scheme: light;
 
   /* ── Typography ────────────────────────────────────────────────────── */
-  --font-ui:      'Sora', system-ui, sans-serif;
-  --font-body:    'DM Sans', system-ui, sans-serif;
+  /* Four roles:
+       display  Sora — page titles, hero names, large headings
+       ui/body  DM Sans — everything you read or press (--font-ui is kept as an
+                alias so the ~330 existing declarations follow along)
+       data     JetBrains Mono — times, flight numbers, amounts, weights
+       hand     Caveat — journal handwriting only */
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body:    'DM Sans', system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+  --font-ui:      var(--font-body);
+  --font-data:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-hand:    'Caveat', 'DM Sans', cursive;
+
+  /* Weight steps. Anything heavier than --fw-bold reads as cartoon, so there
+     are only four. */
+  --fw-regular:  400;
+  --fw-medium:   500;
+  --fw-semibold: 600;
+  --fw-bold:     700;
 
   /* ── Type scale ──────────────────────────────────────────────────────
      Fluid above --fs-base so widget internals scale with the viewport.
      Lower bound keeps text legible on narrow screens; upper bound caps
      growth on wide screens. ~1280px viewport hits the upper bound. */
+  --fs-2xs:  10px;
   --fs-xs:   11px;
   --fs-sm:   12px;
   --fs-base: 14px;
@@ -275,6 +291,8 @@ html {
   overflow-x: hidden;
 }
 
+b, strong { font-weight: var(--fw-semibold); }
+
 body {
   font-family: var(--font-body);
   font-size: var(--fs-base);
@@ -314,7 +332,7 @@ img, svg { display: block; }
   border-radius: var(--r-full);
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   letter-spacing: 0.01em;
   transition: transform var(--dur-fast) var(--ease-out),
               box-shadow var(--dur-fast) var(--ease-out),
@@ -356,7 +374,7 @@ img, svg { display: block; }
   border-radius: var(--r-full);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
 }
 .badge-amber { background: var(--amber-100); color: var(--amber-700); }
 .badge-green { background: var(--success-bg); color: var(--success); }
@@ -381,9 +399,9 @@ img, svg { display: block; }
   display: inline-flex;
   align-items: center;
   gap: 12px;
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-2xl);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   line-height: 1.1;
 }
@@ -439,7 +457,7 @@ label.field-label {
   display: block;
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-muted);
   letter-spacing: 0.01em;
   margin-bottom: var(--sp-2);
@@ -514,7 +532,7 @@ body.otr-modal-open { overflow: hidden; }
 .otr-modal-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .otr-modal-close {
@@ -550,18 +568,18 @@ body.otr-modal-open { overflow: hidden; }
 .paywall-plan--topup { max-width: 280px; margin: 0 auto; text-align: center; }
 .paywall-plan--topup .paywall-plan-perks { text-align: left; }
 .paywall-plan-badge {
-  display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  display: inline-block; font-size: var(--fs-2xs); font-weight: var(--fw-semibold); letter-spacing: .06em; text-transform: uppercase;
   background: var(--accent); color: var(--on-accent); border-radius: var(--r-full);
   padding: 2px 8px; margin-bottom: var(--sp-1); width: fit-content;
 }
 .paywall-plan-badge--alt { background: var(--ink-soft); }
-.paywall-plan-name { font-weight: 700; font-size: .9rem; color: var(--ink); letter-spacing: .02em; }
-.paywall-plan-price { font-size: 1.7rem; font-weight: 800; line-height: 1.1; color: var(--ink); }
-.paywall-plan-period { font-size: .78rem; font-weight: 400; color: var(--ink-muted); }
+.paywall-plan-name { font-weight: var(--fw-semibold); font-size: .9rem; color: var(--ink); letter-spacing: .02em; }
+.paywall-plan-price { font-size: 1.7rem; font-weight: var(--fw-bold); line-height: 1.1; color: var(--ink); }
+.paywall-plan-period { font-size: .78rem; font-weight: var(--fw-regular); color: var(--ink-muted); }
 .paywall-plan-perks { list-style: none; margin: var(--sp-1) 0 var(--sp-2); padding: 0; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .paywall-plan-perks li { font-size: .82rem; color: var(--ink-soft); line-height: 1.4; }
 .paywall-topup-icon { font-size: 2rem; line-height: 1; margin-bottom: var(--sp-1); }
-.paywall-btn { width: 100%; margin-top: auto; font-weight: 600; }
+.paywall-btn { width: 100%; margin-top: auto; font-weight: var(--fw-medium); }
 .paywall-error { color: var(--danger, #e53e3e); font-size: .82rem; margin: var(--sp-2) 0 0; }
 
 /* Post-payment success toast */
@@ -569,7 +587,7 @@ body.otr-modal-open { overflow: hidden; }
   position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
   background: #16a34a; color: #fff; /* fixed green pill — white text stays in both themes */
   padding: .7rem 1.4rem; border-radius: var(--r-full);
-  font-size: .9rem; font-weight: 600;
+  font-size: .9rem; font-weight: var(--fw-medium);
   z-index: 10000; box-shadow: 0 6px 20px rgba(0,0,0,.25);
   white-space: nowrap;
   animation: fadeUp var(--dur-mid) var(--ease-out);
@@ -586,7 +604,7 @@ body.otr-modal-open { overflow: hidden; }
 /* AI credit pill in guide / prep headers */
 .ai-credit-pill {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: var(--fs-xs); font-weight: 600;
+  font-size: var(--fs-xs); font-weight: var(--fw-medium);
   padding: 3px 10px; border-radius: var(--r-full);
   border: 1.5px solid var(--border);
   background: var(--surface-2); color: var(--ink-soft);

@@ -66,14 +66,14 @@
 .td-widget[data-nav]:active { transform: scale(0.995); }
 
 .td-widget-label {
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold);
   color: var(--ink-muted); letter-spacing: 0.01em;
 }
 .td-widget-header {
   display: flex; align-items: center; justify-content: space-between;
 }
 .td-link {
-  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-medium);
   color: var(--accent-deep); cursor: pointer; background: none; flex-shrink: 0;
 }
 .td-link:hover { text-decoration: underline; }

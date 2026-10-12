@@ -27,7 +27,7 @@
 .journal-calendar-month {
   font-family: var(--font-ui);
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .journal-category-meta,
@@ -79,7 +79,7 @@
 .journal-mini-entry-title {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .journal-mini-entry-body {

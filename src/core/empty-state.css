@@ -23,9 +23,9 @@
 }
 
 .otr-empty-title {
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-xl);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   line-height: 1.25;
 }

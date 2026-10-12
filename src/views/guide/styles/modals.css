@@ -62,7 +62,7 @@
 .guide-detail-modal-credit {
   position: absolute;
   bottom: 8px; right: 10px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: #fff;
   background: rgba(0,0,0,0.4);
   padding: 2px 8px;
@@ -72,7 +72,7 @@
 .guide-detail-modal-body { padding: var(--sp-5) var(--sp-6); }
 .guide-detail-modal-kicker {
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.05em;
   color: var(--accent-deep);
   display: flex;
@@ -81,9 +81,9 @@
   margin-bottom: var(--sp-2);
 }
 .guide-detail-modal-title {
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-2xl);
-  font-weight: 800;
+  font-weight: var(--fw-bold);
   line-height: 1.15;
   margin-bottom: var(--sp-2);
 }
@@ -107,14 +107,14 @@
   background: var(--surface-3);
   border-radius: var(--r-full);
   color: var(--ink-muted);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
 }
 
 /* Labelled content blocks (About / Good to know / Route) */
 .guide-detail-modal-block { margin-bottom: var(--sp-5); }
 .guide-detail-modal-block-label {
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.04em;
   color: var(--ink-faint);
   margin-bottom: var(--sp-2);

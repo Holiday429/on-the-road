@@ -34,9 +34,9 @@
   flex-wrap: wrap;
 }
 .guide-detail-city {
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-2xl);
-  font-weight: 800;
+  font-weight: var(--fw-bold);
   line-height: 1.1;
 }
 .guide-detail-country { font-size: var(--fs-md); color: var(--ink-muted); }
@@ -62,7 +62,7 @@
   border: 1.5px solid transparent;
   background: var(--surface-2);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   font-family: var(--font-ui);
   color: var(--ink-muted);
   cursor: pointer;
@@ -122,7 +122,7 @@
 .guide-overview-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .guide-overview-body {
@@ -141,7 +141,7 @@
 }
 .guide-funfacts-label {
   font-family: var(--font-ui);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   font-size: var(--fs-md);
   color: var(--amber-700);
   margin-bottom: var(--sp-3);

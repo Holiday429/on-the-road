@@ -21,18 +21,18 @@
 .exp-hero-spend { border-color: var(--amber-300); background: var(--amber-50, var(--warning-bg-soft)); }
 .exp-hero-budget { border-color: var(--success); background: var(--success-bg-soft); }
 .exp-hero-eyebrow {
-  font-size: 11px; font-weight: 600;
+  font-size: var(--fs-xs); font-weight: var(--fw-medium);
   color: var(--ink-faint);
 }
 .exp-hero-num {
-  font-family: var(--font-ui);
-  font-size: 1.5rem; font-weight: 800;
+  font-family: var(--font-data);
+  font-size: 1.5rem; font-weight: var(--fw-bold);
   color: var(--ink); line-height: 1.15;
   margin: 1px 0;
 }
 .exp-hero-empty { color: var(--ink-faint); }
 .exp-hero-label {
-  font-size: var(--fs-sm); font-weight: 600;
+  font-size: var(--fs-sm); font-weight: var(--fw-medium);
   color: var(--ink-muted);
   margin-top: auto;
   align-self: flex-end;
@@ -49,7 +49,7 @@
   transition: width var(--dur-slow) var(--ease-out);
 }
 .exp-hero-sub {
-  font-size: 11px; font-weight: 600; color: var(--ink-faint);
+  font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-faint);
 }
 
 /* ── Records overlay — bar stats area ──────────────────────────────────────── */
@@ -58,7 +58,7 @@
   display: flex; align-items: center; gap: var(--sp-4);
 }
 .exp-records-avg {
-  font-size: var(--fs-sm); font-weight: 700; color: var(--ink-muted);
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink-muted);
 }
 .exp-records-avg span { color: var(--ink); }
 
@@ -81,7 +81,7 @@
 }
 .exp-budget-bar-title {
   font-family: var(--font-ui);
-  font-size: var(--fs-lg); font-weight: 700;
+  font-size: var(--fs-lg); font-weight: var(--fw-semibold);
 }
 .exp-budget-scroll {
   flex: 1; min-height: 0; overflow-y: auto;
@@ -90,7 +90,7 @@
 }
 .exp-budget-section-title {
   font-family: var(--font-ui);
-  font-size: var(--fs-sm); font-weight: 700;
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold);
   color: var(--ink-muted);
   margin: var(--sp-5) 0 var(--sp-3);
 }
@@ -106,14 +106,14 @@
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: var(--sp-2);
 }
-.exp-bcp-label { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted); }
-.exp-bcp-val { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
+.exp-bcp-label { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-muted); }
+.exp-bcp-val { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
 .exp-budget-compare-bar {
   height: 8px; background: var(--surface-3); border-radius: var(--r-full); overflow: hidden;
   margin: var(--sp-2) 0;
 }
 .exp-budget-compare-foot {
-  font-size: var(--fs-sm); font-weight: 600;
+  font-size: var(--fs-sm); font-weight: var(--fw-medium);
 }
 
 /* Compare section — per-country / per-category rows */
@@ -122,7 +122,7 @@
   padding: var(--sp-3) var(--sp-4); box-shadow: var(--shadow-sm);
 }
 .exp-budget-cmp-name {
-  font-size: var(--fs-sm); font-weight: 700; color: var(--ink);
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
   margin-bottom: 4px;
 }
 .exp-budget-cmp-bar-wrap {
@@ -130,14 +130,14 @@
 }
 .exp-budget-cmp-nums {
   display: flex; align-items: center; gap: 4px;
-  font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-muted);
 }
 .exp-budget-cmp-sep { color: var(--ink-faint); }
 
 /* Settings section */
 .exp-budget-settings { background: var(--surface); border-radius: var(--r-xl); box-shadow: var(--shadow-sm); overflow: hidden; }
 .exp-budget-settings-title {
-  font-family: var(--font-ui); font-size: var(--fs-md); font-weight: 700;
+  font-family: var(--font-ui); font-size: var(--fs-md); font-weight: var(--fw-semibold);
   padding: var(--sp-4) var(--sp-5) var(--sp-3);
 }
 .exp-budget-settings-tabs {

@@ -9,7 +9,7 @@
   padding: var(--sp-3) var(--sp-5);
   border-radius: var(--r-full);
   font-size: var(--fs-sm);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   z-index: 1100;
   opacity: 0;
   transition: opacity 0.2s, transform 0.2s;

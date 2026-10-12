@@ -1,17 +1,17 @@
 /* Google Maps export sheet (shell comes from core/modal.ts) */
 .mx-hint { margin: 0 0 var(--sp-3); font-size: var(--fs-sm); color: var(--ink-muted); }
 .mx-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: var(--sp-3); flex: 1; min-width: 0; }
-.mx-field > span { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-muted); }
+.mx-field > span { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-muted); }
 .mx-field-row { display: flex; gap: var(--sp-3); }
 .mx-results { max-height: 46vh; overflow-y: auto; }
 .mx-block { margin-bottom: var(--sp-3); }
-.mx-block-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; margin-bottom: var(--sp-1); }
+.mx-block-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold); margin-bottom: var(--sp-1); }
 .mx-row {
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-1);
   border-radius: var(--r-lg); background: var(--surface-2);
 }
-.mx-link { font-weight: 600; text-decoration: none; color: inherit; }
+.mx-link { font-weight: var(--fw-medium); text-decoration: none; color: inherit; }
 .mx-link:hover { text-decoration: underline; }
 .mx-copy {
   flex-shrink: 0; padding: 4px 10px; border-radius: var(--r-lg);

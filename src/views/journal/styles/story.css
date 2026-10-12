@@ -24,7 +24,7 @@
 }
 .journal-story-hero h3 {
   margin-top: 6px;
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-2xl);
   line-height: 1.08;
 }
@@ -107,7 +107,7 @@
 .journal-story-summary h4 {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .journal-story-list-meta,
@@ -163,7 +163,7 @@
 .journal-story-question-num {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.08em;
   color: var(--ink-faint);
 }
@@ -185,7 +185,7 @@
 .journal-story-source-label {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.06em;
   color: var(--ink-faint);
 }

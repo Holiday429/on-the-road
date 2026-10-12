@@ -11,7 +11,7 @@
   background: var(--surface);
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-soft);
   cursor: pointer;
   transition: all var(--dur-fast);
@@ -35,7 +35,7 @@
 .exp-cat-manager-title {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink-muted);
   margin-bottom: var(--sp-3);
 }
@@ -50,13 +50,13 @@
   background: var(--surface);
   border: 1px solid var(--surface-4);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-soft);
 }
 .exp-cat-manager-item.builtin { opacity: 0.6; }
 .exp-cat-del {
   color: var(--ink-faint);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   padding: 0 2px;
   line-height: 1;
 }

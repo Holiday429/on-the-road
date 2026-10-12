@@ -52,7 +52,7 @@
   color: #fff;
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -67,7 +67,7 @@
 .journal-place-tile-name {
   font-family: var(--font-ui);
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .journal-place-tile-meta {

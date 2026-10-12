@@ -22,7 +22,7 @@
 }
 .exp-budget-label {
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-muted);
   letter-spacing: 0.01em;
 }
@@ -39,16 +39,16 @@
   margin-bottom: var(--sp-3);
 }
 .exp-budget-spent {
-  font-family: var(--font-ui);
+  font-family: var(--font-data);
   font-size: var(--fs-xl);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .exp-budget-sep { color: var(--ink-faint); font-size: var(--fs-md); }
 .exp-budget-total {
-  font-family: var(--font-ui);
+  font-family: var(--font-data);
   font-size: var(--fs-md);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-muted);
 }
 .exp-budget-bar-track {
@@ -66,18 +66,18 @@
 .exp-budget-footer {
   display: flex; align-items: center; justify-content: space-between;
 }
-.exp-budget-remain { font-size: var(--fs-sm); font-weight: 600; color: var(--success); }
-.exp-budget-over   { font-size: var(--fs-sm); font-weight: 600; color: var(--coral-500); }
+.exp-budget-remain { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--success); }
+.exp-budget-over   { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--coral-500); }
 .exp-budget-pct {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink-muted);
 }
 .exp-budget-set {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--amber-700);
   background: var(--amber-100);
   padding: 6px 14px;
@@ -105,7 +105,7 @@
   border-radius: var(--r-full);
   background: var(--surface-3);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-muted);
   cursor: pointer;
   border: 1.5px solid transparent;
@@ -127,7 +127,7 @@
 .exp-country-reminder.ok   { background: var(--success-bg-soft); border-color: var(--sage-400); color: var(--success); }
 .exp-country-reminder.warn { background: var(--warning-bg-soft); border-color: var(--amber-200); color: var(--amber-700); }
 .exp-country-reminder.over { background: var(--danger-bg-soft); border-color: var(--coral-400); color: var(--coral-500); }
-.exp-country-reminder-place { font-weight: 700; }
+.exp-country-reminder-place { font-weight: var(--fw-semibold); }
 .exp-country-reminder-figs { color: var(--ink-muted); }
 .exp-country-reminder.over .exp-country-reminder-figs,
 .exp-country-reminder.warn .exp-country-reminder-figs { color: inherit; }
@@ -137,7 +137,7 @@
 .exp-stat-total:hover { filter: brightness(0.97); }
 .exp-stat-cta {
   margin-left: 6px;
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--amber-700);
   opacity: 0; transition: opacity var(--dur-fast);
 }

@@ -31,7 +31,7 @@ body.otr-drawer-open { overflow: hidden; }
 .otr-drawer-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   overflow-wrap: anywhere;
 }

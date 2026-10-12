@@ -14,7 +14,7 @@
 .view-guest-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 
@@ -107,7 +107,7 @@
 .sidebar-profile-avatar-fallback {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--amber-700);
 }
 
@@ -118,7 +118,7 @@
 .sidebar-profile-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   white-space: nowrap;
 }
@@ -142,7 +142,7 @@
 .guest-pill-title {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 

@@ -32,7 +32,7 @@
 .prep-hero-bare-text {
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-soft);
 }
 
@@ -52,9 +52,9 @@
   min-width: 68px;
 }
 .prep-hero-count-num {
-  font-family: var(--font-ui);
+  font-family: var(--font-data);
   font-size: var(--fs-4xl);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   line-height: 1;
   color: var(--accent-deep);
   font-variant-numeric: tabular-nums;
@@ -63,7 +63,7 @@
   margin-top: var(--sp-1);
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-muted);
   text-align: center;
   white-space: nowrap;
@@ -73,16 +73,16 @@
 .prep-hero-eyebrow {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-faint);
   margin-bottom: 2px;
 }
 .prep-hero-title {
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-xl);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   line-height: 1.2;
   text-wrap: balance;
@@ -95,7 +95,7 @@
   padding: 9px 20px;
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   background: var(--ink);
   color: var(--surface);
   cursor: pointer;
@@ -123,14 +123,14 @@
 .prep-hero-stat-label {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-muted);
   margin-bottom: 2px;
 }
 .prep-hero-stat-value {
-  font-family: var(--font-ui);
+  font-family: var(--font-data);
   font-size: var(--fs-xl);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
@@ -176,7 +176,7 @@
   margin: 0;
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .prep-rail-icon { font-size: 1.05em; line-height: 1; }
@@ -216,7 +216,7 @@
 .prep-row-name {
   font-family: var(--font-ui);
   font-size: var(--fs-md);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -249,7 +249,7 @@
   text-align: right;
   font-family: var(--font-ui);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
@@ -263,7 +263,7 @@
   padding: 3px 10px;
   border-radius: var(--r-full);
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   background: var(--success-bg);
   color: var(--success);
 }
@@ -312,7 +312,7 @@
 .prep-empty-title {
   font-family: var(--font-ui);
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .prep-empty-text {

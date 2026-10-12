@@ -8,7 +8,7 @@
 }
 .exp-donut { flex-shrink: 0; }
 .exp-donut-label {
-  font-family: var(--font-ui); font-size: 13px; font-weight: 700; fill: var(--ink);
+  font-family: var(--font-ui); font-size: 13px; font-weight: var(--fw-semibold); fill: var(--ink);
 }
 .exp-legend { width: 100%; display: flex; flex-direction: column; gap: 6px; }
 .exp-legend-row {
@@ -20,14 +20,14 @@
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 }
 .exp-legend-name {
-  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink);
   display: flex; align-items: center; gap: 4px;
 }
-.exp-legend-pct { font-size: 11px; font-weight: 700; color: var(--ink-faint); }
-.exp-legend-amt { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
-.exp-legend-budget { grid-column: 2 / -1; font-size: 11px; font-weight: 600; color: var(--ink-faint); }
-.exp-legend-budget.is-over, .exp-place-sub.is-over { color: var(--danger); font-weight: 700; }
-.exp-legend-row .exp-cat-budget-btn { font-size: 11px; color: var(--ink-faint); padding: 1px 4px; border-radius: var(--r-sm); opacity: 0; transition: opacity var(--dur-fast); }
+.exp-legend-pct { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink-faint); }
+.exp-legend-amt { font-family: var(--font-data); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
+.exp-legend-budget { grid-column: 2 / -1; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-faint); }
+.exp-legend-budget.is-over, .exp-place-sub.is-over { color: var(--danger); font-weight: var(--fw-semibold); }
+.exp-legend-row .exp-cat-budget-btn { font-size: var(--fs-xs); color: var(--ink-faint); padding: 1px 4px; border-radius: var(--r-sm); opacity: 0; transition: opacity var(--dur-fast); }
 .exp-legend-row:hover .exp-cat-budget-btn { opacity: 1; }
 
 /* ── Breakdown: vertical bar chart (time) ───────────────────────────────────── */
@@ -39,7 +39,7 @@
 .exp-bar-label { font-size: 8px; fill: var(--ink-faint); }
 .exp-bar-legend {
   display: flex; align-items: center; gap: 6px;
-  font-size: 11px; color: var(--ink-muted); margin-top: var(--sp-2);
+  font-size: var(--fs-xs); color: var(--ink-muted); margin-top: var(--sp-2);
 }
 
 /* ── Breakdown: place rows (country + city) ─────────────────────────────────── */
@@ -52,18 +52,18 @@
   display: flex; align-items: center; gap: 8px; margin-bottom: 2px;
 }
 .exp-place-flag { font-size: 18px; line-height: 1; }
-.exp-place-name { font-size: var(--fs-sm); font-weight: 700; flex: 1; color: var(--ink); }
-.exp-place-total { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
-.exp-place-sub { font-size: 11px; color: var(--ink-faint); font-weight: 600; margin-bottom: 4px; }
-.exp-place-row .exp-cat-budget-btn { font-size: 11px; color: var(--ink-faint); padding: 1px 4px; border-radius: var(--r-sm); opacity: 0; transition: opacity var(--dur-fast); }
+.exp-place-name { font-size: var(--fs-sm); font-weight: var(--fw-semibold); flex: 1; color: var(--ink); }
+.exp-place-total { font-family: var(--font-data); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
+.exp-place-sub { font-size: var(--fs-xs); color: var(--ink-faint); font-weight: var(--fw-medium); margin-bottom: 4px; }
+.exp-place-row .exp-cat-budget-btn { font-size: var(--fs-xs); color: var(--ink-faint); padding: 1px 4px; border-radius: var(--r-sm); opacity: 0; transition: opacity var(--dur-fast); }
 .exp-place-row:hover .exp-cat-budget-btn { opacity: 1; }
 .exp-place-cities { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; padding-left: 26px; }
 .exp-place-city {
   display: flex; align-items: center; justify-content: space-between;
-  font-size: 12px; color: var(--ink-muted);
+  font-size: var(--fs-sm); color: var(--ink-muted);
 }
-.exp-place-city-name { font-weight: 600; }
-.exp-place-city-amt { font-family: var(--font-ui); font-weight: 700; }
+.exp-place-city-name { font-weight: var(--fw-medium); }
+.exp-place-city-amt { font-family: var(--font-data); font-weight: var(--fw-semibold); }
 
 /* ── Expense calendar (time tab) ────────────────────────────────────────────── */
 .exp-cal-wrap {
@@ -76,11 +76,11 @@
   margin-bottom: var(--sp-3);
 }
 .exp-cal-month {
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .exp-cal-nav {
-  font-size: 16px; font-weight: 700; color: var(--ink-muted);
+  font-size: 16px; font-weight: var(--fw-semibold); color: var(--ink-muted);
   padding: 2px 10px; border-radius: var(--r-full);
   transition: background var(--dur-fast), color var(--dur-fast);
 }
@@ -91,7 +91,7 @@
   gap: 2px;
 }
 .exp-cal-hdr {
-  font-family: var(--font-ui); font-size: 10px; font-weight: 700;
+  font-family: var(--font-ui); font-size: var(--fs-2xs); font-weight: var(--fw-semibold);
   color: var(--ink-faint); text-align: center;
   padding: 2px 0 4px;
 }
@@ -105,15 +105,15 @@
 .exp-cal-empty { visibility: hidden; pointer-events: none; }
 .exp-cal-has-spend:hover { background: var(--surface-3); }
 .exp-cal-day {
-  font-size: 11px; font-weight: 500; color: var(--ink-soft); line-height: 1;
+  font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-soft); line-height: 1;
 }
 .exp-cal-today .exp-cal-day {
-  background: var(--accent); color: var(--on-accent); font-weight: 700;
+  background: var(--accent); color: var(--on-accent); font-weight: var(--fw-semibold);
   border-radius: 50%; width: 20px; height: 20px;
   display: flex; align-items: center; justify-content: center;
 }
 .exp-cal-amt {
-  font-family: var(--font-ui); font-size: 9px; font-weight: 700;
+  font-family: var(--font-data); font-size: 9px; font-weight: var(--fw-semibold);
   line-height: 1.2; text-align: center;
   max-width: 100%; overflow: hidden;
 }

@@ -54,7 +54,7 @@
   padding: 4px 2px 22px;
 }
 
-.recap-title { margin: 0; font-family: var(--font-ui); font-weight: 600; font-size: 19px; letter-spacing: -0.01em; color: var(--ink); }
+.recap-title { margin: 0; font-family: var(--font-display); font-weight: var(--fw-medium); font-size: 19px; letter-spacing: -0.01em; color: var(--ink); }
 .recap-sub { margin: 5px 0 0; font-size: 13px; color: var(--ink-muted); }
 
 .recap-header-actions { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -70,7 +70,7 @@
 .recap-dot.is-on { background: var(--accent); transform: scale(1.18); }
 .recap-progress-label {
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -87,7 +87,7 @@
   padding: 5px 13px;
   border-radius: var(--r-full);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--ink-muted);
   transition: background 0.2s, color 0.2s;
 }
@@ -279,7 +279,7 @@
 .recap-front-top { display: flex; align-items: baseline; justify-content: space-between; position: relative; z-index: 1; }
 .recap-front-idx {
   font-family: var(--font-ui);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   font-size: 4.6cqw;
   letter-spacing: 0.04em;
   color: var(--tone-ink);
@@ -288,7 +288,7 @@
 .recap-front-kicker {
   font-family: var(--font-ui);
   font-size: 3cqw;
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--tone-ink);
@@ -315,7 +315,7 @@
   margin: 0;
   max-width: 88%;
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   font-size: 7.4cqw;
   line-height: 1.34;
   letter-spacing: -0.015em;
@@ -379,7 +379,7 @@
   color: var(--card-bg);
   font-family: var(--font-ui);
   font-size: 3cqw;
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
 }
@@ -388,7 +388,7 @@
   min-width: 0;
   font-family: var(--font-ui);
   font-size: 3.5cqw;
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
@@ -398,7 +398,7 @@
   flex: none;
   font-family: var(--font-ui);
   font-size: 2.7cqw;
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--tone-ink);
@@ -419,8 +419,8 @@
   border-top: 1px solid var(--tone-rule);
 }
 .recap-base-left { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 1.6cqw; font-size: 2.9cqw; line-height: 1.5; color: var(--ink-muted); }
-.recap-base-right { flex: none; display: flex; align-items: center; gap: 1.6cqw; font-family: var(--font-ui); font-size: 2.9cqw; font-weight: 600; color: var(--ink); }
-.recap-base-right .recap-pagenum { margin-left: 1cqw; font-size: 2.9cqw; font-weight: 500; }
+.recap-base-right { flex: none; display: flex; align-items: center; gap: 1.6cqw; font-family: var(--font-ui); font-size: 2.9cqw; font-weight: var(--fw-medium); color: var(--ink); }
+.recap-base-right .recap-pagenum { margin-left: 1cqw; font-size: 2.9cqw; font-weight: var(--fw-medium); }
 .recap-mark-dot { width: 2.8cqw; height: 2.8cqw; flex: none; border-radius: var(--r-full); background: var(--accent); }
 
 .recap-copy { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; padding: 4cqw 0; }
@@ -428,7 +428,7 @@
 .recap-heading {
   margin: 0;
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   font-size: 6.2cqw;
   line-height: 1.32;
   letter-spacing: -0.015em;
@@ -454,7 +454,7 @@
    brand amber — the same highlight on every card, so it reads as the product's
    voice rather than one more tint of the card's own colour. */
 .recap-em {
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink);
   background: linear-gradient(transparent 52%, color-mix(in srgb, var(--accent) 52%, transparent) 52%);
   padding: 0 0.08em;
@@ -482,7 +482,7 @@
 .recap-cover-label {
   margin: 0;
   font-family: var(--font-ui);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   font-size: 10cqw;
   line-height: 1.14;
   letter-spacing: -0.025em;
@@ -504,7 +504,7 @@
 .recap-tile:nth-child(-n + 3) { border-bottom: 1px solid var(--tone-rule); }
 .recap-tile-value {
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   font-size: 6.2cqw;
   line-height: 1.1;
   letter-spacing: -0.02em;
@@ -530,8 +530,8 @@
   stroke-linejoin: round;
 }
 .recap-radar-pt { fill: var(--card-bg); stroke: var(--tone-ink); stroke-width: 2.4; }
-.recap-radar-key { font-family: var(--font-ui); font-size: 19px; font-weight: 500; fill: var(--ink-soft); }
-.recap-radar-score { font-family: var(--font-ui); font-size: 24px; font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+.recap-radar-key { font-family: var(--font-display); font-size: 19px; font-weight: var(--fw-medium); fill: var(--ink-soft); }
+.recap-radar-score { font-family: var(--font-data); font-size: 24px; font-weight: var(--fw-medium); fill: var(--ink); font-variant-numeric: tabular-nums; }
 
 .recap-trait-list {
   flex: 0 0 auto;
@@ -544,8 +544,8 @@
   align-content: start;
 }
 .recap-trait-list li { min-width: 0; padding-top: 1.8cqw; border-top: 1px solid var(--tone-rule); }
-.recap-trait-key { display: block; font-family: var(--font-ui); font-size: 3.3cqw; font-weight: 600; color: var(--ink); }
-.recap-trait-key b { font-weight: 700; color: var(--tone-ink); }
+.recap-trait-key { display: block; font-family: var(--font-ui); font-size: 3.3cqw; font-weight: var(--fw-medium); color: var(--ink); }
+.recap-trait-key b { font-weight: var(--fw-semibold); color: var(--tone-ink); }
 .recap-trait-note {
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -562,7 +562,7 @@
 .recap-oneline {
   margin: 5cqw 0 0;
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   font-size: 5.2cqw;
   line-height: 1.55;
   letter-spacing: -0.015em;
@@ -596,7 +596,7 @@
   color: var(--card-bg);
   font-family: var(--font-ui);
   font-size: 2.6cqw;
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   line-height: 1;
 }
 
@@ -619,7 +619,7 @@
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 2.8cqw;
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   box-shadow: var(--rc-sh-1);
 }
 .recap-flag i { width: 2.2cqw; height: 2.2cqw; border-radius: var(--r-full); background: var(--accent-deep); }
@@ -637,7 +637,7 @@
   border-top: 1px solid var(--rule);
 }
 .recap-privacy-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); }
-.recap-privacy-note b { font-weight: 500; color: var(--ink-soft); }
+.recap-privacy-note b { font-weight: var(--fw-medium); color: var(--ink-soft); }
 .recap-footer-actions { margin-left: auto; display: flex; gap: 10px; }
 /* Press-and-hold is a touch gesture; on a pointer device the hint is just noise. */
 .recap-save-hint { display: block; margin-top: 2px; }
@@ -659,7 +659,7 @@
 .recap-empty h3 { margin: 0; font-size: 19px; color: var(--ink); }
 .recap-empty p { margin: 0; max-width: 46ch; font-size: 13.5px; line-height: 1.65; color: var(--ink-muted); }
 .recap-locked { font-size: 12.5px !important; }
-.recap-basis { font-size: 11px; color: var(--ink-muted); }
+.recap-basis { font-size: var(--fs-xs); color: var(--ink-muted); }
 
 /* Three fanned cards standing in for the deck that doesn't exist yet. */
 .recap-empty-deck { position: relative; width: 84px; height: 108px; margin-bottom: 4px; }
@@ -747,7 +747,7 @@
 .recap-pick .otr-modal-body { max-height: min(70vh, 640px); overflow-y: auto; }
 .recap-pick-sub { margin: 0 0 12px; font-size: 13px; line-height: 1.6; color: var(--ink-muted); }
 .recap-pick-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.recap-pick-count { margin-left: auto; font-size: 12px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.recap-pick-count { margin-left: auto; font-size: var(--fs-sm); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
 .recap-pick-list { display: flex; flex-direction: column; gap: 8px; }
 .recap-pick-error { margin: 12px 0 0; font-size: 13px; color: var(--danger, var(--ink)); }
 
@@ -778,8 +778,8 @@
   background: color-mix(in srgb, var(--tone) 70%, var(--ink) 12%);
   color: var(--ink);
   font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
 }
 /* The tick: a ring that fills with the brand amber when chosen. */
@@ -799,7 +799,7 @@
 .recap-pick-item:has(input:focus-visible) { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 
 .recap-pick-main { min-width: 0; padding-right: 30px; display: flex; flex-direction: column; gap: 2px; }
-.recap-pick-q { font-family: var(--font-ui); font-size: 13px; font-weight: 600; color: var(--ink); }
+.recap-pick-q { font-family: var(--font-ui); font-size: 13px; font-weight: var(--fw-medium); color: var(--ink); }
 .recap-pick-text { font-size: 12.5px; line-height: 1.5; color: var(--ink-muted); overflow-wrap: anywhere; }
 .recap-pick-flag {
   display: inline-flex;
@@ -807,8 +807,8 @@
   gap: 6px;
   margin-top: 4px;
   font-size: 11.5px;
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink);
 }
 .recap-pick-flag i { flex: none; width: 8px; height: 8px; border-radius: var(--r-full); background: var(--accent-deep); }
-.recap-confirm-text { margin: 0; font-size: 14px; line-height: 1.65; color: var(--ink); }
+.recap-confirm-text { margin: 0; font-size: var(--fs-base); line-height: 1.65; color: var(--ink); }

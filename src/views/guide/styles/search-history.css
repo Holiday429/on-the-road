@@ -50,7 +50,7 @@
 
 .guide-dd-section-label {
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink-faint);
   letter-spacing: 0.05em;
   padding: 8px 14px 4px;
@@ -131,8 +131,8 @@
   border-radius: var(--r-full);
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
 }
 
 /* Dim overlay behind the drawer */
@@ -174,7 +174,7 @@
 .guide-history-drawer-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
 }
 .guide-history-close {
   background: none;
@@ -226,7 +226,7 @@
 .guide-history-row-flag { font-size: 22px; flex-shrink: 0; }
 .guide-history-row-text { flex: 1; min-width: 0; }
 .guide-history-row-name {
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   font-size: var(--fs-base);
   color: var(--ink);
   white-space: nowrap;

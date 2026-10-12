@@ -15,7 +15,7 @@
   border-radius: 50%;
   background: var(--amber-500);
   color: #fff;
-  font-weight: 800;
+  font-weight: var(--fw-bold);
   font-size: 13px;
   display: flex;
   align-items: center;
@@ -50,7 +50,7 @@
   border-radius: 50%;
   background: var(--amber-500);
   color: #fff;
-  font-weight: 800;
+  font-weight: var(--fw-bold);
   font-size: 13px;
   display: flex;
   align-items: center;
@@ -59,7 +59,7 @@
 }
 .guide-walk-stop-text { padding-top: 2px; }
 .guide-walk-stop-name {
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   font-size: var(--fs-base);
   color: var(--ink);
 }
@@ -78,7 +78,7 @@
 }
 .guide-modal-title {
   font-family: var(--font-ui);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   font-size: var(--fs-md);
 }
 .guide-modal-body {
@@ -99,7 +99,7 @@
 }
 .guide-modal-label {
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-muted);
   font-family: var(--font-ui);
   letter-spacing: 0.04em;

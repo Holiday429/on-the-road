@@ -20,16 +20,16 @@
 }
 .route-empty-icon { font-size: 44px; margin-bottom: var(--sp-3); }
 .route-empty-title {
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-xl);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   margin-bottom: var(--sp-2);
 }
 .route-empty-trip-badge {
   display: inline-block;
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--amber-700);
   background: var(--amber-100);
   padding: 3px 12px;
@@ -73,7 +73,7 @@
 .route-country-name {
   font-family: var(--font-ui);
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 .route-country-count {
@@ -161,7 +161,7 @@
 .route-leg-status {
   position: absolute; left: 8px; top: 8px;
   font-family: var(--font-ui);
-  font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: var(--fs-2xs); font-weight: var(--fw-semibold); letter-spacing: 0.04em; text-transform: uppercase;
   padding: 3px 8px;
   border-radius: var(--r-full);
   color: #fff;
@@ -185,9 +185,9 @@
   display: flex; align-items: center; gap: var(--sp-2);
 }
 .route-leg-city {
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-2xl);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   line-height: 1.15;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -201,14 +201,14 @@
 }
 .route-leg-range {
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   white-space: nowrap;
 }
 .route-leg-arrow { color: var(--amber-500); }
 .route-leg-duration {
   font-size: var(--fs-xs);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--amber-700);
   background: var(--amber-100);
   padding: 1px 8px;
@@ -259,7 +259,7 @@
 .route-info.is-empty .route-info-icon { background: var(--surface-3); filter: grayscale(1); opacity: 0.7; }
 .route-info-body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 .route-info-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: var(--fs-2xs); font-weight: var(--fw-semibold); letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--ink-faint);
 }
 .route-info-row {
@@ -272,7 +272,7 @@
   overflow: hidden;
 }
 .route-info-title {
-  font-size: var(--fs-sm); font-weight: 700; color: var(--ink);
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .route-info-sub {
@@ -280,7 +280,7 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .route-info-time {
-  font-size: var(--fs-xs); font-weight: 600;
+  font-size: var(--fs-xs); font-weight: var(--fw-medium);
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
   white-space: nowrap; flex-shrink: 0;
@@ -289,7 +289,7 @@
 .route-info-link:hover .route-info-title { color: var(--info); text-decoration: underline; text-underline-offset: 2px; }
 .route-info-ok {
   flex-shrink: 0;
-  font-size: 11px; font-weight: 700;
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold);
   color: var(--success);
 }
 .route-info-empty { font-size: var(--fs-xs); color: var(--ink-muted); }
@@ -318,7 +318,7 @@
   cursor: pointer;
   font-family: var(--font-ui);
   font-size: var(--fs-md);
-  font-weight: 600;
+  font-weight: var(--fw-medium);
   color: var(--ink-muted);
   transition: all var(--dur-fast);
   width: 100%;
@@ -338,7 +338,7 @@
 .route-add-form-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   margin-bottom: var(--sp-5);
 }
 .raf-trip-selector {

@@ -40,7 +40,7 @@
 }
 .journal-album-tile-body { padding: 10px 12px 12px; }
 .journal-album-title {
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink);
 }
 
 .journal-album-empty {
@@ -60,7 +60,7 @@
 .journal-auto-groups { margin-top: var(--sp-2); }
 .journal-auto-groups-toggle {
   cursor: pointer; padding: 6px 0; list-style: none;
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium);
   color: var(--ink-muted);
 }
 .journal-auto-groups-toggle::-webkit-details-marker { display: none; }
@@ -76,7 +76,7 @@
   border: 1px solid var(--rule-soft);
   border-radius: var(--r-md);
 }
-.journal-select-count { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; }
+.journal-select-count { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .journal-select-actions { display: flex; align-items: center; gap: var(--sp-2); }
 .journal-select-album { min-width: 160px; }
 
@@ -90,7 +90,7 @@
   border-radius: var(--r-full);
   border: 1.5px solid var(--rule);
   background: color-mix(in srgb, var(--surface) 90%, transparent);
-  font-size: 13px; font-weight: 700; color: var(--ink);
+  font-size: 13px; font-weight: var(--fw-semibold); color: var(--ink);
 }
 
 /* ── Album membership inside the reader ──────────────────────────────────── */
@@ -99,7 +99,7 @@
   margin-top: var(--sp-3);
 }
 .journal-reader-albums-label {
-  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 600;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-medium);
   color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.04em;
 }
 .journal-reader-albums-none { font-size: var(--fs-sm); color: var(--ink-faint); }
@@ -135,7 +135,7 @@
 }
 .journal-tidy-card-main { flex: 1; min-width: 0; }
 .journal-tidy-title {
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink);
 }
 .journal-tidy-reason { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; }
 .journal-tidy-entries { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
@@ -150,5 +150,5 @@
 
 /* ── Album create / rename / delete modals ──────────────────────────────── */
 .journal-modal-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); }
-.journal-modal-field > span { font-weight: 600; color: var(--ink-muted); }
+.journal-modal-field > span { font-weight: var(--fw-medium); color: var(--ink-muted); }
 .journal-modal-text { font-size: var(--fs-sm); color: var(--ink-muted); margin: 0; }

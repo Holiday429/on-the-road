@@ -7,7 +7,7 @@
   border: 1.5px solid var(--rule-soft);
   border-radius: var(--r-full);
   padding: 3px 12px;
-  font-size: var(--fs-xs); font-weight: 600;
+  font-size: var(--fs-xs); font-weight: var(--fw-medium);
   color: var(--ink-muted);
   background: var(--surface-2);
   cursor: pointer;
@@ -62,7 +62,7 @@
 }
 .rd-clip-card:hover .rd-clip-card-actions { opacity: 1; }
 .rd-clip-card-title {
-  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink);
   text-decoration: none; display: block;
   overflow: hidden; text-overflow: ellipsis;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -91,7 +91,7 @@ a.rd-clip-card-title:hover { color: var(--info); text-decoration: underline; }
   position: absolute; inset: 0;
   background: rgba(0,0,0,0.45); color: var(--surface);
   display: flex; align-items: center; justify-content: center;
-  font-size: var(--fs-sm); font-weight: 700;
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold);
 }
 .rd-clip-title-row {
   display: flex; align-items: center; gap: var(--sp-2);
@@ -167,7 +167,7 @@ a.rd-clip-card-title:hover { color: var(--info); text-decoration: underline; }
 /* A lone image always spans full width regardless of orientation. */
 .rd-clip-preview-gallery > .rd-clip-preview-img:only-child { grid-column: 1 / -1; }
 .rd-clip-preview-title {
-  font-size: var(--fs-base); font-weight: 700;
+  font-size: var(--fs-base); font-weight: var(--fw-semibold);
   color: var(--ink); text-decoration: none; display: block;
 }
 a.rd-clip-preview-title:hover { color: var(--info); text-decoration: underline; }

@@ -20,7 +20,7 @@
 }
 .guide-know-title {
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   font-family: var(--font-ui);
   color: var(--ink);
   margin-bottom: var(--sp-4);

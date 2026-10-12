@@ -41,7 +41,7 @@
     white-space: nowrap;
   }
   .trip-pill-date[data-len="3"] { font-size: 18px; }
-  .trip-pill-date[data-len="4"] { font-size: 14px; }
+  .trip-pill-date[data-len="4"] { font-size: var(--fs-base); }
 
   .sidebar-nav {
     padding: var(--sp-3) var(--sp-2);

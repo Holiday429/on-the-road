@@ -10,7 +10,7 @@
 .rd-clip-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
 .rd-clip-body { flex: 1; min-width: 0; }
 .rd-clip-title {
-  font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink);
   text-decoration: none;
   display: block;
   overflow-wrap: anywhere;
@@ -52,7 +52,7 @@ a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
 .rd-editor-title {
   font-family: var(--font-ui);
   font-size: var(--fs-lg);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   margin-bottom: var(--sp-5);
 }
 .rd-editor-grid {
@@ -110,7 +110,7 @@ a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
 }
 .rd-plan-map-flag { font-size: 22px; flex-shrink: 0; }
 .rd-plan-map-city-name {
-  font-family: var(--font-ui); font-size: var(--fs-base); font-weight: 700; color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--fs-base); font-weight: var(--fw-semibold); color: var(--ink);
 }
 .rd-plan-map-city-meta { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 1px; }
 
@@ -127,7 +127,7 @@ a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 }
 .rd-pmap-day-label {
-  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: 700;
+  font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
   color: var(--ink); letter-spacing: 0.05em;
 }
 .rd-pmap-day-date { font-size: var(--fs-xs); color: var(--ink-faint); }
@@ -146,17 +146,17 @@ a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
   width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px;
 }
 .rd-pmap-item-name {
-  font-size: var(--fs-xs); font-weight: 600; color: var(--ink);
+  font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   flex: 1; min-width: 0;
 }
 .rd-pmap-item-addr {
-  display: block; font-size: 10px; color: var(--ink-faint);
+  display: block; font-size: var(--fs-2xs); color: var(--ink-faint);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .rd-pmap-item--pending { opacity: 0.6; }
 .rd-pmap-item-locating {
-  font-size: 10px; color: var(--ink-faint); font-style: italic;
+  font-size: var(--fs-2xs); color: var(--ink-faint); font-style: italic;
   white-space: nowrap;
 }
 
@@ -170,7 +170,7 @@ a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 26px; height: 26px; padding: 0 6px;
   border-radius: var(--r-full);
-  color: #fff; font-family: var(--font-ui); font-size: 11px; font-weight: 700;
+  color: #fff; font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
   box-shadow: var(--shadow-md);
   transition: transform var(--dur-fast);
 }
@@ -179,20 +179,20 @@ a.rd-clip-title:hover { color: var(--info); text-decoration: underline; }
   padding: 2px 6px;
   border-radius: var(--r-full);
   background: rgba(255,255,255,0.92);
-  font-family: var(--font-ui); font-size: 10px; font-weight: 700; color: var(--ink);
+  font-family: var(--font-ui); font-size: var(--fs-2xs); font-weight: var(--fw-semibold); color: var(--ink);
   box-shadow: var(--shadow-sm);
   white-space: nowrap;
   backdrop-filter: blur(4px);
   max-width: 120px; overflow: hidden; text-overflow: ellipsis;
 }
 .rd-pmap-pin--city .rd-pmap-pin-label {
-  font-size: 11px; background: rgba(255,255,255,0.96);
+  font-size: var(--fs-xs); background: rgba(255,255,255,0.96);
   border: 1px solid var(--rule-soft);
 }
 
 /* ── Route arrows ────────────────────────────────────────────────────────── */
 .rd-pmap-arrow {
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1;
   opacity: 0.85;
   pointer-events: none;
