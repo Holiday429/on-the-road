@@ -222,11 +222,13 @@
 }
 
 /* ── Time-travel control (testing aid) ───────────────────────────────────── */
+/* Bare icon, like the bell beside it */
 .td-sim--btn {
   display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
-  border-radius: var(--r-full); background: var(--surface-3); font-size: 16px; cursor: pointer;
+  padding: 0; border: 0; background: none; font-size: 22px; line-height: 1; cursor: pointer;
+  transition: transform var(--dur-fast);
 }
-.td-sim--btn:hover { background: var(--amber-100); }
+.td-sim--btn:hover { transform: scale(1.08); }
 .td-sim--on {
   display: inline-flex; align-items: stretch; border-radius: var(--r-full); overflow: hidden;
   background: var(--amber-100); box-shadow: inset 0 0 0 1.5px var(--amber-400);
@@ -237,13 +239,14 @@
 .td-sim-x:hover { color: var(--ink); }
 .td-sim-h { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink-muted); margin-bottom: var(--sp-2); }
 .td-sim-h--gap { margin-top: var(--sp-5); }
-.td-sim-cal { max-width: 288px; padding: var(--sp-3); border-radius: var(--r-lg); background: var(--surface-3); }
+.td-sim-pick { display: flex; align-items: center; gap: var(--sp-3); }
+.td-sim-side { display: flex; flex-direction: column; gap: var(--sp-2); flex: 1; min-width: 0; max-width: 96px; }
+.td-sim-side .btn { justify-content: center; padding: 6px 10px; }
+.td-sim-cal { flex: 0 1 288px; min-width: 0; padding: var(--sp-3); border-radius: var(--r-lg); background: var(--surface-3); }
 .td-sim-cal .ag-month-nav { margin-bottom: var(--sp-2); }
 .td-sim-cal .ag-grid { row-gap: 2px; }
 .td-sim-cal .ag-cell { height: 30px; }
 .td-sim-cal .ag-num { width: 26px; height: 26px; font-size: var(--fs-xs); }
-.td-sim-row { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); max-width: 288px; }
-.td-sim-row .btn { flex: 1; justify-content: center; padding-top: 6px; padding-bottom: 6px; }
 /* Quick jumps: two per row, the city over its date */
 .td-sim-jumps { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
 .td-sim-jump {

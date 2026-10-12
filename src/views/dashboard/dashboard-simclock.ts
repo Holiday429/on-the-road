@@ -108,10 +108,12 @@ function openSimDrawer(trip: { startDate: string; endDate: string } | null, legs
     subtitle: isSimulating() ? t('dash.sim.on', { when: fmtNow() }) : t('dash.sim.off'),
     body: `
       <div class="td-sim-h">${esc(t('dash.sim.pick'))}</div>
-      <div class="td-sim-cal" data-sim-cal>${simCalendar(viewMonth, picked)}</div>
-      <div class="td-sim-row">
-        <button type="button" class="btn btn-ghost" data-sim-today>${esc(t('dash.agenda.today'))}</button>
-        <button type="button" class="btn btn-primary" data-sim-apply>${esc(t('dash.sim.apply'))}</button>
+      <div class="td-sim-pick">
+        <div class="td-sim-cal" data-sim-cal>${simCalendar(viewMonth, picked)}</div>
+        <div class="td-sim-side">
+          <button type="button" class="btn btn-ghost" data-sim-today>${esc(t('dash.agenda.today'))}</button>
+          <button type="button" class="btn btn-primary" data-sim-apply>${esc(t('dash.sim.apply'))}</button>
+        </div>
       </div>
       ${jumps.length ? `
         <div class="td-sim-h td-sim-h--gap">${esc(t('dash.sim.jump'))}</div>
