@@ -16,6 +16,7 @@
    shown straight away.
    ========================================================================== */
 
+import '../../core/paper/paper.css';
 import './styles/weigh-scale.css';
 import { t } from '../../core/i18n.ts';
 import { escHtml } from '../../core/utils.ts';
@@ -70,15 +71,15 @@ export function openWeighIn(opts: WeighOptions): void {
         <div class="ws-scale">
           <div class="ws-plate"></div>
           <div class="ws-base">
-            <div class="ws-readout">
-              <div class="ws-num">${escHtml(fmt(0))}</div>
-              <div class="ws-limit"></div>
+            <div class="ws-readout paper-led">
+              <div class="ws-num paper-led-num">${escHtml(fmt(0))}</div>
+              <div class="ws-limit paper-led-aux"></div>
             </div>
           </div>
         </div>
-        <div class="ws-tag" hidden>
-          <div class="ws-tag-verdict"></div>
-          <div class="ws-tag-sub"></div>
+        <div class="ws-tag paper-tag" hidden>
+          <div class="ws-tag-verdict paper-tag-verdict"></div>
+          <div class="ws-tag-sub paper-tag-sub"></div>
         </div>
       </div>
       <div class="ws-name"></div>
@@ -156,8 +157,17 @@ export function openWeighIn(opts: WeighOptions): void {
     limit.textContent = row.limitG ? t('pack.weigh.limit', { w: fmt(row.limitG) }) : t('pack.weigh.noLimitShort');
   }
 
+  /** Colours the tag and the LED for a verdict (kit tones: good / bad / neutral). */
+  function setTone(v: Verdict | 'none'): void {
+    card.dataset.verdict = v;
+    tag.classList.toggle('paper-tag--good', v === 'pass');
+    tag.classList.toggle('paper-tag--bad', v === 'over');
+    readout.classList.toggle('is-good', v === 'pass');
+    readout.classList.toggle('is-bad', v === 'over');
+  }
+
   function showVerdict(row: BagWeighIn): void {
-    card.dataset.verdict = row.verdict;
+    setTone(row.verdict);
     num.textContent = fmt(row.weightG);
     tagVerdict.textContent = verdictLabel(row.verdict);
     tagSub.textContent = verdictSub(row, fmt);
@@ -191,7 +201,7 @@ export function openWeighIn(opts: WeighOptions): void {
 
   async function weighOne(row: BagWeighIn): Promise<void> {
     showBag(row);
-    card.dataset.verdict = 'none';
+    setTone('none');
     tag.hidden = true;
     num.textContent = fmt(0);
 

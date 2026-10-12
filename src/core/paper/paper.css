@@ -1,0 +1,164 @@
+/* ==========================================================================
+   On the Road · Paper kit
+   --------------------------------------------------------------------------
+   The one physical vocabulary the app uses: paper, perforation, tape rows,
+   ink stamps, luggage tags, LED readouts, barcodes. Pages compose these
+   instead of drawing their own (see docs/ui-kit.md for the catalogue).
+
+   Rules of the material:
+     · one material (paper), one light source (shadow falls down)
+     · only these details: tear line, notch, zig-zag edge, barcode, ink stamp,
+       tag hole, LED glass
+     · numbers and codes are monospace (--font-data)
+     · everything is fluid: components are container-query aware and never
+       rely on a viewport width, so they work in a drawer, a card or a phone.
+   ========================================================================== */
+
+:root {
+  /* A fine paper grain, ~3–4% — barely there, but it is what stops a card
+     looking like a flat screen rectangle. Light pages get dark specks. */
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .25  0 0 0 0 .2  0 0 0 0 .12  0 0 0 .05 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  --paper-ground: var(--surface-2);        /* what the paper sits on (for zig-zag edges) */
+  --paper-perf: color-mix(in srgb, var(--ink) 22%, transparent);
+  --paper-zig: 7px;
+}
+:root[data-theme='dark'] {
+  --paper-grain: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .9  0 0 0 0 .85  0 0 0 0 .75  0 0 0 .035 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* ── Sheet ──────────────────────────────────────────────────────────────── */
+.paper {
+  position: relative;
+  background: var(--paper-grain), var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  min-width: 0;
+}
+/* A receipt/slip lays out by its own width, not the window's. */
+.paper--slip { container-type: inline-size; }
+
+/* Serrated tear-off bottom edge (teeth hang below the box). */
+.paper--zigzag { margin-bottom: var(--paper-zig); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.paper--zigzag::after {
+  content: ''; position: absolute; left: 0; right: 0; top: calc(100% - 1px); height: var(--paper-zig);
+  background:
+    linear-gradient(135deg, var(--surface) 50%, transparent 50%) 0 0 / calc(var(--paper-zig) * 2) var(--paper-zig),
+    linear-gradient(225deg, var(--surface) 50%, transparent 50%) 0 0 / calc(var(--paper-zig) * 2) var(--paper-zig);
+  filter: drop-shadow(0 2px 1px color-mix(in srgb, var(--ink) 8%, transparent));
+  pointer-events: none;
+}
+
+/* Tear line with a half-circle notch punched out each side. */
+.paper-perf {
+  position: relative; height: 0; margin: var(--sp-3) 0;
+  border-top: 1.5px dashed var(--paper-perf);
+}
+.paper-perf::before, .paper-perf::after {
+  content: ''; position: absolute; top: -9px; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--paper-ground, var(--surface-2)); border: 1px solid var(--rule);
+}
+.paper-perf::before { left: -9px;  clip-path: inset(0 0 0 50%); }
+.paper-perf::after  { right: -9px; clip-path: inset(0 50% 0 0); }
+
+/* ── Tape rows: label ········· value ───────────────────────────────────── */
+.paper-rows { display: flex; flex-direction: column; }
+.paper-row {
+  display: grid; grid-template-columns: minmax(0, auto) minmax(12px, 1fr) auto; align-items: baseline;
+  column-gap: var(--sp-2); padding: 3px 0;
+  font-size: var(--fs-sm); color: var(--ink-soft);
+}
+.paper-row-label { display: flex; align-items: baseline; gap: 6px; min-width: 0; color: var(--ink); }
+.paper-row-label > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.paper-row-lead { align-self: end; margin-bottom: 4px; border-bottom: 1.5px dotted color-mix(in srgb, var(--ink) 28%, transparent); }
+.paper-row-value { font-family: var(--font-data); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; text-align: right; }
+.paper-row-sub { grid-column: 1 / -1; font-size: var(--fs-xs); color: var(--ink-muted); padding-left: 1.6em; }
+.paper-row.is-strong .paper-row-label, .paper-row.is-strong .paper-row-value { font-weight: var(--fw-semibold); }
+.paper-row.is-total { padding-top: var(--sp-2); margin-top: var(--sp-1); border-top: 1.5px solid var(--paper-perf); font-size: var(--fs-md); }
+.paper-row.is-bad .paper-row-value, .paper-row.is-bad .paper-row-sub { color: var(--danger); font-weight: var(--fw-semibold); }
+.paper-row.is-good .paper-row-value { color: var(--success); }
+.paper-row.is-warn .paper-row-value { color: var(--warning); }
+.paper-row[data-act], button.paper-row { cursor: pointer; background: none; border: 0; width: 100%; text-align: left; font: inherit; }
+.paper-row[data-act]:hover .paper-row-label, button.paper-row:hover .paper-row-label { text-decoration: underline; text-decoration-color: var(--paper-perf); }
+
+/* Narrow slip: drop the leader dots and let the value wrap under the label. */
+@container (max-width: 240px) {
+  .paper-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .paper-row-lead { display: none; }
+}
+
+/* ── Receipt furniture ──────────────────────────────────────────────────── */
+.paper-receipt { padding: var(--sp-4) var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); }
+.paper-receipt-head { text-align: center; font-family: var(--font-data); }
+.paper-receipt-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); }
+.paper-receipt-meta { font-size: var(--fs-2xs); letter-spacing: .1em; color: var(--ink-muted); margin-top: 2px; }
+.paper-receipt-foot { text-align: center; font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .08em; color: var(--ink-muted); }
+
+.paper-barcode {
+  width: 100%; max-width: 120px; height: 28px; margin: var(--sp-1) auto 0; opacity: .75;
+  background: repeating-linear-gradient(90deg,
+    var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 5px, transparent 5px 8px,
+    var(--ink) 8px 11px, transparent 11px 12px, var(--ink) 12px 13px, transparent 13px 16px);
+}
+
+/* ── Ink stamp ──────────────────────────────────────────────────────────── */
+.paper-stamp {
+  --stamp: var(--danger);
+  display: inline-block; padding: 2px 9px; border: 2px solid var(--stamp); border-radius: var(--r-sm);
+  color: var(--stamp); font-family: var(--font-data); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+  letter-spacing: .14em; text-transform: uppercase; line-height: 1.5;
+  background: color-mix(in srgb, var(--stamp) 7%, transparent);
+  transform: rotate(-6deg); opacity: .9; mix-blend-mode: multiply;
+  pointer-events: none; user-select: none;
+}
+:root[data-theme='dark'] .paper-stamp { mix-blend-mode: normal; }
+.paper-stamp--good { --stamp: var(--success); }
+.paper-stamp--warn { --stamp: var(--warning); }
+.paper-stamp--neutral { --stamp: var(--ink-muted); }
+.paper-stamp--corner { position: absolute; right: var(--sp-4); top: var(--sp-4); }
+.paper-stamp.is-pressed { animation: paper-thunk 380ms cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes paper-thunk {
+  0%   { opacity: 0; transform: scale(2.2) rotate(-6deg); }
+  60%  { opacity: 1; transform: scale(.94) rotate(-6deg); }
+  100% { opacity: .9; transform: scale(1) rotate(-6deg); }
+}
+
+/* ── Luggage tag ────────────────────────────────────────────────────────── */
+.paper-tag {
+  --tag-bg: var(--tint-misc); --tag-ink: var(--tint-misc-ink);
+  position: relative; display: inline-block; min-width: 96px; padding: 16px 10px 10px;
+  border-radius: var(--r-md); background: var(--tag-bg); color: var(--tag-ink);
+  box-shadow: var(--shadow-md); font-family: var(--font-data); transform-origin: 14px 9px;
+}
+.paper-tag::before {
+  content: ''; position: absolute; top: 5px; left: 8px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--surface); box-shadow: inset 0 1px 1px color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.paper-tag-verdict { font-weight: var(--fw-semibold); font-size: var(--fs-md); letter-spacing: .07em; line-height: 1.2; }
+.paper-tag-sub { margin-top: 2px; font-size: var(--fs-xs); opacity: .85; }
+.paper-tag--good { --tag-bg: var(--tint-transport);  --tag-ink: var(--tint-transport-ink); }
+.paper-tag--bad  { --tag-bg: var(--tint-activities); --tag-ink: var(--tint-activities-ink); }
+.paper-tag--warn { --tag-bg: var(--tint-food);       --tag-ink: var(--tint-food-ink); }
+
+/* ── LED readout (dark glass, monospace digits) ─────────────────────────── */
+.paper-led {
+  display: flex; align-items: baseline; justify-content: flex-end; gap: var(--sp-2);
+  padding: 8px 14px; background: var(--scale-glass); color: var(--scale-led);
+  border-radius: var(--r-sm); box-shadow: inset 0 1px 3px rgba(0,0,0,.55);
+  font-family: var(--font-data); font-variant-numeric: tabular-nums; min-width: 0;
+}
+.paper-led-num { font-size: 24px; font-weight: var(--fw-medium); letter-spacing: -.02em; line-height: 1.2; }
+.paper-led-aux { font-size: var(--fs-2xs); letter-spacing: .06em; opacity: .6; }
+.paper-led.is-good .paper-led-num { color: var(--scale-led-ok); }
+.paper-led.is-bad  .paper-led-num { color: var(--scale-led-over); }
+
+/* ── Printing a new line ────────────────────────────────────────────────── */
+.paper-printing { animation: paper-print 460ms var(--ease-out) both; }
+@keyframes paper-print {
+  from { opacity: 0; transform: translateY(-14px); clip-path: inset(0 0 100% 0); }
+  to   { opacity: 1; transform: none;               clip-path: inset(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paper-printing, .paper-stamp.is-pressed { animation: none; }
+}

@@ -36,6 +36,9 @@ import {
 } from '../../data/rates.ts';
 import { budgetBarColor } from '../../data/budget-tone.ts';
 import { openModal } from '../../core/modal.ts';
+import '../../core/paper/paper.css';
+import { renderTape, convertedHint, type TapeEntry } from './checkout.ts';
+import { paperStamp } from '../../core/paper/paper.ts';
 import { openCurrencyManager } from './currency-manager.ts';
 import {
   lastUsed, legCountries, legCitiesFor, defaultPlace, defaultCurrency,
@@ -170,7 +173,8 @@ function renderSummary(el: HTMLElement) {
           </div>
           <div class="exp-hero-label ${over ? 'exp-hero-label-over' : ''}">
             ${over ? `▲ ${fmt(sum - budget)} ${t('expenses.over')}` : `${fmt(budget - sum)} ${t('expenses.remaining')} ›`}
-          </div>`;
+          </div>
+          ${over ? paperStamp({ text: t('expenses.overBudget'), tone: 'bad', corner: true }) : ''}`;
       })()
     : `<div class="exp-hero-eyebrow">${t('expenses.budgetTitle')}</div>
        <div class="exp-hero-num exp-hero-empty">—</div>
@@ -258,6 +262,43 @@ function countryReminderHtml(): string {
     </div>`;
 }
 
+/* ── Checkout counter helpers ────────────────────────────────────────────── */
+
+/** Ids already on the tape, so only a newly added line prints in. */
+let tapeSeen: Set<string> | null = null;
+
+/** Keeps the readout's symbol and the "≈ home currency" line in step with what is typed. */
+function syncCounter(el: HTMLElement): void {
+  const amount = parseFloat((el.querySelector('#exp-amount') as HTMLInputElement | null)?.value ?? '');
+  const currency = (el.querySelector('#exp-currency') as HTMLSelectElement | null)?.value ?? baseCurrency();
+  const sym = el.querySelector('#exp-sym');
+  if (sym) sym.textContent = currencySymbol(currency);
+  const aux = el.querySelector('#exp-led-aux');
+  if (aux) aux.textContent = convertedHint(amount, currency, baseCurrency(), (a, c) => convert(rates, a, c).baseAmount, fmt);
+}
+
+/** The day's tape under the Pay button. `reset` re-baselines which lines count as new. */
+function refreshTape(el: HTMLElement, reset: boolean): void {
+  const tape = el.querySelector<HTMLElement>('#exp-tape');
+  if (!tape) return;
+  const iso = (el.querySelector('#exp-date') as HTMLInputElement | null)?.value || new Date().toISOString().split('T')[0];
+  const day = expenses.filter((e) => e.date === iso);
+  if (reset || !tapeSeen) tapeSeen = new Set(day.map((e) => e.id));
+  const fresh = new Set(day.filter((e) => !tapeSeen!.has(e.id)).map((e) => e.id));
+  fresh.forEach((id) => tapeSeen!.add(id));
+  const entries: TapeEntry[] = day.map((e) => {
+    const cat = categoryById(e.category);
+    return {
+      id: e.id, icon: cat?.icon ?? '🗂️', name: e.description || cat?.label || t('dash.spend.unlabelled'),
+      baseAmount: inBase(e),
+      original: e.currency !== baseCurrency() ? `${currencySymbol(e.currency)}${e.amount.toFixed(2)}` : undefined,
+    };
+  });
+  const dateLabel = new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  // eslint-disable-next-line no-restricted-syntax -- audited: renderTape escapes every value
+  tape.innerHTML = renderTape({ entries, dateLabel, fmt, fresh });
+}
+
 function renderForm(el: HTMLElement) {
   const todayIso = new Date().toISOString().split('T')[0];
   const defCur = defaultCurrency(legs, todayIso);
@@ -292,7 +333,7 @@ function renderForm(el: HTMLElement) {
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   el.innerHTML = `
-    <div class="exp-form">
+    <div class="exp-form paper">
       <div class="exp-form-head">
         <div class="exp-form-title">${t('expenses.formTitle')}</div>
         <label class="exp-base-picker">
@@ -311,11 +352,12 @@ function renderForm(el: HTMLElement) {
         <button class="exp-cat-chip exp-cat-manage" id="exp-cat-manage" type="button" title="Manage categories">+ New</button>
       </div>
       <div class="exp-country-reminder-slot">${countryReminderHtml()}</div>
+      <div class="ck-display paper-led" id="exp-led">
+        <span class="ck-sym" id="exp-sym">${escHtml(currencySymbol(curValue))}</span>
+        <input class="ck-amount paper-led-num" type="number" id="exp-amount" placeholder="0.00" min="0" step="0.01" inputmode="decimal" aria-label="${escHtml(t('expenses.counterAria'))}" value="${escHtml(draftAmount)}">
+        <span class="ck-aux paper-led-aux" id="exp-led-aux" aria-live="polite"></span>
+      </div>
       <div class="exp-form-grid">
-        <div>
-          <label class="field-label">Amount</label>
-          <input class="input" type="number" id="exp-amount" placeholder="0.00" min="0" step="0.01" value="${escHtml(draftAmount)}">
-        </div>
         <div>
           <label class="field-label">Currency</label>
           <div class="exp-cur-row">
@@ -326,12 +368,12 @@ function renderForm(el: HTMLElement) {
           </div>
         </div>
         <div>
-          <label class="field-label">What for?</label>
-          <input class="input" id="exp-desc" placeholder="${t('expenses.descPh')}" value="${escHtml(draftDesc)}">
-        </div>
-        <div>
           <label class="field-label">Date</label>
           <input class="input" type="date" id="exp-date" value="${dateValue}">
+        </div>
+        <div class="field-full">
+          <label class="field-label">What for?</label>
+          <input class="input" id="exp-desc" placeholder="${t('expenses.descPh')}" value="${escHtml(draftDesc)}">
         </div>
         <div>
           <label class="field-label">Country</label>
@@ -343,9 +385,13 @@ function renderForm(el: HTMLElement) {
           <select class="input select" id="exp-city">${cityOpts}</select>
         </div>` : '<div></div>'}
       </div>
-      <button class="btn btn-primary" id="exp-add-btn" style="width:100%;justify-content:center">${t('expenses.btnAdd')}</button>
+      <button class="btn btn-primary ck-pay" id="exp-add-btn">${t('expenses.btnAdd')}</button>
+      <div class="paper-perf" aria-hidden="true"></div>
+      <div class="ck-tape" id="exp-tape"></div>
     </div>
   `;
+  syncCounter(el);
+  refreshTape(el, true);
 
   const curInput = el.querySelector('#exp-currency') as HTMLSelectElement;
   const countrySel = el.querySelector('#exp-country') as HTMLSelectElement;
@@ -383,6 +429,13 @@ function renderForm(el: HTMLElement) {
 
   bindBasePicker(el);
 
+  for (const sel of ['#exp-amount', '#exp-currency']) el.querySelector(sel)?.addEventListener('input', () => syncCounter(el));
+  el.querySelector('#exp-currency')?.addEventListener('change', () => syncCounter(el));
+  el.querySelector('#exp-date')?.addEventListener('change', () => refreshTape(el, true));
+  el.querySelector('#exp-tape')?.addEventListener('click', (ev) => {
+    if ((ev.target as HTMLElement).closest('[data-act="open-records"]')) openRecords();
+  });
+
   el.querySelectorAll('.exp-cat-chip[data-cat]').forEach((btn) => {
     btn.addEventListener('click', () => {
       selectedCategory = (btn as HTMLElement).dataset.cat!;
@@ -417,6 +470,8 @@ function renderForm(el: HTMLElement) {
         draftDesc = '';
         amountInput.value = '';
         (el.querySelector('#exp-desc') as HTMLInputElement).value = '';
+        syncCounter(el);
+        amountInput.focus();
       }
     } catch (err) {
       // A rejected write (not signed in, offline-then-denied, rules) used to
@@ -944,6 +999,7 @@ function renderBreakdown(el: HTMLElement) {
           <div class="exp-legend-row">
             <span class="exp-legend-dot" style="background:${r.color}"></span>
             <span class="exp-legend-name">${escHtml(r.label)} ${setBtn}</span>
+            <span class="paper-row-lead" aria-hidden="true"></span>
             <span class="exp-legend-pct">${pct}%</span>
             <span class="exp-legend-amt">${fmt(r.sum)}</span>
             ${budgetStr}
@@ -1108,6 +1164,8 @@ function render() {
   const root = document.getElementById('view-expenses');
   if (!root) return;
   renderSummary(root.querySelector('.exp-summary')!);
+  const formEl = root.querySelector<HTMLElement>('.exp-form-wrap');
+  if (formEl) refreshTape(formEl, false);
   renderRecordsPanel();
   renderBreakdown(root.querySelector('.exp-breakdown-wrap')!);
 }

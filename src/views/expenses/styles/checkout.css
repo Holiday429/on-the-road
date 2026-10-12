@@ -1,0 +1,58 @@
+/* ==========================================================================
+   On the Road · Expenses · checkout counter
+   The Add-expense card as a till: LED readout, Pay button, paper tape.
+   Material comes from the paper kit (core/paper/paper.css).
+   ========================================================================== */
+
+.exp-form.paper { border-radius: var(--r-lg); padding: var(--sp-5); }
+
+/* ── Readout ─────────────────────────────────────────────────────────────── */
+.exp-form .ck-display {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline;
+  column-gap: var(--sp-2); row-gap: 0;
+  padding: 10px 16px 8px; margin-bottom: var(--sp-4);
+}
+.exp-form .ck-display:focus-within { box-shadow: inset 0 1px 3px rgba(0,0,0,.55), 0 0 0 2px var(--select-bg); }
+.exp-form .ck-sym { font-size: 22px; opacity: .75; }
+.exp-form .ck-amount {
+  width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; background: transparent;
+  color: inherit; text-align: right; font-size: clamp(26px, 8cqi, 36px);
+}
+.exp-form .ck-amount::placeholder { color: var(--scale-led); opacity: .3; }
+.exp-form .ck-aux { grid-column: 1 / -1; text-align: right; min-height: 1.3em; }
+@supports (container-type: inline-size) { .exp-form { container-type: inline-size; } }
+
+/* ── Pay ─────────────────────────────────────────────────────────────────── */
+.ck-pay {
+  width: 100%; justify-content: center; min-height: 46px;
+  font-family: var(--font-display); font-weight: var(--fw-semibold); letter-spacing: .02em;
+}
+
+/* ── Tape ────────────────────────────────────────────────────────────────── */
+.ck-tape { font-family: var(--font-data); }
+.ck-tape-head {
+  display: flex; justify-content: space-between; gap: var(--sp-2);
+  font-size: var(--fs-2xs); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted);
+  padding-bottom: var(--sp-2);
+}
+.ck-tape-empty { font-size: var(--fs-xs); color: var(--ink-faint); padding: var(--sp-1) 0 var(--sp-2); }
+.ck-tape .paper-row { font-family: var(--font-data); }
+.ck-tape .paper-row-label { font-family: var(--font-ui); }
+.ck-tape .paper-row.is-total .paper-row-value { font-size: var(--fs-md); }
+
+/* ── Summary as one till slip: two halves, a tear line between ─────────────── */
+.exp-summary {
+  gap: 0; position: relative; overflow: hidden;
+  background: var(--paper-grain), var(--surface);
+  border: 1px solid var(--rule); border-radius: var(--r-lg); box-shadow: var(--shadow-md);
+}
+.exp-summary .exp-hero-btn {
+  position: relative; border: 0; border-radius: 0; box-shadow: none; background: transparent;
+}
+.exp-summary .exp-hero-spend, .exp-summary .exp-hero-budget { background: transparent; border: 0; }
+.exp-summary .exp-hero-btn:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); filter: none; box-shadow: none; }
+.exp-summary .exp-hero-btn + .exp-hero-btn { border-left: 1.5px dashed var(--paper-perf); }
+.exp-summary .paper-stamp--corner { right: var(--sp-3); top: var(--sp-3); font-size: var(--fs-2xs); }
+@media (max-width: 500px) {
+  .exp-summary .exp-hero-btn + .exp-hero-btn { border-left: 0; border-top: 1.5px dashed var(--paper-perf); }
+}
