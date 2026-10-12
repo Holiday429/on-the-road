@@ -14,19 +14,26 @@
   gap: var(--sp-5);
   align-items: start;
 }
-.cal-main { display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; }
+.cal-main {
+  display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0;
+  /* Month + to-dos stay put while the day panel on the right scrolls with the page;
+     the to-do list takes whatever height is left and scrolls inside itself. */
+  position: sticky; top: calc(var(--topbar-h) + var(--sp-3)); max-height: calc(100vh - var(--topbar-h) - 2 * var(--sp-3));
+}
+.cal-main > :not(.cal-todos-panel) { flex-shrink: 0; }
 /* Stacked: month → totals → the selected day → all open to-dos. `contents` lifts
    .cal-main's children into the root's flex flow so the panel can slot between. */
 @media (max-width: 860px) {
   .cal-root { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-4); }
-  .cal-main { display: contents; }
+  .cal-main { display: contents; position: static; max-height: none; }
   .cal-panel { order: 2; }
   .cal-todos-panel { order: 3; }
 }
 
 /* ── Month navigation ─────────────────────────────────────────────────────── */
 .cal-nav { display: flex; align-items: center; gap: var(--sp-3); }
-.cal-month-title { font-family: var(--font-ui); font-size: var(--fs-xl); font-weight: 700; color: var(--ink); flex: 1; }
+.cal-nav { gap: var(--sp-2); }
+.cal-month-title { font-family: var(--font-ui); font-size: var(--fs-xl); font-weight: 700; color: var(--ink); min-width: 0; margin: 0 var(--sp-1); }
 .cal-nav-btn {
   width: 36px; height: 36px; border-radius: var(--r-md); background: var(--surface-3);
   font-size: 18px; color: var(--ink-soft); display: flex; align-items: center; justify-content: center;
@@ -34,6 +41,7 @@
 }
 .cal-nav-btn:hover { background: var(--surface-4); }
 .cal-today-btn {
+  margin-left: auto;
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--accent-deep);
   background: var(--amber-50); border: 1px solid var(--amber-200); padding: 6px 14px; border-radius: var(--r-full);
   transition: background var(--dur-fast);
@@ -59,7 +67,18 @@
   flex-shrink: 0; display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 4px; border-radius: var(--r-full);
   font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 600; color: var(--ink);
 }
-.cal-city { min-width: 0; flex: 1; font-size: 10px; font-weight: 600; color: var(--amber-700); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-city { margin-left: auto; font-size: 13px; line-height: 1; }
+/* Hover tooltip for a city change — same dark bubble as the expense chips. */
+.cal-cell[data-tip]:hover { z-index: 5; }
+.cal-cell[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: rgba(30,30,30,0.92); color: var(--surface);
+  font-size: 11px; font-weight: 500; line-height: 1.45; padding: 5px 9px; border-radius: 6px;
+  white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity var(--dur-fast);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+.cal-cell[data-tip]:hover::after { opacity: 1; }
 .cal-dots { display: flex; gap: 3px; height: 6px; align-items: center; }
 .cal-dots i { width: 6px; height: 6px; border-radius: 50%; }
 
@@ -73,13 +92,10 @@
 
 /* ── Day panel ────────────────────────────────────────────────────────────── */
 .cal-panel {
-  position: sticky; top: var(--sp-4);
   display: flex; flex-direction: column; gap: var(--sp-4);
   background: var(--surface); border: 1px solid var(--rule-soft); border-radius: var(--r-xl);
   padding: var(--sp-5); box-shadow: var(--shadow-sm);
-  max-height: calc(100vh - 2 * var(--sp-4)); overflow-y: auto;
 }
-@media (max-width: 860px) { .cal-panel { position: static; max-height: none; } }
 .cal-panel-head { display: flex; flex-direction: column; gap: 3px; }
 .cal-panel-date { font-family: var(--font-ui); font-size: var(--fs-lg, 18px); font-weight: 700; color: var(--ink); }
 .cal-panel-where { font-size: var(--fs-sm); color: var(--ink-muted); }
@@ -102,8 +118,19 @@
   font-size: 12px; font-weight: 700; color: transparent; display: grid; place-items: center;
 }
 .cal-check.is-done { background: var(--sage-500); border-color: var(--sage-500); color: #fff; }
-.cal-chev { flex-shrink: 0; width: 24px; height: 24px; background: none; color: var(--ink-faint); cursor: pointer; transition: transform var(--dur-fast); }
-.cal-chev.is-open { transform: rotate(180deg); }
+.cal-chev {
+  flex-shrink: 0; position: relative; width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  background: var(--surface); color: var(--ink-soft); border: 1px solid var(--rule);
+  transition: transform var(--dur-fast), background var(--dur-fast), border-color var(--dur-fast);
+}
+/* The chevron itself: a 2px corner, so it stays crisp and clearly visible at any zoom. */
+.cal-chev::before {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: translate(-50%, -70%) rotate(45deg);
+}
+.cal-chev:hover { background: var(--amber-50); border-color: var(--amber-300, var(--amber-200)); color: var(--ink); }
+.cal-chev.is-open { transform: rotate(180deg); background: var(--amber-100); border-color: var(--amber-300, var(--amber-200)); }
 .cal-details { margin: 0; padding: 4px 12px 10px 44px; display: flex; flex-direction: column; gap: 4px; }
 .cal-details div { display: flex; gap: var(--sp-3); font-size: var(--fs-xs); }
 .cal-details dt { flex: 0 0 76px; color: var(--ink-faint); font-weight: 600; }
@@ -114,7 +141,8 @@
    (their edit buttons stay on the pages). */
 .cal-itn { padding: 2px 8px 10px; --tk-notch: var(--surface-3); }
 .cal-itn .rd-stay-actions .rd-icon-btn { display: none; }
-.cal-itn .exp-tags { grid-template-columns: 1fr; }
+.cal-itn .exp-tags { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cal-itn .exp-tag-item { flex: 0 1 auto; max-width: 100%; }
 .cal-itn .exp-tag-item::after { display: none; }
 
 .cal-sec { display: flex; flex-direction: column; gap: 6px; }
@@ -151,7 +179,9 @@
 .cal-todos-panel {
   background: var(--surface); border: 1px solid var(--rule-soft); border-radius: var(--r-xl);
   padding: var(--sp-4); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: var(--sp-2);
+  flex: 1 1 auto; min-height: 140px; overflow-y: auto;
 }
+@media (max-width: 860px) { .cal-todos-panel { overflow: visible; } }
 .cal-todos-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--sp-2); border-bottom: 1px solid var(--rule-soft); }
 .cal-todos-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink-muted); }
 .cal-todos-add { font-size: var(--fs-xs); padding: 4px 12px; }

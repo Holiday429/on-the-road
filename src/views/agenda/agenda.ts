@@ -71,6 +71,9 @@ function categoryFor(id: string): Category | undefined {
   const c = expenseCategoryStore.peek().find((x) => x.id === id);
   return c ? { id: c.id, label: c.label, icon: c.icon, color: c.color, builtin: false } : undefined;
 }
+function shortDate(iso: string): string {
+  return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
 function fmtMoney(n: number): string {
   return `${currencySymbol(baseCurrency())}${Math.round(n).toLocaleString()}`;
 }
@@ -100,9 +103,12 @@ function renderMonthGrid(kinds: Map<string, Set<AgendaKind>>): string {
       : '';
     const leg = _legs.find((l) => l.dateFrom <= iso && iso <= l.dateTo);
     const cls = ['cal-cell', iso === today ? 'is-today' : '', iso === _selected ? 'is-sel' : '', leg ? 'in-leg' : ''].filter(Boolean).join(' ');
-    const city = leg && (iso === leg.dateFrom || d === 1) ? `<span class="cal-city">${esc(leg.flag)} ${esc(leg.city)}</span>` : '';
+    // A new city starts today: just its flag in the cell, the details in a hover tooltip.
+    const arriving = _legs.find((l) => l.dateFrom === iso);
+    const tip = arriving ? `${arriving.flag} ${arriving.city} · ${shortDate(arriving.dateFrom)} – ${shortDate(arriving.dateTo)}`.trim() : '';
+    const city = arriving ? `<span class="cal-city" aria-hidden="true">${esc(arriving.flag || '📍')}</span>` : '';
     cells += `
-      <button type="button" class="${cls}" data-day="${iso}">
+      <button type="button" class="${cls}" data-day="${iso}"${tip ? ` data-tip="${esc(tip)}" aria-label="${esc(tip)}"` : ''}>
         <span class="cal-cell-top"><span class="cal-daynum">${d}</span>${city}</span>
         <span class="cal-dots">${dots}</span>
       </button>`;
@@ -163,7 +169,7 @@ function renderItem(it: AgendaItem): string {
     : '';
   const expandable = it.details.length > 0 || it.kind === 'transport' || it.kind === 'stay';
   const chevron = expandable
-    ? `<button type="button" class="cal-chev${open ? ' is-open' : ''}" data-expand="${esc(it.id)}" aria-expanded="${open}" aria-label="Details">▾</button>`
+    ? `<button type="button" class="cal-chev${open ? ' is-open' : ''}" data-expand="${esc(it.id)}" aria-expanded="${open}" aria-label="Details"></button>`
     : '';
   return `
     <div class="cal-item${it.done ? ' is-done' : ''}" style="--ag-c:${AGENDA_COLORS[it.kind]}">
@@ -252,7 +258,6 @@ function renderDayPanel(): string {
       ${todoSection}
       ${empty}
       <div class="cal-panel-actions">
-        <button class="btn btn-ghost" data-add-todo="${_selected}">+ ${esc(t('cal.addTodo'))}</button>
         <button class="btn btn-primary" data-journal-new>✍️ ${esc(t('dash.journal.compose'))}</button>
       </div>
     </aside>`;
