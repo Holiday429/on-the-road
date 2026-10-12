@@ -16,18 +16,14 @@
 }
 .cal-main {
   display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0;
-  /* Month + to-dos stay put while the day panel on the right scrolls with the page;
-     the to-do list takes whatever height is left and scrolls inside itself. */
-  position: sticky; top: calc(var(--topbar-h) + var(--sp-3)); max-height: calc(100vh - var(--topbar-h) - 2 * var(--sp-3));
+  /* The month stays put while the right column (day panel + to-dos) scrolls with the page. */
+  position: sticky; top: calc(var(--topbar-h) + var(--sp-3)); max-height: calc(100vh - var(--topbar-h) - 2 * var(--sp-3)); overflow-y: auto;
 }
-.cal-main > :not(.cal-todos-panel) { flex-shrink: 0; }
-/* Stacked: month → totals → the selected day → all open to-dos. `contents` lifts
-   .cal-main's children into the root's flex flow so the panel can slot between. */
+.cal-side { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+/* Stacked: month → the selected day → all open to-dos. */
 @media (max-width: 860px) {
   .cal-root { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-4); }
-  .cal-main { display: contents; position: static; max-height: none; }
-  .cal-panel { order: 2; }
-  .cal-todos-panel { order: 3; }
+  .cal-main { position: static; max-height: none; overflow: visible; }
 }
 
 /* ── Month navigation ─────────────────────────────────────────────────────── */
@@ -147,7 +143,6 @@
 
 .cal-sec { display: flex; flex-direction: column; gap: 6px; }
 .cal-sec-label { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink-muted); letter-spacing: 0.02em; }
-.cal-sec-sub { font-size: var(--fs-2xs); font-weight: var(--fw-semibold); color: var(--ink-faint); letter-spacing: 0.05em; padding-top: var(--sp-1); }
 .cal-journal-card {
   display: flex; gap: var(--sp-3); padding: 8px; border-radius: var(--r-md); background: var(--surface-3);
   border-left: 3px solid #b39ddb; cursor: pointer; transition: background var(--dur-fast);
@@ -179,9 +174,7 @@
 .cal-todos-panel {
   background: var(--surface); border: 1px solid var(--rule-soft); border-radius: var(--r-xl);
   padding: var(--sp-4); box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: var(--sp-2);
-  flex: 1 1 auto; min-height: 140px; overflow-y: auto;
 }
-@media (max-width: 860px) { .cal-todos-panel { overflow: visible; } }
 .cal-todos-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--sp-2); border-bottom: 1px solid var(--rule-soft); }
 .cal-todos-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink-muted); }
 .cal-todos-add { font-size: var(--fs-xs); padding: 4px 12px; }
@@ -190,6 +183,8 @@
 .cal-todo-row { display: flex; align-items: flex-start; gap: var(--sp-2); padding: 6px 8px; border-radius: var(--r-md); transition: background var(--dur-fast); }
 .cal-todo-row:hover { background: var(--surface-3); }
 .cal-todo-row.is-done { opacity: 0.5; }
+/* Due on the day selected in the month — marked instead of repeating it in the day panel. */
+.cal-todo-row.is-due-sel { background: var(--amber-50); box-shadow: inset 3px 0 0 var(--amber-400); }
 .cal-todo-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cal-todo-label { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-todo-label.is-overdue { color: var(--coral-500); }

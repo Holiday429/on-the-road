@@ -20,7 +20,7 @@ import { journalStore, type StoredJournalEntry } from '../../data/stores/journal
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { expenseCategoryStore } from '../../data/stores/expense-category-store.ts';
-import { agendaForDay, kindsByDate, undatedTodos, AGENDA_COLORS, type AgendaItem, type AgendaKind, type AgendaSources } from '../../data/day-agenda.ts';
+import { agendaForDay, kindsByDate, AGENDA_COLORS, type AgendaItem, type AgendaKind, type AgendaSources } from '../../data/day-agenda.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import { currencySymbol, peekRateTable } from '../../data/rates.ts';
 import { navigateTo, consumeNavIntent, type NavIntent, type ViewId } from '../../core/app.ts';
@@ -192,7 +192,7 @@ function todoRow(td: StoredTodo, today: string): string {
   const due = !td.dueDate ? '' : td.dueDate === today ? 'Today' : overdue ? `Overdue · ${td.dueDate}` : td.dueDate;
   const remind = td.remindAt ? new Date(td.remindAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
   return `
-    <div class="cal-todo-row ${td.done ? 'is-done' : ''}">
+    <div class="cal-todo-row ${td.done ? 'is-done' : ''}${td.dueDate === _selected && !td.done ? ' is-due-sel' : ''}">
       <button class="cal-todo-check ${td.done ? 'is-checked' : ''}" data-toggle-todo="${esc(td.id)}:${td.done}" title="${td.done ? 'Mark undone' : 'Mark done'}">${td.done ? '✓' : ''}</button>
       <div class="cal-todo-body">
         <span class="cal-todo-label ${overdue ? 'is-overdue' : ''}">${esc(td.text)}</span>
@@ -209,17 +209,12 @@ function todoRow(td: StoredTodo, today: string): string {
 function renderDayPanel(): string {
   const src = sources();
   const day = agendaForDay(_selected, src);
-  const today = todayIso();
   const date = new Date(_selected + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const where = day.leg
     ? `${esc(day.leg.flag)} ${esc(day.leg.city)}${day.dayInLeg ? ` · ${esc(t('dash.agenda.dayOf', { n: day.dayInLeg.n, total: day.dayInLeg.total }))}` : ''}`
     : '';
   const hint = dayHint(day, src);
 
-  // To-dos get their own section (editable, incl. done ones) rather than the
-  // agenda's "open only" card; today also surfaces the undated ones.
-  const dayTodos = _todos.filter((td) => td.dueDate === _selected);
-  const floating = _selected === today ? undatedTodos(_todos) : [];
   const rows = day.items.filter((i) => i.kind !== 'context' && i.kind !== 'todo');
 
   const journal = day.journalEntries.map((e) => {
@@ -236,15 +231,7 @@ function renderDayPanel(): string {
       </div>`;
   }).join('');
 
-  const todoSection = (dayTodos.length || floating.length)
-    ? `<div class="cal-sec">
-         <div class="cal-sec-label">${WIDGET_ICON.todo} ${esc(t('dash.widget.todo'))}</div>
-         ${dayTodos.map((td) => todoRow(td, today)).join('')}
-         ${floating.length ? `<div class="cal-sec-sub">${esc(t('cal.noDueDate'))}</div>${floating.map((td) => todoRow(td, today)).join('')}` : ''}
-       </div>`
-    : '';
-
-  const empty = !rows.length && !journal && !todoSection
+  const empty = !rows.length && !journal
     ? `<div class="cal-empty-day">${esc(t('dash.agenda.empty'))}</div>` : '';
 
   return `
@@ -256,7 +243,6 @@ function renderDayPanel(): string {
       </div>
       ${rows.length ? `<div class="cal-items">${rows.map(renderItem).join('')}</div>` : ''}
       ${journal ? `<div class="cal-sec"><div class="cal-sec-label">${WIDGET_ICON.journal} ${esc(t('dash.widget.journal'))}</div>${journal}</div>` : ''}
-      ${todoSection}
       ${empty}
       <div class="cal-panel-actions">
         <button class="btn btn-primary" data-journal-new>✍️ ${esc(t('dash.journal.compose'))}</button>
@@ -363,9 +349,11 @@ function render(): void {
           <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${esc(t(`cal.kind.${k}`))}</span>`).join('')}</div>
           ${renderStats()}
         </div>
+      </div>
+      <div class="cal-side">
+        ${renderDayPanel()}
         ${renderTodosPanel()}
       </div>
-      ${renderDayPanel()}
     </div>`;
   wire(body);
 }
