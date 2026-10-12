@@ -19,6 +19,13 @@ export function legEndMs(l: { dateTo: string }): number {
   return +new Date(`${l.dateTo}T00:00:00`);
 }
 
+/** Local `YYYY-MM-DD` for an epoch-ms cursor (what the legs' dates are compared against). */
+export function msToIso(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** "Jan 2026"-style label for a scrubber cursor. */
 export function fmtScrubDate(ms: number, locale = 'en-US'): string {
   return new Date(ms).toLocaleDateString(locale, { month: 'short', year: 'numeric' });

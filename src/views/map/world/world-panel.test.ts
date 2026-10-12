@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, type WorldLayer } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, replayMarkup, type WorldLayer } from './world-panel.ts';
 import { buildWorldModel } from './world-model.ts';
 import { buildCountryDetail } from './country-model.ts';
 import type { PlottedLeg } from '../map-stats.ts';
@@ -14,7 +14,7 @@ const trips = [
 ];
 const TODAY = '2026-07-10';
 const model = buildWorldModel(legs, trips, TODAY);
-const base = { model, mode: 'count' as const, layers: new Set<WorldLayer>(['routes', 'cities']), onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
+const base = { model, mode: 'count' as const, layers: new Set<WorldLayer>(['routes', 'cities']), spin: false, canReplay: true, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
 
 describe('overviewMarkup', () => {
   const html = overviewMarkup(base);
@@ -79,6 +79,21 @@ describe('countryMarkup', () => {
   it('says so for a planned country', () => {
     const detail = buildCountryDetail('IT', legs, model, TODAY)!;
     expect(countryMarkup({ detail, extras: null, locale: 'en-US', stampHtml: () => '' })).toContain('Planned — not visited yet');
+  });
+});
+
+describe('replay, spin', () => {
+  it('offers replay only when there is a timeline, and shows the auto-spin switch state', () => {
+    expect(overviewMarkup(base)).toContain('data-act="replay"');
+    expect(overviewMarkup({ ...base, canReplay: false })).not.toContain('data-act="replay"');
+    expect(overviewMarkup(base)).toMatch(/map-layer-chip" data-spin[^>]*aria-checked="false"/);
+    expect(overviewMarkup({ ...base, spin: true })).toMatch(/map-layer-chip active" data-spin[^>]*aria-checked="true"/);
+  });
+  it('the replay panel shows running totals and a way out', () => {
+    const html = replayMarkup(model.summary, 'en-US');
+    expect(html).toContain('world-replay-stats');
+    expect(html).toContain('data-act="replay-close"');
+    expect(html).toContain('Replaying all trips');
   });
 });
 

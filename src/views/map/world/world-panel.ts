@@ -15,18 +15,42 @@ import { unlocatedMarkup } from '../map-panel.ts';
 import type { UnlocatedStop } from '../map-plot.ts';
 import type { CountryDetail } from './country-model.ts';
 import type { CountryExtras } from './country-extras.ts';
-import type { ColorMode, TripRecord, WorldModel } from './world-model.ts';
+import type { ColorMode, TripRecord, WorldModel, WorldSummary } from './world-model.ts';
 
 const card = (num: string, label: string) =>
   `<div class="map-stat"><div class="map-stat-num">${esc(num)}</div><div class="map-stat-label">${esc(label)}</div></div>`;
 
 export type WorldLayer = 'routes' | 'cities';
 
+/** The six lifetime totals; shared by the overview and the replay panel. */
+export function summaryCardsMarkup(s: WorldSummary, locale: string): string {
+  return `<div class="map-stats map-stats-all">
+      ${card(String(s.countries), t('map.stat.countries'))}
+      ${card(String(s.cities), t('map.stat.cities'))}
+      ${card(String(s.nights), t('map.stat.nights'))}
+      ${card(fmtKm(s.km, locale), t('map.stat.km'))}
+      ${card(String(s.continents), t(s.continents === 1 ? 'map.stat.continent' : 'map.stat.continents'))}
+      ${card(String(s.trips), t('world.stat.trips'))}
+    </div>`;
+}
+
+/** The panel while every trip is being replayed: the running totals and a way out. */
+export function replayMarkup(summary: WorldSummary, locale: string): string {
+  return `
+    <h2 class="world-chead-name">${esc(t('world.replay.title'))}</h2>
+    <div class="world-replay-stats">${summaryCardsMarkup(summary, locale)}</div>
+    <button class="btn btn-ghost world-back" data-act="replay-close">${esc(t('world.replay.close'))}</button>`;
+}
+
 export interface OverviewInput {
   model: WorldModel;
   mode: ColorMode;
   /** Which map layers are switched on. */
   layers: ReadonlySet<WorldLayer>;
+  /** Idle auto-spin preference. */
+  spin: boolean;
+  /** There is more than one date to replay through. */
+  canReplay: boolean;
   /** The trip the chips are filtered to, if any. */
   onlyTripId: string | null;
   currentTripId: string | null;
@@ -55,21 +79,16 @@ export function overviewMarkup(o: OverviewInput): string {
   const hasCurrent = !!o.currentTripId && trips.some((tr) => tr.id === o.currentTripId);
   const countries = [...o.model.countries.values()].sort((a, b) => a.name.localeCompare(b.name));
   return `
-    <div class="map-stats map-stats-all">
-      ${card(String(s.countries), t('map.stat.countries'))}
-      ${card(String(s.cities), t('map.stat.cities'))}
-      ${card(String(s.nights), t('map.stat.nights'))}
-      ${card(fmtKm(s.km, o.locale), t('map.stat.km'))}
-      ${card(String(s.continents), t(s.continents === 1 ? 'map.stat.continent' : 'map.stat.continents'))}
-      ${card(String(s.trips), t('world.stat.trips'))}
-    </div>
+    ${summaryCardsMarkup(s, o.locale)}
     <div class="map-scope world-mode" role="group" aria-label="${esc(t('world.color.label'))}">
       <button class="map-scope-btn${o.mode === 'count' ? ' active' : ''}" data-color="count" aria-pressed="${o.mode === 'count'}">${esc(t('world.color.count'))}</button>
       <button class="map-scope-btn${o.mode === 'trip' ? ' active' : ''}" data-color="trip" aria-pressed="${o.mode === 'trip'}">${esc(t('world.color.trip'))}</button>
     </div>
     <div class="world-layers" role="group" aria-label="${esc(t('world.layers'))}">
+      <button class="map-layer-chip${o.spin ? ' active' : ''}" data-spin role="switch" aria-checked="${o.spin}">${esc(t('world.layer.spin'))}</button>
       ${(['routes', 'cities'] as const).map((id) => `<button class="map-layer-chip${o.layers.has(id) ? ' active' : ''}" data-layer="${id}" role="switch" aria-checked="${o.layers.has(id)}">${esc(t(id === 'routes' ? 'world.layer.routes' : 'world.layer.cities'))}</button>`).join('')}
     </div>
+    ${o.canReplay ? `<button class="btn btn-ghost world-replay" data-act="replay">${esc(t('world.replay.start'))}</button>` : ''}
     ${hasCurrent ? `<button class="btn btn-primary world-open-route" data-act="open-route">${esc(t('world.openRoute'))}</button>` : ''}
     ${o.passport ? `<button type="button" class="pp-strip" data-open-passport="">
       <span class="pp-strip-emblem" aria-hidden="true">🛂</span>

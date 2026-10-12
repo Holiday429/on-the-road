@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   legStartMs, legEndMs, fmtScrubDate, timelineRange,
-  clampFraction, msToFraction, fractionToMs, type TimeRange,
+  clampFraction, msToFraction, fractionToMs, msToIso, type TimeRange,
 } from './map-timeline.ts';
 
 describe('legStartMs / legEndMs', () => {
@@ -86,5 +86,12 @@ describe('msToFraction / fractionToMs', () => {
   it('degrade safely with a null range (no scrubber armed)', () => {
     expect(msToFraction(1234, null)).toBe(1);  // "fully revealed" default
     expect(fractionToMs(0.5, null)).toBe(0);
+  });
+});
+
+describe('msToIso', () => {
+  it('round-trips a leg date through its local-midnight ms', () => {
+    expect(msToIso(legStartMs({ dateFrom: '2026-03-09' }))).toBe('2026-03-09');
+    expect(msToIso(+new Date('2026-12-31T23:30:00'))).toBe('2026-12-31');
   });
 });

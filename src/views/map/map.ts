@@ -31,8 +31,6 @@ import {
   summarizeRoute, buildCountryStops,
   aggregateExpensesByIso, fmtSpend,
 } from './map-stats.ts';
-import { legStartMs, timelineRange } from './map-timeline.ts';
-import { mountScrubber, type Scrubber } from './map-scrubber.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { type Am5Obj, type MapChart, asMapChart } from './map-amcharts.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
@@ -41,14 +39,14 @@ import { journalStore, type StoredJournalEntry } from '../../data/stores/journal
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import {
-  onTripChange, listTrips, currentTrip, currentTripId,
+  onTripChange, currentTrip, currentTripId,
 } from '../../data/trip-context.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { openCityActionSheet } from './map-city-sheet.ts';
 import { openMapExport } from './map-export-sheet.ts';
 import {
-  scopeToggleMarkup, statsMarkup, flightRowMarkup, legListMarkup, unlocatedMarkup, stageInnerMarkup,
+  statsMarkup, flightRowMarkup, legListMarkup, unlocatedMarkup, stageInnerMarkup,
 } from './map-panel.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
@@ -68,7 +66,6 @@ interface OverlayItem {
 let _initialized = false;
 let _root:  Am5Obj = null;
 let _chart: MapChart | null = null;
-let _scope: 'trip' | 'all' = 'trip';
 let _unsubLegs: (() => void) | null = null;
 let _worldSeries: Am5Obj = null;
 let _idleWorld: Am5Obj = null;   // the outline-only world of the empty state (recoloured on theme change)
@@ -91,7 +88,6 @@ let _regionLabelOverlays: OverlayItem[] = [];
 let _countryPinOverlays: OverlayItem[] = [];
 let _activeMotionId: string | null = null;
 let _buildToken = 0;   // guards against stale async builds after teardown/scope switch
-const _tripNames  = new Map<string, string>();   // tripId → trip name cache
 let _idleChartToken = 0;   // guards against overlapping bootIdleChart() calls racing on the async amCharts load
 let _bootChartAttempt = 0; // guards against overlapping buildAndBoot() calls racing to bootChart()
 let _chartAbort: AbortController | null = null;   // listeners wired for the live chart; aborted on teardown
@@ -124,7 +120,6 @@ let _stayPlaces:    Array<{ name: string; city: string; legId: string; lat: numb
 let _expenseUnsub: (() => void) | null = null;
 let _expenseByIso = new Map<string, number>();
 
-let _scrubber: Scrubber | null = null;
 
 function setReplayBtnLabel(playing: boolean) {
   const btn = document.getElementById('mapReplay');
@@ -136,7 +131,7 @@ const loc = () => getLocale();
 
 /* ── Data ─────────────────────────────────────────────────────────────────── */
 async function plotLegs(stored: StoredLegInput[]): Promise<PlottedLeg[]> {
-  const r = await plotStoredLegs(stored, _tripNames);
+  const r = await plotStoredLegs(stored);
   _unlocated = r.unlocated;
   return r.legs;
 }
@@ -149,8 +144,6 @@ async function plotLegs(stored: StoredLegInput[]): Promise<PlottedLeg[]> {
  * stopovers. Returns null when there's no usable origin.
  */
 async function buildOutboundChain(legs: PlottedLeg[], stored: StoredLegInput[]): Promise<FlightChain | null> {
-  // Home flights only make sense for a single trip; "all footprints" spans many.
-  if (_scope !== 'trip') return null;
   const firstStored = stored.find((s) => s.id === legs[0]?.id);
   const t = firstStored?.arrivalTransport;
   const origin = (currentTrip()?.homeCity ?? '').trim() || t?.from;
@@ -182,7 +175,6 @@ async function buildOutboundChain(legs: PlottedLeg[], stored: StoredLegInput[]):
  * Returns null when neither returnCity nor homeCity is set.
  */
 async function buildReturnChain(_outbound: FlightChain | null, legs: PlottedLeg[]): Promise<FlightChain | null> {
-  if (_scope !== 'trip') return null;
   const trip = currentTrip();
   const dest = ((trip?.returnCity ?? '').trim() || (trip?.homeCity ?? '').trim());
   if (!dest || legs.length === 0) return null;
@@ -333,8 +325,7 @@ function syncPinLayer(id: PinLayerId) { syncOverlayItems(_pinLayers[id].overlays
 /* ── Nomad ────────────────────────────────────────────────────────────────── */
 function enableNomadLayer() {
   clearPinLayer('nomad');
-  const tripId = _scope === 'all' ? null : currentTripId();
-  _pinLayers.nomad.unsub = nomadStore.subscribeForTrip(tripId, (rows) => { void resolveNomadSpots(rows); });
+  _pinLayers.nomad.unsub = nomadStore.subscribeForTrip(currentTripId(), (rows) => { void resolveNomadSpots(rows); });
 }
 function disableNomadLayer() { _nomadSpots = []; clearPinLayer('nomad'); }
 
@@ -372,8 +363,7 @@ function renderNomadPins() {
 /* ── Journal ──────────────────────────────────────────────────────────────── */
 function enableJournalLayer() {
   clearPinLayer('journal');
-  const sub = _scope === 'all' ? journalStore.subscribeAll : journalStore.subscribe;
-  _pinLayers.journal.unsub = sub((rows) => { void resolveJournalPlaces(rows); });
+  _pinLayers.journal.unsub = journalStore.subscribe((rows) => { void resolveJournalPlaces(rows); });
 }
 function disableJournalLayer() { _journalPlaces = []; clearPinLayer('journal'); }
 
@@ -415,7 +405,6 @@ function renderJournalPins() {
 /* ── Guide ────────────────────────────────────────────────────────────────── */
 function enableGuideLayer() {
   clearPinLayer('guide');
-  if (_scope !== 'trip') { _guidePlaces = []; return; }
   _pinLayers.guide.unsub = cityStore.subscribe((rows) => { void resolveGuidePlaces(rows); });
 }
 function disableGuideLayer() { _guidePlaces = []; clearPinLayer('guide'); }
@@ -461,8 +450,7 @@ interface StayLegInput {
 }
 function enableStayLayer() {
   clearPinLayer('stay');
-  const sub = _scope === 'all' ? routeStore.subscribeAll : routeStore.subscribe;
-  _pinLayers.stay.unsub = sub((legs) => { void resolveStayPlaces(legs as StayLegInput[]); });
+  _pinLayers.stay.unsub = routeStore.subscribe((legs) => { void resolveStayPlaces(legs as StayLegInput[]); });
 }
 function disableStayLayer() { _stayPlaces = []; clearPinLayer('stay'); }
 
@@ -507,8 +495,6 @@ function renderStayPins() {
 /** Subscribe to expenses (current trip only), aggregate spend per country ISO. */
 function enableExpenseLayer() {
   _expenseUnsub?.();
-  // Expense store is per-trip; the heat tint only makes sense for one trip.
-  if (_scope !== 'trip') { _expenseByIso = new Map(); applyExpenseHeat(); return; }
   // Ensure every visited country is lit so the heat is visible without replaying.
   _legsRef.forEach(lightLeg);
   _expenseUnsub = expenseStore.subscribe((rows) => aggregateExpenses(rows));
@@ -563,9 +549,7 @@ export function initRoute(host: HTMLElement) {
   subscribeLegs(host);
 
   // Trip switch: re-subscribe under the new trip (unless viewing all trips).
-  onTripChange(() => {
-    if (_scope === 'trip') subscribeLegs(host);
-  });
+  onTripChange(() => subscribeLegs(host));
 
   // Theme switch: recolour the live chart in place (a rebuild would lose the view).
   onMapRepaint(repaintChart);
@@ -623,7 +607,6 @@ function stageMarkup(): string {
         <div class="map-stage">
           ${stageInnerMarkup()}
         </div>
-        <div class="map-timeline-slot" id="mapTimelineSlot"></div>
       </div>
       <aside class="map-panel"></aside>
     </div>`;
@@ -720,10 +703,7 @@ async function bootIdleChart() {
 function subscribeLegs(view: HTMLElement) {
   _unsubLegs?.();
   teardownChart();
-  // Clear trip-name cache on scope switch so it re-fetches fresh names.
-  _tripNames.clear();
   const token = ++_buildToken;
-  removeTimelineScrubber();
   // Clear all pin layers; re-enable whichever are active.
   (Object.keys(_pinLayers) as PinLayerId[]).forEach(clearPinLayer);
   if (_layersOn.has('nomad')) enableNomadLayer();
@@ -731,15 +711,11 @@ function subscribeLegs(view: HTMLElement) {
   if (_layersOn.has('guide')) enableGuideLayer();
   if (_layersOn.has('stay')) enableStayLayer();
   if (_layersOn.has('expenses')) enableExpenseLayer();
-  const subscribe = _scope === 'all' ? routeStore.subscribeAll : routeStore.subscribe;
-  _unsubLegs = subscribe((storedLegs) => {
+  _unsubLegs = routeStore.subscribe((storedLegs) => {
     if (token !== _buildToken) return;
-    // All-footprints: sort chronologically across trips by start date.
-    // Single-trip: preserve the user's custom order within the trip.
+    // Preserve the user's custom order within the trip.
     const stored = (storedLegs as unknown as StoredLegInput[]).slice().sort(
-      _scope === 'all'
-        ? (a, b) => (a.dateFrom ?? '').localeCompare(b.dateFrom ?? '')
-        : (a, b) => (a.dateFrom ?? '').localeCompare(b.dateFrom ?? '') || (a.order ?? 0) - (b.order ?? 0),
+      (a, b) => (a.dateFrom ?? '').localeCompare(b.dateFrom ?? '') || (a.order ?? 0) - (b.order ?? 0),
     );
 
     // Chart already running with real legs — refresh the side panel.
@@ -749,14 +725,8 @@ function subscribeLegs(view: HTMLElement) {
     }
 
     // No legs for this trip yet — show the setup panel.
-    if (stored.length === 0 && _scope === 'trip') {
-      showSetupPanel(view, token);
-      return;
-    }
-
-    // No footprints at all in "all" mode — simple empty state.
     if (stored.length === 0) {
-      showEmpty(view);
+      showSetupPanel(view, token);
       return;
     }
 
@@ -767,13 +737,10 @@ function subscribeLegs(view: HTMLElement) {
 
 function showEmpty(view: HTMLElement) {
   const panel = view.querySelector<HTMLElement>('.map-panel');
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  if (panel) panel.innerHTML = scopeToggleMarkup(_scope);
-  wireScopeToggle(view);
-  // No data → no layer chips, no scrubber.
+  if (panel) panel.replaceChildren();
+  // No data → no layer chips.
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   const bar = document.getElementById('mapLayersBar'); if (bar) bar.innerHTML = '';
-  removeTimelineScrubber();
   const stage = view.querySelector<HTMLElement>('.map-stage');
   if (!stage) return;
   if (!stage.querySelector('.map-idle-hint')) {
@@ -796,7 +763,6 @@ async function showSetupPanel(view: HTMLElement, token: number) {
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   const bar = document.getElementById('mapLayersBar'); if (bar) bar.innerHTML = '';
-  removeTimelineScrubber();
 
   // Stage: outline world map + hint banner overlay.
   if (!stage.querySelector('.map-idle-hint')) {
@@ -814,7 +780,6 @@ async function showSetupPanel(view: HTMLElement, token: number) {
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   panel.innerHTML = `
-    ${scopeToggleMarkup(_scope)}
     <div class="map-setup">
       <div class="map-setup-section">
         <button class="btn btn-primary map-setup-btn" id="mapLinkTrip">${esc(t('map.setup.link'))}</button>
@@ -826,8 +791,6 @@ async function showSetupPanel(view: HTMLElement, token: number) {
         <button class="btn btn-ghost map-setup-btn" id="mapAddManual">${esc(t('map.setup.manualBtn'))}</button>
       </div>
     </div>`;
-
-  wireScopeToggle(view);
 
   document.getElementById('mapLinkTrip')?.addEventListener('click', () => {
     openTripChooser({ title: t('map.setup.link'), subtitle: t('map.setup.chooserSub') });
@@ -851,15 +814,6 @@ async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: 
     teardownChart();
     // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     stage.innerHTML = stageInnerMarkup();
-  }
-
-  // Pre-load trip names for "all footprints" so leg rows can show the trip label.
-  if (_scope === 'all' && _tripNames.size === 0) {
-    try {
-      const trips = await listTrips();
-      for (const t of trips) _tripNames.set(t.id, t.name);
-    } catch { /* best-effort */ }
-    if (token !== _buildToken) return;
   }
 
   const legs = await plotLegs(stored);
@@ -1109,8 +1063,6 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     if (_layersOn.has('guide') && _guidePlaces.length) renderGuidePins();
     if (_layersOn.has('stay') && _stayPlaces.length) renderStayPins();
     if (_layersOn.has('expenses')) applyExpenseHeat();
-    // All-footprints: offer a timeline scrubber to watch the map fill over time.
-    if (_scope === 'all') buildTimelineScrubber(legs);
   });
 
   // Toolbar buttons live in the stage markup, which outlives a chart rebuild
@@ -1556,59 +1508,7 @@ function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
   });
 }
 
-/* ── Timeline scrubber (all footprints) ───────────────────────────────────── */
-/** Build (or rebuild) the date scrubber below the stage for the all-footprints view. */
-function buildTimelineScrubber(legs: PlottedLeg[]) {
-  removeTimelineScrubber();
-  const slot = document.getElementById('mapTimelineSlot');
-  const range = timelineRange(legs);
-  if (!slot || !range) return;
-  _scrubber = mountScrubber(slot, range, {
-    reveal: (cursorMs) => revealUpTo(legs, cursorMs),
-    onTakeover: stopReplayMotion,
-  });
-}
-
-function removeTimelineScrubber() {
-  _scrubber?.destroy();
-  _scrubber = null;
-}
-
-/** Reveal the footprint up to `cursorMs`: light the countries visited by then
- *  (re-lighting from scratch so dragging backward un-lights later ones) and
- *  park the hero at the latest revealed stop. */
-function revealUpTo(legs: PlottedLeg[], cursorMs: number) {
-  resetLit();
-  let latest: PlottedLeg | null = null;
-  for (const leg of legs) {
-    if (legStartMs(leg) <= cursorMs) {
-      lightLeg(leg);
-      latest = leg;
-    }
-  }
-  const heroItem = _chart?._heroItem;
-  const heroImg = _chart?._heroImg;
-  if (latest && heroItem) {
-    heroItem.set('longitude', latest.lng);
-    heroItem.set('latitude', latest.lat);
-    if (heroImg) heroImg.style.opacity = '1';
-  } else if (heroImg) {
-    heroImg.style.opacity = '0';
-  }
-}
-
 /* ── Side panel helpers ───────────────────────────────────────────────────── */
-function wireScopeToggle(view: HTMLElement) {
-  view.querySelectorAll<HTMLButtonElement>('.map-scope-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const next = btn.dataset.scope as 'trip' | 'all';
-      if (next === _scope) return;
-      _scope = next;
-      subscribeLegs(view);
-    });
-  });
-}
-
 /* ── Layer toggles ────────────────────────────────────────────────────────── */
 const LAYER_META: Record<LayerId, { icon: string; label: string }> = {
   nomad:    { icon: '☕',  label: 'map.layer.nomad'    },
@@ -1618,12 +1518,8 @@ const LAYER_META: Record<LayerId, { icon: string; label: string }> = {
   expenses: { icon: '💸', label: 'map.layer.expenses' },
 };
 
-// Guide and Spend-heat are per-trip data sources; hide them in "all footprints".
-const TRIP_ONLY_LAYERS = new Set<LayerId>(['guide', 'expenses']);
-
 function visibleLayers(): LayerId[] {
-  return (Object.keys(LAYER_META) as LayerId[])
-    .filter((id) => _scope === 'trip' || !TRIP_ONLY_LAYERS.has(id));
+  return Object.keys(LAYER_META) as LayerId[];
 }
 
 function toggleLayer(id: LayerId, on: boolean) {
@@ -1667,20 +1563,17 @@ function renderLayersBar() {
 /* ── Side panel ───────────────────────────────────────────────────────────── */
 function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
   const summary = summarizeRoute(legs, _outboundChain, _returnChain);
-  const trip = _scope === 'trip';
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   (view.querySelector('.map-panel') as HTMLElement).innerHTML = `
-    ${scopeToggleMarkup(_scope)}
-    ${statsMarkup(summary, _scope, loc())}
+    ${statsMarkup(summary)}
     <div class="map-legs">
-      ${trip ? flightRowMarkup(_outboundChain, 'flight-outbound', _activeMotionId) : ''}
-      ${legListMarkup(legs, { scope: _scope, activeId: _activeMotionId, today: todayIso(), locale: loc() })}
-      ${trip ? flightRowMarkup(_returnChain, 'flight-return', _activeMotionId) : ''}
+      ${flightRowMarkup(_outboundChain, 'flight-outbound', _activeMotionId)}
+      ${legListMarkup(legs, { activeId: _activeMotionId, today: todayIso(), locale: loc() })}
+      ${flightRowMarkup(_returnChain, 'flight-return', _activeMotionId)}
     </div>
     ${unlocatedMarkup(_unlocated)}`;
 
-  wireScopeToggle(view);
   // Layer chips live above the map (their own bar), re-rendered with the panel.
   renderLayersBar();
 

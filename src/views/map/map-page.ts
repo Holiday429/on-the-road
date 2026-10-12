@@ -47,6 +47,7 @@ async function setMode(mode: Mode) {
   if (!_view) return;
   _mode = mode;
   _view.querySelector<HTMLElement>('#mapWorldHost')!.hidden = mode !== 'world';
+  _world?.setActive(mode === 'world');
   const routeHost = _view.querySelector<HTMLElement>('#mapRouteHost')!;
   routeHost.hidden = mode !== 'route';
   renderChrome(_view);

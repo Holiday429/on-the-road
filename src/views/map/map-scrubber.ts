@@ -21,6 +21,8 @@ export interface ScrubberHooks {
 }
 
 export interface Scrubber {
+  /** Sweep from the start to the end (jumps to the end under reduced motion). */
+  play: () => void;
   /** Stop playing without moving the cursor. */
   stop: () => void;
   /** Remove the control and every listener/timer it owns. */
@@ -107,6 +109,7 @@ export function mountScrubber(slot: HTMLElement, range: TimeRange, hooks: Scrubb
   set(1);   // start fully revealed, matching the default lit state
 
   return {
+    play,
     stop,
     destroy() { stop(); endDrag(); el.remove(); },
   };

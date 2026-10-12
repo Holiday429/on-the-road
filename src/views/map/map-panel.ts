@@ -9,20 +9,9 @@
 import { t } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { fmtRange, nights } from './map-geo.ts';
-import { fmtKm, type FlightChain, type PlottedLeg, type RouteSummary } from './map-stats.ts';
+import type { FlightChain, PlottedLeg, RouteSummary } from './map-stats.ts';
 import { legVisitState } from './map-status.ts';
 import type { UnlocatedStop } from './map-plot.ts';
-
-export type MapScope = 'trip' | 'all';
-
-
-export function scopeToggleMarkup(scope: MapScope): string {
-  return `
-    <div class="map-scope">
-      <button class="map-scope-btn${scope === 'trip' ? ' active' : ''}" data-scope="trip">${esc(t('map.scope.trip'))}</button>
-      <button class="map-scope-btn${scope === 'all' ? ' active' : ''}" data-scope="all">${esc(t('map.scope.all'))}</button>
-    </div>`;
-}
 
 export function flightRowMarkup(chain: FlightChain | null, motionId: string, activeId: string | null): string {
   if (!chain) return '';
@@ -48,44 +37,24 @@ export function unlocatedMarkup(stops: UnlocatedStop[]): string {
     </div>`;
 }
 
-export function statsMarkup(s: RouteSummary, scope: MapScope, locale: string): string {
-  // Trip scope keeps the familiar two-card summary. "All footprints" adds the
-  // lifetime totals (distance / continents / nights) the user asked for.
+export function statsMarkup(s: RouteSummary): string {
   const card = (num: string, label: string) =>
     `<div class="map-stat"><div class="map-stat-num">${num}</div><div class="map-stat-label">${esc(label)}</div></div>`;
-  if (scope !== 'all') {
-    return `<div class="map-stats">
-      ${card(String(s.cityCount), t('map.stat.cities'))}
-      ${card(String(s.countryCount), t('map.stat.countries'))}
-    </div>`;
-  }
-  return `<div class="map-stats map-stats-all">
+  return `<div class="map-stats">
     ${card(String(s.cityCount), t('map.stat.cities'))}
     ${card(String(s.countryCount), t('map.stat.countries'))}
-    ${card(String(s.continentCount), t(s.continentCount === 1 ? 'map.stat.continent' : 'map.stat.continents'))}
-    ${card(fmtKm(s.distanceKm, locale), t('map.stat.km'))}
-    ${card(String(s.nightCount), t('map.stat.nights'))}
-    ${card(String(s.legCount), t('map.stat.stops'))}
   </div>`;
 }
 
 /**
- * The stop list. In "all footprints" mode a trip-label separator is injected
- * whenever the trip changes (legs arrive sorted chronologically). Stops still
- * ahead of `today` carry a "Planned" tag.
+ * The stop list. Stops still ahead of `today` carry a "Planned" tag.
  */
 export function legListMarkup(
   legs: PlottedLeg[],
-  o: { scope: MapScope; activeId: string | null; today: string; locale: string },
+  o: { activeId: string | null; today: string; locale: string },
 ): string {
-  let lastTripId: string | null | undefined = undefined;
   const items: string[] = [];
   legs.forEach((l, i) => {
-    if (o.scope === 'all' && l.tripId !== lastTripId) {
-      const label = l.tripName ?? l.tripId ?? t('map.leg.unknownTrip');
-      items.push(`<div class="leg-trip-label">${esc(label)}</div>`);
-      lastTripId = l.tripId;
-    }
     const n = nights(l.dateFrom, l.dateTo);
     const planned = legVisitState(l, o.today) === 'planned';
     items.push(`

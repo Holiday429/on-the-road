@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  scopeToggleMarkup, statsMarkup, flightRowMarkup, legListMarkup, unlocatedMarkup, stageInnerMarkup,
+  statsMarkup, flightRowMarkup, legListMarkup, unlocatedMarkup, stageInnerMarkup,
 } from './map-panel.ts';
 import type { PlottedLeg } from './map-stats.ts';
 
@@ -10,7 +10,7 @@ const leg = (over: Partial<PlottedLeg>): PlottedLeg => ({
 });
 
 describe('legListMarkup', () => {
-  const base = { scope: 'trip' as const, activeId: null, today: '2026-10-12', locale: 'en-US' };
+  const base = { activeId: null, today: '2026-10-12', locale: 'en-US' };
 
   it('tags stops that start after today as Planned, and only those', () => {
     const html = legListMarkup([
@@ -28,16 +28,6 @@ describe('legListMarkup', () => {
     expect(html).toContain('leg-row-num">1<');
     expect(html).toContain('leg-row-num">2<');
     expect(html.match(/leg-row active/g)).toHaveLength(1);
-  });
-
-  it('adds a trip label whenever the trip changes in all-footprints mode', () => {
-    const html = legListMarkup([
-      leg({ id: 'a', tripId: 't1', tripName: 'Spring' }),
-      leg({ id: 'b', tripId: 't1', tripName: 'Spring' }),
-      leg({ id: 'c', tripId: 't2', tripName: 'Autumn' }),
-    ], { ...base, scope: 'all' });
-    expect(html.match(/leg-trip-label/g)).toHaveLength(2);
-    expect(legListMarkup([leg({ tripId: 't1' })], base)).not.toContain('leg-trip-label');
   });
 
   it('escapes user text', () => {
@@ -67,19 +57,13 @@ describe('unlocatedMarkup', () => {
   });
 });
 
-describe('scope toggle / stats / flight row / stage', () => {
-  it('marks the current scope active', () => {
-    expect(scopeToggleMarkup('all')).toMatch(/map-scope-btn active" data-scope="all"/);
-    expect(scopeToggleMarkup('trip')).toMatch(/map-scope-btn active" data-scope="trip"/);
-  });
-
+describe('stats / flight row / stage', () => {
   const summary = { cityCount: 4, countryCount: 3, continentCount: 1, nightCount: 12, distanceKm: 12500, legCount: 5 };
-  it('shows two cards for a trip and six for all footprints', () => {
-    expect(statsMarkup(summary, 'trip', 'en-US').match(/map-stat-num/g)).toHaveLength(2);
-    const all = statsMarkup(summary, 'all', 'en-US');
-    expect(all.match(/map-stat-num/g)).toHaveLength(6);
-    expect(all).toContain('12.5k');
-    expect(all).toContain('Continent<');
+  it('shows the cities and countries cards', () => {
+    const html = statsMarkup(summary);
+    expect(html.match(/map-stat-num/g)).toHaveLength(2);
+    expect(html).toContain('map-stat-num">4<');
+    expect(html).toContain('map-stat-num">3<');
   });
 
   it('renders no flight row without a chain', () => {

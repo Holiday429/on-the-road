@@ -10,7 +10,7 @@
    WorldModel; when a transition may proceed comes from world-state.ts.
    ========================================================================== */
 
-import { createMapRoot, disposeRoot, motionMs } from '../amcharts-boot.ts';
+import { createMapRoot, disposeRoot, motionMs, prefersReducedMotion } from '../amcharts-boot.ts';
 import { loadCountryGeodata, DRILLDOWN_COUNTRIES } from '../amcharts-loader.ts';
 import { expandBounds } from '../map-geo.ts';
 import { onMapRepaint, worldPalette } from '../map-theme.ts';
@@ -18,6 +18,7 @@ import type { Am5Obj } from '../map-amcharts.ts';
 import { countryTone, type ColorMode, type WorldModel } from './world-model.ts';
 import type { LineSeg, CityPoint, CurrentSpot } from './world-geo.ts';
 import { createWorldState, type WorldState } from './world-state.ts';
+import { flingDistance, type RotationSample } from './world-motion.ts';
 
 export interface WorldPaint {
   model: WorldModel;
@@ -45,6 +46,10 @@ export interface WorldView {
   enterCountry(iso: string): Promise<boolean>;
   leaveCountry(): Promise<void>;
   zoom(action: 'in' | 'out' | 'fit'): void;
+  /** Slowly turn the world when it has been left alone for a few seconds (off by default). */
+  setSpin(on: boolean): void;
+  /** False while the map is hidden or a replay is running: nothing should move on its own. */
+  setActive(active: boolean): void;
   dispose(): void;
 }
 
@@ -193,6 +198,48 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
   });
   const offRepaint = onMapRepaint(() => { applyPaint(); drawOverlays(); });
 
+  /* ── Momentum and idle spin ────────────────────────────────────────────
+     Let go of a fast drag and the world keeps turning, easing to a stop; left
+     alone for a few seconds with auto-spin on, it turns slowly by itself. Any
+     touch cancels both. Neither runs under reduced motion. */
+  const abort = new AbortController();
+  let samples: RotationSample[] = [];
+  let dragging = false;
+  let glide: Am5Obj = null;
+  let spinOn = false;
+  let active = true;
+  let spin: Am5Obj = null;
+  let idleTimer = 0;
+
+  const stopSpin = () => { window.clearTimeout(idleTimer); spin?.stop?.(); spin = null; };
+  const stopGlide = () => { glide?.stop?.(); glide = null; };
+  function scheduleSpin() {
+    stopSpin();
+    if (!spinOn || !active || state.phase !== 'world' || prefersReducedMotion() || document.hidden) return;
+    idleTimer = window.setTimeout(() => {
+      const from = chart.get('rotationX') ?? 0;
+      spin = chart.animate({ key: 'rotationX', from, to: from - 360, duration: 120000, loops: Infinity });
+    }, 4000);
+  }
+
+  container.addEventListener('pointerdown', () => { stopGlide(); stopSpin(); samples = []; dragging = true; }, { signal: abort.signal });
+  chart.on('rotationX', (x: number) => {
+    if (!dragging) return;
+    samples.push({ t: performance.now(), x });
+    if (samples.length > 12) samples.shift();
+  });
+  const release = () => {
+    if (!dragging) return;
+    dragging = false;
+    const d = state.phase === 'world' && !prefersReducedMotion() ? flingDistance(samples, performance.now()) : 0;
+    samples = [];
+    if (!d) { scheduleSpin(); return; }
+    glide = chart.animate({ key: 'rotationX', to: (chart.get('rotationX') ?? 0) + d, duration: 900, easing: am5.ease.out(am5.ease.cubic) });
+    glide?.events?.on?.('stopped', scheduleSpin);
+  };
+  window.addEventListener('pointerup', release, { signal: abort.signal });
+  window.addEventListener('pointercancel', release, { signal: abort.signal });
+
   /* ── Camera helpers ────────────────────────────────────────────────────── */
   const centreLat = (): number => {
     try { return chart.invert({ x: container.clientWidth / 2, y: container.clientHeight / 2 })?.latitude ?? 0; }
@@ -213,6 +260,7 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
     const bounds = countryBounds(iso);
     if (!bounds) return false;
     const token = state.begin(iso);
+    stopGlide(); stopSpin();
     // Remember where the world was — once, even if the user hops country to country.
     if (!saved) saved = { rotationX: chart.get('rotationX') ?? 0, zoom: chart.get('zoomLevel') ?? 1, lat: centreLat() };
 
@@ -256,7 +304,7 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
     await settled(chart.zoomToGeoPoint(
       { longitude: -(back?.rotationX ?? 0), latitude: back?.lat ?? 0 }, back?.zoom ?? 1, true, motionMs(600),
     ));
-    if (state.isLive(token)) saved = null;
+    if (state.isLive(token)) { saved = null; scheduleSpin(); }
   }
 
   return {
@@ -279,7 +327,11 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
       else if (state.iso) { const b = countryBounds(state.iso); if (b) chart.zoomToGeoBounds(expandBounds(b, 0.4), motionMs(500)); }
       else chart.zoomToGeoPoint({ longitude: -(chart.get('rotationX') ?? 0), latitude: 0 }, 1, true, motionMs(500));
     },
+    setSpin(on) { spinOn = on; scheduleSpin(); },
+    setActive(a) { active = a; if (a) scheduleSpin(); else { stopSpin(); stopGlide(); } },
     dispose() {
+      abort.abort();
+      stopSpin(); stopGlide();
       state.leave();
       offRepaint();
       disposeRoot(root);
