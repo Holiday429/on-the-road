@@ -20,3 +20,6 @@
 .mx-empty { color: var(--ink-muted); font-size: var(--fs-sm); }
 .mx-warn { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--ink-muted); }
 @media (max-width: 520px) { .mx-field-row { flex-direction: column; gap: 0; } }
+.mx-field[hidden], .mx-field-row[hidden] { display: none; }
+.mx-status { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--ink-muted); }
+.mx-results .btn { margin-top: var(--sp-2); }
