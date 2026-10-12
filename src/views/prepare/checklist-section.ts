@@ -12,7 +12,7 @@ import {
 } from '../../data/stores/checklist-store.ts';
 import { currentTrip, currentTripId } from '../../data/trip-context.ts';
 import type { ChecklistGroup, ChecklistItem, ChecklistTag } from '../../data/schema.ts';
-import { noteColor } from '../../data/palette.ts';
+import { noteVar } from '../../data/palette.ts';
 import { escHtml } from '../../core/utils.ts';
 import { postJson } from '../../core/api.ts';
 import { aiLanguage, t } from '../../core/i18n.ts';
@@ -163,6 +163,27 @@ export { openNewChecklistModal, openTemplatePickerModal };
 /** Live checklists for the Prepare landing's rail, with progress folded in. */
 export function peekChecklistRows(): { id: string; name: string; done: number; total: number; pct: number }[] {
   return _checklists.map(cl => ({ id: cl.id, name: cl.name, ...progress(cl.groups) }));
+}
+
+/** The next few unticked items across every list, oldest list first — the landing's
+ *  "Next up" strip, tickable in place. */
+export interface NextUpItem { clId: string; groupId: string; itemId: string; text: string; icon: string; listName: string }
+export function peekNextUp(limit = 3): NextUpItem[] {
+  const out: NextUpItem[] = [];
+  for (const cl of _checklists) {
+    for (const g of [...cl.groups].sort((a, b) => a.order - b.order)) {
+      for (const it of [...g.items].sort((a, b) => a.order - b.order)) {
+        if (it.done) continue;
+        out.push({ clId: cl.id, groupId: g.id, itemId: it.id, text: it.text, icon: g.icon, listName: cl.name });
+        if (out.length >= limit) return out;
+      }
+    }
+  }
+  return out;
+}
+
+export function tickNextUp(it: Pick<NextUpItem, 'clId' | 'groupId' | 'itemId'>): Promise<boolean> {
+  return checklistStore.toggleItem(it.clId, it.groupId, it.itemId);
 }
 
 /** Aggregate checklist progress across every list — the hero's readout. */
@@ -429,7 +450,7 @@ function renderDetailScreen(container: HTMLElement) {
 
       <!-- Groups -->
       <div class="groups-list" id="groups-list">
-        ${cl.groups.sort((a, b) => a.order - b.order).map(g => renderGroup(cl.id, g)).join('')}
+        ${cl.groups.sort((a, b) => a.order - b.order).map((g, i) => renderGroup(cl.id, g, i)).join('')}
       </div>
 
       <!-- AI panel -->
@@ -458,19 +479,23 @@ function groupTilt(id: string): number {
 }
 
 
-function renderGroup(checklistId: string, group: ChecklistGroup): string {
+function renderGroup(checklistId: string, group: ChecklistGroup, index: number): string {
   const done = group.items.filter(i => i.done).length;
   const total = group.items.length;
   const allDone = total > 0 && done === total;
   const isEditing = editingGroupId === group.id;
   const tilt = groupTilt(group.id);
-  const color = allDone ? '#d6f5e3' : noteColor(group.id);
+  // Colour follows position (so neighbours always differ) and stays when the note is
+  // finished — completion is shown by the DONE stamp, not by turning the paper green.
+  const color = noteVar(index);
 
   return `
     <div class="prep-group ${allDone ? 'group-complete' : ''}"
          data-group-id="${group.id}"
          draggable="true"
          style="--tilt:${tilt}deg; --note-bg:${color}">
+      <span class="prep-group-tape" aria-hidden="true"></span>
+      ${allDone ? `<span class="paper-stamp paper-stamp--good prep-group-stamp">${escHtml(t('prep.groupDone'))}</span>` : ''}
       <div class="prep-group-header">
         <span class="group-icon">${escHtml(group.icon)}</span>
         ${isEditing

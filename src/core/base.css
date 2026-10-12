@@ -67,13 +67,14 @@
   --scale-led-ok: #94d3ab;
   --scale-led-over: #f0968c;
 
-  /* Selected state (nav item, active chip / tab / toggle): a burnt orange, not
-     the near-black pill — warm enough for travel, deep enough to read as
-     "this one". Yellow stays for the primary action (.btn-primary). */
-  --select-bg:       #b05a24;
-  --select-ink:      #fff6ea;
-  --select-soft-bg:  #f3dfcf;
-  --select-soft-ink: #7a3a12;
+  /* Selected state (active chip / tab / toggle): a deep matte mustard from the
+     same ramp as the primary amber, so "selected" reads as the brand colour
+     turned up, not a second hue. Yellow stays for the primary action
+     (.btn-primary). The sidebar uses a translucent amber wash instead. */
+  --select-bg:       #946a24;
+  --select-ink:      #fff8e8;
+  --select-soft-bg:  var(--amber-100);
+  --select-soft-ink: #6a4812;
 
   /* Status colours — text-on-light-tint pairs. `-bg` is the chip/badge tint,
      `-bg-soft` the barely-there panel wash. */
@@ -103,13 +104,16 @@
   --tint-health: #ebcab4; --tint-health-ink: #5d3215;
   --tint-misc: #d3d6cb;  --tint-misc-ink: #3c4035;
 
-  /* Sticky-note tints (see src/data/palette.ts noteColorVar) */
-  --note-0: #ece2f3;
-  --note-1: #e2edf3;
-  --note-2: #f3ede2;
-  --note-3: #e2f3ec;
-  --note-4: #f3e6e6;
-  --note-5: #e6f3e6;
+  /* Sticky-note papers: the site's own amber + category tints, mixed toward the
+     page surface so ink stays readable on all of them. Dark mode needs no
+     overrides — the tints and --surface are themed already. Order is
+     warm / cool alternating (see noteVar in src/data/palette.ts). */
+  --note-0: color-mix(in srgb, var(--amber-100) 75%, var(--surface));
+  --note-1: color-mix(in srgb, var(--tint-stay) 48%, var(--surface));
+  --note-2: color-mix(in srgb, var(--tint-activities) 48%, var(--surface));
+  --note-3: color-mix(in srgb, var(--tint-transport) 48%, var(--surface));
+  --note-4: color-mix(in srgb, var(--tint-shopping) 48%, var(--surface));
+  --note-5: color-mix(in srgb, var(--tint-health) 48%, var(--surface));
 
   color-scheme: light;
 
@@ -233,10 +237,10 @@
 
   --on-accent: #1f1a12;
   --on-solid: #14231b;
-  --select-bg:       #d98b52;
-  --select-ink:      #2b1708;
-  --select-soft-bg:  #3d2616;
-  --select-soft-ink: #f0c9a6;
+  --select-bg:       #c9a24e;
+  --select-ink:      #241b08;
+  --select-soft-bg:  var(--amber-100);
+  --select-soft-ink: var(--amber-700);
 
   --success:      #7fc096;
   --success-bg:   #1b2e22;
@@ -260,13 +264,6 @@
   --tint-shopping: #353048; --tint-shopping-ink: #cdc6ea;
   --tint-health: #433024; --tint-health-ink: #ecc7ad;
   --tint-misc: #34362f;  --tint-misc-ink: #d3d6cb;
-
-  --note-0: #322b3a;
-  --note-1: #2b333a;
-  --note-2: #3a342b;
-  --note-3: #2b3a33;
-  --note-4: #3a2e2e;
-  --note-5: #2e3a2e;
 
   /* Depth reads through borders + darker shadows, not glow. */
   --shadow-sm:  0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);

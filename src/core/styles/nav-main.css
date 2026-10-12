@@ -38,8 +38,11 @@
   color: var(--ink);
 }
 .nav-item.active {
-  background: var(--select-bg);
-  color: var(--select-ink);
+  /* Translucent amber wash: the emoji icon keeps its own colours (no dark block
+     behind it) and the page stays visible through the highlight. */
+  background: color-mix(in srgb, var(--amber-400) 26%, transparent);
+  color: var(--amber-700);
+  box-shadow: inset 3px 0 0 var(--amber-500);
   font-weight: var(--fw-semibold);
 }
 .nav-item .nav-icon {

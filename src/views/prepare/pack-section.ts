@@ -1282,6 +1282,8 @@ export function addToUnassigned(name: string, category: string): Promise<string 
 /** Live pack lists for the Prepare landing's rail. */
 export function peekPackRows(): {
   id: string; name: string; bags: number; items: number; weightG: number; over: boolean;
+  /** Sum of the bags' weight limits (0 when none is set) — for the row's fill bar. */
+  limitG: number;
 }[] {
   return _lists.map(l => ({
     id: l.id,
@@ -1290,6 +1292,7 @@ export function peekPackRows(): {
     items: l.items.length,
     weightG: listTotalWeight(l),
     over: l.containers.some(c => isOver(l, c)),
+    limitG: l.containers.reduce((n, c) => n + (c.limitG > 0 ? c.limitG : 0), 0),
   }));
 }
 

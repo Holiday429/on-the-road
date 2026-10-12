@@ -338,10 +338,18 @@
 }
 
 .prep-group {
-  background: var(--note-bg, #fef9c3);
-  border: none;
-  border-radius: 3px 3px var(--r-md) var(--r-md);
-  box-shadow: 2px 3px 12px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.06);
+  /* Paper: grain + a soft top-light over the note colour (--note-bg, from the
+     site's own tints). Ink is var(--ink) throughout, so it holds in dark mode. */
+  background:
+    var(--paper-grain),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 38%, transparent), transparent 38%, color-mix(in srgb, var(--ink) 4%, transparent)),
+    var(--note-bg, var(--note-0));
+  border: 1px solid color-mix(in srgb, var(--ink) 9%, transparent);
+  border-radius: 2px 2px 3px 3px;
+  box-shadow:
+    0 1px 1px rgba(0,0,0,0.07),
+    1px 3px 6px rgba(0,0,0,0.08),
+    3px 10px 20px -4px rgba(0,0,0,0.12);
   overflow: visible;
   transform: rotate(var(--tilt, 0deg));
   transition: transform var(--dur-mid) var(--ease-out),
@@ -349,27 +357,53 @@
   position: relative;
   cursor: grab;
 }
-/* tape strip at top */
-.prep-group::before {
+/* Lifted corner: a shadow tucked under the bottom-right edge. */
+.prep-group::after {
   content: '';
   position: absolute;
-  top: -10px;
+  right: 8px;
+  bottom: 0;
+  width: 40%;
+  height: 8px;
+  z-index: -1;
+  box-shadow: 3px 9px 8px rgba(0,0,0,0.11);
+  transform: rotate(3deg);
+  pointer-events: none;
+}
+/* Masking tape: translucent, slightly ragged ends, tilted against the note. */
+.prep-group-tape {
+  position: absolute;
+  top: -11px;
   left: 50%;
-  transform: translateX(-50%);
-  width: 48px;
-  height: 20px;
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  border-radius: 2px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.10);
+  width: 62px;
+  height: 22px;
+  margin-left: -31px;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--surface) 22%, transparent) 5px 6px),
+    color-mix(in srgb, var(--amber-300) 58%, transparent);
+  clip-path: polygon(0 8%, 4% 0, 8% 10%, 12% 0, 88% 0, 92% 10%, 96% 0, 100% 8%, 100% 92%, 96% 100%, 92% 90%, 88% 100%, 12% 100%, 8% 90%, 4% 100%, 0 92%);
+  transform: rotate(calc(var(--tilt, 0deg) * -2.5));
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
   z-index: 1;
+  pointer-events: none;
 }
 .prep-group:hover {
   transform: rotate(0deg) translateY(-3px);
-  box-shadow: 4px 8px 24px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.08);
+  box-shadow:
+    0 2px 3px rgba(0,0,0,0.08),
+    3px 8px 14px rgba(0,0,0,0.10),
+    5px 18px 30px -6px rgba(0,0,0,0.16);
   z-index: 2;
 }
-.prep-group.group-complete {
-  background: var(--note-bg, #d1fae5);
+.prep-group.group-complete .group-name { color: var(--ink-soft); }
+/* DONE stamp inked over the finished note, clear of the header buttons. */
+.prep-group-stamp {
+  position: absolute;
+  top: 56px;
+  right: var(--sp-4);
+  z-index: 2;
+  font-size: var(--fs-xs);
+  opacity: .85;
 }
 .prep-group.dragging {
   opacity: 0.55;
@@ -407,15 +441,15 @@
   flex: 1;
   font-weight: var(--fw-semibold);
   background: color-mix(in srgb, var(--surface) 60%, transparent);
-  border-color: rgba(0,0,0,0.12);
+  border-color: color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
 .group-progress-badge {
   font-family: var(--font-ui);
   font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
-  color: rgba(0,0,0,0.55);
-  background: rgba(0,0,0,0.08);
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
   padding: 2px 7px;
   border-radius: var(--r-full);
   flex-shrink: 0;
@@ -435,7 +469,7 @@
   padding: var(--sp-2) var(--sp-2);
   margin: 0 calc(var(--sp-2) * -1);
   border-radius: var(--r-sm);
-  border-bottom: 1px dashed rgba(0,0,0,0.12);
+  border-bottom: 1px dashed color-mix(in srgb, var(--ink) 12%, transparent);
   cursor: pointer;
   transition: background var(--dur-fast);
 }
@@ -448,7 +482,7 @@
 .item-checkbox {
   width: 22px;
   height: 22px;
-  border: 2px solid rgba(0,0,0,0.30);
+  border: 2px solid color-mix(in srgb, var(--ink) 30%, transparent);
   border-radius: 6px;
   background: color-mix(in srgb, var(--surface) 55%, transparent);
   flex-shrink: 0;
@@ -460,7 +494,7 @@
   transition: all var(--dur-fast) var(--ease-spring);
   margin-top: 1px;
 }
-.prep-item:hover .item-checkbox { border-color: rgba(0,0,0,0.50); }
+.prep-item:hover .item-checkbox { border-color: color-mix(in srgb, var(--ink) 50%, transparent); }
 .prep-item.done .item-checkbox {
   background: var(--accent);
   border-color: var(--accent);

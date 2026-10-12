@@ -13,9 +13,11 @@
    ========================================================================== */
 
 import './styles/prepare.css';
+import './styles/stage.css';
 import {
   initPrep, openChecklistDetail, openNewChecklistModal, openTemplatePickerModal,
-  peekChecklistRows, checklistTotals, deleteChecklist, type ChecklistScreen,
+  peekChecklistRows, checklistTotals, deleteChecklist, peekNextUp, tickNextUp,
+  type ChecklistScreen, type NextUpItem,
 } from './checklist-section.ts';
 import {
   initPack, openPackDetail, openNewPackListModal, openPackFormula, openCoreKit,
@@ -23,6 +25,8 @@ import {
   formatKg, type PackScreen,
 } from './pack-section.ts';
 import { resolvePhase, renderHero, heroChipAction } from './phase-strip.ts';
+import { renderNotesStage, renderPackStage, bindStages, playStages, resetStages, ticksFor } from './prepare-stage.ts';
+import { noteVar } from '../../data/palette.ts';
 import { daysToGo, tripPhase, peekLegs } from '../../data/trip-phase.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { escHtml } from '../../core/utils.ts';
@@ -31,6 +35,10 @@ import { t } from '../../core/i18n.ts';
 let _root: HTMLElement | null = null;
 let _landing: HTMLElement | null = null;
 let _legsUnsub: (() => void) | null = null;
+// The stages play when first seen and again when tick progress moves; any other
+// repaint (a store push while editing elsewhere) leaves them at rest.
+let _notesKey = '';
+let _next: NextUpItem[] = [];
 
 function getRoot(): HTMLElement | null {
   return document.querySelector<HTMLElement>('#view-prep .prepare-root');
@@ -72,26 +80,37 @@ function renderLanding() {
       <button class="btn btn-primary prep-rail-btn" data-act="new-pk">${t('pack.btnNewList')}</button>
     </div>` : '';
 
+  _next = peekNextUp(3);
+
   // eslint-disable-next-line no-restricted-syntax -- audited: escHtml on every interpolation here and in renderHero (N5)
   host.innerHTML = `
     ${hero}
 
-    <section class="prep-rail" id="prep-rail-checklist">
-      <div class="prep-rail-head">
-        <h2 class="prep-rail-title"><span class="prep-rail-icon">📋</span>${t('prep.checklistSectionTitle')}</h2>
-        ${clActions}
-      </div>
-      ${renderChecklistRows(clRows)}
-    </section>
+    <div class="prep-split">
+      <section class="prep-rail prep-rail--checklist" id="prep-rail-checklist">
+        <div class="prep-rail-head">
+          <h2 class="prep-rail-title"><span class="prep-rail-icon">📋</span>${t('prep.checklistSectionTitle')}</h2>
+          ${clActions}
+        </div>
+        ${renderNotesStage(cl.done, cl.total)}
+        ${renderNextUp(_next, cl.total > 0)}
+        ${renderChecklistRows(clRows)}
+      </section>
 
-    <section class="prep-rail" id="prep-rail-pack">
-      <div class="prep-rail-head">
-        <h2 class="prep-rail-title"><span class="prep-rail-icon">🎒</span>${t('nav.pack')}</h2>
-        ${pkActions}
-      </div>
-      ${renderPackRows(pkRows)}
-    </section>
+      <section class="prep-rail prep-rail--pack" id="prep-rail-pack">
+        <div class="prep-rail-head">
+          <h2 class="prep-rail-title"><span class="prep-rail-icon">🎒</span>${t('nav.pack')}</h2>
+          ${pkActions}
+        </div>
+        ${renderPackStage(pkRows.reduce((n, r) => n + r.items, 0))}
+        ${renderPackRows(pkRows)}
+      </section>
+    </div>
   `;
+
+  const key = `${ticksFor(cl.done, cl.total)}:${cl.total > 0 && cl.done >= cl.total}`;
+  playStages(host, _notesKey !== '' && key !== _notesKey);
+  _notesKey = key;
 
   bindLanding(host);
 }
@@ -107,10 +126,10 @@ function renderChecklistRows(rows: ChecklistRow[]): string {
     `);
   }
 
-  return `<div class="prep-rows">${rows.map(r => {
+  return `<div class="prep-rows">${rows.map((r, i) => {
     const complete = r.total > 0 && r.done === r.total;
     return `
-      <div class="prep-row${complete ? ' is-complete' : ''}" data-cl="${escHtml(r.id)}" role="button" tabindex="0">
+      <div class="prep-row prep-row--note${complete ? ' is-complete' : ''}" data-cl="${escHtml(r.id)}" role="button" tabindex="0" style="--row-note:${noteVar(i)}">
         <div class="prep-row-main">
           <div class="prep-row-name">${escHtml(r.name)}</div>
           <div class="prep-row-bar"><div class="prep-row-bar-fill${complete ? ' is-complete' : ''}" style="width:${r.pct}%"></div></div>
@@ -138,13 +157,31 @@ function renderPackRows(rows: PackRow[]): string {
       <div class="prep-row-main">
         <div class="prep-row-name">${escHtml(r.name)}</div>
         <div class="prep-row-sub">${t('prep.rowPackMeta', { bags: r.bags, items: r.items })}</div>
+        ${r.limitG > 0 ? `<div class="prep-row-bar"><div class="prep-row-bar-fill${r.over ? ' is-over' : ''}" style="width:${Math.min(100, Math.round((r.weightG / r.limitG) * 100))}%"></div></div>` : ''}
       </div>
-      <div class="prep-row-meta${r.over ? ' is-over' : ''}">${escHtml(formatKg(r.weightG))}</div>
+      <div class="prep-row-meta${r.over ? ' is-over' : ''}">${escHtml(r.limitG > 0
+        ? t('prep.rowPackFill', { used: formatKg(r.weightG), limit: formatKg(r.limitG) })
+        : formatKg(r.weightG))}</div>
       ${r.over
         ? `<span class="prep-row-badge is-warn">${t('pack.overLimit')}</span>`
         : `<span class="prep-row-badge is-empty" aria-hidden="true"></span>`}
       <button class="prep-row-del" data-del-pk="${escHtml(r.id)}" title="${t('prep.rowDelete')}">✕</button>
     </div>`).join('')}</div>`;
+}
+
+function renderNextUp(items: NextUpItem[], hasItems: boolean): string {
+  if (!hasItems) return '';
+  if (!items.length) return `<div class="prep-next prep-next--clear">${escHtml(t('prep.nextUpClear'))}</div>`;
+  return `
+    <div class="prep-next">
+      <div class="prep-next-head">${escHtml(t('prep.nextUp'))}</div>
+      ${items.map((it, i) => `
+        <button type="button" class="prep-next-item" data-next="${i}">
+          <span class="prep-next-box"><svg viewBox="0 0 16 16"><path d="M3 8.5 l3.2 3.4 l6.6 -8" pathLength="24"/></svg></span>
+          <span class="prep-next-text">${escHtml(it.text)}</span>
+          <span class="prep-next-src">${escHtml(it.icon)} ${escHtml(it.listName)}</span>
+        </button>`).join('')}
+    </div>`;
 }
 
 function emptyCard(icon: string, title: string, text: string, actions: string): string {
@@ -175,6 +212,17 @@ function bindLanding(host: HTMLElement) {
   on('new-pk', () => openNewPackListModal());
   on('formula', () => openPackFormula());
   on('kit', () => openCoreKit());
+
+  bindStages(host);
+  host.querySelectorAll<HTMLElement>('[data-next]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const it = _next[Number(btn.dataset.next)];
+      if (!it || btn.classList.contains('is-ticking')) return;
+      // Let the tick draw before the store push re-renders the strip.
+      btn.classList.add('is-ticking');
+      window.setTimeout(() => { void tickNextUp(it); }, 480);
+    });
+  });
 
   host.querySelectorAll<HTMLElement>('[data-cl]').forEach(row => {
     const open = () => openChecklistDetail(row.dataset.cl!);
@@ -265,6 +313,8 @@ export function initPrepare(): void {
   // — otherwise stale focus flags could hide the landing behind a blank zone.
   _clFocused = false;
   _pkFocused = false;
+  resetStages();
+  _notesKey = '';
 
   // Sections own the store subscriptions; they ping us on every push so the
   // rails and hero repaint from the same data without double-subscribing.

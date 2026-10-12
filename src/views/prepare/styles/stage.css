@@ -1,0 +1,89 @@
+/* ==========================================================================
+   On the Road · Prepare — rail stages
+   Resting state = the finished frame. `.is-playing` runs the motion once;
+   hover / tap on a stage replays it (see prepare-stage.ts). Reduced motion
+   never plays.
+   ========================================================================== */
+
+.prep-stage {
+  position: relative;
+  height: 128px;
+  margin-bottom: var(--sp-4);
+  border-radius: var(--r-xl);
+  border: 1.5px solid var(--rule-soft);
+  background: var(--paper-grain), color-mix(in srgb, var(--amber-50) 70%, var(--surface));
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  overflow: hidden;
+  cursor: default;
+}
+.prep-stage svg { width: min(100%, 300px); height: 100%; overflow: visible; }
+.prep-stage-stamp {
+  position: absolute; right: var(--sp-4); top: var(--sp-3);
+  font-size: var(--fs-2xs);
+}
+.prep-stage.is-playing .prep-stage-stamp { animation: st-stamp 380ms cubic-bezier(.3,1.4,.5,1) 2.4s both; }
+@keyframes st-stamp {
+  0%   { opacity: 0; transform: scale(2.2) rotate(-6deg); }
+  60%  { opacity: 1; transform: scale(.94) rotate(-6deg); }
+  100% { opacity: .9; transform: scale(1) rotate(-6deg); }
+}
+
+/* ── Notes ───────────────────────────────────────────────────────────────── */
+.st-note { transform-box: fill-box; transform-origin: center; }
+.st-note rect { stroke: color-mix(in srgb, var(--ink) 14%, transparent); stroke-width: 1; }
+.st-note--back { transform: rotate(5deg); }
+.st-note--back rect { fill: var(--note-1); }
+.st-note--front { transform: rotate(-2deg); }
+.st-paper { fill: var(--note-0); filter: drop-shadow(1px 2px 3px rgba(0,0,0,.14)); }
+.st-tape { fill: color-mix(in srgb, var(--amber-300) 55%, transparent); stroke: none; }
+.st-box { fill: color-mix(in srgb, var(--surface) 60%, transparent); stroke: color-mix(in srgb, var(--ink) 38%, transparent); stroke-width: 1.6; }
+.st-line { fill: var(--ink-faint); opacity: .4; }
+.st-line.is-done { opacity: .22; }
+.st-tick {
+  fill: none; stroke: var(--success); stroke-width: 2.8; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 24; stroke-dashoffset: 0;
+}
+.is-playing .st-note--front { animation: st-note-in 420ms var(--ease-out) both; }
+.is-playing .st-tick { animation: st-tick 360ms ease-out var(--d) both; }
+.is-playing .st-line.is-done { animation: st-fade 300ms ease-out calc(var(--d) + .2s) both; }
+@keyframes st-note-in { from { opacity: 0; transform: translateY(-12px) rotate(-6deg); } to { opacity: 1; transform: rotate(-2deg); } }
+@keyframes st-tick { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
+@keyframes st-fade { from { opacity: .4; } to { opacity: .22; } }
+
+/* ── Pack ────────────────────────────────────────────────────────────────── */
+.st-shadow { fill: color-mix(in srgb, var(--ink) 14%, transparent); }
+.st-case-back { fill: color-mix(in srgb, var(--tint-stay-ink) 38%, var(--surface-3)); }
+.st-case-front { fill: var(--tint-stay); stroke: color-mix(in srgb, var(--tint-stay-ink) 45%, transparent); stroke-width: 1.4; }
+.st-case-lid { fill: color-mix(in srgb, var(--tint-stay) 82%, var(--tint-stay-ink)); stroke: color-mix(in srgb, var(--tint-stay-ink) 45%, transparent); stroke-width: 1.4; }
+.st-seam { stroke: color-mix(in srgb, var(--tint-stay-ink) 40%, transparent); stroke-width: 1.2; }
+.st-strap { fill: color-mix(in srgb, var(--tint-stay-ink) 55%, transparent); }
+.st-handle { fill: none; stroke: color-mix(in srgb, var(--tint-stay-ink) 60%, transparent); stroke-width: 3; stroke-linecap: round; }
+.st-clasp { fill: var(--amber-400); stroke: color-mix(in srgb, var(--amber-700) 60%, transparent); stroke-width: 1.2; }
+.st-drop { font-size: 18px; text-anchor: middle; transform: translateY(26px); }
+.st-lid, .st-clasp { transform-box: fill-box; transform-origin: left center; }
+
+.is-playing .st-lid { animation: st-lid 2.6s var(--ease-out) both; }
+.is-playing .st-drop { animation: st-drop 560ms cubic-bezier(.5,0,.9,.6) calc(.5s + var(--i) * .38s) both; }
+.is-playing .st-clasp { animation: st-clasp 300ms var(--ease-spring) 2.2s both; }
+@keyframes st-lid {
+  0%, 62% { transform: translateY(-14px) rotate(-5deg); }
+  78%, 100% { transform: translateY(0) rotate(0); }
+}
+@keyframes st-drop {
+  0%   { opacity: 0; transform: translateY(-46px) rotate(-14deg); }
+  18%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(26px) rotate(0); }
+}
+@keyframes st-clasp { from { opacity: 0; transform: scale(.2); } to { opacity: 1; transform: scale(1); } }
+
+/* Nothing packed yet: lid propped open, nothing dropping. */
+.prep-stage--pack.is-empty .st-drops, .prep-stage--pack.is-empty .st-clasp { display: none; }
+.prep-stage--pack.is-empty .st-lid { transform: translateY(-14px) rotate(-5deg); animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .is-playing .st-note--front, .is-playing .st-tick, .is-playing .st-line.is-done,
+  .is-playing .st-lid, .is-playing .st-drop, .is-playing .st-clasp,
+  .prep-stage.is-playing .prep-stage-stamp { animation: none; }
+}

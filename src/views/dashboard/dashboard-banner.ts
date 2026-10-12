@@ -26,10 +26,6 @@ import { openCityDrawer } from './city-drawer.ts';
 import { openClocksDrawer } from './clock-drawer.ts';
 
 import { transportIcon } from '../../core/icons.ts';
-import { renderStamp } from '../../core/paper/stamp.ts';
-import { stampsFor, stampForLeg } from '../../data/stamps.ts';
-import { isStampSeen, markStampsSeen } from '../../data/stamp-seen.ts';
-import { wirePassportOpeners } from '../passport/passport.ts';
 import { STAY_ICON } from '../../core/icons.ts';
 export interface BannerData {
   phase: Phase;
@@ -163,26 +159,12 @@ export function renderBanner(d: BannerData, now: Date = appNow()): string {
   return `
     ${renderDial(dial, stop?.leg ?? null, stop?.index ?? 0, stop?.count ?? 0)}
     <div class="td-hero-info">${middle}</div>
-    ${renderClocks(stop?.leg ?? null, d.homeTz, new Date())}
-    ${renderBannerStamp(d, stop?.leg ?? null)}`;   // real time: time travel moves the date, not the world clocks
-}
-
-/** The stop's passport stamp, pressed onto the banner's edge once you have arrived. It
- *  thunks in the first time it is seen, then just sits there; click opens the passport. */
-function renderBannerStamp(d: BannerData, leg: StoredLeg | null): string {
-  if (!leg || d.phase === 'before') return '';
-  const s = stampForLeg(stampsFor(d.legs as never, d.today), leg.id);
-  if (!s?.earned) return '';
-  const pressed = !isStampSeen(s.id);
-  return `<button type="button" class="td-banner-stamp" data-open-passport="${esc(s.id)}" data-stamp-id="${esc(s.id)}" title="${esc(t('passport.open'))}" aria-label="${esc(t('passport.open'))}">${renderStamp(s, { size: 76, pressed })}</button>`;
+    ${renderClocks(stop?.leg ?? null, d.homeTz, new Date())}`;   // real time: time travel moves the date, not the world clocks
 }
 
 /** Wire the banner's drawer triggers. `getData` is read at click time so the
  *  drawer reflects the latest stores, not the render the click handler came from. */
 export function wireBanner(root: HTMLElement, getData: () => BannerData, onChange: () => void): void {
-  wirePassportOpeners(root);
-  const stampEl = root.querySelector<HTMLElement>('[data-stamp-id]');
-  if (stampEl) markStampsSeen([stampEl.dataset.stampId!]);
   root.querySelector<HTMLElement>('[data-banner="stay"]')?.addEventListener('click', (e) => {
     const d = getData();
     const stop = currentStop(d.legs, d.today, d.phase);
