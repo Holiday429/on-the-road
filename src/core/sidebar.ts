@@ -4,6 +4,7 @@
 
 import type { User } from '../firebase/auth.ts';
 import { currentTrip, currentRole, currentTripId } from '../data/trip-context.ts';
+import { todayIso, daysBetween } from '../data/trip-phase.ts';
 import { escHtml as escapeHtml } from './utils.ts';
 import { t } from './i18n.ts';
 import { openTripPopover, closeTripPopover, wireTripCalendarHover, cancelCalendarHover, setTripList } from './trip-popover.ts';
@@ -207,13 +208,24 @@ function buildTripPill(): string {
     compactClass = 'trip-pill-date--on';
   }
 
-  const daysText = days === null
-    ? ''
-    : days > 0
-    ? t('app.departingIn', { n: days })
-    : days === 0
-    ? t('app.departingToday')
-    : t('app.tripStarted', { n: Math.abs(days) });
+  // Expanded card text follows the real trip phase (and the time-travel clock).
+  // The collapsed badge above keeps its plain day count — there's no room there
+  // for anything else.
+  let daysText = '';
+  if (trip) {
+    const today = todayIso();
+    if (today < trip.startDate) {
+      const n = daysBetween(today, trip.startDate);
+      daysText = t('app.departingIn', { n });
+    } else if (trip.endDate && today > trip.endDate) {
+      daysText = t('app.tripEnded', { n: daysBetween(trip.endDate, today) });
+    } else {
+      const total = trip.endDate ? daysBetween(trip.startDate, trip.endDate) + 1 : 0;
+      const day = daysBetween(trip.startDate, today) + 1;
+      daysText = total ? t('app.tripDayOf', { n: day, m: total }) : t('app.tripStarted', { n: day - 1 });
+    }
+    if (today === trip.startDate) daysText = t('app.departingToday');
+  }
 
   const role = currentRole();
   const roleBadge = role === 'viewer'

@@ -49,6 +49,7 @@ import { mountPrefControls } from '../../core/pref-mounts.ts';
 // which Dashboard shouldn't eagerly load just to wire up a click handler.
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { openAddPlanModal } from './dashboard-modals.ts';
+import { budgetBarColor } from '../../data/budget-tone.ts';
 import { renderBanner, wireBanner, startBannerClock, type BannerData } from './dashboard-banner.ts';
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
 import { resolveHomeTimezone } from '../../data/home-timezone.ts';
@@ -346,31 +347,32 @@ function renderSpendWidget(): string {
     : t('dash.spend.dayNone');
   const dayLabel  = asOf ? new Date(`${today}T00:00:00`).toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' }) : t('dash.spend.today');
 
-  // Prefer the current country's budget when one is set — it's the more
-  // actionable number while you're there; otherwise fall back to the total.
+  // "Left" always means the whole-trip budget minus everything spent, the same
+  // number the Expenses page shows. While you're travelling, the current
+  // country's own cap is a separate, labelled second line — never a
+  // replacement, and never shown once the trip is over (currentLeg() falls back
+  // to the last stop then, which used to make "left" a one-country figure).
+  const phase = tripPhase();
   const curCountry = currentLeg()?.country ?? '';
-  const countryCap = curCountry ? countryBudgets()[curCountry] : undefined;
+  const countryCap = phase === 'during' && curCountry ? countryBudgets()[curCountry] : undefined;
   let budgetLine = '';
+  if (budget) {
+    const pct  = Math.min(100, Math.round((total / budget) * 100));
+    const over = total > budget;
+    budgetLine = `
+      <div class="td-spend-bar-track"><div class="td-spend-bar-fill" style="width:${pct}%;background:${budgetBarColor(pct)}"></div></div>
+      <div class="td-spend-bar-foot">
+        <span class="${over ? 'td-over' : 'td-remain'}">${over ? `${fmt(total-budget)} ${esc(t('expenses.over'))}` : `${fmt(budget-total)} ${esc(t('expenses.left'))}`}</span>
+        <span class="td-pct">${esc(t('dash.spend.pctOf', { pct, total: fmt(budget) }))}</span>
+      </div>`;
+  }
   if (countryCap) {
     const spent = rows.filter(e => e.country === curCountry).reduce((s, e) => s + inBase(e), 0);
     const pct  = Math.min(100, Math.round((spent / countryCap) * 100));
-    const over = spent > countryCap;
-    const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
-    budgetLine = `
-      <div class="td-spend-bar-track"><div class="td-spend-bar-fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="td-spend-bar-foot">
-        <span class="${over ? 'td-over' : 'td-remain'}">${over ? `${fmt(spent-countryCap)} over` : `${fmt(countryCap-spent)} left`}</span>
-        <span class="td-pct">${curCountry} · ${pct}% of ${fmt(countryCap)}</span>
-      </div>`;
-  } else if (budget) {
-    const pct  = Math.min(100, Math.round((total / budget) * 100));
-    const over = total > budget;
-    const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
-    budgetLine = `
-      <div class="td-spend-bar-track"><div class="td-spend-bar-fill" style="width:${pct}%;background:${color}"></div></div>
-      <div class="td-spend-bar-foot">
-        <span class="${over ? 'td-over' : 'td-remain'}">${over ? `${fmt(total-budget)} over` : `${fmt(budget-total)} left`}</span>
-        <span class="td-pct">${pct}% of ${fmt(budget)}</span>
+    budgetLine += `
+      <div class="td-spend-country ${spent > countryCap ? 'is-over' : ''}">
+        <span class="td-spend-country-name">${esc(currentLeg()?.flag ?? "")} ${esc(curCountry)}</span>
+        <span>${fmt(spent)} / ${fmt(countryCap)} · ${pct}%</span>
       </div>`;
   }
 

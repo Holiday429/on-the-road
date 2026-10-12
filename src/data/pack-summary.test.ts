@@ -46,6 +46,15 @@ describe('packSummary', () => {
     expect((s as { remainG: number }).remainG).toBeLessThan(0);
   });
 
+  it('recent changes are ordered by the stop they happened at, not storage order', () => {
+    const l = list([
+      item('1', 'Late buy', 0.5, { acquiredLegId: 'b' }),
+      item('2', 'Early buy', 0.5, { acquiredLegId: 'a' }),
+    ]);
+    const s = packSummary(l, LEGS, '2026-08-02') as { recent: { name: string }[] };
+    expect(s.recent.map((r) => r.name)).toEqual(['Early buy', 'Late buy']);
+  });
+
   it('idle when the flight is further than 2 days away, with pieces and recent changes', () => {
     const l = list([
       item('1', 'Jacket', 1, { qty: 2 }),

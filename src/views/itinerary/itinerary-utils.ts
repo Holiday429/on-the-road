@@ -135,8 +135,10 @@ export function bearing(a: [number, number], b: [number, number]): number {
 
 /** Accommodation price as "€120", or the legacy free-text price, or ''. */
 export function stayPriceLabel(a: Accommodation, fallbackCurrency: string): string {
-  if (a.priceAmount != null) return `${currencySymbol(a.priceCurrency ?? fallbackCurrency)}${a.priceAmount}`;
-  return a.price ?? '';
+  // A zero price ("0", "€0") means free/hosted, not "0 per night" — show nothing.
+  if (a.priceAmount != null) return a.priceAmount > 0 ? `${currencySymbol(a.priceCurrency ?? fallbackCurrency)}${a.priceAmount}` : '';
+  const legacy = (a.price ?? '').trim();
+  return /^\D{0,3}0+([.,]0+)?$/.test(legacy) ? '' : legacy;
 }
 
 /** Transport price as "€39", or the legacy free-text price, or ''. */

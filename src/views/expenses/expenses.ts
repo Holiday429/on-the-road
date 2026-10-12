@@ -34,6 +34,7 @@ import {
 import {
   CURRENCIES, allCurrencies, isApproxCurrency, currencySymbol, getRateTable, peekRateTable, type RateTable,
 } from '../../data/rates.ts';
+import { budgetBarColor } from '../../data/budget-tone.ts';
 import { openModal } from '../../core/modal.ts';
 import { openCurrencyManager } from './currency-manager.ts';
 import {
@@ -152,7 +153,7 @@ function renderSummary(el: HTMLElement) {
   const sym = currencySymbol(baseCurrency());
   const unclassified = expenses.filter((e) => e.category === UNCLASSIFIED).length;
   const toSortChip = unclassified
-    ? `<span class="exp-stat-chip" id="exp-tosort-chip">🗂️ ${unclassified} to sort</span>`
+    ? `<span class="exp-stat-chip" id="exp-tosort-chip">🗂️ ${t('expenses.toSort', { n: unclassified })}</span>`
     : '';
 
   // Right button: if budget set, show spent/total + bar; else invite to set one.
@@ -160,9 +161,9 @@ function renderSummary(el: HTMLElement) {
     ? (() => {
         const pct = Math.min(100, Math.round((sum / budget) * 100));
         const over = sum > budget;
-        const barColor = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+        const barColor = budgetBarColor(pct);
         return `
-          <div class="exp-hero-eyebrow">Budget</div>
+          <div class="exp-hero-eyebrow">${t('expenses.budgetTitle')}</div>
           <div class="exp-hero-num">${sym}${Math.round(budget).toLocaleString()}</div>
           <div class="exp-hero-bar-track">
             <div class="exp-hero-bar-fill" style="width:${pct}%;background:${barColor}"></div>
@@ -171,14 +172,14 @@ function renderSummary(el: HTMLElement) {
             ${over ? `▲ ${fmt(sum - budget)} ${t('expenses.over')}` : `${fmt(budget - sum)} ${t('expenses.remaining')} ›`}
           </div>`;
       })()
-    : `<div class="exp-hero-eyebrow">Budget</div>
+    : `<div class="exp-hero-eyebrow">${t('expenses.budgetTitle')}</div>
        <div class="exp-hero-num exp-hero-empty">—</div>
-       <div class="exp-hero-label">Tap to set ›</div>`;
+       <div class="exp-hero-label">${t('expenses.tapToSet')}</div>`;
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   el.innerHTML = `
     <button class="exp-hero-btn exp-hero-spend" id="exp-open-records">
-      <div class="exp-hero-eyebrow">Total spent ${toSortChip ? '· ' + unclassified + ' to sort' : ''}</div>
+      <div class="exp-hero-eyebrow">${t('expenses.totalSpent')} ${toSortChip ? '· ' + t('expenses.toSort', { n: unclassified }) : ''}</div>
       <div class="exp-hero-num">${fmt(sum)}</div>
       <div class="exp-hero-label">${t('expenses.viewAllRecords')}</div>
     </button>
@@ -934,7 +935,7 @@ function renderBreakdown(el: HTMLElement) {
         const hasBudget = (r.budget ?? 0) > 0;
         const pct = Math.round((r.sum / Math.max(totalSum2, 1)) * 100);
         const budgetStr = hasBudget
-          ? `<span class="exp-legend-budget">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' ' + t('expenses.over') : ''}</span>`
+          ? `<span class="exp-legend-budget${r.sum > r.budget! ? ' is-over' : ''}">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' ▲ ' + t('expenses.over') : ''}</span>`
           : '';
         const setBtn = r.catId
           ? `<button class="exp-cat-budget-btn" data-budget-key="cat:${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
@@ -1014,10 +1015,10 @@ function renderBreakdown(el: HTMLElement) {
         const pct = hasBudget ? Math.min(100, (r.sum / r.budget!) * 100) : (r.sum / maxAmt) * 100;
         const usage = hasBudget ? r.sum / r.budget! : 0;
         const barColor = hasBudget
-          ? (usage >= 1 ? 'var(--coral-500)' : usage >= 0.8 ? '#f59e0b' : 'var(--sage-500)')
+          ? (budgetBarColor(usage * 100))
           : 'var(--amber-300)';
         const budgetStr = hasBudget
-          ? `${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' · ' + t('expenses.over') : ''}`
+          ? `${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' ▲ ' + t('expenses.over') : ''}`
           : (r.sub ?? '');
 
         // City breakdown nested under country
@@ -1045,7 +1046,7 @@ function renderBreakdown(el: HTMLElement) {
             <div class="exp-cat-bar-track" style="margin:4px 0 6px">
               <div class="exp-cat-bar-fill" style="width:${pct}%;background:${barColor}"></div>
             </div>
-            ${budgetStr ? `<div class="exp-place-sub">${budgetStr}</div>` : ''}
+            ${budgetStr ? `<div class="exp-place-sub${hasBudget && r.sum > r.budget! ? ' is-over' : ''}">${budgetStr}</div>` : ''}
             ${cityHtml ? `<div class="exp-place-cities">${cityHtml}</div>` : ''}
           </div>`;
       }).join('');

@@ -26,6 +26,7 @@
 .exp-legend-pct { font-size: 11px; font-weight: 700; color: var(--ink-faint); }
 .exp-legend-amt { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: 700; color: var(--ink); }
 .exp-legend-budget { grid-column: 2 / -1; font-size: 11px; font-weight: 600; color: var(--ink-faint); }
+.exp-legend-budget.is-over, .exp-place-sub.is-over { color: var(--danger); font-weight: 700; }
 .exp-legend-row .exp-cat-budget-btn { font-size: 11px; color: var(--ink-faint); padding: 1px 4px; border-radius: var(--r-sm); opacity: 0; transition: opacity var(--dur-fast); }
 .exp-legend-row:hover .exp-cat-budget-btn { opacity: 1; }
 

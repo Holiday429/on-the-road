@@ -5,8 +5,8 @@ import { doc } from './base.ts';
 /* ── Pack (simple weight-aware packing list) ─────────────────────────────────
    Mental model: a pack list holds physical containers (a backpack, a suitcase),
    each with its own weight limit. Items live inside a container (or sit in the
-   virtual "Unassigned" area when containerId is null — weight uncounted until
-   you commit them to a bag). Core Kit is the user's reusable must-bring gear,
+   virtual "Unassigned" area when containerId is null — still counted in the list
+   total, but not in any bag's weight until you commit them to one). Core Kit is the user's reusable must-bring gear,
    maintained once on the Pack home and copied into any new list.
    ──────────────────────────────────────────────────────────────────────────── */
 

@@ -123,6 +123,15 @@ function render() {
   else body.replaceChildren(); // 'list' → the Prepare landing owns this state
 }
 
+function unitLabel(): string {
+  return weightUnit === 'jin' ? '斤' : weightUnit;
+}
+
+/** A bag's weight in the user's chosen unit (kg keeps the existing "x.x kg" look). */
+function bagWeight(weightG: number): string {
+  return weightUnit === 'kg' ? formatKg(weightG) : displayWeight(weightG, weightUnit);
+}
+
 function kitWeightDisplay(weightG: number): string {
   // Display in user unit for existing rows; input in user unit too.
   if (weightUnit === 'g')   return String(Math.round(weightG));
@@ -344,14 +353,14 @@ function renderContainerCard(l: PackList, c: PackContainer): string {
       </div>
 
       <div class="pack-c-limits">
-        <label>Empty <input class="pk-c-self-edit pk-mini" data-id="${c.id}" type="number" min="0" step="0.1" value="${c.selfWeightG ? (c.selfWeightG / 1000) : ''}" placeholder="0"> kg</label>
-        <label>Limit <input class="pk-c-limit-edit pk-mini" data-id="${c.id}" type="number" min="0" step="0.1" value="${c.limitG ? (c.limitG / 1000) : ''}" placeholder="0"> kg</label>
+        <label>Empty <input class="pk-c-self-edit pk-mini" data-id="${c.id}" type="number" min="0" step="any" value="${c.selfWeightG ? kitWeightDisplay(c.selfWeightG) : ''}" placeholder="0"> ${unitLabel()}</label>
+        <label>Limit <input class="pk-c-limit-edit pk-mini" data-id="${c.id}" type="number" min="0" step="any" value="${c.limitG ? kitWeightDisplay(c.limitG) : ''}" placeholder="0"> ${unitLabel()}</label>
       </div>
 
       <div class="pack-c-meter">
-        <div class="pack-c-num ${over ? 'is-over' : ''}">${formatKg(used)}${c.limitG > 0 ? ` / ${formatKg(c.limitG)}` : ''}</div>
+        <div class="pack-c-num ${over ? 'is-over' : ''}">${bagWeight(used)}${c.limitG > 0 ? ` / ${bagWeight(c.limitG)}` : ''}</div>
         <div class="pack-bar"><span class="${over ? 'is-over' : ''}" style="width:${pct}%"></span></div>
-        ${over ? `<div class="pack-c-warn">Over by ${formatKg(used - c.limitG)} — move the highlighted items to Unassigned or another bag.</div>` : ''}
+        ${over ? `<div class="pack-c-warn">${t('pack.overBy', { w: bagWeight(used - c.limitG) })}</div>` : ''}
       </div>
 
       <div class="pack-c-items pk-drop-zone" data-container-id="${c.id}">
@@ -366,7 +375,7 @@ function renderContainerCard(l: PackList, c: PackContainer): string {
 function renderUnassigned(_l: PackList, items: PackItem[]): string {
   const w = items.reduce((s, i) => s + itemWeightG(i), 0);
   const sorted = [...items].sort((a, b) => priRank(a.priority) - priRank(b.priority) || a.order - b.order);
-  const weightNote = items.length > 0 ? `${displayWeight(w, weightUnit)} waiting` : '';
+  const weightNote = items.length > 0 ? t('pack.waiting', { w: displayWeight(w, weightUnit) }) : '';
   return `
     <div class="pack-unassigned-panel">
       <div class="pack-unassigned-head">

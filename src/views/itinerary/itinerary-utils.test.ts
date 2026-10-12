@@ -25,6 +25,13 @@ describe('stayPriceLabel', () => {
   it('returns empty string when there is no price at all', () => {
     expect(stayPriceLabel(acc({}), 'EUR')).toBe('');
   });
+  it('treats a zero price (structured or legacy text) as no price', () => {
+    expect(stayPriceLabel(acc({ priceAmount: 0 }), 'EUR')).toBe('');
+    expect(stayPriceLabel(acc({ price: '0' }), 'EUR')).toBe('');
+    expect(stayPriceLabel(acc({ price: '€0.00' }), 'EUR')).toBe('');
+    expect(stayPriceLabel(acc({ price: '$20' }), 'EUR')).toBe('$20');
+    expect(stayPriceLabel(acc({ price: '100' }), 'EUR')).toBe('100');
+  });
 });
 
 describe('transportPriceLabel', () => {

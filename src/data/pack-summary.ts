@@ -54,10 +54,15 @@ export function packSummary(list: PackList | null | undefined, legsIn: StoredLeg
     ?? legs[legs.length - 1];
   const present = here ? itemsPresentAtLeg(list.items, legs, here.id) : list.items.filter((it) => !it.droppedLegId);
   const cityOf = (id: string | null) => legs.find((l) => l.id === id)?.city ?? '';
+  // Items carry no timestamp, so "recent" is ordered by when the stop they
+  // changed hands at began (not by storage order, which is just insertion order).
+  const dateOf = (id: string | null) => legs.find((l) => l.id === id)?.dateFrom ?? '';
   const recent: PackChange[] = list.items
     .filter((it) => it.acquiredLegId || it.droppedLegId)
+    .map((it) => ({ it, at: dateOf(it.droppedLegId ?? it.acquiredLegId) }))
+    .sort((a, b) => a.at.localeCompare(b.at))
     .slice(-3)
-    .map((it) => it.droppedLegId
+    .map(({ it }) => it.droppedLegId
       ? { name: it.name, kind: 'dropped' as const, city: cityOf(it.droppedLegId) }
       : { name: it.name, kind: 'acquired' as const, city: cityOf(it.acquiredLegId) });
   return {

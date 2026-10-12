@@ -27,6 +27,7 @@ import {
   baseCurrency, tripBudget, setTripBudget,
   categoryBudgets, setCategoryBudget, countryBudgets, setCountryBudget,
 } from '../../data/trip-context.ts';
+import { budgetBarColor } from '../../data/budget-tone.ts';
 import { currencySymbol } from '../../data/rates.ts';
 import { legCountries } from './expense-defaults.ts';
 import type { Category, BudgetTab } from './expense-helpers.ts';
@@ -116,7 +117,7 @@ function budgetCompareHtml(): string {
               <div class="exp-budget-bar-track exp-budget-compare-bar">
                 ${(() => {
                   const pct = Math.min(100, Math.round((sum / tripTotal) * 100));
-                  const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+                  const color = budgetBarColor(pct);
                   return `<div class="exp-budget-bar-fill" style="width:${pct}%;background:${color}"></div>`;
                 })()}
               </div>
@@ -142,7 +143,7 @@ function budgetCompareHtml(): string {
                 const cap = caps[c];
                 const pct = Math.min(100, Math.round((spent / cap) * 100));
                 const over = spent > cap;
-                const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+                const color = budgetBarColor(pct);
                 const flag = legs().find((l) => l.country === c)?.flag ?? '';
                 return `
                   <div class="exp-budget-cmp-row">
@@ -174,7 +175,7 @@ function budgetCompareHtml(): string {
                 const cap = caps[cat.id];
                 const pct = Math.min(100, Math.round((spent / cap) * 100));
                 const over = spent > cap;
-                const color = pct >= 100 ? 'var(--coral-500)' : pct >= 80 ? '#f59e0b' : 'var(--sage-500)';
+                const color = budgetBarColor(pct);
                 return `
                   <div class="exp-budget-cmp-row">
                     <div class="exp-budget-cmp-name">${escHtml(cat.icon)} ${escHtml(cat.label)}</div>
