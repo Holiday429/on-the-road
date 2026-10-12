@@ -10,34 +10,24 @@
      can't be a token, bump the baseline with a reason in the commit.
    ========================================================================== */
 
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const SRC = path.resolve(__dirname, '..');
+// Sources are read as raw text through Vite (the project has no @types/node).
+const CSS_SRC = import.meta.glob('/src/**/*.css', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const TS_SRC = import.meta.glob('/src/**/*.ts', { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 
-function walk(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = path.join(dir, name);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else out.push(p);
-  }
-  return out;
-}
-
-const all = walk(SRC);
-const css = all.filter((f) => f.endsWith('.css'));
-const ts = all.filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'));
-const read = (f: string) => readFileSync(f, 'utf8');
-const rel = (f: string) => path.relative(SRC, f);
+const css = Object.keys(CSS_SRC);
+const ts = Object.keys(TS_SRC).filter((f) => !f.endsWith('.test.ts'));
+const read = (f: string) => CSS_SRC[f] ?? TS_SRC[f];
+const rel = (f: string) => f.replace(/^\/src\//, '');
 
 function count(files: string[], re: RegExp, skip: (f: string) => boolean = () => false): number {
   let n = 0;
   for (const f of files) if (!skip(f)) n += (read(f).match(re) ?? []).length;
   return n;
 }
-const notBase = (f: string) => rel(f) === path.join('core', 'base.css');
-const isI18n = (f: string) => rel(f).startsWith(path.join('core', 'i18n'));
+const notBase = (f: string) => rel(f) === 'core/base.css';
+const isI18n = (f: string) => rel(f).startsWith('core/i18n');
 
 describe('hard rules', () => {
   it('font-weight uses the --fw-* steps, never a number', () => {
@@ -52,7 +42,7 @@ describe('hard rules', () => {
 
   it('transport / stay / plan-category emoji maps live only in core/icons.ts', () => {
     const offenders = ts
-      .filter((f) => rel(f) !== path.join('core', 'icons.ts'))
+      .filter((f) => rel(f) !== 'core/icons.ts')
       .filter((f) => /const\s+TRANSPORT_ICONS?\s*[:=]\s*(Record|\{)/.test(read(f)))
       .map(rel);
     expect(offenders).toEqual([]);
