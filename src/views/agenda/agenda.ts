@@ -349,11 +349,9 @@ function render(): void {
           <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${esc(t(`cal.kind.${k}`))}</span>`).join('')}</div>
           ${renderStats()}
         </div>
-      </div>
-      <div class="cal-side">
-        ${renderDayPanel()}
         ${renderTodosPanel()}
       </div>
+      ${renderDayPanel()}
     </div>`;
   wire(body);
 }
