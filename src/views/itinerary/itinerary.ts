@@ -263,7 +263,7 @@ function renderTimeline(): string {
     ${sections}
     <div class="route-add-wrap">
       <button class="route-add-btn" id="route-add-toggle">
-        <span style="font-size:20px">＋</span>
+        <span style="font-size:20px">+</span>
         ${tr('route.addStop')}
       </button>
     </div>`;
@@ -629,7 +629,7 @@ function renderSharedHistory(leg: Leg): string {
         <span class="rd-share-item-mark">${kind === 'visited' ? '✓' : '⏳'}</span>
         <span class="rd-share-item-name">${esc(p.title)}</span>
         <span class="rd-share-item-meta">${meta}</span>
-        <button class="rd-icon-btn rd-sm rd-share-item-add" data-act="adopt-shared" data-share-key="${esc(p.key)}" title="${tr('route.shareAddTitle')}">＋</button>
+        <button class="rd-icon-btn rd-sm rd-share-item-add" data-act="adopt-shared" data-share-key="${esc(p.key)}" title="${tr('route.shareAddTitle')}">+</button>
       </div>`;
   };
 

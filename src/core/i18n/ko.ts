@@ -137,9 +137,9 @@ export const ko: StringTable = {
   'compare.typeShopping': '쇼핑',
   'compare.typeOther':    '기타',
   'compare.emptyTitle':   '비교 항목 없음',
-  'compare.btnNew':       '＋ 새 비교',
+  'compare.btnNew':       '+ 새 비교',
   'compare.rankBest':     '🏆 최선',
-  'compare.btnAddOption': '＋ 옵션 추가',
+  'compare.btnAddOption': '+ 옵션 추가',
 
   'nomad.emptyTitle':     '스팟 없음',
   'nomad.scopeTrip':      '이번 여행',

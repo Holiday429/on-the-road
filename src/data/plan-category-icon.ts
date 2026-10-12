@@ -6,19 +6,10 @@
    Custom categories (user-made) fall back to the pin.
    ========================================================================== */
 
-const ICONS: Record<string, string> = {
-  official: '🗺️',   // Tourism
-  social:   '👥',
-  food:     '🍽️',
-  museum:   '🖼️',
-  nature:   '🌿',
-  daytrip:  '🚌',
-  shopping: '🛍️',
-  other:    '📌',
-};
+import { PLAN_ICON, DEFAULT_PLAN_ICON } from '../core/icons.ts';
 
-export const DEFAULT_PLAN_ICON = '📌';
+export { DEFAULT_PLAN_ICON };
 
 export function planCategoryIcon(category: string | undefined | null): string {
-  return (category && ICONS[category.trim().toLowerCase()]) || DEFAULT_PLAN_ICON;
+  return (category && PLAN_ICON[category.trim().toLowerCase()]) || DEFAULT_PLAN_ICON;
 }

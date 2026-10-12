@@ -21,8 +21,8 @@ import { renderStayCard, renderTicket } from '../itinerary/itinerary-cards.ts';
 import { bannerDateRange, countdownLabel } from './banner-format.ts';
 import { appNow } from '../../data/sim-clock.ts';
 
-const TRANSPORT_ICON: Record<string, string> = { flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️' };
 
+import { transportIcon } from '../../core/icons.ts';
 /** The Itinerary's stylesheet (stay cards, tickets, plan feed, hero). Loaded on first use. */
 export async function loadItineraryStyles(): Promise<void> {
   await import('../itinerary/itinerary.css');
@@ -94,7 +94,7 @@ export async function openStaysDrawer(legIn: StoredLeg, todayIso: string, trigge
 /* ── Transport ───────────────────────────────────────────────────────────── */
 
 export function transportTitle(tr: Transport): string {
-  return `${TRANSPORT_ICON[tr.type] ?? '🚀'} ${[tr.from, tr.to].filter(Boolean).join(' → ')}`;
+  return `${transportIcon(tr.type)} ${[tr.from, tr.to].filter(Boolean).join(' → ')}`;
 }
 
 export async function openTransportDrawer(

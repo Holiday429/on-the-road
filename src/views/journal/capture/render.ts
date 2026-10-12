@@ -158,7 +158,7 @@ function renderImageZone(state: CaptureState, imageLabel: string): string {
           `).join('')}
           ${full ? '' : `
             <label class="journal-image-add" for="journal-image-input" title="Add photos">
-              <span class="journal-image-add-icon">＋</span>
+              <span class="journal-image-add-icon">+</span>
               <span class="journal-image-add-count">${photos.length}/${MAX_JOURNAL_IMAGES}</span>
             </label>
           `}
@@ -509,9 +509,9 @@ function renderReaderAlbums(entry: StoredJournalEntry, albums: StoredJournalAlbu
         </span>
       `).join('') : '<span class="journal-reader-albums-none">—</span>'}
       <select class="select input journal-album-add" data-album-add-entry="${escHtml(entry.id)}">
-        <option value="">＋ 加入…</option>
+        <option value="">+ 加入…</option>
         ${available.map((album) => `<option value="${escHtml(album.id)}">${escHtml(album.emoji)} ${escHtml(album.title)}</option>`).join('')}
-        <option value="__new__">＋ 新建 album…</option>
+        <option value="__new__">+ 新建 album…</option>
       </select>
     </div>
   `;
@@ -543,7 +543,7 @@ function renderPlacesView(groups: PlaceGroup[]): string {
       }).join('')}
       <button class="journal-place-tile journal-place-tile-add" data-journal-new type="button">
         <div class="journal-place-tile-cover journal-place-tile-cover-add">
-          <span>＋</span>
+          <span>+</span>
         </div>
         <div class="journal-place-tile-info">
           <span class="journal-place-tile-name">记一笔</span>
@@ -579,7 +579,7 @@ function renderAlbumsView(model: CaptureRenderModel): string {
           <button class="btn btn-ghost" data-album-tidy type="button" ${model.state.tidyLoading ? 'disabled' : ''}>
             ${model.state.tidyLoading ? '整理中…' : '✨ AI 整理'}
           </button>
-          <button class="btn btn-ghost" data-album-create type="button">＋ 新建 album</button>
+          <button class="btn btn-ghost" data-album-create type="button">+ 新建 album</button>
         </div>
       </div>`}
 
@@ -785,7 +785,7 @@ function renderGalleryView(
           <select class="select input journal-select-album" data-album-target ${selection.length ? '' : 'disabled'}>
             <option value="">加入 album…</option>
             ${albums.map((album) => `<option value="${escHtml(album.id)}">${escHtml(album.emoji)} ${escHtml(album.title)}</option>`).join('')}
-            <option value="__new__">＋ 新建 album…</option>
+            <option value="__new__">+ 新建 album…</option>
           </select>
           <button class="btn btn-ghost" data-gallery-select-cancel type="button">取消</button>
         </div>

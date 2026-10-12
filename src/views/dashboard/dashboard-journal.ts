@@ -22,6 +22,7 @@ import { navigateTo } from '../../core/app.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { t, getLocale } from '../../core/i18n.ts';
 
+import { WIDGET_ICON } from '../../core/icons.ts';
 function entriesLabel(n: number): string {
   return n === 1 ? t('dash.journal.entry1') : t('dash.journal.entries', { n });
 }
@@ -113,7 +114,7 @@ export function renderJournalWidget(entries: StoredJournalEntry[], legs: StoredL
   return `
     <div class="td-widget td-w-journal" data-widget-id="journal">
       <div class="td-widget-header">
-        <div class="td-widget-label">📔 ${esc(t('dash.widget.journal'))}${entries.length ? ` <span class="td-jq-count">${entries.length}</span>` : ''}</div>
+        <div class="td-widget-label">${WIDGET_ICON.journal} ${esc(t('dash.widget.journal'))}${entries.length ? ` <span class="td-jq-count">${entries.length}</span>` : ''}</div>
         <button type="button" class="td-expand" data-journal-expand title="${esc(t('dash.journal.albums'))}" aria-label="${esc(t('dash.journal.albums'))}">⤢</button>
       </div>
       <div class="jr-row">

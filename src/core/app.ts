@@ -6,13 +6,7 @@ import type { User } from '../firebase/auth.ts';
 import { currentMemberPages, currentRole, onTripChange } from '../data/trip-context.ts';
 import { t, onLocaleChange } from './i18n.ts';
 import { track } from './analytics.ts';
-import checklistIcon from '../../icon/Checklist.png';
-import guideIcon from '../../icon/Guide.png';
-import itineraryIcon from '../../icon/Itinerary.png';
-import journalIcon from '../../icon/Journal.png';
-import paymentIcon from '../../icon/payment.png';
-import stayIcon from '../../icon/stay.png';
-import mapsIcon from '../../icon/maps.png';
+import { NAV_ICON } from './icons.ts';
 import {
   type ViewId, type NavItem,
   initSidebar, buildSidebar, buildMobileNav, decorateViewTitles,
@@ -27,21 +21,21 @@ export { renderViewTitleMarkup, openTripSwitcher };
 
 const NAV_ITEMS: NavItem[] = [
   // Pinned
-  { id: 'today',    label: 'Dashboard', iconSrc: '🏠',  emoji: true, section: 'pinned' },
+  { id: 'today',    label: 'Dashboard', iconSrc: NAV_ICON.today,  emoji: true, section: 'pinned' },
   // Agenda is a cross-cutting time view, not a content area — pinned beside the
   // Dashboard rather than inside a Before/During/After group. On phones it is
   // reached from the dashboard agenda instead of the (already full) bottom bar.
-  { id: 'agenda',   label: 'Agenda',    iconSrc: '🗓️', emoji: true, section: 'pinned', desktopOnly: true },
+  { id: 'agenda',   label: 'Agenda',    iconSrc: NAV_ICON.agenda, emoji: true, section: 'pinned', desktopOnly: true },
   // Before
-  { id: 'prep',     label: 'Prepare',   iconSrc: checklistIcon, section: 'before' },
-  { id: 'budget',   label: 'Compare',   iconSrc: stayIcon,      section: 'before' },
+  { id: 'prep',     label: 'Prepare',   iconSrc: NAV_ICON.prep,     emoji: true, section: 'before' },
+  { id: 'budget',   label: 'Compare',   iconSrc: NAV_ICON.budget,   emoji: true, section: 'before' },
   // During
-  { id: 'route',    label: 'Itinerary', iconSrc: itineraryIcon, section: 'during' },
-  { id: 'cities',   label: 'Guide',     iconSrc: guideIcon,     section: 'during' },
-  { id: 'map',      label: 'Map',       iconSrc: mapsIcon,      section: 'during' },
+  { id: 'route',    label: 'Itinerary', iconSrc: NAV_ICON.route,    emoji: true, section: 'during' },
+  { id: 'cities',   label: 'Guide',     iconSrc: NAV_ICON.cities,   emoji: true, section: 'during' },
+  { id: 'map',      label: 'Map',       iconSrc: NAV_ICON.map,      emoji: true, section: 'during' },
   // After
-  { id: 'expenses', label: 'Expenses',  iconSrc: paymentIcon,   section: 'after'  },
-  { id: 'journal',  label: 'Journal',   iconSrc: journalIcon,   section: 'after'  },
+  { id: 'expenses', label: 'Expenses',  iconSrc: NAV_ICON.expenses, emoji: true, section: 'after'  },
+  { id: 'journal',  label: 'Journal',   iconSrc: NAV_ICON.journal,  emoji: true, section: 'after'  },
 ];
 
 // Views that used to have their own NAV_ITEMS entry and are now folded into

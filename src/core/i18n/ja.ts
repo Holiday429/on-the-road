@@ -140,9 +140,9 @@ export const ja: StringTable = {
   'compare.typeShopping': 'ショッピング',
   'compare.typeOther':    'その他',
   'compare.emptyTitle':   'まだ比較項目がありません',
-  'compare.btnNew':       '＋ 新しい比較',
+  'compare.btnNew':       '+ 新しい比較',
   'compare.rankBest':     '🏆 ベスト',
-  'compare.btnAddOption': '＋ オプションを追加',
+  'compare.btnAddOption': '+ オプションを追加',
 
   'nomad.emptyTitle':     'スポットがまだありません',
   'nomad.scopeTrip':      'この旅行',

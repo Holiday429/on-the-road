@@ -19,6 +19,7 @@ import type { StoredExpense } from '../../data/stores/expense-store.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { addExpenseWithDefaults, defaultCurrency, defaultPlace, BUILTIN_CATEGORIES } from '../expenses/expense-defaults.ts';
 
+import { WIDGET_ICON } from '../../core/icons.ts';
 const RECENT = 12;
 
 function shortDate(iso: string): string {
@@ -86,7 +87,7 @@ export function openSpendDrawer(opts: {
     </section>`;
 
   const d = openDrawer({
-    title: `💶 ${t('dash.widget.spend')}`,
+    title: `${WIDGET_ICON.spend} ${t('dash.widget.spend')}`,
     body: opts.focus === 'form' ? `${form}${list}` : `${list}<h3 class="td-dh">${esc(t('dash.spend.addTitle'))}</h3>${form}`,
     footer: `<button type="button" class="btn btn-ghost" data-d-open>${esc(t('dash.link.allExpenses'))}</button>`,
     returnFocus: opts.trigger,
@@ -131,7 +132,7 @@ export async function openSpendAnalysisDrawer(trigger: HTMLElement | null): Prom
   const { mountExpenseAnalysis } = await import('../expenses/expenses.ts');
   let dispose: (() => void) | null = null;
   const d = openDrawer({
-    title: `💶 ${t('expenses.analysisTitle')}`,
+    title: `${WIDGET_ICON.spend} ${t('expenses.analysisTitle')}`,
     body: '<div class="exp-breakdown-wrap td-sp-analysis"></div>',
     footer: `<button type="button" class="btn btn-ghost" data-d-open>${esc(t('dash.link.allExpenses'))}</button>`,
     className: 'td-sp-analysis-drawer',

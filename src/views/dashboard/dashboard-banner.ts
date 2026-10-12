@@ -25,6 +25,8 @@ import { openStaysDrawer, openTransportDrawer } from './banner-drawers.ts';
 import { openCityDrawer } from './city-drawer.ts';
 import { openClocksDrawer } from './clock-drawer.ts';
 
+import { transportIcon } from '../../core/icons.ts';
+import { STAY_ICON } from '../../core/icons.ts';
 export interface BannerData {
   phase: Phase;
   legs: StoredLeg[];
@@ -33,7 +35,6 @@ export interface BannerData {
   homeTz: string | null;
 }
 
-const TRANSPORT_ICON: Record<string, string> = { flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️' };
 const RING_R = 22;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -77,12 +78,12 @@ function renderStayRow(leg: StoredLeg | null, iso: string): string {
   const caret = '<span class="td-banner-caret" aria-hidden="true">›</span>';
   if (!leg) return '';
   if (!stay) {
-    return `<button type="button" class="td-banner-row td-banner-row--empty" data-banner="stay"><span class="td-banner-ico">🏠</span><span class="td-banner-text">${esc(t('dash.banner.stayNone'))}</span>${caret}</button>`;
+    return `<button type="button" class="td-banner-row td-banner-row--empty" data-banner="stay"><span class="td-banner-ico">${STAY_ICON}</span><span class="td-banner-text">${esc(t('dash.banner.stayNone'))}</span>${caret}</button>`;
   }
   const ci = datePart(stay.checkIn), co = datePart(stay.checkOut);
   const n = stayNights(stay);
   const meta = [ci ? bannerDateRange(ci, co) : '', n ? nightsLabel(n) : ''].filter(Boolean).join(' · ');
-  return `<button type="button" class="td-banner-row" data-banner="stay"><span class="td-banner-ico">🏠</span><span class="td-banner-text"><strong>${esc(stay.name)}</strong>${meta ? `<span class="td-banner-meta"> · ${esc(meta)}</span>` : ''}</span>${caret}</button>`;
+  return `<button type="button" class="td-banner-row" data-banner="stay"><span class="td-banner-ico">${STAY_ICON}</span><span class="td-banner-text"><strong>${esc(stay.name)}</strong>${meta ? `<span class="td-banner-meta"> · ${esc(meta)}</span>` : ''}</span>${caret}</button>`;
 }
 
 function renderTransportRow(next: ReturnType<typeof nextTransport>, now: Date, iso: string): string {
@@ -94,7 +95,7 @@ function renderTransportRow(next: ReturnType<typeof nextTransport>, now: Date, i
   const route = [tr.from, tr.to].filter(Boolean).join(' → ');
   const cd = countdownLabel(next.depAt, tr.date, now, iso);
   const cdAttr = next.depAt ? `data-cd-at="${next.depAt.getTime()}"` : `data-cd-date="${esc(tr.date)}"`;
-  return `<button type="button" class="td-banner-row" data-banner="transport"><span class="td-banner-ico">${TRANSPORT_ICON[tr.type] ?? '🚀'}</span><span class="td-banner-text"><strong>${esc(route)}</strong> · <span class="td-banner-cd" ${cdAttr}>${esc(cd)}</span></span>${caret}</button>`;
+  return `<button type="button" class="td-banner-row" data-banner="transport"><span class="td-banner-ico">${transportIcon(tr.type)}</span><span class="td-banner-text"><strong>${esc(route)}</strong> · <span class="td-banner-cd" ${cdAttr}>${esc(cd)}</span></span>${caret}</button>`;
 }
 
 function renderSummary(d: Extract<Dial, { kind: 'after' }>, legs: StoredLeg[]): string {

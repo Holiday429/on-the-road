@@ -156,7 +156,7 @@ export function renderAlertBell(ctx: AlertContext): string {
       <span class="td-ba-text">${a.html}</span>
       <button type="button" class="td-ba-dismiss" data-dismiss-alert="${esc(a.key)}"
               aria-label="${esc(t('dashboard.alertDismiss'))}"
-              title="${esc(t('dashboard.alertDismiss'))}">&times;</button>
+              title="${esc(t('dashboard.alertDismiss'))}">✕</button>
     </div>`).join('');
 
   return `

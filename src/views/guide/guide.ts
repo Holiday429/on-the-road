@@ -315,7 +315,7 @@ function renderHistoryBar(root: HTMLElement) {
         <div class="guide-history-row-name">${escHtml(c.city)}</div>
         <div class="guide-history-row-country">${escHtml(c.country)}</div>
       </div>
-      <button class="guide-history-del" data-id="${escHtml(c.id)}" title="Remove">×</button>
+      <button class="guide-history-del" data-id="${escHtml(c.id)}" title="Remove">✕</button>
     </div>
   `).join('') : `<div class="guide-history-empty">${t('guide.historyEmpty')}</div>`;
 
@@ -539,7 +539,7 @@ function renderFlipCard(card: GuideCard, city: string, type: string, idx: number
       <div class="guide-card-actions">
         <a class="guide-icon-btn guide-map-btn" href="${safeUrl(maps)}" target="_blank" rel="noopener" title="Open in Google Maps">📍 Map</a>
         ${(type === 'cafe' || type === 'restaurant') ? `<button class="guide-icon-btn guide-nomad-btn" data-card-id="${escHtml(card.id)}" data-card-type="${escHtml(type)}" title="Save as a work-friendly spot">☕ Nomad</button>` : ''}
-        <button class="guide-icon-btn guide-commit-btn" data-card-id="${escHtml(card.id)}" data-card-type="${escHtml(type)}" title="Add to itinerary">＋ Add</button>
+        <button class="guide-icon-btn guide-commit-btn" data-card-id="${escHtml(card.id)}" data-card-type="${escHtml(type)}" title="Add to itinerary">+ Add</button>
       </div>
     </div>
   `;
@@ -577,7 +577,7 @@ function renderWalkCard(walk: CityWalk, _city: string, idx: number): string {
       </div>
       <div class="guide-card-actions">
         ${walk.searchUrl ? `<a class="guide-icon-btn guide-map-btn" href="${safeUrl(walk.searchUrl)}" target="_blank" rel="noopener" title="Search route">🔍 Route</a>` : ''}
-        <button class="guide-icon-btn guide-commit-btn" data-card-id="${escHtml(walk.id)}" data-card-type="cityWalk" title="Add to itinerary">＋ Add</button>
+        <button class="guide-icon-btn guide-commit-btn" data-card-id="${escHtml(walk.id)}" data-card-type="cityWalk" title="Add to itinerary">+ Add</button>
       </div>
     </div>
   `;
@@ -873,13 +873,13 @@ function openDetailModal(intel: StoredCityIntel, cardId: string, cardType: strin
     <div class="guide-detail-modal">
       ${hasImg ? `
         <div class="guide-detail-modal-photo" style="background-image:url('${safeUrl(card.imageUrl)}')">
-          <button class="guide-detail-modal-close">×</button>
+          <button class="guide-detail-modal-close">✕</button>
           ${card.photographer ? `<a class="guide-detail-modal-credit" href="${safeUrl(card.photographerUrl) || '#'}" target="_blank" rel="noopener">Photo · ${escHtml(card.photographer)} / Unsplash</a>` : ''}
         </div>
       ` : `
         <div class="guide-detail-modal-bar">
           <span>${typeEmoji(cardType)}</span>
-          <button class="guide-detail-modal-close">×</button>
+          <button class="guide-detail-modal-close">✕</button>
         </div>
       `}
       <div class="guide-detail-modal-body">

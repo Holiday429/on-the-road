@@ -64,7 +64,7 @@
   color: var(--ink-muted);
 }
 .journal-auto-groups-toggle::-webkit-details-marker { display: none; }
-.journal-auto-groups-toggle::before { content: '⌄ '; }
+.journal-auto-groups-toggle::before { content: '▾ '; }
 .journal-auto-groups[open] .journal-auto-groups-toggle::before { content: '⌃ '; }
 
 /* ── Gallery multi-select ────────────────────────────────────────────────── */

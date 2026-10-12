@@ -76,7 +76,7 @@ export function openTripPopover(anchor?: HTMLElement | null) {
       <button class="trip-menu-share" data-trip-id="${escapeHtml(t.id)}" title="Share trip" aria-label="Share ${escapeHtml(t.name)}">👥</button>
       ${amOwner ? `
         <button class="trip-menu-edit" data-trip-id="${escapeHtml(t.id)}" title="Rename trip" aria-label="Rename ${escapeHtml(t.name)}">✎</button>
-        <button class="trip-menu-delete" data-trip-id="${escapeHtml(t.id)}" title="Delete trip" aria-label="Delete ${escapeHtml(t.name)}">🗑</button>
+        <button class="trip-menu-delete" data-trip-id="${escapeHtml(t.id)}" title="Delete trip" aria-label="Delete ${escapeHtml(t.name)}">✕</button>
       ` : `
         <button class="trip-menu-leave" data-trip-id="${escapeHtml(t.id)}" title="Leave trip" aria-label="Leave ${escapeHtml(t.name)}">🚪</button>
       `}

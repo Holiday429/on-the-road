@@ -16,6 +16,7 @@ import type { DayMapModel, DayMapPoint } from '../../data/day-map.ts';
 import { AGENDA_COLORS } from '../../data/day-agenda.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 
+import { STAY_ICON } from '../../core/icons.ts';
 let _map: LMap | null = null;
 let _el: HTMLElement | null = null;
 let _layer: LayerGroup | null = null;
@@ -55,7 +56,7 @@ function fit(points: DayMapPoint[], center: DayMapModel['center']): void {
 }
 
 function pinHtml(p: DayMapPoint): string {
-  if (p.kind === 'stay') return `<span class="dm-pin dm-pin--stay" style="background:${AGENDA_COLORS.stay}">🏠</span>`;
+  if (p.kind === 'stay') return `<span class="dm-pin dm-pin--stay" style="background:${AGENDA_COLORS.stay}">${STAY_ICON}</span>`;
   if (p.kind === 'city') return `<span class="dm-pin dm-pin--city">${esc(p.label.slice(0, 1).toUpperCase())}</span>`;
   return `<span class="dm-pin dm-pin--plan" style="background:${AGENDA_COLORS.plan}">${p.n}</span>`;
 }

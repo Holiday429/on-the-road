@@ -5,16 +5,19 @@
    Nothing here reads module state.
    ========================================================================== */
 
+import { EXPENSE_ICON } from '../../core/icons.ts';
+
 export interface Category { id: string; label: string; icon: string; color: string; builtin: boolean; }
 
 export const BUILTIN_CATEGORIES: Category[] = [
-  { id: 'accommodation', label: 'Stay',      icon: '🏠', color: '#ddeeff', builtin: true }, // sky blue
-  { id: 'food',          label: 'Food',      icon: '🍜', color: '#fdf3dd', builtin: true }, // warm yellow
-  { id: 'transport',     label: 'Transport', icon: '🚆', color: '#d1f5e8', builtin: true }, // mint green
-  { id: 'activities',    label: 'Activities',icon: '🎭', color: '#fce4e4', builtin: true }, // coral pink
-  { id: 'shopping',      label: 'Shopping',  icon: '🛍️', color: '#ede8fb', builtin: true }, // soft purple
-  { id: 'health',        label: 'Health',    icon: '💊', color: '#ffecd6', builtin: true }, // peach
-  { id: 'misc',          label: 'Misc',      icon: '📌', color: '#e8e8e8', builtin: true }, // neutral
+  // `color` is the stored key; it resolves to --cat-* / --tint-* tokens (see below).
+  { id: 'accommodation', label: 'Stay',      icon: EXPENSE_ICON.accommodation, color: '#ddeeff', builtin: true },
+  { id: 'food',          label: 'Food',      icon: EXPENSE_ICON.food,          color: '#fdf3dd', builtin: true },
+  { id: 'transport',     label: 'Transport', icon: EXPENSE_ICON.transport,     color: '#d1f5e8', builtin: true },
+  { id: 'activities',    label: 'Activities',icon: EXPENSE_ICON.activities,    color: '#fce4e4', builtin: true },
+  { id: 'shopping',      label: 'Shopping',  icon: EXPENSE_ICON.shopping,      color: '#ede8fb', builtin: true },
+  { id: 'health',        label: 'Health',    icon: EXPENSE_ICON.health,        color: '#ffecd6', builtin: true },
+  { id: 'misc',          label: 'Misc',      icon: EXPENSE_ICON.misc,          color: '#e8e8e8', builtin: true },
 ];
 
 /* ── Category colours ───────────────────────────────────────────────────────

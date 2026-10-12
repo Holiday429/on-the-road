@@ -37,6 +37,7 @@ import { renderRecordTag } from '../expenses/expense-record-tag.ts';
 import { BUILTIN_CATEGORIES, type Category } from '../expenses/expense-helpers.ts';
 import type { PlanItem } from '../../data/schema.ts';
 
+import { WIDGET_ICON, GLYPH } from '../../core/icons.ts';
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs:     StoredLeg[]          = [];
 let _journal:  StoredJournalEntry[] = [];
@@ -200,7 +201,7 @@ function todoRow(td: StoredTodo, today: string): string {
           ${remind ? `<span class="cal-remind-tag">🔔 ${remind}</span>` : ''}
         </span>
       </div>
-      <button class="cal-todo-edit" data-edit-todo="${esc(td.id)}" title="Edit">✏️</button>
+      <button class="cal-todo-edit" data-edit-todo="${esc(td.id)}" title="Edit">${GLYPH.edit}</button>
       <button class="cal-todo-del" data-del-todo="${esc(td.id)}" title="Delete">✕</button>
     </div>`;
 }
@@ -237,7 +238,7 @@ function renderDayPanel(): string {
 
   const todoSection = (dayTodos.length || floating.length)
     ? `<div class="cal-sec">
-         <div class="cal-sec-label">☑️ ${esc(t('dash.widget.todo'))}</div>
+         <div class="cal-sec-label">${WIDGET_ICON.todo} ${esc(t('dash.widget.todo'))}</div>
          ${dayTodos.map((td) => todoRow(td, today)).join('')}
          ${floating.length ? `<div class="cal-sec-sub">${esc(t('cal.noDueDate'))}</div>${floating.map((td) => todoRow(td, today)).join('')}` : ''}
        </div>`
@@ -254,7 +255,7 @@ function renderDayPanel(): string {
         ${hint ? `<div class="cal-panel-hint">${esc(hint)}</div>` : ''}
       </div>
       ${rows.length ? `<div class="cal-items">${rows.map(renderItem).join('')}</div>` : ''}
-      ${journal ? `<div class="cal-sec"><div class="cal-sec-label">📔 ${esc(t('dash.widget.journal'))}</div>${journal}</div>` : ''}
+      ${journal ? `<div class="cal-sec"><div class="cal-sec-label">${WIDGET_ICON.journal} ${esc(t('dash.widget.journal'))}</div>${journal}</div>` : ''}
       ${todoSection}
       ${empty}
       <div class="cal-panel-actions">
@@ -276,7 +277,7 @@ function renderTodosPanel(): string {
   return `
     <div class="cal-todos-panel" id="cal-todos">
       <div class="cal-todos-header">
-        <span class="cal-todos-title">☑️ ${esc(t('dash.widget.todo'))}</span>
+        <span class="cal-todos-title">${WIDGET_ICON.todo} ${esc(t('dash.widget.todo'))}</span>
         <button class="cal-todos-add btn btn-ghost" data-add-todo="${today}">+ ${esc(t('cal.addTodo'))}</button>
       </div>
       ${pending.length ? pending.map((td) => todoRow(td, today)).join('') : `<div class="cal-todos-empty">${esc(t('cal.noOpenTodos'))}</div>`}

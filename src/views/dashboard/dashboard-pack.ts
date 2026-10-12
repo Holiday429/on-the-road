@@ -22,6 +22,7 @@ import { categoryColor, categoryLabel, displayWeight, kindLabel, priRank, PRIORI
 import type { PackContainer, PackItem } from '../../data/schema.ts';
 import { openPackBagChangeModal } from './dashboard-modals.ts';
 
+import { WIDGET_ICON } from '../../core/icons.ts';
 /* The bag picked on the card (container id): Bought / Lost then act on that bag. Lives here
    because the dashboard re-renders wholesale. A second tap on the bag un-picks it. */
 let _bag: string | null = null;
@@ -40,7 +41,7 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
   const s = packSummary(list, legs, today);
   const head = (right = '') => `
     <div class="td-widget-header">
-      <div class="td-widget-label">🎒 ${esc(t('dash.widget.pack'))}</div>
+      <div class="td-widget-label">${WIDGET_ICON.pack} ${esc(t('dash.widget.pack'))}</div>
       ${right}
     </div>`;
 
@@ -67,7 +68,7 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
     </div>`;
   const actions = legs.length ? `
     <div class="td-pk-actions">
-      <button type="button" class="btn btn-primary td-pk-act" data-pk-action="acquired" ${_bag ? `data-pk-container="${esc(_bag)}"` : ''}>＋ ${esc(t('dash.pack.boughtIn'))}</button>
+      <button type="button" class="btn btn-primary td-pk-act" data-pk-action="acquired" ${_bag ? `data-pk-container="${esc(_bag)}"` : ''}>+ ${esc(t('dash.pack.boughtIn'))}</button>
       <button type="button" class="btn btn-ghost td-pk-act" data-pk-action="left" ${_bag ? `data-pk-container="${esc(_bag)}"` : ''}>－ ${esc(t('dash.pack.lostIn'))}</button>
     </div>` : '';
   let body: string;
@@ -171,9 +172,9 @@ async function openPackDrawer(list: PackList, legs: StoredLeg[], today: string, 
         <div class="pk-dr-pager">
           <span></span>
           <div class="pk-dr-pick">
-            <button type="button" class="td-expand" data-pk-nav="-1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.prevBag'))}">◀</button>
+            <button type="button" class="td-expand" data-pk-nav="-1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.prevBag'))}">‹</button>
             <div class="pk-dr-bag"><span class="pk-dr-bag-name">${KIND_ICON[cur.container.kind] ?? '🎒'} ${esc(cur.container.label)}</span><span class="pk-dr-bag-kind">${esc(kindLabel(cur.container.kind))}${n > 1 ? ` · ${idx + 1}/${n}` : ''}</span></div>
-            <button type="button" class="td-expand" data-pk-nav="1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.nextBag'))}">▶</button>
+            <button type="button" class="td-expand" data-pk-nav="1" ${n < 2 ? 'disabled' : ''} aria-label="${esc(t('dash.pack.nextBag'))}">›</button>
           </div>
           ${legs.length ? `<span class="td-pk-bagbtns">
             <button type="button" class="td-mini" data-d-pk="acquired" title="${esc(t('dash.pack.bought'))}" aria-label="${esc(t('dash.pack.bought'))}">+</button>

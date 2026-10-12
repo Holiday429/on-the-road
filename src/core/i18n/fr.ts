@@ -137,9 +137,9 @@ export const fr: StringTable = {
   'compare.typeShopping': 'Shopping',
   'compare.typeOther':    'Autre',
   'compare.emptyTitle':   'Rien à comparer',
-  'compare.btnNew':       '＋ Nouvelle comparaison',
+  'compare.btnNew':       '+ Nouvelle comparaison',
   'compare.rankBest':     '🏆 Meilleur',
-  'compare.btnAddOption': '＋ Ajouter une option',
+  'compare.btnAddOption': '+ Ajouter une option',
 
   'nomad.emptyTitle':     'Aucun spot',
   'nomad.scopeTrip':      'Ce voyage',

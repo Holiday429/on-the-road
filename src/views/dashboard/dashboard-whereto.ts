@@ -18,6 +18,7 @@ import { tripHasRecommendations, wtgCards, WTG_TABS, type WtgCard, type WtgTab }
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 
+import { WIDGET_ICON } from '../../core/icons.ts';
 const TINTS = ['#f4e7bf', '#dbe7f1', '#dcebe3', '#e8dcef', '#f2dcdd', '#f3dfcf'];
 const TYPE_EMOJI: Record<string, string> = { attraction: '🏛️', experience: '✨', restaurant: '🍽️', cafe: '☕', work: '💼' };
 
@@ -76,16 +77,16 @@ export function renderWhereTo(inp: WhereToInput): string {
 
   const body = cards.length
     ? `<div class="wtg-rail">
-         <button type="button" class="wtg-arrow" data-wtg-scroll="-1" aria-label="${esc(t('dash.whereto.prev'))}">◀</button>
+         <button type="button" class="wtg-arrow" data-wtg-scroll="-1" aria-label="${esc(t('dash.whereto.prev'))}">‹</button>
          <div class="wtg-strip" data-wtg-strip>${cards.map(renderCard).join('')}</div>
-         <button type="button" class="wtg-arrow" data-wtg-scroll="1" aria-label="${esc(t('dash.whereto.next'))}">▶</button>
+         <button type="button" class="wtg-arrow" data-wtg-scroll="1" aria-label="${esc(t('dash.whereto.next'))}">›</button>
        </div>`
     : `<div class="td-whereto-empty">${esc(t(_tab === 'work' ? 'dash.whereto.emptyWork' : 'dash.whereto.empty', { city: leg.city }))}</div>`;
 
   return `
     <div class="td-widget td-w-whereto" data-widget-id="whereto">
       <div class="td-widget-header">
-        <div class="td-widget-label">✨ ${esc(t('dash.widget.whereToGo'))} · ${esc(`${leg.flag} ${leg.city}`.trim())}</div>
+        <div class="td-widget-label">${WIDGET_ICON.whereto} ${esc(t('dash.widget.whereToGo'))} · ${esc(`${leg.flag} ${leg.city}`.trim())}</div>
         <div class="ag-tabs wtg-tabs">${WTG_TABS.map(tab).join('')}</div>
       </div>
       ${body}

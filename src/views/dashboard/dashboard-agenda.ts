@@ -23,6 +23,7 @@ import { t } from '../../core/i18n.ts';
 import { openAgendaItemDrawer } from './agenda-drawer.ts';
 import { openAddPlanModal } from './dashboard-modals.ts';
 
+import { WIDGET_ICON } from '../../core/icons.ts';
 type Tab = 'today' | 'tomorrow';
 let _tab: Tab = 'today';
 let _sel: string | null = null;      // explicit day picked from the month grid
@@ -148,7 +149,7 @@ function renderDay(day: DayAgenda, src: AgendaSources, nextUp: boolean, today: s
         ${hint ? `<div class="ag-hint">${esc(hint)}</div>` : ''}
       </div>
       ${body}
-      ${src.legs.length ? `<button type="button" class="ag-add" data-agenda-add title="${esc(t('dash.agenda.add'))}"><span aria-hidden="true">＋</span> ${esc(t('dash.agenda.addShort'))}</button>` : ''}
+      ${src.legs.length ? `<button type="button" class="ag-add" data-agenda-add title="${esc(t('dash.agenda.add'))}"><span aria-hidden="true">+</span> ${esc(t('dash.agenda.addShort'))}</button>` : ''}
     </div>`;
 }
 
@@ -163,7 +164,7 @@ export function renderAgendaWidget(src: AgendaSources, today: string): string {
   return `
     <div class="td-widget td-w-agenda" data-widget-id="agenda">
       <div class="td-widget-header">
-        <div class="td-widget-label">📅 ${esc(t('dash.agenda.title'))}</div>
+        <div class="td-widget-label">${WIDGET_ICON.agenda} ${esc(t('dash.agenda.title'))}</div>
         <div class="ag-tabs">${tab('today', t('dash.agenda.today'))}${tab('tomorrow', t('dash.agenda.tomorrow'))}</div>
       </div>
       <div class="ag-body">

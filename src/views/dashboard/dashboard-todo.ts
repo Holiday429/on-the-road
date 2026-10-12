@@ -15,6 +15,7 @@ import { openTodosFor } from '../../data/todo-order.ts';
 import { todoStore } from '../../data/stores/todo-store.ts';
 import { scheduleAllNotifications } from '../../core/notifications.ts';
 
+import { WIDGET_ICON } from '../../core/icons.ts';
 const SHOWN = 4;
 
 /* The add row's picks live here (the dashboard re-renders wholesale): the chosen due
@@ -87,7 +88,7 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
   return `
     <div class="td-widget td-w-todo">
       <div class="td-widget-header">
-        <div class="td-widget-label">☑️ ${esc(t('dash.widget.todo'))}</div>
+        <div class="td-widget-label">${WIDGET_ICON.todo} ${esc(t('dash.widget.todo'))}</div>
         ${dayTotal ? `
           <div class="td-ring" title="${esc(t('dash.todo.progress', { done: dayDone, total: dayTotal }))}" role="img" aria-label="${esc(t('dash.todo.progress', { done: dayDone, total: dayTotal }))}">
             <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">

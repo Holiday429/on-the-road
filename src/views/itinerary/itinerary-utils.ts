@@ -10,13 +10,12 @@ import type { Leg as SchemaLeg, NoteCard, Clip } from '../../data/schema.ts';
 import { currencySymbol } from '../../data/rates.ts';
 import { slugId } from '../../core/utils.ts';
 
+import { TRANSPORT_ICON } from '../../core/icons.ts';
 type Leg = SchemaLeg & { id: string };
 type Accommodation = NonNullable<SchemaLeg['accommodations']>[number];
 type Transport = NonNullable<SchemaLeg['arrivalTransport']>;
 
-export const TRANSPORT_ICONS: Record<string, string> = {
-  flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️',
-};
+export const TRANSPORT_ICONS = TRANSPORT_ICON;
 
 export function uid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);

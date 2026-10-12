@@ -87,7 +87,7 @@ export async function openTripChooser(opts: TripChooserOptions = {}) {
       `}
 
       <div class="tc-footer">
-        <button class="btn btn-ghost tc-new-btn" type="button" id="tc-new-trip">＋ New trip</button>
+        <button class="btn btn-ghost tc-new-btn" type="button" id="tc-new-trip">+ New trip</button>
       </div>
     </div>`;
 

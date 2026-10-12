@@ -54,6 +54,8 @@ import { renderBanner, wireBanner, startBannerClock, type BannerData } from './d
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
 import { resolveHomeTimezone } from '../../data/home-timezone.ts';
 
+import { WIDGET_ICON } from '../../core/icons.ts';
+import { STAY_ICON } from '../../core/icons.ts';
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
 let _expenses: StoredExpense[] = [];
@@ -311,7 +313,7 @@ function renderRatePopover(): string {
   return `
     <div class="td-rate-pop" role="dialog" aria-label="${esc(t('dash.widget.currency'))}">
       <div class="td-widget-header">
-        <div class="td-widget-label">💱 ${esc(t('dash.widget.currency'))}</div>
+        <div class="td-widget-label">${WIDGET_ICON.currency} ${esc(t('dash.widget.currency'))}</div>
         <span class="td-cur-source">${esc(t('dash.currency.source'))}</span>
       </div>
       <div class="td-cur-converter">
@@ -379,7 +381,7 @@ function renderSpendWidget(): string {
   return `
     <div class="td-widget td-w-spend">
       <div class="td-widget-header">
-        <div class="td-widget-label">💶 ${esc(t('dash.widget.spend'))}</div>
+        <div class="td-widget-label">${WIDGET_ICON.spend} ${esc(t('dash.widget.spend'))}</div>
         <button type="button" class="td-expand" data-spend-analysis title="${esc(t('dash.spend.analysis'))}" aria-label="${esc(t('dash.spend.analysis'))}">⤢</button>
       </div>
       <div class="td-spend-top">
@@ -425,11 +427,11 @@ function renderMapWidget(): string {
     ? `<span><span class="td-map-dot" style="background:${PIN_COLORS.current}"></span>${esc(t('dash.map.now'))}</span>
        <span><span class="td-map-dot" style="background:${PIN_COLORS.future}"></span>${esc(t('dash.map.upcoming'))}</span>
        <span><span class="td-map-dot" style="background:${PIN_COLORS.past}"></span>${esc(t('dash.map.past'))}</span>`
-    : `<span>🏠 ${esc(t('dash.map.stay'))}</span><span><span class="td-map-dot" style="background:${AGENDA_COLORS.plan}"></span>${esc(t('dash.map.plans'))}</span>`;
+    : `<span>${STAY_ICON} ${esc(t('dash.map.stay'))}</span><span><span class="td-map-dot" style="background:${AGENDA_COLORS.plan}"></span>${esc(t('dash.map.plans'))}</span>`;
   return `
     <div class="td-widget td-w-map">
       <div class="td-widget-header">
-        <div class="td-widget-label">🗺️ ${esc(t('dash.widget.map'))}</div>
+        <div class="td-widget-label">${WIDGET_ICON.map} ${esc(t('dash.widget.map'))}</div>
         <div class="ag-tabs">${seg('day', t('dash.map.day'))}${seg('trip', t('dash.map.trip'))}</div>
       </div>
       <div class="td-map-wrap" data-map-mode-now="${mode}">

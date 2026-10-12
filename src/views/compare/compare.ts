@@ -27,15 +27,16 @@ import { baseCurrency } from '../../data/trip-context.ts';
 import { renderVerdict } from './compare-verdict.ts';
 import { openModal } from '../../core/modal.ts';
 
+import { STAY_ICON, TRANSPORT_ICON, EXPENSE_ICON, NAV_ICON } from '../../core/icons.ts';
 /* ── Constants ───────────────────────────────────────────────────────────── */
 
 function getTypeMeta(): Record<CompareType, { icon: string; label: string; hint: string }> {
   return {
-    accommodation: { icon: '🏨', label: t('compare.typeAccommodation'), hint: t('compare.hintAccommodation') },
-    flight:        { icon: '✈️', label: t('compare.typeFlight'),        hint: t('compare.hintFlight') },
-    train:         { icon: '🚄', label: t('compare.typeTrain'),         hint: t('compare.hintTrain') },
-    shopping:      { icon: '🛍️', label: t('compare.typeShopping'),      hint: t('compare.hintShopping') },
-    other:         { icon: '⚖️', label: t('compare.typeOther'),         hint: t('compare.hintOther') },
+    accommodation: { icon: STAY_ICON, label: t('compare.typeAccommodation'), hint: t('compare.hintAccommodation') },
+    flight:        { icon: TRANSPORT_ICON.flight, label: t('compare.typeFlight'),        hint: t('compare.hintFlight') },
+    train:         { icon: TRANSPORT_ICON.train, label: t('compare.typeTrain'),         hint: t('compare.hintTrain') },
+    shopping:      { icon: EXPENSE_ICON.shopping, label: t('compare.typeShopping'),      hint: t('compare.hintShopping') },
+    other:         { icon: NAV_ICON.budget, label: t('compare.typeOther'),         hint: t('compare.hintOther') },
   };
 }
 

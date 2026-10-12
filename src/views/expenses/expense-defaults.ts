@@ -24,15 +24,16 @@ import type { RateTable } from '../../data/rates.ts';
 import { COUNTRY_CURRENCY, currencyForCountry, knownCurrencyForCountry } from '../../data/country-currency.ts';
 import type { StoredExpense } from '../../data/stores/expense-store.ts';
 
+import { EXPENSE_ICON } from '../../core/icons.ts';
 /* ── Shared expense categories (used by widget + expenses page) ──────────── */
 export const BUILTIN_CATEGORIES = [
-  { id: 'accommodation', label: 'Stay',       icon: '🏠' },
-  { id: 'food',          label: 'Food',       icon: '🍜' },
-  { id: 'transport',     label: 'Transport',  icon: '🚆' },
-  { id: 'activities',    label: 'Activities', icon: '🎭' },
-  { id: 'shopping',      label: 'Shopping',   icon: '🛍️' },
-  { id: 'health',        label: 'Health',     icon: '💊' },
-  { id: 'misc',          label: 'Misc',       icon: '📌' },
+  { id: 'accommodation', label: 'Stay',       icon: EXPENSE_ICON.accommodation },
+  { id: 'food',          label: 'Food',       icon: EXPENSE_ICON.food },
+  { id: 'transport',     label: 'Transport',  icon: EXPENSE_ICON.transport },
+  { id: 'activities',    label: 'Activities', icon: EXPENSE_ICON.activities },
+  { id: 'shopping',      label: 'Shopping',   icon: EXPENSE_ICON.shopping },
+  { id: 'health',        label: 'Health',     icon: EXPENSE_ICON.health },
+  { id: 'misc',          label: 'Misc',       icon: EXPENSE_ICON.misc },
 ] as const;
 
 /* Country → currency now lives in data/country-currency.ts (full table). */

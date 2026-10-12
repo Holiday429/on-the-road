@@ -224,7 +224,7 @@ function countryOptions(selected: string): string {
   }).join('');
   const extra = selected && selected !== WHOLE_TRIP && !opts.includes(selected)
     ? `<option value="${selected}" selected>${selected}</option>` : '';
-  return `<option value="${WHOLE_TRIP}" ${isWholeTrip ? 'selected' : ''}>🌍 Whole trip</option>${known}${extra}<option value="${CUSTOM_PLACE}">＋ Other…</option>`;
+  return `<option value="${WHOLE_TRIP}" ${isWholeTrip ? 'selected' : ''}>🌍 Whole trip</option>${known}${extra}<option value="${CUSTOM_PLACE}">+ Other…</option>`;
 }
 
 function cityOptions(country: string, selected: string): string {
@@ -234,7 +234,7 @@ function cityOptions(country: string, selected: string): string {
     `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
   const extra = selected && !opts.includes(selected)
     ? `<option value="${selected}" selected>${selected}</option>` : '';
-  return `<option value="">— City —</option>${known}${extra}<option value="${CUSTOM_PLACE}">＋ Other…</option>`;
+  return `<option value="">— City —</option>${known}${extra}<option value="${CUSTOM_PLACE}">+ Other…</option>`;
 }
 
 /** Inline reminder of country-budget standing, shown above the form when the
@@ -308,7 +308,7 @@ function renderForm(el: HTMLElement) {
             ${escHtml(c.icon)} ${escHtml(c.label)}
           </button>
         `).join('')}
-        <button class="exp-cat-chip exp-cat-manage" id="exp-cat-manage" type="button" title="Manage categories">＋ New</button>
+        <button class="exp-cat-chip exp-cat-manage" id="exp-cat-manage" type="button" title="Manage categories">+ New</button>
       </div>
       <div class="exp-country-reminder-slot">${countryReminderHtml()}</div>
       <div class="exp-form-grid">
@@ -322,7 +322,7 @@ function renderForm(el: HTMLElement) {
             <select class="input select" id="exp-currency">
               ${currencyOptions(curValue)}
             </select>
-            <button class="exp-cur-add" id="exp-cur-add" type="button" title="${escHtml(t('currency.addBtn'))}" aria-label="${escHtml(t('currency.addBtn'))}">＋</button>
+            <button class="exp-cur-add" id="exp-cur-add" type="button" title="${escHtml(t('currency.addBtn'))}" aria-label="${escHtml(t('currency.addBtn'))}">+</button>
           </div>
         </div>
         <div>
@@ -938,7 +938,7 @@ function renderBreakdown(el: HTMLElement) {
           ? `<span class="exp-legend-budget${r.sum > r.budget! ? ' is-over' : ''}">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' ▲ ' + t('expenses.over') : ''}</span>`
           : '';
         const setBtn = r.catId
-          ? `<button class="exp-cat-budget-btn" data-budget-key="cat:${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>`
+          ? `<button class="exp-cat-budget-btn" data-budget-key="cat:${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '+'}</button>`
           : '';
         return `
           <div class="exp-legend-row">
@@ -1040,7 +1040,7 @@ function renderBreakdown(el: HTMLElement) {
               <span class="exp-place-flag">${flag}</span>
               <span class="exp-place-name">${escHtml(r.country)}</span>
               <button class="exp-cat-budget-btn" data-budget-key="country:${escHtml(r.country)}"
-                title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '＋'}</button>
+                title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '+'}</button>
               <span class="exp-place-total">${fmt(r.sum)}</span>
             </div>
             <div class="exp-cat-bar-track" style="margin:4px 0 6px">

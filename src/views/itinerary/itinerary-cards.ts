@@ -16,6 +16,7 @@ import {
 } from './itinerary-utils.ts';
 import type { Leg, Transport, Accommodation } from './itinerary-shared.ts';
 
+import { STAY_ICON } from '../../core/icons.ts';
 export function nightsLabel(n: number): string {
   return n === 1 ? tr('route.nightsOne') : tr('route.nightsMany', { n });
 }
@@ -65,7 +66,7 @@ export function legSummary(leg: Leg): string {
         </div>
       </div>
       <div class="route-info route-info--stay ${first ? '' : 'is-empty'}">
-        <span class="route-info-icon">🏠</span>
+        <span class="route-info-icon">${STAY_ICON}</span>
         <div class="route-info-body">
           <span class="route-info-label">${tr('route.stayLabel')}</span>
           <div class="route-info-row">${stay}</div>
@@ -205,7 +206,7 @@ export function renderStayCard(leg: Leg, a: Accommodation, i: number, total: num
           <div class="rd-stay-actions">
             <a class="rd-map-btn" href="${safeUrl(mapHref(a, leg))}" target="_blank" rel="noopener" title="Navigate in Google Maps">${tr('route.stayNavigate')}</a>
             ${booking ? `<a class="rd-map-btn rd-map-btn--soft" href="${safeUrl(booking)}" target="_blank" rel="noopener" title="Open the booking on ${esc(a.platform || 'the platform')}">${tr('route.stayOrder')}</a>` : ''}
-            ${canSync ? `<button class="rd-icon-btn rd-icon-btn--text" data-act="sync-stay" data-stay="${esc(key)}" title="${synced ? 'Update the linked expense' : 'Log this stay in Expenses'}">${synced ? '↻ Expense' : '＋ Expense'}</button>` : ''}
+            ${canSync ? `<button class="rd-icon-btn rd-icon-btn--text" data-act="sync-stay" data-stay="${esc(key)}" title="${synced ? 'Update the linked expense' : 'Log this stay in Expenses'}">${synced ? '↻ Expense' : '+ Expense'}</button>` : ''}
             <button class="rd-icon-btn" data-act="edit-stay" data-stay="${esc(key)}" title="Edit">✎</button>
             <button class="rd-icon-btn rd-danger" data-act="del-stay" data-stay="${esc(key)}" title="Remove">✕</button>
           </div>

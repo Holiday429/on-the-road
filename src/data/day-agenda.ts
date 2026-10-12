@@ -22,6 +22,7 @@ import type { StoredTodo } from './stores/todo-store.ts';
 import type { ViewId, NavIntent } from '../core/app.ts';
 import { t } from '../core/i18n.ts';
 
+import { STAY_ICON, WIDGET_ICON, transportIcon } from '../core/icons.ts';
 export type AgendaKind = 'context' | 'transport' | 'stay' | 'plan' | 'todo' | 'spend' | 'journal';
 
 /** Sort rank within a day (iOS CalendarKind.rank). */
@@ -141,7 +142,6 @@ function datesBetween(after: string, before: string): string[] {
   return out;
 }
 
-const TRANSPORT_ICON: Record<string, string> = { flight: '✈️', train: '🚆', bus: '🚌', ferry: '⛴️' };
 
 function sorted<T>(arr: T[], cmp: (a: T, b: T) => number): T[] { return [...arr].sort(cmp); }
 
@@ -205,7 +205,7 @@ function transportItems(legs: StoredLeg[], iso: string): AgendaItem[] {
       id: `transport-${leg.id}`, kind: 'transport', time: blank(t_.time),
       title: route || leg.city,
       subtitle: [t(`agenda.transport.${t_.type}`), blank(t_.service)].filter(Boolean).join(' · '),
-      icon: TRANSPORT_ICON[t_.type] ?? '🚀', details, legId: leg.id, subRank: 0,
+      icon: transportIcon(t_.type), details, legId: leg.id, subRank: 0,
       navTo: 'route', intent: { legId: leg.id },
     });
   }
@@ -227,7 +227,7 @@ function stayItems(legs: StoredLeg[], iso: string): AgendaItem[] {
       add(t('agenda.d.platform'), a.platform);
       add(t('agenda.d.phone'), a.phone);
       add(t('agenda.d.status'), t(a.confirmed ? 'agenda.confirmed' : 'agenda.notConfirmed'));
-      const base = { kind: 'stay' as const, stayKey: key, title: a.name, icon: '🏠', details, legId: leg.id, navTo: 'route' as ViewId, intent: { legId: leg.id } };
+      const base = { kind: 'stay' as const, stayKey: key, title: a.name, icon: STAY_ICON, details, legId: leg.id, navTo: 'route' as ViewId, intent: { legId: leg.id } };
       const ci = datePart(a.checkIn), co = datePart(a.checkOut);
       // Both cards share the house icon; subRank orders check-out → check-in,
       // the order a travel day actually happens in.
@@ -288,7 +288,7 @@ function spendItems(expenses: StoredExpense[], iso: string): AgendaItem[] {
     id: `spend-${iso}`, kind: 'spend', time: null,
     title: `${Math.round(total).toLocaleString()} ${baseCur}`,
     subtitle: t(rows.length === 1 ? 'agenda.expense.one' : 'agenda.expense.other', { n: rows.length }),
-    icon: '💶', details, subRank: 0, navTo: 'expenses',
+    icon: WIDGET_ICON.spend, details, subRank: 0, navTo: 'expenses',
   }];
 }
 

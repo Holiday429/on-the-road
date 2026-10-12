@@ -31,7 +31,7 @@ function natOptions(selected: string): string {
 }
 
 function dialOptions(selected: string): string {
-  const blank = `<option value="" ${selected ? '' : 'selected'}>＋</option>`;
+  const blank = `<option value="" ${selected ? '' : 'selected'}>+</option>`;
   return blank + DIAL_CODES.map((d) =>
     `<option value="${d.dialCode}" ${d.dialCode === selected ? 'selected' : ''}>${esc(d.label)}</option>`,
   ).join('');
