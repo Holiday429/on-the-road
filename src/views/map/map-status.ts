@@ -20,3 +20,13 @@ export function legStatus(leg: Pick<DatedLeg, 'dateFrom' | 'dateTo'>, today: str
 export const PIN_COLORS: Record<LegStatus, string> = {
   past: '#9a948a', current: '#4f9a86', future: '#e3b866',
 };
+
+/* ── Visited vs planned ──────────────────────────────────────────────────────
+   A stop counts as *visited* once its arrival date is today or earlier; a stop
+   still ahead is only *planned* (drawn dashed, never counted as a footprint). */
+
+export type VisitState = 'visited' | 'planned';
+
+export function legVisitState(leg: Pick<DatedLeg, 'dateFrom'>, today: string): VisitState {
+  return leg.dateFrom <= today ? 'visited' : 'planned';
+}

@@ -78,6 +78,23 @@ registerRoute(
   }),
 );
 
+// amCharts (core, map, theme and the geodata files) is loaded from its CDN on
+// first use of a map and is several MB, so it isn't bundled or precached. Cache
+// it at runtime instead: once a map has been opened, the same scripts come from
+// the cache — including offline. The <script> tags are cross-origin without CORS,
+// so the responses are opaque (status 0), which CacheableResponsePlugin allows.
+// Versioned URLs (/lib/5/...) change rarely; 30 days keeps the cache bounded.
+registerRoute(
+  ({ url }) => url.origin === 'https://cdn.amcharts.com',
+  new CacheFirst({
+    cacheName: 'otr-amcharts',
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 200, maxAgeSeconds: 30 * 24 * 60 * 60, purgeOnQuotaError: true }),
+    ],
+  }),
+);
+
 // ── Notifications (unchanged from the hand-written SW) ──────────────────────
 
 self.addEventListener('message', (e) => {

@@ -2,18 +2,19 @@
    Dashboard map thumbnail — non-interactive amCharts Europe map.
    Every country on the trip is tinted with its own palette colour; the trip's
    stage is carried by the numbered pins: current=green, past=grey, upcoming=amber.
-   Reuses loadAmCharts / mapColors / countryColor from the map module.
+   Reuses loadAmCharts / mapColors / countryColor from the map module, and
+   recolours in place when the theme changes.
    ========================================================================== */
 
 import { loadAmCharts } from '../map/amcharts-loader.ts';
-import { mapColors, countryColor } from '../map/map-shared.ts';
+import { createMapRoot, disposeRoot, waitForSize, motionMs } from '../map/amcharts-boot.ts';
+import { mapColors, countryColor, onMapRepaint } from '../map/map-theme.ts';
 import { legStatus, PIN_COLORS } from '../map/map-status.ts';
-import { isoFor, COUNTRY_ISO } from '../map/geo.ts';
-import { todayIso } from '../../data/trip-phase.ts';
 import { coordsFor } from '../map/geo.ts';
+import { isoForCountry, pickAnchor, EUROPE_CENTER } from '../../data/geo-index.ts';
+import { todayIso } from '../../data/trip-phase.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
 
-const EUROPE_CENTER = { latitude: 54, longitude: 15 };
 const EUROPE_ZOOM   = 4.2;
 
 function legStatusColor(leg: StoredLeg): string {
@@ -21,6 +22,7 @@ function legStatusColor(leg: StoredLeg): string {
 }
 
 let _root: any = null;
+let _offRepaint: (() => void) | null = null;
 
 export async function initDashboardMap(
   container: HTMLElement,
@@ -28,26 +30,17 @@ export async function initDashboardMap(
   onPinClick?: (legId: string) => void,
 ): Promise<void> {
   // Dispose any previous instance (reinit on trip change).
-  if (_root) { try { _root.dispose(); } catch { /* ignore */ } _root = null; }
+  disposeDashboardMap();
 
   await loadAmCharts();
-  // Wait until the container has real dimensions.
-  if (container.clientWidth === 0) {
-    await new Promise<void>((resolve) => {
-      const ro = new ResizeObserver(() => {
-        if (container.clientWidth > 0) { ro.disconnect(); resolve(); }
-      });
-      ro.observe(container);
-    });
-  }
+  await waitForSize(container);
 
   const am5    = (window as any).am5;
   const am5map = (window as any).am5map;
   const geodata = (window as any).am5geodata_worldLow;
 
-  const root = am5.Root.new(container);
   // No animation theme — lighter, faster for a thumbnail.
-  if (root._logo) root._logo.dispose();
+  const root = createMapRoot(container, { animated: false });
   _root = root;
 
   const chart = root.container.children.push(am5map.MapChart.new(root, {
@@ -80,18 +73,18 @@ export async function initDashboardMap(
   // Light every country on the trip with its own colour.
   const tripCountryISOs = new Set<string>();
   for (const leg of legs) {
-    const iso = isoFor(leg.country)
-      ?? Object.entries(COUNTRY_ISO).find(([name]) => leg.country.includes(name))?.[1];
+    const iso = isoForCountry(leg.country, leg.flag);
     if (iso) tripCountryISOs.add(iso);
   }
-  world.events.on('datavalidated', () => {
+  const tintTripCountries = () => {
     world.mapPolygons.each((poly: any) => {
       const id: string | undefined = poly.dataItem?.get('id');
       if (id && tripCountryISOs.has(id)) {
         poly.setAll({ fill: am5.color(countryColor(id)), fillOpacity: 0.85 });
       }
     });
-  });
+  };
+  world.events.on('datavalidated', tintTripCountries);
 
   // City pins — one per leg with number label, sorted chronologically.
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
@@ -100,7 +93,9 @@ export async function initDashboardMap(
 
   const pinData = sortedLegs
     .map((leg, idx) => {
-      const coords = coordsFor(leg.city);
+      // Saved coordinates first (cheapest, and right for cities outside the
+      // bundled table); the bundled table only vetoes a clearly stale point.
+      const coords = pickAnchor(leg, coordsFor(leg.city));
       if (!coords) return null;
       return {
         longitude: coords.lng,
@@ -172,11 +167,23 @@ export async function initDashboardMap(
     });
   });
 
-  chart.appear(600);
+  chart.appear(motionMs(600));
+
+  // Theme switch: recolour in place (land + tinted countries); pins are
+  // status-coloured and theme-independent.
+  _offRepaint = onMapRepaint(() => {
+    const c = mapColors();
+    world.mapPolygons.template.setAll({ fill: am5.color(c.land), stroke: am5.color(c.landStroke) });
+    world.mapPolygons.each((poly: any) => {
+      const id: string | undefined = poly.dataItem?.get('id');
+      if (id && tripCountryISOs.has(id)) poly.setAll({ fill: am5.color(countryColor(id)) });
+    });
+  });
 }
 
 export function disposeDashboardMap(): void {
-  if (_root) { try { _root.dispose(); } catch { /* ignore */ } _root = null; }
+  _offRepaint?.(); _offRepaint = null;
+  disposeRoot(_root); _root = null;
 }
 
 export function dashboardMapZoom(action: 'in' | 'out' | 'fit'): void {

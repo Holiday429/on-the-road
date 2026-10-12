@@ -37,8 +37,6 @@ export interface MapPoint {
   count: number;
   lat: number;
   lng: number;
-  left: number;
-  top: number;
   entries: StoredJournalEntry[];
 }
 
@@ -58,7 +56,6 @@ interface CaptureRenderModel {
   placeGroups: PlaceGroup[];
   tagGroups: TagGroup[];
   mapPoints: MapPoint[];
-  mapRoute: Array<{ left: number; top: number }>;
   calendarCells: CalendarCell[];
   currentMonthLabel: string;
   legs: StoredLeg[];
@@ -105,7 +102,7 @@ function renderActiveView(model: CaptureRenderModel): string {
   if (model.state.view === 'places') return renderPlacesView(model.placeGroups);
   if (model.state.view === 'albums') return renderAlbumsView(model);
   if (model.state.view === 'gallery') return renderGalleryView(model.visibleEntries, model.state, model.albums);
-  if (model.state.view === 'map') return renderMapView(model.mapPoints, model.mapRoute);
+  if (model.state.view === 'map') return renderMapView(model.mapPoints);
   if (model.state.view === 'calendar') return renderCalendarView(model.calendarCells, model.currentMonthLabel);
   return renderFeedWithFilters(model);
 }
@@ -824,7 +821,7 @@ function renderGalleryView(
   `;
 }
 
-function renderMapView(points: MapPoint[], _route: Array<{ left: number; top: number }>): string {
+function renderMapView(points: MapPoint[]): string {
   if (points.length === 0) {
     return renderEmpty('Map', 'No mapped entries yet', 'Entries with destinations that match your route will pin themselves here.');
   }

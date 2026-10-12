@@ -10,7 +10,7 @@
    ========================================================================== */
 
 import type { StampShape, StampSpec } from '../core/paper/stamp.ts';
-import { COUNTRIES } from './destinations.ts';
+import { isoForCountry } from './geo-index.ts';
 import { countryInk } from './country-ink.ts';
 import { hashStr } from './palette.ts';
 
@@ -29,9 +29,7 @@ const CITY_SHAPES: StampShape[] = ['circle', 'double', 'rounded', 'hex', 'oval',
 
 /** ISO-3166 alpha-2 for a country name or flag emoji; '' when unknown. */
 export function isoFor(country: string, flag = ''): string {
-  const name = country.trim().toLowerCase();
-  const hit = COUNTRIES.find((c) => c.label.toLowerCase() === name) ?? (flag ? COUNTRIES.find((c) => c.flag === flag) : undefined);
-  return hit?.country ?? '';
+  return isoForCountry(country, flag) ?? '';
 }
 
 function nightsOf(from: string, to: string): number {

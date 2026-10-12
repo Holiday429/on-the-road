@@ -5,6 +5,9 @@
    the map is first opened (not on every page). Scripts are loaded in order
    (core → map → theme → geodata) and cached after the first call.
 
+   A failed load is never cached: the next call starts over, so one flaky
+   network moment doesn't need a page reload to recover from.
+
    Country geodatas give province-level drilldown for any country the user visits.
    Only the visited countries are preloaded; others load on demand when clicked.
    ========================================================================== */
@@ -149,23 +152,28 @@ function loadScript(src: string): Promise<void> {
     s.async = false;                 // preserve execution order
     s.dataset.amsrc = src;
     s.addEventListener('load', () => { s.dataset.loaded = '1'; resolve(); });
-    s.addEventListener('error', () => reject(new Error(`failed: ${src}`)));
+    s.addEventListener('error', () => {
+      s.remove();                    // so a retry injects a fresh tag
+      reject(new Error(`failed: ${src}`));
+    });
     document.head.appendChild(s);
   });
 }
 
 let _corePromise: Promise<void> | null = null;
 
-/** Load amCharts core + map + theme + world geodata. Idempotent. */
+/** Load amCharts core + map + theme + world geodata. Idempotent; retryable. */
 export function loadAmCharts(): Promise<void> {
   if (_corePromise) return _corePromise;
-  _corePromise = (async () => {
+  const p = (async () => {
     await loadScript(`${CDN}/index.js`);
     await loadScript(`${CDN}/map.js`);
     await loadScript(`${CDN}/themes/Animated.js`);
     await loadScript(`${CDN}/geodata/worldLow.js`);
   })();
-  return _corePromise;
+  _corePromise = p;
+  p.catch(() => { if (_corePromise === p) _corePromise = null; });
+  return p;
 }
 
 const _countryPromises = new Map<string, Promise<void>>();
@@ -177,6 +185,7 @@ export function loadCountryGeodata(code: string): Promise<void> {
   if (_countryPromises.has(code)) return _countryPromises.get(code)!;
   const p = loadScript(`${CDN}/geodata/${meta.file}.js`);
   _countryPromises.set(code, p);
+  p.catch(() => { if (_countryPromises.get(code) === p) _countryPromises.delete(code); });
   return p;
 }
 

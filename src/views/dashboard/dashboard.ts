@@ -757,6 +757,7 @@ function bootMap(): void {
   if (canvas !== _mapCanvas || mode !== _mapBootMode) {
     disposeMaps();
     canvas.replaceChildren();
+    canvas.className = 'td-map-container';   // drop Leaflet's classes (its light default background would show through in dark mode)
     _mapCanvas = canvas;
     _mapBootMode = mode;
     if (mode === 'trip') {

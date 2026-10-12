@@ -8,7 +8,7 @@
 
 import type { GeoPt } from './map-geo.ts';
 import { nights } from './map-geo.ts';
-import { continentFor, isoFor } from './geo.ts';
+import { continentFor, isoForCountry, haversineKm } from '../../data/geo-index.ts';
 
 /** A leg after geocoding + iso resolution — the shape the map plots and sums. */
 export interface PlottedLeg {
@@ -45,14 +45,7 @@ export interface RouteSummary {
   legCount: number;
 }
 
-/** Great-circle distance between two points, in kilometres. */
-export function haversineKm(a: GeoPt, b: GeoPt): number {
-  const R = 6371, rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
-  const lat1 = a.lat * rad, lat2 = b.lat * rad;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
-}
+export { haversineKm };
 
 /**
  * Summarize a plotted route: unique cities/countries/continents, total nights,
@@ -126,7 +119,7 @@ export function aggregateExpensesByIso(
 ): Map<string, number> {
   const byIso = new Map<string, number>();
   for (const e of rows) {
-    const iso = isoFor(e.country);
+    const iso = isoForCountry(e.country);
     if (!iso) continue;
     byIso.set(iso, (byIso.get(iso) ?? 0) + (e.baseAmount || 0));
   }
@@ -134,16 +127,16 @@ export function aggregateExpensesByIso(
 }
 
 /** Compact km formatter: 8420 → "8,420", 12500 → "12.5k". */
-export function fmtKm(km: number): string {
+export function fmtKm(km: number, locale = 'en-US'): string {
   if (km >= 10000) return `${(km / 1000).toFixed(1)}k`;
-  return km.toLocaleString('en-US');
+  return km.toLocaleString(locale);
 }
 
 /** Format a spend total as currency (no decimals). Falls back to a rounded
  *  integer string if the currency code is invalid for Intl. */
-export function fmtSpend(n: number, currency = 'EUR'): string {
+export function fmtSpend(n: number, currency = 'EUR', locale = 'en-US'): string {
   try {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat(locale, {
       style: 'currency', currency: currency || 'EUR',
       maximumFractionDigits: 0,
     }).format(n);

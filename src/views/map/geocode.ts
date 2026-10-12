@@ -8,23 +8,42 @@
      2. localStorage cache                — instant, offline, anything resolved before
      3. OpenStreetMap Nominatim (online)  — anything else, one-time, then cached
 
+   Cache keys carry the country hint (see geocodeKey) so same-named cities in
+   different countries don't collide.
+
    Nominatim is free but rate-limited (≤1 req/s) and asks for a descriptive
    User-Agent / Referer (the browser sends Referer automatically). We serialize
    requests through a small queue to stay polite.
    ========================================================================== */
 
 import { WORLD_CITIES, type CityRecord } from './world-cities.ts';
+import { geocodeKey } from '../../data/geo-index.ts';
 
 export type GeoHit = CityRecord;
 
-const CACHE_KEY = 'otr:geocode:v1';
+const CACHE_KEY = 'otr:geocode:v2';
+const LEGACY_CACHE_KEY = 'otr:geocode:v1';
 
-function loadCache(): Record<string, GeoHit> {
+function readJson(key: string): Record<string, GeoHit> {
   try {
-    return JSON.parse(localStorage.getItem(CACHE_KEY) ?? '{}');
+    return JSON.parse(localStorage.getItem(key) ?? '{}');
   } catch {
     return {};
   }
+}
+
+/** v2 cache; if none yet, seed it from v1 (keyed by bare name). A v1 entry is
+ *  valid for a no-hint lookup as before, and — since it records its own ISO —
+ *  for a lookup hinted with that same country. */
+function loadCache(): Record<string, GeoHit> {
+  const v2 = readJson(CACHE_KEY);
+  if (Object.keys(v2).length) return v2;
+  const seeded: Record<string, GeoHit> = {};
+  for (const [name, hit] of Object.entries(readJson(LEGACY_CACHE_KEY))) {
+    seeded[name] = hit;
+    if (hit?.iso) seeded[`${name}|${hit.iso}`] = hit;
+  }
+  return seeded;
 }
 function saveCache(cache: Record<string, GeoHit>) {
   try {
@@ -35,15 +54,13 @@ function saveCache(cache: Record<string, GeoHit>) {
 const _cache = loadCache();
 const _inflight = new Map<string, Promise<GeoHit | null>>();
 
-function normKey(name: string): string {
-  return name.trim().toLowerCase();
-}
+const bareKey = (name: string) => geocodeKey(name);
 
 /** Synchronous bundled/cache lookup — returns null if it needs the network. */
-export function geocodeLocal(name: string): GeoHit | null {
-  const key = normKey(name);
-  if (!key) return null;
-  return WORLD_CITIES[key] ?? _cache[key] ?? null;
+export function geocodeLocal(name: string, countryHint?: string): GeoHit | null {
+  const bare = bareKey(name);
+  if (!bare) return null;
+  return WORLD_CITIES[bare] ?? _cache[geocodeKey(name, countryHint)] ?? null;
 }
 
 /* ── Online (Nominatim) with a 1-req/s polite queue ───────────────────────── */
@@ -85,10 +102,10 @@ async function fetchNominatim(query: string): Promise<GeoHit | null> {
  * `countryHint` is appended to the online query to disambiguate ("Bern, CH").
  */
 export async function geocode(name: string, countryHint?: string): Promise<GeoHit | null> {
-  const key = normKey(name);
-  if (!key) return null;
+  if (!bareKey(name)) return null;
+  const key = geocodeKey(name, countryHint);
 
-  const local = geocodeLocal(name);
+  const local = geocodeLocal(name, countryHint);
   if (local) return local;
 
   if (_inflight.has(key)) return _inflight.get(key)!;

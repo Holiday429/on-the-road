@@ -8,6 +8,7 @@
 
 import { navigateTo } from '../../core/app.ts';
 import { openSheet } from '../../core/modal.ts';
+import { t } from '../../core/i18n.ts';
 
 /* ── City action sheet (Guide / Safety / Itinerary) — pick where to dive in ── */
 export function openCityActionSheet(city: string): void {
@@ -16,17 +17,17 @@ export function openCityActionSheet(city: string): void {
     body: `
       <button class="map-sheet-action" data-go="cities">
         <span class="map-sheet-icon">🗺️</span>
-        <span><strong>City guide</strong><small>Attractions, food, culture</small></span>
+        <span><strong>${t('map.sheet.guide')}</strong><small>${t('map.sheet.guideHint')}</small></span>
         <span class="map-sheet-arrow">›</span>
       </button>
       <button class="map-sheet-action" data-go="safety">
         <span class="map-sheet-icon">🛡️</span>
-        <span><strong>Safety</strong><small>Emergency, scams, embassy</small></span>
+        <span><strong>${t('map.sheet.safety')}</strong><small>${t('map.sheet.safetyHint')}</small></span>
         <span class="map-sheet-arrow">›</span>
       </button>
       <button class="map-sheet-action" data-go="route">
         <span class="map-sheet-icon">🧭</span>
-        <span><strong>Itinerary</strong><small>This leg's plan & stays</small></span>
+        <span><strong>${t('map.sheet.itinerary')}</strong><small>${t('map.sheet.itineraryHint')}</small></span>
         <span class="map-sheet-arrow">›</span>
       </button>`,
   });

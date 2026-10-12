@@ -88,7 +88,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     const destinations = [...new Set(allEntries.map((entry) => entry.destination.trim()).filter(Boolean))];
     const placeGroups = buildPlaceGroups(visibleEntries);
     const tagGroups = buildTagGroups(visibleEntries);
-    const { points, route } = buildMapData(visibleEntries, deps.getLegs());
+    const points = buildMapData(visibleEntries);
     const calendarCells = buildCalendarCells(state.calendarMonth, filteredEntries(allEntries, false));
 
     return renderCapture({
@@ -100,7 +100,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       placeGroups,
       tagGroups,
       mapPoints: points,
-      mapRoute: route,
       calendarCells,
       currentMonthLabel: new Date(`${state.calendarMonth}-01T00:00:00`).toLocaleDateString('en-US', {
         month: 'long',
@@ -1074,7 +1073,7 @@ function buildTagGroups(entries: StoredJournalEntry[]): TagGroup[] {
     .slice(0, 8);
 }
 
-function buildMapData(entries: StoredJournalEntry[], legs: StoredLeg[]) {
+function buildMapData(entries: StoredJournalEntry[]): MapPoint[] {
   const pointMap = new Map<string, { key: string; label: string; lat: number; lng: number; entries: StoredJournalEntry[] }>();
   for (const entry of entries) {
     const label = entry.destination.trim();
@@ -1087,64 +1086,16 @@ function buildMapData(entries: StoredJournalEntry[], legs: StoredLeg[]) {
     pointMap.set(key, point);
   }
 
-  const routeCoords = legs
-    .map((leg) => {
-      const coords = coordsFor(leg.city);
-      if (!coords) return null;
-      return { lat: coords.lat, lng: coords.lng };
-    })
-    .filter(Boolean) as Array<{ lat: number; lng: number }>;
-
-  const pointSource = [...pointMap.values()];
-  const boundsSource = [...pointSource.map((point) => ({ lat: point.lat, lng: point.lng })), ...routeCoords];
-
-  if (!boundsSource.length) return { points: [] as MapPoint[], route: [] as Array<{ left: number; top: number }> };
-
-  const bounds = mapBounds(boundsSource);
-  const points = pointSource
+  return [...pointMap.values()]
     .map((point) => ({
       key: point.key,
       label: point.label,
       count: point.entries.length,
       lat: point.lat,
       lng: point.lng,
-      left: projectLng(point.lng, bounds),
-      top: projectLat(point.lat, bounds),
       entries: sortEntries(point.entries),
     }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-
-  const route = routeCoords.map((coords) => ({
-    left: projectLng(coords.lng, bounds),
-    top: projectLat(coords.lat, bounds),
-  }));
-
-  return { points, route };
-}
-
-function mapBounds(points: Array<{ lat: number; lng: number }>) {
-  if (points.length === 1) {
-    return {
-      minLat: points[0].lat - 2,
-      maxLat: points[0].lat + 2,
-      minLng: points[0].lng - 2,
-      maxLng: points[0].lng + 2,
-    };
-  }
-  return {
-    minLat: Math.min(...points.map((point) => point.lat)) - 1.5,
-    maxLat: Math.max(...points.map((point) => point.lat)) + 1.5,
-    minLng: Math.min(...points.map((point) => point.lng)) - 2,
-    maxLng: Math.max(...points.map((point) => point.lng)) + 2,
-  };
-}
-
-function projectLng(lng: number, bounds: ReturnType<typeof mapBounds>) {
-  return ((lng - bounds.minLng) / Math.max(0.1, bounds.maxLng - bounds.minLng)) * 100;
-}
-
-function projectLat(lat: number, bounds: ReturnType<typeof mapBounds>) {
-  return 100 - (((lat - bounds.minLat) / Math.max(0.1, bounds.maxLat - bounds.minLat)) * 100);
 }
 
 function buildCalendarCells(monthKey: string, entries: StoredJournalEntry[]): CalendarCell[] {

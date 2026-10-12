@@ -1,17 +1,16 @@
 /* ==========================================================================
    On the Road · Geo lookup
    --------------------------------------------------------------------------
-   City coordinates (lng/lat) for the route's stops, and a mapping from
-   country name → ISO2 so we can highlight visited countries and decide which
-   ones support province-level drilldown. amCharts handles projection, so we
-   pass geo points (longitude/latitude) directly.
+   City coordinates (lng/lat) for the route's stops. Country names → ISO2, the
+   continent table and the Europe centre live in data/geo-index.ts. amCharts
+   handles projection, so we pass geo points (longitude/latitude) directly.
    ========================================================================== */
 
 import { WORLD_CITIES } from './world-cities.ts';
-import { COUNTRIES } from '../../data/destinations.ts';
-import { geocode } from './geocode.ts';
+import { geocode, geocodeLocal } from './geocode.ts';
+import { isoForCountry, pickAnchor, type LatLng } from '../../data/geo-index.ts';
 
-export interface LatLng { lat: number; lng: number; }
+export type { LatLng };
 export interface CityLocation extends LatLng { key: string; name: string; }
 
 // City coordinates come from the bundled WORLD_CITIES table (city name → coords
@@ -21,26 +20,6 @@ export interface CityLocation extends LatLng { key: string; name: string; }
 export const CITY_COORDS: Record<string, LatLng> = Object.fromEntries(
   Object.entries(WORLD_CITIES).map(([k, v]) => [k, { lat: v.lat, lng: v.lng }]),
 );
-
-// Country display name (as used in route data) → ISO2 (amCharts polygon id).
-// Built from the full destinations list so any country the user can pick
-// resolves, plus a few common aliases.
-export const COUNTRY_ISO: Record<string, string> = (() => {
-  const map: Record<string, string> = {};
-  for (const c of COUNTRIES) map[c.label] = c.country;
-  // Aliases that may appear in stored leg data.
-  map['Czechia']        = 'CZ';
-  map['UK']             = 'GB';
-  map['Britain']        = 'GB';
-  map['England']        = 'GB';
-  map['USA']            = 'US';
-  map['America']        = 'US';
-  map['UAE']            = 'AE';
-  map['Holland']        = 'NL';
-  map['South Korea']    = 'KR';
-  map['Korea']          = 'KR';
-  return map;
-})();
 
 const CITY_SPLIT_RE = /\s*(?:\/|\+|→|->|,)\s*/;
 
@@ -71,60 +50,47 @@ export function coordsFor(cityField: string): LatLng | null {
   return first ? { lat: first.lat, lng: first.lng } : null;
 }
 
-export function isoFor(country: string): string | null {
-  return COUNTRY_ISO[country] ?? null;
-}
-
-// ISO2 → continent, for the "continents visited" stat. Covers the countries a
-// traveller is realistically going to log; anything unmapped simply isn't
-// counted (better to undercount than mislabel).
-const CONTINENT_BY_ISO: Record<string, string> = (() => {
-  const groups: Record<string, string[]> = {
-    Europe: ['GB','IE','FR','ES','PT','IT','DE','NL','BE','LU','CH','AT','DK','SE','NO','FI','IS','PL','CZ','SK','HU','SI','HR','BA','RS','ME','MK','AL','GR','BG','RO','EE','LV','LT','UA','BY','MD','RU','MT','CY','LI','MC','AD','SM','VA'],
-    Asia: ['CN','JP','KR','KP','TW','HK','MO','TH','VN','LA','KH','MM','MY','SG','ID','PH','BN','IN','NP','BT','BD','LK','PK','AF','KZ','UZ','TM','KG','TJ','MN','AE','SA','QA','BH','KW','OM','YE','JO','LB','SY','IQ','IR','IL','PS','TR','GE','AM','AZ'],
-    Africa: ['MA','DZ','TN','LY','EG','SD','ET','KE','TZ','UG','RW','ZA','NA','BW','ZW','ZM','MZ','MG','MU','SC','GH','NG','SN','CI','CM','CD','CG','AO'],
-    'North America': ['US','CA','MX','GT','BZ','CR','PA','CU','DO','JM','HT','BS','TT','HN','SV','NI'],
-    'South America': ['BR','AR','CL','PE','CO','EC','BO','PY','UY','VE','GY','SR'],
-    Oceania: ['AU','NZ','FJ','PG','NC','PF','WS','TO','VU'],
-  };
-  const map: Record<string, string> = {};
-  for (const [cont, isos] of Object.entries(groups)) for (const iso of isos) map[iso] = cont;
-  return map;
-})();
-
-export function continentFor(iso: string): string | null {
-  return CONTINENT_BY_ISO[iso] ?? null;
-}
-
 export { cityTokens };
 
 /**
  * Resolve every city token in a leg's `city` field to coordinates, using the
  * bundled table first and the online geocoder for anything missing. Returns the
- * located stops plus the best ISO guess (preferred order: explicit country
- * name → first stop's geocoded ISO). Used by the map to plot arbitrary cities.
+ * located stops, the best ISO guess (explicit country name → first stop's
+ * geocoded ISO) and the tokens that could not be located at all, so the map can
+ * tell the user instead of silently dropping them.
+ *
+ * `saved` is the lat/lng persisted on the leg: it anchors the first stop without
+ * a lookup, unless the city name now resolves somewhere clearly different.
  */
 export async function resolveCityLocations(
   cityField: string,
   countryHint?: string,
-): Promise<{ stops: CityLocation[]; iso: string | null }> {
+  saved?: Partial<LatLng>,
+): Promise<{ stops: CityLocation[]; iso: string | null; missing: string[] }> {
   const seen = new Set<string>();
   const stops: CityLocation[] = [];
+  const missing: string[] = [];
   let firstIso: string | null = null;
 
-  for (const token of cityTokens(cityField)) {
+  for (const [i, token] of cityTokens(cityField).entries()) {
     const key = token.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
+    if (i === 0 && saved?.lat != null && saved?.lng != null) {
+      const local = geocodeLocal(token, countryHint);
+      const anchor = pickAnchor(saved, local);
+      if (anchor) {
+        stops.push({ lat: anchor.lat, lng: anchor.lng, key, name: token });
+        if (!firstIso && local?.iso) firstIso = local.iso;
+        continue;
+      }
+    }
     const hit = await geocode(token, countryHint);
-    if (!hit) continue;
+    if (!hit) { missing.push(token); continue; }
     stops.push({ lat: hit.lat, lng: hit.lng, key, name: token });
     if (!firstIso && hit.iso) firstIso = hit.iso;
   }
 
-  const iso = (countryHint && isoFor(countryHint)) || firstIso;
-  return { stops, iso };
+  const iso = (countryHint && isoForCountry(countryHint)) || firstIso;
+  return { stops, iso, missing };
 }
-
-// Geographic centre of the trip's footprint — used to centre the Europe view.
-export const EUROPE_CENTER = { longitude: 6, latitude: 48 };

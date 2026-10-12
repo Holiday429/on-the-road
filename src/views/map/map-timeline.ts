@@ -20,8 +20,8 @@ export function legEndMs(l: { dateTo: string }): number {
 }
 
 /** "Jan 2026"-style label for a scrubber cursor. */
-export function fmtScrubDate(ms: number): string {
-  return new Date(ms).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+export function fmtScrubDate(ms: number, locale = 'en-US'): string {
+  return new Date(ms).toLocaleDateString(locale, { month: 'short', year: 'numeric' });
 }
 
 /**

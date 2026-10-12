@@ -14,23 +14,26 @@
 
 import './map.css';
 import { renderViewTitleMarkup } from '../../core/app.ts';
-import { resolveCityLocations, isoFor, EUROPE_CENTER } from './geo.ts';
+import { resolveCityLocations } from './geo.ts';
+import { isoForCountry, EUROPE_CENTER } from '../../data/geo-index.ts';
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
-import { mapColors as C, countryColor } from './map-shared.ts';
+import { createMapRoot, disposeRoot, motionMs, prefersReducedMotion } from './amcharts-boot.ts';
+import { mapColors as C, countryColor, onMapRepaint } from './map-theme.ts';
+import { legVisitState } from './map-status.ts';
+import { t, getLocale, onLocaleChange } from '../../core/i18n.ts';
+import { todayIso } from '../../data/trip-phase.ts';
 import {
   type GeoPt, arcPoints, chainWaypoints,
-  expandBounds, geoDist, fmtRange, nights, wrapMapLabel, heatColor,
+  expandBounds, geoDist, wrapMapLabel, heatColor,
 } from './map-geo.ts';
 import {
   type PlottedLeg, type FlightChain, type CountryStop,
   summarizeRoute, buildCountryStops,
-  aggregateExpensesByIso, fmtKm, fmtSpend,
+  aggregateExpensesByIso, fmtSpend,
 } from './map-stats.ts';
-import {
-  type TimeRange, legStartMs, fmtScrubDate,
-  timelineRange, msToFraction, fractionToMs,
-} from './map-timeline.ts';
+import { legStartMs, timelineRange } from './map-timeline.ts';
+import { mountScrubber, type Scrubber } from './map-scrubber.ts';
 import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
 import { type Am5Obj, type MapChart, asMapChart } from './map-amcharts.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
@@ -45,6 +48,9 @@ import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { openCityActionSheet } from './map-city-sheet.ts';
 import { openMapExport } from './map-export-sheet.ts';
+import {
+  scopeToggleMarkup, statsMarkup, flightRowMarkup, legListMarkup, unlocatedMarkup, stageInnerMarkup,
+} from './map-panel.ts';
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
@@ -75,9 +81,12 @@ let _chart: MapChart | null = null;
 let _scope: 'trip' | 'all' = 'trip';
 let _unsubLegs: (() => void) | null = null;
 let _worldSeries: Am5Obj = null;
+let _idleWorld: Am5Obj = null;   // the outline-only world of the empty state (recoloured on theme change)
 const _polyById      = new Map<string, Am5Obj>();
 const _dataItemById  = new Map<string, Am5Obj>();
-const _lit         = new Set<string>();
+const _lit         = new Set<string>();       // countries visited (full colour)
+const _planned     = new Set<string>();       // countries only planned (dashed, faint)
+const _painted     = new Set<string>();       // countries carrying an explicit fill (re-coloured on theme change)
 let _drillSeries: Am5Obj = null;
 let _drillCode:   string | null = null;
 let _replayTimer:    number | null = null;
@@ -95,6 +104,9 @@ let _buildToken = 0;   // guards against stale async builds after teardown/scope
 const _tripNames  = new Map<string, string>();   // tripId → trip name cache
 let _idleChartToken = 0;   // guards against overlapping bootIdleChart() calls racing on the async amCharts load
 let _bootChartAttempt = 0; // guards against overlapping buildAndBoot() calls racing to bootChart()
+let _chartAbort: AbortController | null = null;   // listeners wired for the live chart; aborted on teardown
+let _unlocated: Array<{ legId: string; place: string }> = [];   // stops geocoding could not place
+let _repaintExtras: Array<() => void> = [];   // recolour hooks for the route lines / pins of the live chart
 
 /* ── Data layers (overlays beyond the route itself) ───────────────────────── */
 type LayerId = 'nomad' | 'journal' | 'guide' | 'stay' | 'expenses';
@@ -122,33 +134,33 @@ let _stayPlaces:    Array<{ name: string; city: string; legId: string; lat: numb
 let _expenseUnsub: (() => void) | null = null;
 let _expenseByIso = new Map<string, number>();
 
-let _timeline: TimeRange | null = null;
-let _scrubbing = false;
-let _timelineTimer: number | null = null;
+let _scrubber: Scrubber | null = null;
 
 function setReplayBtnLabel(playing: boolean) {
   const btn = document.getElementById('mapReplay');
-  if (btn) btn.textContent = playing ? '⏸ Pause' : '▶ Replay route';
+  if (btn) btn.textContent = playing ? t('map.pause') : t('map.replay');
 }
+
+/** Intl locale tag for the current UI language. */
+const loc = () => getLocale();
 
 /* ── Data ─────────────────────────────────────────────────────────────────── */
 /**
- * Resolve every leg's cities to coordinates (bundled + online), persisting the
- * anchor coords back onto the leg so we don't re-geocode next time. Drops legs
- * whose city can't be located at all.
+ * Resolve every leg's cities to coordinates (saved → bundled → online),
+ * persisting the anchor coords back onto the leg so we don't re-geocode next
+ * time. Legs whose city can't be located at all are left off the map but
+ * recorded in `_unlocated`, which the side panel lists.
  */
 async function plotLegs(stored: StoredLegInput[]): Promise<PlottedLeg[]> {
   const out: PlottedLeg[] = [];
+  _unlocated = [];
   for (const leg of stored) {
-    const { stops, iso } = await resolveCityLocations(leg.city, leg.country);
-    let anchor = stops[0];
-    // Fall back to any persisted coords on the leg if geocoding came up empty.
-    if (!anchor && leg.lat != null && leg.lng != null) {
-      anchor = { key: leg.city.toLowerCase(), name: leg.city, lat: leg.lat, lng: leg.lng };
-      stops.push(anchor);
-    }
+    // Saved coords anchor the first stop for free; the rest go through geo.ts.
+    const { stops, iso, missing } = await resolveCityLocations(leg.city, leg.country, { lat: leg.lat, lng: leg.lng });
+    for (const place of missing) _unlocated.push({ legId: leg.id, place });
+    const anchor = stops[0];
     if (!anchor) continue;
-    const resolvedIso = iso ?? isoFor(leg.country);
+    const resolvedIso = iso ?? isoForCountry(leg.country, leg.flag);
     const tripName = leg.tripId ? _tripNames.get(leg.tripId) : undefined;
     out.push({
       id: leg.id, city: leg.city, country: leg.country, flag: leg.flag,
@@ -226,7 +238,7 @@ async function buildReturnChain(_outbound: FlightChain | null, legs: PlottedLeg[
 function fitGeoBounds(bounds: { left: number; right: number; top: number; bottom: number }, duration = 700, ratio = 0.12) {
   if (!_chart) return false;
   try {
-    _chart.zoomToGeoBounds(expandBounds(bounds, ratio), duration);
+    _chart.zoomToGeoBounds(expandBounds(bounds, ratio), motionMs(duration));
     return true;
   } catch {
     return false;
@@ -325,7 +337,7 @@ function renderCountryPins(stops: CountryStop[]) {
     label.textContent = wrapMapLabel(stop.name, 10);
 
     el.append(icon, label);
-    el.title = `${stop.name} — Guide · Safety · Itinerary`;
+    el.title = t('map.pin.cityActions', { city: stop.name });
     el.addEventListener('click', (e) => {
       e.stopPropagation();
       openCityActionSheet(stop.name);
@@ -423,7 +435,7 @@ function renderJournalPins() {
   for (const { destination, count, lat, lng } of _journalPlaces) {
     const el = document.createElement('button');
     el.className = 'map-journal-pin'; el.type = 'button';
-    el.title = `${destination} · ${count} ${count > 1 ? 'entries' : 'entry'}`;
+    el.title = `${destination} · ${t(count === 1 ? 'map.pin.entry' : 'map.pin.entries', { n: count })}`;
     // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     el.innerHTML = '<span class="map-journal-pin-emoji">✍️</span>' + `<span class="map-journal-pin-count">${count}</span>`;
     el.addEventListener('click', (e) => {
@@ -464,7 +476,7 @@ function renderGuidePins() {
   for (const { city, count, lat, lng } of _guidePlaces) {
     const el = document.createElement('button');
     el.className = 'map-guide-pin'; el.type = 'button';
-    el.title = `${city} · ${count} guide ${count === 1 ? 'idea' : 'ideas'}`;
+    el.title = `${city} · ${t(count === 1 ? 'map.pin.idea' : 'map.pin.ideas', { n: count })}`;
     // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     el.innerHTML = '<span class="map-guide-pin-emoji">📍</span>' + (count ? `<span class="map-guide-pin-count">${count}</span>` : '');
     el.addEventListener('click', (e) => {
@@ -533,7 +545,7 @@ function enableExpenseLayer() {
   // Expense store is per-trip; the heat tint only makes sense for one trip.
   if (_scope !== 'trip') { _expenseByIso = new Map(); applyExpenseHeat(); return; }
   // Ensure every visited country is lit so the heat is visible without replaying.
-  _legsRef.forEach((l) => lightCountry(l.iso));
+  _legsRef.forEach(lightLeg);
   _expenseUnsub = expenseStore.subscribe((rows) => aggregateExpenses(rows));
 }
 
@@ -542,7 +554,7 @@ function disableExpenseLayer() {
   _expenseUnsub = null;
   _expenseByIso = new Map();
   // Restore the normal "visited" lighting for the countries we tinted.
-  _lit.forEach((iso) => paintCountry(iso, countryColor(iso)));
+  _lit.forEach(paintState);
 }
 
 function aggregateExpenses(rows: StoredExpense[]) {
@@ -553,7 +565,7 @@ function aggregateExpenses(rows: StoredExpense[]) {
 /** Tint each visited country by its share of total spend (light → deep amber). */
 function applyExpenseHeat() {
   if (!_layersOn.has('expenses')) return;
-  _lit.forEach((iso) => paintCountry(iso, litColorFor(iso)));
+  _lit.forEach(paintState);
 }
 
 function zoomToCountryPoly(poly: Am5Obj) {
@@ -576,10 +588,7 @@ export function initMap() {
   if (_initialized) return; _initialized = true;
   const view = document.getElementById('view-map'); if (!view) return;
 
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  view.querySelector('.view-header')!.innerHTML = `
-    <div class="view-title">${renderViewTitleMarkup('map', 'My Map')}</div>
-    <div class="view-subtitle">Your footprint, plotted from your itinerary — click a country to zoom into its regions.</div>`;
+  renderHeader(view);
 
   const body = view.querySelector('.stub-body');
   if (body) {
@@ -594,6 +603,37 @@ export function initMap() {
   onTripChange(() => {
     if (_scope === 'trip') subscribeLegs(view as HTMLElement);
   });
+
+  // Theme switch: recolour the live chart in place (app.ts' re-init can't reach
+  // us — initMap is guarded by _initialized — and a rebuild would lose the view).
+  onMapRepaint(repaintChart);
+  onLocaleChange(() => refreshText(view as HTMLElement));
+}
+
+function renderHeader(view: HTMLElement) {
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
+  view.querySelector('.view-header')!.innerHTML = `
+    <div class="view-title">${renderViewTitleMarkup('map', t('map.title'))}</div>
+    <div class="view-subtitle">${esc(t('map.subtitle'))}</div>`;
+}
+
+/** Re-apply translated text after a language switch (the chart is left alone). */
+function refreshText(view: HTMLElement) {
+  renderHeader(view);
+  const set = (id: string, text: string, title?: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (text) el.textContent = text;
+    if (title) el.title = title;
+  };
+  setReplayBtnLabel(_playing);
+  set('mapReplay', '', t('map.replayTitle'));
+  set('mapExport', t('map.export'), t('map.exportTitle'));
+  set('mapBack', t('map.back'), t('map.backTitle'));
+  set('mapZoomIn', '', t('map.zoomIn'));
+  set('mapZoomOut', '', t('map.zoomOut'));
+  set('mapZoomFit', '', t('map.zoomFit'));
+  if (_chart && _legsRef.length > 0) renderPanel(view, _legsRef);
 }
 
 function stageMarkup(): string {
@@ -610,37 +650,33 @@ function stageMarkup(): string {
     </div>`;
 }
 
-function stageInnerMarkup(): string {
-  return `
-    <div id="mapChart" class="map-chart"></div>
-    <div class="map-region-labels" id="mapRegionLabels"></div>
-    <div class="map-data-pins" id="mapDataPins"></div>
-    <div class="map-data-pins" id="mapJournalPins"></div>
-    <div class="map-data-pins" id="mapGuidePins"></div>
-    <div class="map-data-pins" id="mapStayPins"></div>
-    <div class="map-country-pins" id="mapCountryPins"></div>
-    <div class="map-tooltip" id="mapTooltip">
-      <span class="map-tooltip-name" id="mapTooltipName"></span>
-      <span class="map-tooltip-meta" id="mapTooltipMeta"></span>
-    </div>
-    <div class="map-toolbar">
-      <button class="map-tool-btn" id="mapReplay" title="Replay route">▶ Replay route</button>
-      <button class="map-tool-btn" id="mapExport" title="Export to Google Maps">Export ↗</button>
-      <button class="map-tool-btn" id="mapBack" title="Back to overview" hidden>← Back</button>
-    </div>
-    <div class="map-zoom-controls">
-      <button class="map-zoom-btn" id="mapZoomIn"  title="Zoom in">+</button>
-      <button class="map-zoom-btn" id="mapZoomFit" title="Fit to route">⊡</button>
-      <button class="map-zoom-btn" id="mapZoomOut" title="Zoom out">−</button>
-    </div>
-    <div class="map-loading" id="mapLoading">Loading map…</div>`;
-}
-
-/** Dispose the amCharts root so the next leg snapshot reboots the chart. */
+/**
+ * Dispose the amCharts root so the next leg snapshot reboots the chart, and
+ * drop everything that belonged to it: listeners wired for it, timers, lit /
+ * drilled state and overlays. Nothing may outlive the chart it describes.
+ */
 function teardownChart() {
-  if (_root) { try { _root.dispose(); } catch { /* ignore */ } }
+  _chartAbort?.abort();
+  _chartAbort = null;
+  clearAllTimers();
+  disposeRoot(_root);
   _root = null;
   _chart = null;
+  _worldSeries = null;
+  _drillSeries = null;
+  _drillCode = null;
+  _polyById.clear();
+  _dataItemById.clear();
+  _lit.clear();
+  _planned.clear();
+  _painted.clear();
+  _idleWorld = null;
+  _repaintExtras = [];
+  _legsRef = [];
+  _activeMotionId = null;
+  _paused = false;
+  if (_playing) { _playing = false; setReplayBtnLabel(false); }
+  clearDrillOverlays();
 }
 
 /**
@@ -672,9 +708,8 @@ async function bootIdleChart() {
   // WITHIN one function, not between this and the other builder.
   teardownChart();
 
-  const root = am5.Root.new('mapChart');
+  const root = createMapRoot('mapChart', { animated: false });
   _root = root;
-  if (root._logo) root._logo.dispose();
 
   const chart = root.container.children.push(am5map.MapChart.new(root, {
     projection: am5map.geoMercator(),
@@ -685,6 +720,7 @@ async function bootIdleChart() {
     homeGeoPoint: EUROPE_CENTER,
   }));
   _chart = chart;
+  _worldSeries = null;
 
   const world = chart.series.push(am5map.MapPolygonSeries.new(root, {
     geoJSON: am5geodata_worldLow, exclude: ['AQ'],
@@ -696,8 +732,9 @@ async function bootIdleChart() {
     strokeWidth: 0.7,
     nonScalingStroke: true,
   });
+  _idleWorld = world;
 
-  chart.appear(600, 80);
+  chart.appear(motionMs(600), motionMs(80));
   document.getElementById('mapLoading')?.remove();
 }
 
@@ -752,7 +789,7 @@ function subscribeLegs(view: HTMLElement) {
 function showEmpty(view: HTMLElement) {
   const panel = view.querySelector<HTMLElement>('.map-panel');
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  if (panel) panel.innerHTML = scopeToggleMarkup();
+  if (panel) panel.innerHTML = scopeToggleMarkup(_scope);
   wireScopeToggle(view);
   // No data → no layer chips, no scrubber.
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
@@ -766,7 +803,7 @@ function showEmpty(view: HTMLElement) {
     stage.innerHTML = `
       <div id="mapChart" class="map-chart"></div>
       <div class="map-idle-hint">
-        <span class="map-idle-hint-text">No footprints yet — add cities in <a href="#route">Itinerary</a> to build your travel history.</span>
+        <span class="map-idle-hint-text">${t('map.idle.noFootprints', { link: `<a href="#route">${esc(t('nav.route'))}</a>` })}</span>
       </div>`;
     bootIdleChart();
   }
@@ -789,7 +826,7 @@ async function showSetupPanel(view: HTMLElement, token: number) {
     stage.innerHTML = `
       <div id="mapChart" class="map-chart"></div>
       <div class="map-idle-hint">
-        <span class="map-idle-hint-text">No itinerary yet — link a trip or add stops to plot your route.</span>
+        <span class="map-idle-hint-text">${esc(t('map.idle.noItinerary'))}</span>
       </div>`;
     bootIdleChart();
   }
@@ -798,23 +835,23 @@ async function showSetupPanel(view: HTMLElement, token: number) {
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   panel.innerHTML = `
-    ${scopeToggleMarkup()}
+    ${scopeToggleMarkup(_scope)}
     <div class="map-setup">
       <div class="map-setup-section">
-        <button class="btn btn-primary map-setup-btn" id="mapLinkTrip">Link a trip</button>
+        <button class="btn btn-primary map-setup-btn" id="mapLinkTrip">${esc(t('map.setup.link'))}</button>
       </div>
-      <div class="map-setup-divider"><span>or</span></div>
+      <div class="map-setup-divider"><span>${esc(t('map.setup.or'))}</span></div>
       <div class="map-setup-section">
-        <div class="map-setup-label">Add stops manually</div>
-        <div class="map-setup-hint">Go to Itinerary to add your first city</div>
-        <button class="btn btn-ghost map-setup-btn" id="mapAddManual">Go to Itinerary →</button>
+        <div class="map-setup-label">${esc(t('map.setup.manual'))}</div>
+        <div class="map-setup-hint">${esc(t('map.setup.manualHint'))}</div>
+        <button class="btn btn-ghost map-setup-btn" id="mapAddManual">${esc(t('map.setup.manualBtn'))}</button>
       </div>
     </div>`;
 
   wireScopeToggle(view);
 
   document.getElementById('mapLinkTrip')?.addEventListener('click', () => {
-    openTripChooser({ title: 'Link a trip', subtitle: 'Linking a trip plots its itinerary stops on the map.' });
+    openTripChooser({ title: t('map.setup.link'), subtitle: t('map.setup.chooserSub') });
   });
 
   document.getElementById('mapAddManual')?.addEventListener('click', () => {
@@ -867,21 +904,35 @@ async function buildAndBoot(view: HTMLElement, stored: StoredLegInput[], token: 
     preloadDrilldownCountries(legs.map((l) => l.iso).filter(Boolean) as string[]);
   } catch (err) {
     console.error('amCharts load failed', err);
-    const el = document.getElementById('mapLoading'); if (el) el.textContent = 'Map failed to load.';
+    showLoadFailure(view, stored, token);
   }
+}
+
+/** The CDN script failed: say so and offer a retry (the loader forgets failures). */
+function showLoadFailure(view: HTMLElement, stored: StoredLegInput[], token: number) {
+  const el = document.getElementById('mapLoading');
+  if (!el) return;
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
+  el.innerHTML = `<div class="map-load-failed"><span>${esc(t('map.loadFailed'))}</span><button class="btn btn-ghost" type="button">${esc(t('map.retry'))}</button></div>`;
+  el.querySelector('button')?.addEventListener('click', () => {
+    el.textContent = t('map.loading');
+    if (token === _buildToken) void buildAndBoot(view, stored, token);
+  });
 }
 
 /* ── Chart ────────────────────────────────────────────────────────────────── */
 function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
-  _legsRef = legs;
   // Defensive: dispose any root a concurrent bootIdleChart() left behind —
   // amCharts throws "multiple Roots on the same DOM node" if we don't, since
-  // this function otherwise has no guard against that race at all.
+  // this function otherwise has no guard against that race at all. (Teardown
+  // also clears per-chart state, so everything below is set after it.)
   teardownChart();
-  const root = am5.Root.new('mapChart');
+  _legsRef = legs;
+  _chartAbort = new AbortController();
+  const { signal } = _chartAbort;
+  const today = todayIso();
+  const root = createMapRoot('mapChart');
   _root = root;
-  root.setThemes([am5themes_Animated.new(root)]);
-  if (root._logo) root._logo.dispose();
 
   const chart = root.container.children.push(am5map.MapChart.new(root, {
     projection: am5map.geoMercator(),
@@ -912,7 +963,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
       if (id) { _polyById.set(id, poly); _dataItemById.set(id, poly.dataItem); }
       poly.set('cursorOverStyle', DRILLDOWN_COUNTRIES[id] ? 'pointer' : 'default');
     });
-    _lit.forEach((iso) => paintCountry(iso, countryColor(iso)));
+    _painted.forEach(paintState);
   });
 
   const tooltip = document.getElementById('mapTooltip')!;
@@ -922,12 +973,13 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     const id = ev.target.dataItem.get('id');
     const legHere = legs.filter((l) => l.iso === id);
     tipName.textContent = ev.target.dataItem.dataContext?.name ?? id;
+    const zoomHint = DRILLDOWN_COUNTRIES[id] ? t('map.tip.zoomIn') : '';
     const base = legHere.length
-      ? `${legHere.length} stop${legHere.length>1?'s':''}${DRILLDOWN_COUNTRIES[id]?' · click to zoom in':''}`
-      : (DRILLDOWN_COUNTRIES[id] ? 'click to zoom in' : '');
+      ? [t(legHere.length === 1 ? 'map.tip.stop' : 'map.tip.stops', { n: legHere.length }), zoomHint].filter(Boolean).join(' · ')
+      : zoomHint;
     // When the spend-heat layer is on, lead with the country's total spend.
     const spend = _layersOn.has('expenses') ? (_expenseByIso.get(id) ?? 0) : 0;
-    tipMeta.textContent = spend > 0 ? `${fmtSpend(spend, currentTrip()?.baseCurrency)}${base ? ' · ' + base : ''}` : base;
+    tipMeta.textContent = spend > 0 ? `${fmtSpend(spend, currentTrip()?.baseCurrency, loc())}${base ? ' · ' + base : ''}` : base;
     tooltip.classList.add('visible');
   });
   world.mapPolygons.template.events.on('globalpointermove', (ev:any) => positionTooltip(view, ev));
@@ -950,6 +1002,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
       flightSeries.pushDataItem({ geometry:{ type:'LineString',
         coordinates: chain.waypoints.map((w) => [w.lng, w.lat]) }});
     }
+    _repaintExtras.push(() => flightSeries.mapLines.template.set('stroke', am5.color(C().flightArc)));
   }
 
   /* Trip route arcs */
@@ -964,13 +1017,16 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     routeCoords.push(...seg);
   }
   if (routeCoords.length) lineSeries.pushDataItem({ geometry:{ type:'LineString', coordinates:routeCoords }});
+  _repaintExtras.push(() => lineSeries.mapLines.template.set('stroke', am5.color(C().route)));
 
   /* City number pins */
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
   pinSeries.bullets.push((bRoot:any, _s:any, dataItem:any) => {
     const idx = dataItem.dataContext.index;
-    const c = am5.Container.new(bRoot, {});
-    c.children.push(am5.Circle.new(bRoot, { radius:9, fill:am5.color('#fff'), stroke:am5.color(C().route), strokeWidth:3 }));
+    // Stops still ahead of today get a dashed, lighter pin.
+    const planned = legVisitState(legs[idx], today) === 'planned';
+    const c = am5.Container.new(bRoot, { opacity: planned ? 0.75 : 1 });
+    c.children.push(am5.Circle.new(bRoot, { radius:9, fill:am5.color('#fff'), stroke:am5.color(C().route), strokeWidth:3, strokeDasharray: planned ? [3,2] : [] }));
     c.children.push(am5.Label.new(bRoot, {
       text:String(idx+1), centerX:am5.p50, centerY:am5.p50,
       fontSize:10, fontWeight:'700', fill:am5.color(C().route), populateText:false,
@@ -979,6 +1035,11 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   });
   pinSeries.data.setAll(legs.map((l,index) => ({
     geometry:{ type:'Point', coordinates:[l.lng, l.lat] }, index, id:l.id,
+  })));
+  _repaintExtras.push(() => pinSeries.dataItems.forEach((di: Am5Obj) => di.bullets?.forEach((b: Am5Obj) => {
+    const sprite = b.get('sprite');
+    sprite?.children.getIndex(0)?.set('stroke', am5.color(C().route));
+    sprite?.children.getIndex(1)?.set('fill', am5.color(C().route));
   })));
 
   /* Plane overlay */
@@ -1054,10 +1115,14 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     (Object.keys(_pinLayers) as PinLayerId[]).forEach(syncPinLayer);
   });
 
-  chart.appear(700, 100).then(() => {
+  chart.appear(motionMs(700), motionMs(100)).then(() => {
+    if (_chart !== mc) return;    // torn down while appearing
     document.getElementById('mapLoading')?.remove();
     // Fit the whole route on load; animation only starts when the user clicks Play.
-    setTimeout(() => { syncHero(); syncPlane(); fitToRoute(legs, 700); }, 400);
+    window.setTimeout(() => {
+      if (_chart !== mc) return;
+      syncHero(); syncPlane(); fitToRoute(legs, 700);
+    }, 400);
     // Re-paint any active data layers onto the freshly-booted chart.
     if (_layersOn.has('nomad') && _nomadSpots.length) renderNomadPins();
     if (_layersOn.has('journal') && _journalPlaces.length) renderJournalPins();
@@ -1068,32 +1133,33 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     if (_scope === 'all') buildTimelineScrubber(legs);
   });
 
-  // Replay / Pause button — toggles between playing and paused/stopped.
-  const replayBtn = document.getElementById('mapReplay')!;
-  replayBtn.addEventListener('click', () => {
-    if (_playing) {
-      stopReplayMotion();
-    } else {
-      travelSequence(legs, true);
-    }
-  });
+  // Toolbar buttons live in the stage markup, which outlives a chart rebuild
+  // (scope / trip switch), so listeners are tied to this chart's signal and
+  // removed on teardown — otherwise each rebuild would stack another Replay.
+  const on = (id: string, fn: () => void) =>
+    document.getElementById(id)?.addEventListener('click', fn, { signal });
 
-  document.getElementById('mapExport')?.addEventListener('click', openMapExport);
-  document.getElementById('mapBack')?.addEventListener('click', () => {
+  // Replay / Pause button — toggles between playing and paused/stopped.
+  on('mapReplay', () => {
+    if (_playing) stopReplayMotion();
+    else void travelSequence(legs, true);
+  });
+  on('mapExport', openMapExport);
+  on('mapBack', () => {
     stopReplayMotion();
     backToOverview();
   });
-  document.getElementById('mapZoomIn')?.addEventListener('click', () => {
+  on('mapZoomIn', () => {
     stopReplayMotion();
     if (chart.zoomIn) chart.zoomIn();
     else chart.set('zoomLevel', (chart.get('zoomLevel') ?? 1) * 1.5);
   });
-  document.getElementById('mapZoomOut')?.addEventListener('click', () => {
+  on('mapZoomOut', () => {
     stopReplayMotion();
     if (chart.zoomOut) chart.zoomOut();
     else chart.set('zoomLevel', (chart.get('zoomLevel') ?? 1) / 1.5);
   });
-  document.getElementById('mapZoomFit')?.addEventListener('click', () => {
+  on('mapZoomFit', () => {
     stopReplayMotion();
     fitToRoute(_legsRef, 700);
   });
@@ -1212,8 +1278,8 @@ function fitToRoute(legs: PlottedLeg[], duration = 700) {
   let n=-90,s=90,e=-180,w=180;
   for (const l of legs) { n=Math.max(n,l.lat);s=Math.min(s,l.lat);e=Math.max(e,l.lng);w=Math.min(w,l.lng); }
   const padLat=Math.max(1.2,(n-s)*0.18), padLng=Math.max(1.2,(e-w)*0.18);
-  try { _chart.zoomToGeoBounds({ left:w-padLng,right:e+padLng,top:n+padLat,bottom:s-padLat }, duration); }
-  catch { _chart.zoomToGeoPoint?.(routeCenter(legs), 4.8, true, duration); }
+  try { _chart.zoomToGeoBounds({ left:w-padLng,right:e+padLng,top:n+padLat,bottom:s-padLat }, motionMs(duration)); }
+  catch { _chart.zoomToGeoPoint?.(routeCenter(legs), 4.8, true, motionMs(duration)); }
 }
 
 function backToOverview() {
@@ -1224,13 +1290,8 @@ function backToOverview() {
 }
 
 /* ── Country lighting ─────────────────────────────────────────────────────── */
-function paintCountry(iso: string, color: string) {
-  const poly = _polyById.get(iso); if (!poly) return;
-  poly.set('fill', am5.color(color));
-  poly.states.create('hover', { fill:am5.color(C().hover) });
-}
-/** The fill a lit country should have right now — heat tint if the expense layer
- *  is on and we have spend for it, otherwise its normal visited colour. */
+/** The fill a visited country should have right now — heat tint if the expense
+ *  layer is on and we have spend for it, otherwise its normal visited colour. */
 function litColorFor(iso: string): string {
   if (_layersOn.has('expenses')) {
     const max = Math.max(0, ..._expenseByIso.values());
@@ -1239,15 +1300,71 @@ function litColorFor(iso: string): string {
   }
   return countryColor(iso);
 }
-function lightCountry(iso: string|null) {
-  if (!iso||_lit.has(iso)) return; _lit.add(iso);
+
+/**
+ * Give one country its explicit paint for its current state: visited (full
+ * colour), planned (dashed outline, faint fill — not counted as visited) or
+ * plain land. Painted countries are remembered so a theme switch can repaint
+ * them (an explicit fill would otherwise keep the old theme's colour).
+ */
+function paintState(iso: string) {
   const poly = _polyById.get(iso); if (!poly) return;
-  paintCountry(iso, litColorFor(iso));
-  poly.animate({ key:'fillOpacity', from:0.4, to:1, duration:700, easing:am5.ease.out(am5.ease.cubic) });
+  _painted.add(iso);
+  if (_lit.has(iso)) {
+    poly.setAll({ fill: am5.color(litColorFor(iso)), fillOpacity: 1, stroke: am5.color(C().landStroke), strokeDasharray: [] });
+  } else if (_planned.has(iso)) {
+    const col = am5.color(countryColor(iso));
+    poly.setAll({ fill: col, fillOpacity: 0.28, stroke: col, strokeDasharray: [3, 3] });
+  } else {
+    poly.setAll({ fill: am5.color(C().land), fillOpacity: 1, stroke: am5.color(C().landStroke), strokeDasharray: [] });
+  }
+  poly.states.create('hover', { fill: am5.color(C().hover) });
+}
+
+function markCountry(iso: string | null, state: 'visited' | 'planned') {
+  if (!iso) return;
+  if (state === 'visited') {
+    if (_lit.has(iso)) return;
+    _lit.add(iso); _planned.delete(iso);
+    paintState(iso);
+    if (!prefersReducedMotion()) {
+      _polyById.get(iso)?.animate({ key:'fillOpacity', from:0.4, to:1, duration:700, easing:am5.ease.out(am5.ease.cubic) });
+    }
+  } else {
+    if (_lit.has(iso) || _planned.has(iso)) return;
+    _planned.add(iso);
+    paintState(iso);
+  }
+}
+/** Light a stop's country as visited or planned, by whether its date has come. */
+function lightLeg(leg: PlottedLeg) {
+  markCountry(leg.iso, legVisitState(leg, todayIso()));
 }
 function resetLit() {
-  _lit.forEach((iso) => { const p = _polyById.get(iso); if (p) p.set('fill', am5.color(C().land)); });
-  _lit.clear();
+  const touched = [..._lit, ..._planned];
+  _lit.clear(); _planned.clear();
+  touched.forEach(paintState);
+}
+
+/** Recolour the live chart for the current theme, in place. */
+function repaintChart() {
+  if (!_chart) return;
+  const c = C();
+  if (_idleWorld) {
+    _idleWorld.mapPolygons.template.setAll({ fill: am5.color(c.miniLand), stroke: am5.color(c.miniStroke) });
+  }
+  if (_worldSeries) {
+    const tpl = _worldSeries.mapPolygons.template;
+    tpl.setAll({ fill: am5.color(c.land), stroke: am5.color(c.landStroke) });
+    tpl.states.lookup('hover')?.setAll({ fill: am5.color(c.hover) });
+    _painted.forEach(paintState);
+  }
+  if (_drillSeries && _drillCode) {
+    const tpl = _drillSeries.mapPolygons.template;
+    tpl.setAll({ fill: am5.color(countryColor(_drillCode)), shadowColor: am5.color(c.ink) });
+    tpl.states.lookup('hover')?.setAll({ fill: am5.color(c.hover) });
+  }
+  _repaintExtras.forEach((fn) => fn());
 }
 
 /* ── Timer helpers ────────────────────────────────────────────────────────── */
@@ -1303,7 +1420,7 @@ function panToGeoPoint(lng: number, lat: number, duration = 600, zoomLevel?: num
   if (!_chart) return;
   try {
     const level = zoomLevel ?? Math.min(_chart.get('zoomLevel') ?? 3, 3);
-    _chart.zoomToGeoPoint({ longitude: lng, latitude: lat }, level, true, duration);
+    _chart.zoomToGeoPoint({ longitude: lng, latitude: lat }, level, true, motionMs(duration));
   } catch {}
 }
 
@@ -1333,22 +1450,24 @@ async function travelSequence(legs: PlottedLeg[], replay = false) {
   _paused = false;
   _playing = true;
   setReplayBtnLabel(true);
-  if (replay) resetLit();
 
   const heroImg  = _chart?._heroImg;
   const planeImg = _chart?._planeImg;
   const planeItem = _chart?._planeItem;
 
-  // Reduced-motion: skip animation, just light everything and fit.
-  if (!replay && window.matchMedia?.('(prefers-reduced-motion:reduce)').matches) {
+  // Reduced motion: no flights, hops or camera moves — show the finished route.
+  if (prefersReducedMotion()) {
     const last = legs[legs.length-1];
     heroItem.set('longitude',last.lng); heroItem.set('latitude',last.lat);
-    legs.forEach((l)=>lightCountry(l.iso));
+    if (heroImg) heroImg.style.opacity = '1';
+    legs.forEach(lightLeg);
+    focusLeg(last.id);
     await settleView(legs);
     _playing = false;
     setReplayBtnLabel(false);
     return;
   }
+  if (replay) resetLit();
 
   const FLIGHT_SEG = 45;
 
@@ -1430,7 +1549,7 @@ function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
   return new Promise((resolve) => {
     let i = 0;
     item.set('longitude',legs[0].lng); item.set('latitude',legs[0].lat);
-    focusLeg(legs[0].id); lightCountry(legs[0].iso);
+    focusLeg(legs[0].id); lightLeg(legs[0]);
     const stepTo = (idx:number) => {
       if (_paused) return;
       const l = legs[idx];
@@ -1443,7 +1562,7 @@ function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
       // Sync the country fill and the right-hand list when the traveller arrives.
       setTimeout(() => {
         if (_paused) return;
-        lightCountry(l.iso);
+        lightLeg(l);
         focusLeg(l.id);
       }, LEG_DURATION * 0.7);
     };
@@ -1460,111 +1579,33 @@ function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
 /* ── Timeline scrubber (all footprints) ───────────────────────────────────── */
 /** Build (or rebuild) the date scrubber below the stage for the all-footprints view. */
 function buildTimelineScrubber(legs: PlottedLeg[]) {
+  removeTimelineScrubber();
   const slot = document.getElementById('mapTimelineSlot');
   const range = timelineRange(legs);
-  if (!slot || !range) { removeTimelineScrubber(); return; }
-
-  // Tear down any previous scrubber FIRST (it nulls _timeline), then arm state.
-  removeTimelineScrubber();
-  _timeline = range;
-
-  const el = document.createElement('div');
-  el.className = 'map-timeline';
-  el.id = 'mapTimeline';
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  el.innerHTML = `
-    <button class="map-timeline-play" id="mapTimelinePlay" title="Play through time">▶</button>
-    <div class="map-timeline-track" id="mapTimelineTrack">
-      <div class="map-timeline-fill" id="mapTimelineFill"></div>
-      <div class="map-timeline-handle" id="mapTimelineHandle" role="slider"
-           aria-label="Timeline" tabindex="0"></div>
-    </div>
-    <span class="map-timeline-date" id="mapTimelineDate"></span>`;
-  slot.appendChild(el);
-
-  wireTimelineScrubber(legs);
-  // Start fully revealed (the full footprint), matching the default lit state.
-  setScrubFraction(legs, 1);
+  if (!slot || !range) return;
+  _scrubber = mountScrubber(slot, range, {
+    reveal: (cursorMs) => revealUpTo(legs, cursorMs),
+    onTakeover: stopReplayMotion,
+  });
 }
 
 function removeTimelineScrubber() {
-  stopTimelinePlay();
-  document.getElementById('mapTimeline')?.remove();
-  _timeline = null;
+  _scrubber?.destroy();
+  _scrubber = null;
 }
 
-function wireTimelineScrubber(legs: PlottedLeg[]) {
-  const track = document.getElementById('mapTimelineTrack');
-  const handle = document.getElementById('mapTimelineHandle');
-  const playBtn = document.getElementById('mapTimelinePlay');
-  if (!track || !handle) return;
-
-  const fractionFromEvent = (clientX: number): number => {
-    const rect = track.getBoundingClientRect();
-    return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-  };
-
-  const onMove = (e: PointerEvent) => {
-    if (!_scrubbing) return;
-    setScrubFraction(legs, fractionFromEvent(e.clientX));
-  };
-  const onUp = () => {
-    _scrubbing = false;
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-  };
-  const startDrag = (e: PointerEvent) => {
-    e.preventDefault();
-    stopTimelinePlay();
-    _scrubbing = true;
-    setScrubFraction(legs, fractionFromEvent(e.clientX));
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  };
-
-  track.addEventListener('pointerdown', startDrag);
-  handle.addEventListener('keydown', (e) => {
-    if (!_timeline) return;
-    const step = (_timeline.maxMs - _timeline.minMs) / 40;
-    const cur = currentScrubMs();
-    if (e.key === 'ArrowLeft')  { e.preventDefault(); setScrubFraction(legs, msToFraction(cur - step, _timeline)); }
-    if (e.key === 'ArrowRight') { e.preventDefault(); setScrubFraction(legs, msToFraction(cur + step, _timeline)); }
-  });
-  playBtn?.addEventListener('click', () => {
-    if (_timelineTimer) stopTimelinePlay(); else playTimeline(legs);
-  });
-}
-
-function currentScrubMs(): number {
-  const fill = document.getElementById('mapTimelineFill');
-  const f = fill ? parseFloat(fill.style.width || '100') / 100 : 1;
-  return fractionToMs(f, _timeline);
-}
-
-/** Reveal the footprint up to `fraction` of the timeline: light visited
- *  countries, dim the rest, and park the hero at the latest revealed stop. */
-function setScrubFraction(legs: PlottedLeg[], fraction: number) {
-  if (!_timeline) return;
-  const f = Math.min(1, Math.max(0, fraction));
-  const cursorMs = fractionToMs(f, _timeline);
-
-  const fill = document.getElementById('mapTimelineFill');
-  const handle = document.getElementById('mapTimelineHandle');
-  const dateEl = document.getElementById('mapTimelineDate');
-  if (fill) fill.style.width = `${(f * 100).toFixed(2)}%`;
-  if (handle) handle.style.left = `${(f * 100).toFixed(2)}%`;
-  if (dateEl) dateEl.textContent = fmtScrubDate(cursorMs);
-
-  // Re-light from scratch so dragging backward un-lights later countries.
+/** Reveal the footprint up to `cursorMs`: light the countries visited by then
+ *  (re-lighting from scratch so dragging backward un-lights later ones) and
+ *  park the hero at the latest revealed stop. */
+function revealUpTo(legs: PlottedLeg[], cursorMs: number) {
   resetLit();
   let latest: PlottedLeg | null = null;
   for (const leg of legs) {
     if (legStartMs(leg) <= cursorMs) {
-      lightCountry(leg.iso);
+      lightLeg(leg);
       latest = leg;
     }
   }
-  // Park the hero at the most recently revealed stop (or hide if nothing yet).
   const heroItem = _chart?._heroItem;
   const heroImg = _chart?._heroImg;
   if (latest && heroItem) {
@@ -1576,45 +1617,7 @@ function setScrubFraction(legs: PlottedLeg[], fraction: number) {
   }
 }
 
-function setPlayBtnLabel(playing: boolean) {
-  const btn = document.getElementById('mapTimelinePlay');
-  if (btn) btn.textContent = playing ? '⏸' : '▶';
-}
-
-function stopTimelinePlay() {
-  if (_timelineTimer) { clearInterval(_timelineTimer); _timelineTimer = null; }
-  setPlayBtnLabel(false);
-}
-
-/** Auto-advance the scrubber from start to end, then leave it fully revealed. */
-function playTimeline(legs: PlottedLeg[]) {
-  if (!_timeline) return;
-  stopReplayMotion();   // stop any route animation, then run our own ticker
-  stopTimelinePlay();
-  setScrubFraction(legs, 0);
-  setPlayBtnLabel(true);
-  const STEP = 0.018, INTERVAL = 80;
-  let f = 0;
-  _timelineTimer = window.setInterval(() => {
-    f += STEP;
-    if (f >= 1) {
-      setScrubFraction(legs, 1);
-      stopTimelinePlay();
-      return;
-    }
-    setScrubFraction(legs, f);
-  }, INTERVAL) as unknown as number;
-}
-
 /* ── Side panel helpers ───────────────────────────────────────────────────── */
-function scopeToggleMarkup(): string {
-  return `
-    <div class="map-scope">
-      <button class="map-scope-btn${_scope === 'trip' ? ' active' : ''}" data-scope="trip">This trip</button>
-      <button class="map-scope-btn${_scope === 'all' ? ' active' : ''}" data-scope="all">All footprints</button>
-    </div>`;
-}
-
 function wireScopeToggle(view: HTMLElement) {
   view.querySelectorAll<HTMLButtonElement>('.map-scope-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1628,11 +1631,11 @@ function wireScopeToggle(view: HTMLElement) {
 
 /* ── Layer toggles ────────────────────────────────────────────────────────── */
 const LAYER_META: Record<LayerId, { icon: string; label: string }> = {
-  nomad:    { icon: '☕',  label: 'Work spots' },
-  journal:  { icon: '✍️', label: 'Journal'    },
-  guide:    { icon: '📍', label: 'Guide'      },
-  stay:     { icon: '🛏️', label: 'Stays'      },
-  expenses: { icon: '💸', label: 'Spend heat' },
+  nomad:    { icon: '☕',  label: 'map.layer.nomad'    },
+  journal:  { icon: '✍️', label: 'map.layer.journal'  },
+  guide:    { icon: '📍', label: 'map.layer.guide'    },
+  stay:     { icon: '🛏️', label: 'map.layer.stay'     },
+  expenses: { icon: '💸', label: 'map.layer.expenses' },
 };
 
 // Guide and Spend-heat are per-trip data sources; hide them in "all footprints".
@@ -1658,7 +1661,7 @@ function renderLayersBar() {
   if (!bar) return;
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   bar.innerHTML = `
-    <span class="map-layers-label">Layers</span>
+    <span class="map-layers-label">${esc(t('map.layers'))}</span>
     ${visibleLayers().map((id) => {
       const m = LAYER_META[id];
       const on = _layersOn.has(id);
@@ -1666,7 +1669,7 @@ function renderLayersBar() {
         <button class="map-layer-chip${on ? ' active' : ''}" data-layer="${id}"
                 role="switch" aria-checked="${on}">
           <span class="map-layer-chip-icon">${m.icon}</span>
-          <span class="map-layer-chip-label">${m.label}</span>
+          <span class="map-layer-chip-label">${esc(t(m.label))}</span>
         </button>`;
     }).join('')}`;
 
@@ -1682,72 +1685,20 @@ function renderLayersBar() {
 }
 
 /* ── Side panel ───────────────────────────────────────────────────────────── */
-/** Great-circle distance between two geo points, in kilometres. */
-function flightRowMarkup(chain: FlightChain | null, motionId: string): string {
-  if (!chain) return '';
-  return `
-    <div class="leg-flight-row ${_activeMotionId === motionId ? 'active' : ''}" data-motion-id="${motionId}">
-      <span class="leg-flight-icon">✈️</span>
-      <span class="leg-flight-main">
-        <span class="leg-flight-label">${esc(chain.label)}</span>
-        <span class="leg-flight-sub">${esc(chain.sub)}</span>
-      </span>
-    </div>`;
-}
-
-function statsMarkup(s: ReturnType<typeof summarizeRoute>): string {
-  // Trip scope keeps the familiar two-card summary. "All footprints" adds the
-  // lifetime totals (distance / continents / nights) the user asked for.
-  const card = (num: string, label: string) =>
-    `<div class="map-stat"><div class="map-stat-num">${num}</div><div class="map-stat-label">${label}</div></div>`;
-  if (_scope !== 'all') {
-    return `<div class="map-stats">
-      ${card(String(s.cityCount), 'Cities')}
-      ${card(String(s.countryCount), 'Countries')}
-    </div>`;
-  }
-  return `<div class="map-stats map-stats-all">
-    ${card(String(s.cityCount), 'Cities')}
-    ${card(String(s.countryCount), 'Countries')}
-    ${card(String(s.continentCount), s.continentCount === 1 ? 'Continent' : 'Continents')}
-    ${card(`${fmtKm(s.distanceKm)}`, 'km travelled')}
-    ${card(String(s.nightCount), 'Nights away')}
-    ${card(String(s.legCount), 'Stops')}
-  </div>`;
-}
-
 function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
   const summary = summarizeRoute(legs, _outboundChain, _returnChain);
-
-  // Build leg list. In "all footprints" mode, inject a trip-label separator
-  // whenever the trip changes (legs are sorted chronologically by dateFrom).
-  let lastTripId: string | null | undefined = undefined;
-  const listItems: string[] = [];
-  legs.forEach((l, i) => {
-    if (_scope === 'all' && l.tripId !== lastTripId) {
-      const label = l.tripName ?? l.tripId ?? 'Unknown trip';
-      listItems.push(`<div class="leg-trip-label">${esc(label)}</div>`);
-      lastTripId = l.tripId;
-    }
-    listItems.push(`
-      <button class="leg-row ${_activeMotionId===l.id ? 'active' : ''}" data-id="${esc(l.id)}" data-motion-id="${esc(l.id)}">
-        <span class="leg-row-num">${i+1}</span>
-        <span class="leg-row-main">
-          <span class="leg-row-city">${esc(l.flag)} ${esc(l.city)}</span>
-          <span class="leg-row-meta">${fmtRange(l.dateFrom,l.dateTo)} · ${nights(l.dateFrom,l.dateTo)} nights</span>
-        </span>
-      </button>`);
-  });
+  const trip = _scope === 'trip';
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   (view.querySelector('.map-panel') as HTMLElement).innerHTML = `
-    ${scopeToggleMarkup()}
-    ${statsMarkup(summary)}
+    ${scopeToggleMarkup(_scope)}
+    ${statsMarkup(summary, _scope, loc())}
     <div class="map-legs">
-      ${_scope === 'trip' ? flightRowMarkup(_outboundChain, 'flight-outbound') : ''}
-      ${listItems.join('')}
-      ${_scope === 'trip' ? flightRowMarkup(_returnChain, 'flight-return') : ''}
-    </div>`;
+      ${trip ? flightRowMarkup(_outboundChain, 'flight-outbound', _activeMotionId) : ''}
+      ${legListMarkup(legs, { scope: _scope, activeId: _activeMotionId, today: todayIso(), locale: loc() })}
+      ${trip ? flightRowMarkup(_returnChain, 'flight-return', _activeMotionId) : ''}
+    </div>
+    ${unlocatedMarkup(_unlocated)}`;
 
   wireScopeToggle(view);
   // Layer chips live above the map (their own bar), re-rendered with the panel.
@@ -1759,8 +1710,8 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
       const id = btn.dataset.id!;
       focusLeg(id);
       const leg = legs.find((l)=>l.id===id); if (!leg) return;
-      lightCountry(leg.iso);
-      if (_chart) _chart.zoomToGeoPoint?.({ longitude:leg.lng, latitude:leg.lat }, 6, true, 700);
+      lightLeg(leg);
+      if (_chart) _chart.zoomToGeoPoint?.({ longitude:leg.lng, latitude:leg.lat }, 6, true, motionMs(700));
     });
   });
 }

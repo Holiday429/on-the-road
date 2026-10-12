@@ -77,13 +77,19 @@ export function geoDist(aLng: number, aLat: number, bLng: number, bLat: number):
 
 /* ── Formatting ───────────────────────────────────────────────────────────── */
 
-export function fmtRange(from: string, to: string): string {
+/** Local-midnight date for an ISO `YYYY-MM-DD`. `new Date('2026-10-12')` alone
+ *  is UTC midnight, which shows as the previous day west of Greenwich. */
+function localDate(iso: string): Date {
+  return new Date(`${iso}T00:00:00`);
+}
+
+export function fmtRange(from: string, to: string, locale = 'en-US'): string {
   const o: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return `${new Date(from).toLocaleDateString('en-US', o)} – ${new Date(to).toLocaleDateString('en-US', o)}`;
+  return `${localDate(from).toLocaleDateString(locale, o)} – ${localDate(to).toLocaleDateString(locale, o)}`;
 }
 
 export function nights(from: string, to: string): number {
-  return Math.max(0, Math.round((+new Date(to) - +new Date(from)) / 86400000));
+  return Math.max(0, Math.round((+localDate(to) - +localDate(from)) / 86400000));
 }
 
 export function wrapMapLabel(text: string, maxLineLength = 12): string {

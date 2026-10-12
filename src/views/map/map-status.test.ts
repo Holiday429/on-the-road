@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { legStatus, PIN_COLORS } from './map-status.ts';
+import { legStatus, legVisitState, PIN_COLORS } from './map-status.ts';
 
 const L = (country: string, dateFrom: string, dateTo: string) => ({ country, dateFrom, dateTo });
 
@@ -11,5 +11,13 @@ describe('map status', () => {
   });
   it('has a distinct pin colour per status', () => {
     expect(new Set(Object.values(PIN_COLORS)).size).toBe(3);
+  });
+});
+
+describe('legVisitState', () => {
+  it('is visited once the arrival date has come, planned before', () => {
+    expect(legVisitState({ dateFrom: '2026-10-12' }, '2026-10-12')).toBe('visited');
+    expect(legVisitState({ dateFrom: '2026-10-11' }, '2026-10-12')).toBe('visited');
+    expect(legVisitState({ dateFrom: '2026-10-13' }, '2026-10-12')).toBe('planned');
   });
 });

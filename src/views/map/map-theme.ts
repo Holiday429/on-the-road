@@ -1,4 +1,11 @@
-/* Shared constants between map.ts and landing-map.ts */
+/* ==========================================================================
+   On the Road · Map theme
+   --------------------------------------------------------------------------
+   The one place map code reads its colours from, and the one listener for
+   theme changes. amCharts paints with JS values (not CSS variables), so each
+   chart registers a repaint callback here; on `otr:theme-change` every live
+   chart recolours its shapes in place — no rebuild, so zoom and rotation stay.
+   ========================================================================== */
 
 import { MAP_PALETTE, MAP_PALETTE_DARK, hashStr } from '../../data/palette.ts';
 
@@ -50,10 +57,28 @@ export function mapColors() {
   return isDark() ? MAP_COLORS_DARK : MAP_COLORS_LIGHT;
 }
 
-export const EUROPE_ROUTE = ['DK', 'DE', 'NL', 'BE', 'FR', 'ES', 'PT', 'CH', 'IT'];
-
 export function countryColor(iso: string): string {
   const table = isDark() ? COUNTRY_COLORS_DARK : COUNTRY_COLORS_LIGHT;
   const palette = isDark() ? MAP_PALETTE_DARK : MAP_PALETTE;
   return table[iso] ?? palette[hashStr(iso) % palette.length];
+}
+
+/* ── Repaint registry ─────────────────────────────────────────────────────── */
+const _repaints = new Set<() => void>();
+let _listening = false;
+
+function onThemeChange() {
+  for (const fn of [..._repaints]) {
+    try { fn(); } catch (err) { console.warn('map repaint failed', err); }
+  }
+}
+
+/** Register a callback that recolours a live chart. Returns its unregister fn. */
+export function onMapRepaint(fn: () => void): () => void {
+  _repaints.add(fn);
+  if (!_listening) {
+    _listening = true;
+    window.addEventListener('otr:theme-change', onThemeChange);
+  }
+  return () => { _repaints.delete(fn); };
 }

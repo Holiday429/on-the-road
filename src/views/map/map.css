@@ -470,6 +470,25 @@
 .leg-row-main { display: flex; flex-direction: column; min-width: 0; }
 .leg-row-city { font-family: var(--font-ui); font-weight: var(--fw-medium); font-size: var(--fs-base); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .leg-row-meta { font-size: var(--fs-xs); color: var(--ink-muted); }
+/* Stops still ahead of today: dashed card + a small tag, matching the dashed pin on the map */
+.leg-row.planned { border-style: dashed; }
+.leg-row-planned {
+  margin-left: var(--sp-1); padding: 0 var(--sp-1);
+  border: 1px dashed var(--rule); border-radius: var(--r-sm);
+  font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-muted);
+}
+
+/* Stops geocoding couldn't place */
+.map-unlocated {
+  padding: var(--sp-3); border: 1px dashed var(--rule); border-radius: var(--r-md);
+  font-size: var(--fs-xs); color: var(--ink-muted);
+}
+.map-unlocated-title { font-weight: var(--fw-semibold); color: var(--ink); margin-bottom: var(--sp-1); }
+.map-unlocated-list { margin: 0 0 var(--sp-1); padding-left: var(--sp-4); }
+.map-unlocated-hint { line-height: 1.4; }
+
+/* Map script failed to load: message + retry */
+.map-load-failed { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
 
 /* ── All-footprints trip label ─────────────────────────────────────────── */
 .leg-trip-label {
