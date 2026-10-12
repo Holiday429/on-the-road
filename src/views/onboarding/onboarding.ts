@@ -3,8 +3,8 @@
    ========================================================================== */
 
 import './onboarding.css';
-import { createTrip, switchTrip, AnonymousTripError, type NewTripInput } from '../../data/trip-context.ts';
-import { showRegisterPrompt } from '../../core/paywall.ts';
+import { createTrip, switchTrip, AnonymousTripError, TripQuotaError, type NewTripInput } from '../../data/trip-context.ts';
+import { showRegisterPrompt, showTripQuotaPaywall } from '../../core/paywall.ts';
 import { retagLegacyData } from '../../data/migrate-retag.ts';
 import { createDestinationInput } from '../../core/destination-input.ts';
 import { TRAVEL_STYLES, type TravelStyle } from '../../data/schema.ts';
@@ -22,7 +22,17 @@ const STYLE_META: Record<TravelStyle, { icon: string; label: string }> = {
 
 const COVER_COLORS = ['#f9b830', '#e07b54', '#5b9bd5', '#6abf69', '#9b7dd4', '#e05c7a'];
 
-export function showOnboarding(onDone: () => void): void {
+export interface OnboardingOptions {
+  /** 'first' = a new user's first trip (default). 'new' = "+ New trip" from a signed-in
+   *  session: same form, but ✕ cancels, no legacy-data retag, and quota is handled. */
+  mode?: 'first' | 'new';
+  onCancel?: () => void;
+  /** 'new' mode: runs after the trip exists, before switching to it (refresh the trip list). */
+  beforeSwitch?: () => Promise<void> | void;
+}
+
+export function showOnboarding(onDone: () => void, opts: OnboardingOptions = {}): void {
+  const isNew = opts.mode === 'new';
   const screen = document.getElementById('onboarding-screen');
   if (!screen) return;
 
@@ -37,8 +47,8 @@ export function showOnboarding(onDone: () => void): void {
     <div class="ob-card">
 
       <div class="ob-header">
-        <h1 class="ob-title">${t('onboarding.title')}</h1>
-        <button type="button" class="ob-close" id="ob-close" aria-label="Skip for now">✕</button>
+        <h1 class="ob-title">${t(isNew ? 'app.newTripTitle' : 'onboarding.title')}</h1>
+        <button type="button" class="ob-close" id="ob-close" aria-label="${isNew ? t('common.cancel') : 'Skip for now'}">✕</button>
       </div>
 
       <div class="ob-body">
@@ -171,10 +181,10 @@ export function showOnboarding(onDone: () => void): void {
 
   // ── Close (skip) ─────────────────────────────────────────────────────────
   screen.querySelector('#ob-close')?.addEventListener('click', () => {
-    track('onboarding_skipped');
+    if (!isNew) track('onboarding_skipped');
     screen.setAttribute('hidden', '');
     destPicker?.destroy();
-    onDone();
+    if (isNew) opts.onCancel?.(); else onDone();
   });
 
   // ── Submit ───────────────────────────────────────────────────────────────
@@ -212,20 +222,30 @@ export function showOnboarding(onDone: () => void): void {
 
     try {
       const id = await createTrip(input);
+      await opts.beforeSwitch?.();
       await switchTrip(id);
-      try {
-        const n = await retagLegacyData(id);
-        if (n > 0) console.info(`Re-tagged ${n} legacy docs to trip ${id}.`);
-      } catch (e) {
-        console.warn('Legacy retag skipped:', e);
+      if (!isNew) {
+        try {
+          const n = await retagLegacyData(id);
+          if (n > 0) console.info(`Re-tagged ${n} legacy docs to trip ${id}.`);
+        } catch (e) {
+          console.warn('Legacy retag skipped:', e);
+        }
+        track('onboarding_done');
       }
-      track('onboarding_done');
       screen.setAttribute('hidden', '');
       destPicker?.destroy();
       onDone();
     } catch (e) {
       submitBtn.disabled = false;
       submitBtn.textContent = t('onboarding.btnSubmit');
+      // A trip slot was used elsewhere after the form opened: paywall instead of a dead-end error.
+      if (e instanceof TripQuotaError) {
+        screen.setAttribute('hidden', '');
+        destPicker?.destroy();
+        showTripQuotaPaywall();
+        return;
+      }
       // A guest reached onboarding (e.g. deep link) — prompt sign-in, then
       // resubmit the form they already filled in.
       if (e instanceof AnonymousTripError) {
