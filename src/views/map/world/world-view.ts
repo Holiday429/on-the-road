@@ -112,6 +112,10 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
   }));
 
   const polyById = new Map<string, Am5Obj>();
+  // The countries exist only after amCharts has validated the geodata; a country
+  // opened by a deep link right after boot must wait for that.
+  let polygonsReady: () => void = () => {};
+  const ready = new Promise<void>((resolve) => { polygonsReady = resolve; });
   let current: WorldPaint | null = null;
   let drill: Am5Obj = null;
   let saved: { rotationX: number; zoom: number; lat: number } | null = null;
@@ -185,6 +189,7 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
       if (id) polyById.set(id, poly);
     });
     applyPaint();
+    polygonsReady();
   });
   const offRepaint = onMapRepaint(() => { applyPaint(); drawOverlays(); });
 
@@ -204,6 +209,7 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
   }
 
   async function enterCountry(iso: string): Promise<boolean> {
+    await ready;
     const bounds = countryBounds(iso);
     if (!bounds) return false;
     const token = state.begin(iso);

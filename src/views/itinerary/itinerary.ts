@@ -788,6 +788,7 @@ function renderDetail(leg: Leg): string {
         <div class="rd-hero-tools">
           <button class="rd-glass-btn" data-act="open-guide">${tr('route.btnCityGuide')}</button>
           <button class="rd-glass-btn" data-act="open-compare">${tr('route.btnCompare')}</button>
+          <button class="rd-glass-btn" data-act="open-map">${tr('route.btnOnMap')}</button>
         </div>
         <div class="rd-hero-content">
           <div class="rd-hero-kicker">
@@ -1003,6 +1004,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   });
   on('open-guide', () => navigateTo('cities'));
   on('open-compare', () => navigateTo('budget', { city: leg.city, dateFrom: leg.dateFrom } satisfies NavIntent));
+  on('open-map', () => navigateTo('map', { mode: 'route', legId: leg.id } satisfies NavIntent));
 
   /* — Dates — */
   on('edit-dates', () => openDatesEditor(timeline, leg, patchLeg));

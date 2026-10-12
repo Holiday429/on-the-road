@@ -592,6 +592,24 @@ export function refreshRouteText() {
   if (_host && _chart && _legsRef.length > 0) renderPanel(_host, _legsRef);
 }
 
+let _pendingLeg: string | null = null;
+
+/** Highlight a stop on the route and zoom to it — now, or as soon as the chart has it. */
+export function focusRouteLeg(legId: string) {
+  _pendingLeg = legId;
+  applyPendingLeg();
+}
+
+function applyPendingLeg() {
+  if (!_pendingLeg || !_chart) return;
+  const leg = _legsRef.find((l) => l.id === _pendingLeg);
+  if (!leg) return;
+  _pendingLeg = null;
+  focusLeg(leg.id);
+  lightLeg(leg);
+  _chart.zoomToGeoPoint?.({ longitude: leg.lng, latitude: leg.lat }, 6, true, motionMs(700));
+}
+
 /** The Route tab was shown again after being hidden: re-fit the camera. */
 export function routeShown() {
   if (_chart && _legsRef.length > 0 && !_drillSeries) fitToRoute(_legsRef, 0);
@@ -1083,6 +1101,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     window.setTimeout(() => {
       if (_chart !== mc) return;
       syncHero(); syncPlane(); fitToRoute(legs, 700);
+      applyPendingLeg();
     }, 400);
     // Re-paint any active data layers onto the freshly-booted chart.
     if (_layersOn.has('nomad') && _nomadSpots.length) renderNomadPins();

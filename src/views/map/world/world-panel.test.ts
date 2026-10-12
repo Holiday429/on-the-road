@@ -68,7 +68,7 @@ describe('layer toggles and hover card', () => {
 describe('countryMarkup', () => {
   it('shows header, stats, stamps, trips and the route/back actions', () => {
     const detail = buildCountryDetail('DK', legs, model, TODAY)!;
-    const html = countryMarkup({ detail, locale: 'en-US', stampHtml: (s) => `<i data-stamp="${s.id}"></i>` });
+    const html = countryMarkup({ detail, extras: null, locale: 'en-US', stampHtml: (s) => `<i data-stamp="${s.id}"></i>` });
     expect(html).toContain('Denmark');
     expect(html).toContain('data-act="back"');
     expect(html).toContain('data-route-trip="a"');
@@ -78,7 +78,43 @@ describe('countryMarkup', () => {
   });
   it('says so for a planned country', () => {
     const detail = buildCountryDetail('IT', legs, model, TODAY)!;
-    expect(countryMarkup({ detail, locale: 'en-US', stampHtml: () => '' })).toContain('Planned — not visited yet');
+    expect(countryMarkup({ detail, extras: null, locale: 'en-US', stampHtml: () => '' })).toContain('Planned — not visited yet');
+  });
+});
+
+describe('country extras', () => {
+  const detail = buildCountryDetail('DK', legs, model, TODAY)!;
+  const render = (extras: Parameters<typeof countryMarkup>[0]['extras']) => countryMarkup({ detail, extras, locale: 'en-US', stampHtml: () => '' });
+
+  it('shows nothing extra until there is something to show', () => {
+    const html = render({ journalCount: 0, covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
+    expect(html).not.toContain('world-covers');
+    expect(html).not.toContain('world-spend');
+    expect(html).not.toContain('world-saved');
+  });
+  it('shows journal count with photos, per-trip spend, and saved places', () => {
+    const html = render({
+      journalCount: 3, covers: ['https://x.test/a.jpg', 'javascript:alert(1)'],
+      spend: [{ tripId: 'a', currency: 'EUR', total: 150, count: 2 }, { tripId: 'b', currency: 'CNY', total: 900, count: 1 }],
+      spendTotal: null, nomadCount: 2, guideCount: 1,
+    });
+    expect(html).toContain('3 entries');
+    expect(html).toContain('src="https://x.test/a.jpg"');
+    expect(html).not.toContain('javascript:');          // only http(s) photo URLs are rendered
+    expect(html).toContain('€150');
+    expect(html).toContain('900');
+    expect(html).not.toContain('world-spend-total');    // two currencies → no grand total
+    expect(html).toContain('2 work spots');
+    expect(html).toContain('1 guide idea');
+  });
+  it('adds a total line only when several trips share one currency', () => {
+    const html = render({
+      journalCount: 0, covers: [],
+      spend: [{ tripId: 'a', currency: 'EUR', total: 100, count: 1 }, { tripId: 'b', currency: 'EUR', total: 50, count: 1 }],
+      spendTotal: { currency: 'EUR', total: 150 }, nomadCount: 0, guideCount: 0,
+    });
+    expect(html).toContain('world-spend-total');
+    expect(html).toContain('€150');
   });
 });
 

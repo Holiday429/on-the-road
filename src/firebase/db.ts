@@ -179,7 +179,9 @@ export function createTaggedCollectionStore<S extends z.ZodTypeAny>(
       const emit = () => cb([...byTrip.values()].flat());
       const unsubs = tripIds.map((tid) =>
         createCollectionStore(tid, name, schema).subscribe((rows) => {
-          byTrip.set(tid, rows);
+          // Rows written before a collection was tagged carry no tripId; the
+          // sub-collection they came from is the truth, so stamp it on.
+          byTrip.set(tid, rows.map((r) => ((r as { tripId?: string | null }).tripId ? r : { ...r, tripId: tid })));
           emit();
         }),
       );

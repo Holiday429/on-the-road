@@ -56,6 +56,7 @@ function bookHtml(stamps: StampSpec[], tripName: string, fresh: Set<string>): st
           <div class="pp-cover-count">${esc(t('passport.summary', { n: sum.earned, c: sum.countries }))}</div>
           <div class="pp-cover-bar" role="img" aria-label="${pct}%"><span style="width:${pct}%"></span></div>
           ${sum.total > sum.earned ? `<div class="pp-cover-more">${esc(t('passport.toCome', { n: sum.total - sum.earned }))}</div>` : ''}
+          <button type="button" class="btn btn-ghost pp-cover-map" data-pp-map>${esc(t('passport.onMap'))}</button>
         </div>
       </div>
       ${pages.map((p, pi) => `
@@ -89,6 +90,13 @@ export function openPassport(opts: PassportOptions = {}): void {
   markStampsSeen(earnedIds);
 
   d.body.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('[data-pp-map]')) {
+      // The stamp being looked at (if the book was opened on one) picks the country.
+      const focused = stamps.find((s) => s.id === opts.focusId);
+      closeDrawer();
+      navigateTo('map', { mode: 'world', ...(focused?.iso ? { iso: focused.iso } : {}) });
+      return;
+    }
     const slot = (e.target as HTMLElement).closest<HTMLElement>('.pp-slot[data-leg]');
     if (!slot) return;
     closeDrawer();

@@ -23,11 +23,14 @@ function legStatusColor(leg: StoredLeg): string {
 
 let _root: any = null;
 let _offRepaint: (() => void) | null = null;
+let _pinHit = false;   // set by a pin's click so the container click doesn't also open the map
 
 export async function initDashboardMap(
   container: HTMLElement,
   legs: StoredLeg[],
   onPinClick?: (legId: string) => void,
+  /** The map itself (not a pin) was clicked — open the full Map page. */
+  onOpen?: () => void,
 ): Promise<void> {
   // Dispose any previous instance (reinit on trip change).
   disposeDashboardMap();
@@ -42,6 +45,18 @@ export async function initDashboardMap(
   // No animation theme — lighter, faster for a thumbnail.
   const root = createMapRoot(container, { animated: false });
   _root = root;
+
+  // A click that is neither on a pin nor the end of a drag opens the Map page.
+  if (onOpen) {
+    let down: { x: number; y: number } | null = null;
+    container.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; _pinHit = false; });
+    container.addEventListener('click', (e) => {
+      const moved = down ? Math.hypot(e.clientX - down.x, e.clientY - down.y) : 0;
+      // The pin's own click handler runs in the canvas layer; give it a tick to flag itself.
+      window.setTimeout(() => { if (!_pinHit && moved < 6) onOpen(); }, 0);
+    });
+    container.style.cursor = 'pointer';
+  }
 
   const chart = root.container.children.push(am5map.MapChart.new(root, {
     projection:    am5map.geoMercator(),
@@ -117,7 +132,7 @@ export async function initDashboardMap(
       interactive: !!onPinClick,
       cursorOverStyle: onPinClick ? 'pointer' : 'default',
     });
-    if (onPinClick) container.events.on('click', () => onPinClick(ctx.legId));
+    if (onPinClick) container.events.on('click', () => { _pinHit = true; onPinClick(ctx.legId); });
 
     container.children.push(am5.Circle.new(root2, {
       radius:      11,

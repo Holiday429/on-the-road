@@ -244,6 +244,17 @@ describe('createTaggedCollectionStore — cross-trip aggregation', () => {
     unsub();
   });
 
+  it('subscribeForTrip(null) stamps the owning trip on rows that have no tripId', async () => {
+    setMyTripIdsResolver(() => ['t1', 't2']);
+    const tagged = createTaggedCollectionStore('untagged', ThingSchema);
+    let merged: { id: string; tripId?: string | null }[] = [];
+    const unsub = tagged.subscribeForTrip(null, (rows) => { merged = rows as typeof merged; });
+    await createCollectionStore('t1', 'untagged', ThingSchema).set({ id: 'a', name: 'Alpha' });
+    await createCollectionStore('t2', 'untagged', ThingSchema).set({ id: 'b', name: 'Beta' });
+    expect(Object.fromEntries(merged.map((r) => [r.id, r.tripId]))).toEqual({ a: 't1', b: 't2' });
+    unsub();
+  });
+
   it('subscribeForTrip(null) emits [] when the user belongs to no trips', () => {
     setMyTripIdsResolver(() => []);
     const tagged = createTaggedCollectionStore('legs', ThingSchema);

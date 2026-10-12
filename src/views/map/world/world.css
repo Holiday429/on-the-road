@@ -93,3 +93,12 @@
   .world-chart { height: 62dvh; min-height: 320px; }
   .world-panel { position: static; max-height: none; }
 }
+
+/* Country extras */
+.world-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.world-covers { display: flex; gap: var(--sp-2); }
+.world-cover { width: 72px; height: 72px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--rule); }
+.world-spend { display: flex; flex-direction: column; gap: 4px; }
+.world-spend-row { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--ink); }
+.world-spend-total { border-top: 1px solid var(--rule); padding-top: 4px; }
+.world-saved { display: flex; flex-wrap: wrap; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--ink-muted); }

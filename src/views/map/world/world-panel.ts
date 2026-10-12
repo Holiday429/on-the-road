@@ -7,13 +7,14 @@
    ========================================================================== */
 
 import { t } from '../../../core/i18n.ts';
-import { escHtml as esc } from '../../../core/utils.ts';
+import { escHtml as esc, safeUrl } from '../../../core/utils.ts';
 import type { StampSpec } from '../../../core/paper/stamp.ts';
 import { fmtRange } from '../map-geo.ts';
-import { fmtKm } from '../map-stats.ts';
+import { fmtKm, fmtSpend } from '../map-stats.ts';
 import { unlocatedMarkup } from '../map-panel.ts';
 import type { UnlocatedStop } from '../map-plot.ts';
 import type { CountryDetail } from './country-model.ts';
+import type { CountryExtras } from './country-extras.ts';
 import type { ColorMode, TripRecord, WorldModel } from './world-model.ts';
 
 const card = (num: string, label: string) =>
@@ -94,12 +95,14 @@ export function emptyMarkup(): string {
 
 export interface CountryInput {
   detail: CountryDetail;
+  /** Journal / spend / saved places for this country; null until the stores have answered. */
+  extras: CountryExtras | null;
   locale: string;
   /** Renders one stamp (the controller supplies the clickable passport sticker). */
   stampHtml: (s: StampSpec) => string;
 }
 
-export function countryMarkup({ detail: d, locale, stampHtml }: CountryInput): string {
+export function countryMarkup({ detail: d, extras: x, locale, stampHtml }: CountryInput): string {
   const planned = d.state === 'planned';
   const trips = d.trips.map((tr) => `
     <div class="world-ctrip" style="--trip:${esc(tr.color || 'var(--accent)')}">
@@ -133,7 +136,38 @@ export function countryMarkup({ detail: d, locale, stampHtml }: CountryInput): s
       <h3 class="world-h">${esc(t('world.country.trips'))}</h3>
       <div class="world-ctrips">${trips}</div>
     </section>
-    <button class="btn btn-ghost" data-act="guide">${esc(t('world.country.guide'))}</button>`;
+    ${x ? extrasMarkup(d, x, locale) : ''}
+    <div class="world-actions">
+      <button class="btn btn-ghost" data-act="journal">${esc(t('world.country.journalOpen'))}</button>
+      <button class="btn btn-ghost" data-act="guide">${esc(t('world.country.guide'))}</button>
+    </div>`;
+}
+
+/** Journal, spend and saved places — each section only when there is something to show. */
+function extrasMarkup(d: CountryDetail, x: CountryExtras, locale: string): string {
+  const tripName = (id: string) => d.trips.find((tr) => tr.id === id)?.name ?? '';
+  const journal = x.journalCount ? `
+    <section class="world-section">
+      <h3 class="world-h">${esc(t('world.country.journal'))} · ${esc(t(x.journalCount === 1 ? 'map.pin.entry' : 'map.pin.entries', { n: x.journalCount }))}</h3>
+      ${x.covers.length ? `<div class="world-covers">${x.covers.map((u) => `<img class="world-cover" src="${safeUrl(u)}" alt="" loading="lazy">`).join('')}</div>` : ''}
+    </section>` : '';
+  const spend = x.spend.length ? `
+    <section class="world-section">
+      <h3 class="world-h">${esc(t('world.country.spend'))}</h3>
+      <div class="world-spend">
+        ${x.spend.map((l) => `<div class="world-spend-row"><span>${esc(tripName(l.tripId) || '—')}</span><strong>${esc(fmtSpend(l.total, l.currency || undefined, locale))}</strong></div>`).join('')}
+        ${x.spendTotal && x.spend.length > 1 ? `<div class="world-spend-row world-spend-total"><span>${esc(t('world.country.spendTotal'))}</span><strong>${esc(fmtSpend(x.spendTotal.total, x.spendTotal.currency || undefined, locale))}</strong></div>` : ''}
+      </div>
+    </section>` : '';
+  const saved = x.nomadCount || x.guideCount ? `
+    <section class="world-section">
+      <h3 class="world-h">${esc(t('world.country.saved'))}</h3>
+      <div class="world-saved">
+        ${x.nomadCount ? `<span>☕ ${esc(t('world.country.nomad', { n: x.nomadCount }))}</span>` : ''}
+        ${x.guideCount ? `<span>📍 ${esc(t(x.guideCount === 1 ? 'map.pin.idea' : 'map.pin.ideas', { n: x.guideCount }))}</span>` : ''}
+      </div>
+    </section>` : '';
+  return journal + spend + saved;
 }
 
 /** Hover / aria text for a country on the map. */

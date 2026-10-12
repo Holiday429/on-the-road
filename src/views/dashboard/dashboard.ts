@@ -23,7 +23,6 @@ import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher 
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import type { PlanItem } from '../../data/schema.ts';
-import { initDashboardMap, disposeDashboardMap, dashboardMapZoom } from './dashboard-map.ts';
 import { dayMapModel, type DayMapPoint } from '../../data/day-map.ts';
 import { agendaForDay } from '../../data/day-agenda.ts';
 import { geocode, geocodeLocal } from '../map/geocode.ts';
@@ -703,7 +702,7 @@ function wire(body: HTMLElement): void {
   const zoom = (a: 'in' | 'out' | 'fit') => (e: Event) => {
     e.stopPropagation();
     if (mapMode() === 'day') void import('./dashboard-daymap.ts').then(m => m.dayMapZoom(a));
-    else dashboardMapZoom(a);
+    else void dashMap().then(m => m.dashboardMapZoom(a));
   };
   body.querySelector('#tdMapZoomIn')?.addEventListener('click', zoom('in'));
   body.querySelector('#tdMapZoomOut')?.addEventListener('click', zoom('out'));
@@ -712,8 +711,15 @@ function wire(body: HTMLElement): void {
 }
 
 
+/** amCharts + its map code are heavy and only the "Whole trip" view needs them: load on demand. */
+let _dashMapLoaded = false;
+function dashMap() {
+  _dashMapLoaded = true;
+  return import('./dashboard-map.ts');
+}
+
 function disposeMaps(): void {
-  disposeDashboardMap();
+  if (_dashMapLoaded) void dashMap().then(m => m.disposeDashboardMap());
   void import('./dashboard-daymap.ts').then(m => m.disposeDayMap());
 }
 
@@ -761,10 +767,10 @@ function bootMap(): void {
     _mapCanvas = canvas;
     _mapBootMode = mode;
     if (mode === 'trip') {
-      void initDashboardMap(canvas, _legs, (legId) => {
+      void dashMap().then(m => m.initDashboardMap(canvas, _legs, (legId) => {
         const leg = _legs.find(l => l.id === legId);
         if (leg) openStaysDrawer(leg, todayIso(), null);
-      });
+      }, () => navigateTo('map', { mode: 'route' })));
     }
   }
   if (mode === 'day') syncDay(canvas);

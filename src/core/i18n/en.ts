@@ -1122,4 +1122,12 @@ export const en: StringTable = {
   'world.layers': 'Map layers',
   'world.layer.routes': 'Routes',
   'world.layer.cities': 'Cities',
+  'world.country.journal': 'Journal',
+  'world.country.journalOpen': 'Open journal',
+  'world.country.spend': 'Spend',
+  'world.country.spendTotal': 'Total',
+  'world.country.saved': 'Saved here',
+  'world.country.nomad': '{n} work spots',
+  'passport.onMap': 'See on the map',
+  'route.btnOnMap': '📍 On map',
 };

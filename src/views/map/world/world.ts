@@ -14,6 +14,11 @@ import { waitForSize } from '../amcharts-boot.ts';
 import { plotStoredLegs, type StoredLegInput, type UnlocatedStop } from '../map-plot.ts';
 import type { PlottedLeg } from '../map-stats.ts';
 import { routeStore } from '../../../data/stores/route-store.ts';
+import { journalStore } from '../../../data/stores/journal-store.ts';
+import { expenseStore } from '../../../data/stores/expense-store.ts';
+import { nomadStore } from '../../../data/stores/nomad-store.ts';
+import { cityStore } from '../../../data/stores/city-store.ts';
+import { buildCountryExtras, type ExtrasData } from './country-extras.ts';
 import { listTrips, onTripChange, currentTripId } from '../../../data/trip-context.ts';
 import { todayIso } from '../../../data/trip-phase.ts';
 import { stampsFor, passportSummary, type StampLeg } from '../../../data/stamps.ts';
@@ -33,6 +38,10 @@ export interface WorldHooks {
 export interface WorldController {
   /** Re-apply translated text after a language switch. */
   refreshText(): void;
+  /** Open a country's detail (deep link). Applied once its data is ready. */
+  showCountry(iso: string): void;
+  /** Filter to one trip (deep link). */
+  filterTrip(tripId: string): void;
 }
 
 function stageMarkup(): string {
@@ -70,6 +79,8 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
   let selectedIso: string | null = null;
   let view: WorldView | null = null;
   let plotToken = 0;
+  let pendingIso: string | null = null;
+  const extrasData: ExtrasData = { journal: [], expenses: [], nomad: [], intel: [] };
 
   /* ── Render ──────────────────────────────────────────────────────────── */
   function renderPanel() {
@@ -80,7 +91,10 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
     } else if (selectedIso) {
       const detail = buildCountryDetail(selectedIso, legs, model, today);
       html = detail
-        ? countryMarkup({ detail, locale: getLocale(), stampHtml: (s) => stampSticker(s, 76) })
+        ? countryMarkup({
+          detail, locale: getLocale(), stampHtml: (s) => stampSticker(s, 76),
+          extras: buildCountryExtras(selectedIso, legs, extrasData),
+        })
         : overviewHtml(today);
     } else {
       html = overviewHtml(today);
@@ -115,6 +129,15 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
     model = buildWorldModel(legs, trips, todayIso(), onlyTripId);
     paintMap();
     renderPanel();
+    flushPending();
+  }
+
+  /** Open a deep-linked country as soon as both the chart and the data are ready. */
+  function flushPending() {
+    if (!pendingIso || !view || !model.countries.has(pendingIso)) return;
+    const iso = pendingIso;
+    pendingIso = null;
+    void selectCountry(iso);
   }
 
   /* ── Data ────────────────────────────────────────────────────────────── */
@@ -175,6 +198,7 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
     if (act === 'back') void backToWorld();
     else if (act === 'open-route') hooks.openRoute(currentTripId());
     else if (act === 'guide') void import('../../../core/app.ts').then(({ navigateTo }) => navigateTo('cities'));
+    else if (act === 'journal') void import('../../../core/app.ts').then(({ navigateTo }) => navigateTo('journal'));
   });
   host.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selectedIso) void backToWorld(); });
 
@@ -216,15 +240,31 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
     });
     host.querySelector('#worldLoading')?.remove();
     paintMap();
+    flushPending();
   }
 
   void bootChart();
   routeStore.subscribeAll((r) => { rows = r as unknown as StoredLegInput[]; void replot(); });
+  // What the country panel adds: the country panel re-renders when any of these change.
+  const refreshExtras = () => { if (selectedIso) renderPanel(); };
+  journalStore.subscribeAll((r) => { extrasData.journal = r; refreshExtras(); });
+  expenseStore.subscribeAll((r) => { extrasData.expenses = r; refreshExtras(); });
+  nomadStore.subscribeForTrip(null, (r) => { extrasData.nomad = r; refreshExtras(); });
+  cityStore.subscribeAll((r) => { extrasData.intel = r; refreshExtras(); });
   onTripChange(() => { void loadTrips(); });
   void loadTrips();
   renderPanel();
 
   return {
+    showCountry(iso) {
+      if (view && model.countries.has(iso)) void selectCountry(iso);
+      else pendingIso = iso;     // data (or the chart) isn't ready yet — rebuild() will pick it up
+    },
+    filterTrip(tripId) {
+      onlyTripId = tripId;
+      if (selectedIso) void backToWorld();
+      rebuild();
+    },
     refreshText() {
       const set = (id: string, title: string) => { const el = host.querySelector<HTMLElement>(`#${id}`); if (el) el.title = title; };
       set('worldZoomIn', t('map.zoomIn')); set('worldZoomOut', t('map.zoomOut')); set('worldZoomFit', t('map.zoomFit'));

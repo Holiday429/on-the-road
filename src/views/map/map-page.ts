@@ -13,7 +13,7 @@
    ========================================================================== */
 
 import './map.css';
-import { renderViewTitleMarkup } from '../../core/app.ts';
+import { renderViewTitleMarkup, consumeNavIntent } from '../../core/app.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { switchTrip, currentTripId } from '../../data/trip-context.ts';
@@ -62,6 +62,24 @@ async function openRoute(tripId: string | null) {
   await setMode('route');
 }
 
+/**
+ * Deep links into the map — `navigateTo('map', { mode, iso, tripId, legId })`:
+ *   mode 'route'  → the Route view (of `tripId` if given), focusing `legId`
+ *   otherwise     → the World view, on `iso`'s detail and/or filtered to `tripId`
+ */
+async function applyIntent() {
+  const i = consumeNavIntent('map');
+  if (!i) return;
+  if (i.mode === 'route') {
+    await openRoute(i.tripId ?? null);
+    if (i.legId) (await import('./map.ts')).focusRouteLeg(i.legId);
+    return;
+  }
+  await setMode('world');
+  if (i.tripId) _world?.filterTrip(i.tripId);
+  if (i.iso) _world?.showCountry(i.iso);
+}
+
 export function initMap() {
   if (_inited) return; _inited = true;
   const view = document.getElementById('view-map'); if (!view) return;
@@ -81,6 +99,12 @@ export function initMap() {
   renderChrome(view);
 
   _world = mountWorld(view.querySelector<HTMLElement>('#mapWorldHost')!, { openRoute: (id) => void openRoute(id) });
+
+  // Fresh mounts read the intent now; an already-mounted page is told by app.ts.
+  void applyIntent();
+  window.addEventListener('otr:nav-intent', (e) => {
+    if ((e as CustomEvent).detail?.view === 'map') void applyIntent();
+  });
 
   onLocaleChange(() => {
     renderChrome(view);

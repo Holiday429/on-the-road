@@ -1107,4 +1107,12 @@ export const zh: StringTable = {
   'world.layers': '地图图层',
   'world.layer.routes': '路线',
   'world.layer.cities': '城市',
+  'world.country.journal': '日志',
+  'world.country.journalOpen': '打开日志',
+  'world.country.spend': '花费',
+  'world.country.spendTotal': '合计',
+  'world.country.saved': '这里的收藏',
+  'world.country.nomad': '{n} 个办公地点',
+  'passport.onMap': '在地图上看',
+  'route.btnOnMap': '📍 在地图上看',
 };
