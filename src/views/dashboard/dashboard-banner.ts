@@ -157,7 +157,7 @@ export function renderBanner(d: BannerData, now: Date = appNow()): string {
   return `
     ${renderDial(dial, stop?.leg ?? null, stop?.index ?? 0, stop?.count ?? 0)}
     <div class="td-hero-info">${middle}</div>
-    ${renderClocks(stop?.leg ?? null, d.homeTz, now)}`;
+    ${renderClocks(stop?.leg ?? null, d.homeTz, new Date())}`;   // real time: time travel moves the date, not the world clocks
 }
 
 /** Wire the banner's drawer triggers. `getData` is read at click time so the
@@ -200,14 +200,15 @@ let _tick: ReturnType<typeof setInterval> | null = null;
 function tickBanner(getToday: () => string): void {
   if (document.hidden) return;
   const now = appNow();
+  const real = new Date();      // the world clocks always show the real time, even while looking back
   document.querySelectorAll<SVGElement>('.td-clock[data-tz] svg').forEach((svg) => {
     const tz = (svg.closest('.td-clock') as HTMLElement).dataset.tz!;
-    const a = clockAngles(tz, now);
+    const a = clockAngles(tz, real);
     svg.querySelector('[data-hand="h"]')?.setAttribute('transform', `rotate(${a.hour.toFixed(1)} 22 22)`);
     svg.querySelector('[data-hand="m"]')?.setAttribute('transform', `rotate(${a.minute.toFixed(1)} 22 22)`);
   });
   document.querySelectorAll<HTMLElement>('.td-clock-diff[data-home-tz]').forEach((el) => {
-    el.textContent = formatOffsetHours(offsetHoursBetween(el.dataset.homeTz!, el.dataset.hereTz!, now));
+    el.textContent = formatOffsetHours(offsetHoursBetween(el.dataset.homeTz!, el.dataset.hereTz!, real));
   });
   const today = getToday();
   document.querySelectorAll<HTMLElement>('.td-banner-cd').forEach((el) => {

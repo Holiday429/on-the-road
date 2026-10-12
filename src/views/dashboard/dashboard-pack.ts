@@ -3,8 +3,9 @@
    --------------------------------------------------------------------------
    Always on. Near a flight with a baggage limit it shows weight vs limit;
    otherwise what you're carrying. Below it, an icon per bag (suitcase, backpack…)
-   with its weight — tap one to open the drawer on that bag — and, at the bottom, the
-   Bought / Lost buttons. The corner expand button (or the card) opens the side drawer, drawn like the
+   with its weight — tap one to pick it — and, at the bottom, the Bought / Lost buttons,
+   which then put something into / take something out of the picked bag. Only the corner
+   expand button opens the side drawer, drawn like the
    Pack page itself: a bag card (name, kind, weight meter, category-coloured item
    tags) with ◀ ▶ to move between bags in the top ~70%, and the amber dashed
    Unassigned panel in the bottom ~30%. It reuses the Pack page's stylesheet. The model lives in data/pack-summary.ts.
@@ -20,6 +21,12 @@ import { formatKg, itemWeightG } from '../../data/packing-formula.ts';
 import { categoryColor, categoryLabel, displayWeight, kindLabel, priRank, PRIORITIES, type WeightUnit } from '../pack/pack-helpers.ts';
 import type { PackContainer, PackItem } from '../../data/schema.ts';
 import { openPackBagChangeModal } from './dashboard-modals.ts';
+
+/* The bag picked on the card (container id): Bought / Lost then act on that bag. Lives here
+   because the dashboard re-renders wholesale. A second tap on the bag un-picks it. */
+let _bag: string | null = null;
+/** New trip / re-init. */
+export function resetPackSelection(): void { _bag = null; }
 
 const piecesLabel = (n: number) => (n === 1 ? t('dash.pack.piece1') : t('dash.pack.pieces', { n }));
 const KIND_ICON: Record<string, string> = { suitcase: '🧳', backpack: '🎒', personal: '👜' };
@@ -48,10 +55,11 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
 
   const details = `<button type="button" class="td-expand" data-pk-details title="${esc(t('dash.pack.details'))}" aria-label="${esc(t('dash.pack.details'))}">⤢</button>`;
   const contents = packContents(list!, legs, today);
+  if (_bag && !contents.containers.some((c) => c.container.id === _bag)) _bag = null;
   const bags = !legs.length ? '' : `
     <div class="td-pk-bagicons">
-      ${contents.containers.map((c, i) => `
-        <button type="button" class="td-pk-bagicon" data-pk-bag="${i}" title="${esc(c.container.label)} · ${kg(c.weightG)} kg" aria-label="${esc(c.container.label)}">
+      ${contents.containers.map((c) => `
+        <button type="button" class="td-pk-bagicon${c.container.id === _bag ? ' is-sel' : ''}" data-pk-bag="${esc(c.container.id)}" aria-pressed="${c.container.id === _bag}" title="${esc(c.container.label)} · ${kg(c.weightG)} kg" aria-label="${esc(c.container.label)}">
           <span class="td-pk-bagicon-glyph" aria-hidden="true">${KIND_ICON[c.container.kind] ?? '🎒'}</span>
           <span class="td-pk-bagicon-kg">${kg(c.weightG)}</span>
         </button>`).join('')}
@@ -59,8 +67,8 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
     </div>`;
   const actions = legs.length ? `
     <div class="td-pk-actions">
-      <button type="button" class="btn btn-primary td-pk-act" data-pk-action="acquired">＋ ${esc(t('dash.pack.boughtIn'))}</button>
-      <button type="button" class="btn btn-ghost td-pk-act" data-pk-action="left">－ ${esc(t('dash.pack.lostIn'))}</button>
+      <button type="button" class="btn btn-primary td-pk-act" data-pk-action="acquired" ${_bag ? `data-pk-container="${esc(_bag)}"` : ''}>＋ ${esc(t('dash.pack.boughtIn'))}</button>
+      <button type="button" class="btn btn-ghost td-pk-act" data-pk-action="left" ${_bag ? `data-pk-container="${esc(_bag)}"` : ''}>－ ${esc(t('dash.pack.lostIn'))}</button>
     </div>` : '';
   let body: string;
   if (s.kind === 'near') {
@@ -82,7 +90,7 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
   }
 
   return `
-    <div class="td-widget td-w-pack td-w-pack--open" data-pack-open tabindex="0" role="button" aria-label="${esc(t('dash.widget.pack'))}">
+    <div class="td-widget td-w-pack">
       ${head(details)}
       ${body}
       ${bags}
@@ -201,25 +209,29 @@ async function openPackDrawer(list: PackList, legs: StoredLeg[], today: string, 
 
 /** `get` is read at click time so handlers see the latest stores. */
 export function wirePack(body: HTMLElement, get: () => { list: PackList | null | undefined; legs: StoredLeg[]; today: string }): void {
-  body.querySelectorAll<HTMLElement>('[data-pk-action]').forEach((btn) => {
+  const actions = [...body.querySelectorAll<HTMLElement>('[data-pk-action]')];
+  actions.forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const { list, legs } = get();
-      if (list) openPackBagChangeModal(list, btn.dataset.pkAction as 'acquired' | 'left', legs, btn.dataset.pkContainer || undefined);
+      if (list) openPackBagChangeModal(list, btn.dataset.pkAction as 'acquired' | 'left', legs, _bag || undefined);
     });
   });
-  const card = body.querySelector<HTMLElement>('[data-pack-open]');
-  const open = (bag = 0, trigger: HTMLElement | null = card) => {
+  // Tapping a bag picks it (no drawer); the Bought / Lost buttons then act on it.
+  const bags = [...body.querySelectorAll<HTMLElement>('[data-pk-bag]')];
+  bags.forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    _bag = _bag === b.dataset.pkBag ? null : b.dataset.pkBag ?? null;
+    bags.forEach((x) => {
+      const on = x.dataset.pkBag === _bag;
+      x.classList.toggle('is-sel', on);
+      x.setAttribute('aria-pressed', String(on));
+    });
+  }));
+  // Only the corner ⤢ opens the drawer.
+  body.querySelector<HTMLElement>('[data-pk-details]')?.addEventListener('click', (e) => {
+    e.stopPropagation();
     const { list, legs, today } = get();
-    if (list) void openPackDrawer(list, legs, today, trigger, bag);
-  };
-  card?.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    if (target.closest('[data-pk-action]')) return;
-    const bag = target.closest<HTMLElement>('[data-pk-bag]');
-    open(bag ? Number(bag.dataset.pkBag) : 0, bag ?? card);
-  });
-  card?.addEventListener('keydown', (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); open(); }
+    if (list) void openPackDrawer(list, legs, today, e.currentTarget as HTMLElement);
   });
 }

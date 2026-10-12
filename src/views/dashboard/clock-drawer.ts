@@ -14,22 +14,21 @@ import type { StoredLeg } from '../../data/stores/route-store.ts';
 import { TIMEZONE_CHOICES, timezoneForPlace } from '../../data/country-timezone.ts';
 import { hereTimezoneOverride, setHereTimezoneOverride } from '../../data/home-timezone.ts';
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
-import { appNow } from '../../data/sim-clock.ts';
 import { utcLabel } from '../../data/tz-math.ts';
 
 function timeIn(tz: string): string {
   try {
-    return new Intl.DateTimeFormat(getLocale(), { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(appNow());
+    return new Intl.DateTimeFormat(getLocale(), { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date());
   } catch { return ''; }
 }
 
 function options(current: string, autoLabel: string): string {
   const known = new Set<string>(TIMEZONE_CHOICES.map((c) => c.tz));
-  const extra = (z: string | null) => (z && !known.has(z) ? `<option value="${esc(z)}" ${z === current ? 'selected' : ''}>${esc(z)} · ${esc(utcLabel(z, appNow()))}</option>` : '');
+  const extra = (z: string | null) => (z && !known.has(z) ? `<option value="${esc(z)}" ${z === current ? 'selected' : ''}>${esc(z)} · ${esc(utcLabel(z, new Date()))}</option>` : '');
   return `
     <option value="" ${current === '' ? 'selected' : ''}>${esc(autoLabel)}</option>
     ${extra(current || null)}
-    ${TIMEZONE_CHOICES.map((c) => `<option value="${esc(c.tz)}" ${c.tz === current ? 'selected' : ''}>${esc(c.label)} · ${esc(utcLabel(c.tz, appNow()))}</option>`).join('')}`;
+    ${TIMEZONE_CHOICES.map((c) => `<option value="${esc(c.tz)}" ${c.tz === current ? 'selected' : ''}>${esc(c.label)} · ${esc(utcLabel(c.tz, new Date()))}</option>`).join('')}`;
 }
 
 export interface ClocksDrawerInput {

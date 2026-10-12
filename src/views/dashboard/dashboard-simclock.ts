@@ -107,13 +107,14 @@ function openSimDrawer(trip: { startDate: string; endDate: string } | null, legs
     title: `🕒 ${t('dash.sim.title')}`,
     subtitle: isSimulating() ? t('dash.sim.on', { when: fmtNow() }) : t('dash.sim.off'),
     body: `
-      <div class="field-label">${esc(t('dash.sim.pick'))}</div>
+      <div class="td-sim-h">${esc(t('dash.sim.pick'))}</div>
       <div class="td-sim-cal" data-sim-cal>${simCalendar(viewMonth, picked)}</div>
       <div class="td-sim-row">
+        <button type="button" class="btn btn-ghost" data-sim-today>${esc(t('dash.agenda.today'))}</button>
         <button type="button" class="btn btn-primary" data-sim-apply>${esc(t('dash.sim.apply'))}</button>
       </div>
       ${jumps.length ? `
-        <h3 class="td-dh">${esc(t('dash.sim.jump'))}</h3>
+        <div class="td-sim-h td-sim-h--gap">${esc(t('dash.sim.jump'))}</div>
         <div class="td-sim-jumps">
           ${jumps.map((j) => `<button type="button" class="td-sim-jump" data-sim-to="${esc(j.iso)}"><span>${esc(jumpLabel(j))}</span><small>${esc(fmtDate(j.iso))}</small></button>`).join('')}
         </div>` : ''}
@@ -134,6 +135,7 @@ function openSimDrawer(trip: { startDate: string; endDate: string } | null, legs
     // eslint-disable-next-line no-restricted-syntax -- audited: digits and a localized month name only
     cal.innerHTML = simCalendar(viewMonth, picked);
   });
+  d.root.querySelector('[data-sim-today]')?.addEventListener('click', () => apply(null));   // today = the real clock again
   d.root.querySelector('[data-sim-apply]')?.addEventListener('click', () => apply(`${picked}T${JUMP_TIME}`));
   d.root.querySelectorAll<HTMLElement>('[data-sim-to]').forEach((b) =>
     b.addEventListener('click', () => apply(`${b.dataset.simTo}T${JUMP_TIME}`)));

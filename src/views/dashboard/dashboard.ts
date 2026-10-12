@@ -34,7 +34,7 @@ import { PIN_COLORS } from '../map/map-status.ts';
 import { AGENDA_COLORS } from '../../data/day-agenda.ts';
 import { renderAgendaWidget, wireAgenda, resetAgenda, shownAgendaDay } from './dashboard-agenda.ts';
 import { renderTodoWidget, wireTodo, resetTodoAdd } from './dashboard-todo.ts';
-import { renderPackWidget, wirePack } from './dashboard-pack.ts';
+import { renderPackWidget, wirePack, resetPackSelection } from './dashboard-pack.ts';
 import { renderWhereTo, wireWhereTo, resetWhereTo } from './dashboard-whereto.ts';
 import { captureUiState, restoreUiState, swapHtml, createRenderScheduler, mapSignature } from './dashboard-render.ts';
 import { renderJournalWidget, wireJournal, resetJournalCarousel } from './dashboard-journal.ts';
@@ -785,6 +785,7 @@ export function initDashboard(): void {
   resetAgenda();
   resetWhereTo();
   resetTodoAdd();
+  resetPackSelection();
   resetJournalCarousel();
   _mapMode = null; _mapBootMode = null;
   disposeMaps();
