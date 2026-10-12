@@ -16,6 +16,7 @@ import { expandBounds } from '../map-geo.ts';
 import { onMapRepaint, worldPalette } from '../map-theme.ts';
 import type { Am5Obj } from '../map-amcharts.ts';
 import { countryTone, type ColorMode, type WorldModel } from './world-model.ts';
+import type { LineSeg, CityPoint, CurrentSpot } from './world-geo.ts';
 import { createWorldState, type WorldState } from './world-state.ts';
 
 export interface WorldPaint {
@@ -23,13 +24,19 @@ export interface WorldPaint {
   mode: ColorMode;
   /** Trip id → colour, for "colour by trip". */
   tripColors: ReadonlyMap<string, string>;
-  /** Tooltip text per country (only countries with data). */
-  tooltips: ReadonlyMap<string, string>;
+  /** Trip lines, city dots and the traveller (empty = layer off). */
+  lines: LineSeg[];
+  points: CityPoint[];
+  current: CurrentSpot | null;
 }
 
 export interface WorldViewHooks {
   /** A country with data was clicked / tapped. */
   onCountryClick(iso: string): void;
+  /** The pointer is over a country with data (null = left). x/y are chart pixels. */
+  onHover(iso: string | null, x: number, y: number): void;
+  /** URL of the traveller picture that marks "you are here". */
+  mascotSrc: string;
 }
 
 export interface WorldView {
@@ -73,7 +80,36 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
 
   const world = chart.series.push(am5map.MapPolygonSeries.new(root, { geoJSON: am5geodata_worldLow, exclude: ['AQ'] }));
   const tpl = world.mapPolygons.template;
-  tpl.setAll({ interactive: true, strokeWidth: 0.6, nonScalingStroke: true, tooltipText: '' });
+  tpl.setAll({ interactive: true, strokeWidth: 0.6, nonScalingStroke: true });
+
+  /* Trip lines (solid once travelled, dashed while ahead), city dots, the traveller. */
+  const lineSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
+  const plannedLines = chart.series.push(am5map.MapLineSeries.new(root, {}));
+  for (const ls of [lineSeries, plannedLines]) {
+    ls.mapLines.template.setAll({ strokeWidth: 2, strokeOpacity: 0.9, nonScalingStroke: true, interactive: false, templateField: 'lineSettings' });
+  }
+  plannedLines.mapLines.template.setAll({ strokeDasharray: [4, 5], strokeOpacity: 0.6 });
+  const dots = chart.series.push(am5map.MapPointSeries.new(root, {}));
+  dots.bullets.push((bRoot: Am5Obj, _s: Am5Obj, di: Am5Obj) => {
+    const c = di.dataContext as { iso: string | null; planned: boolean };
+    const pal = worldPalette();
+    const box = am5.Container.new(bRoot, { interactive: !!c.iso, cursorOverStyle: 'pointer' });
+    // A generous invisible target (small countries and tight cities are hard to hit)…
+    box.children.push(am5.Circle.new(bRoot, { radius: 14, fill: am5.color(pal.land), fillOpacity: 0.001 }));
+    // …and the dot itself.
+    box.children.push(am5.Circle.new(bRoot, {
+      radius: 3.5, strokeWidth: 1.5, stroke: am5.color(pal.plannedLine),
+      fill: am5.color(c.planned ? pal.land : pal.visited[3]), fillOpacity: c.planned ? 0.9 : 1,
+    }));
+    box.events.on('click', () => { if (c.iso) hooks.onCountryClick(c.iso); });
+    box.events.on('pointerover', (ev: Am5Obj) => { if (c.iso) hooks.onHover(c.iso, ev.point.x, ev.point.y); });
+    box.events.on('pointerout', () => hooks.onHover(null, 0, 0));
+    return am5.Bullet.new(bRoot, { sprite: box });
+  });
+  const here = chart.series.push(am5map.MapPointSeries.new(root, {}));
+  here.bullets.push((bRoot: Am5Obj) => am5.Bullet.new(bRoot, {
+    sprite: am5.Picture.new(bRoot, { src: hooks.mascotSrc, width: 30, height: 30, centerX: am5.p50, centerY: am5.p100, interactive: false }),
+  }));
 
   const polyById = new Map<string, Am5Obj>();
   let current: WorldPaint | null = null;
@@ -85,6 +121,15 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
     const id = ev.target.dataItem?.get('id');
     if (id && current?.model.countries.has(id)) hooks.onCountryClick(id);
   });
+  tpl.events.on('pointerover', (ev: Am5Obj) => {
+    const id = ev.target.dataItem?.get('id');
+    if (id && current?.model.countries.has(id)) hooks.onHover(id, ev.point.x, ev.point.y);
+  });
+  tpl.events.on('globalpointermove', (ev: Am5Obj) => {
+    const id = ev.target?.dataItem?.get('id');
+    if (id && current?.model.countries.has(id) && ev.point) hooks.onHover(id, ev.point.x, ev.point.y);
+  });
+  tpl.events.on('pointerout', () => hooks.onHover(null, 0, 0));
 
   /* ── Painting ──────────────────────────────────────────────────────────── */
   function colourBase() {
@@ -111,10 +156,26 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
         stroke: am5.color(stroke), strokeDasharray: dash,
         strokeOpacity: dim ? 0.25 : (tone.kind === 'none' ? 0.55 : 0.9),
         cursorOverStyle: rec ? 'pointer' : 'default',
-        tooltipText: current?.tooltips.get(id) ?? '',
       });
     });
     if (drill) drill.mapPolygons.template.setAll({ stroke: am5.color(c.border) });
+  }
+
+  /** Redraw lines, dots and the traveller (colours come from the palette, so also on theme change). */
+  function drawOverlays() {
+    const c = worldPalette();
+    const seg = (l: LineSeg) => ({
+      geometry: { type: 'LineString', coordinates: [l.from, l.to] },
+      lineSettings: { stroke: am5.color(l.color || c.visited[2]) },
+    });
+    const lines = current?.lines ?? [];
+    lineSeries.data.setAll(lines.filter((l) => !l.planned).map(seg));
+    plannedLines.data.setAll(lines.filter((l) => l.planned).map(seg));
+    dots.data.setAll((current?.points ?? []).map((p) => ({
+      geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, iso: p.iso, planned: p.planned,
+    })));
+    const cur = current?.current;
+    here.data.setAll(cur ? [{ geometry: { type: 'Point', coordinates: [cur.lng, cur.lat] } }] : []);
   }
 
   world.events.on('datavalidated', () => {
@@ -125,7 +186,7 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
     });
     applyPaint();
   });
-  const offRepaint = onMapRepaint(applyPaint);
+  const offRepaint = onMapRepaint(() => { applyPaint(); drawOverlays(); });
 
   /* ── Camera helpers ────────────────────────────────────────────────────── */
   const centreLat = (): number => {
@@ -202,6 +263,7 @@ export function createWorldView(container: HTMLElement, hooks: WorldViewHooks): 
         chart.set('rotationX', -p.model.focus.longitude);
       }
       applyPaint();
+      drawOverlays();
     },
     enterCountry,
     leaveCountry,

@@ -23,6 +23,15 @@
 }
 .world-chart { width: 100%; height: 560px; }
 
+/* Hover card (mouse only) */
+.world-hover {
+  position: absolute; z-index: 5; pointer-events: none; max-width: 240px;
+  padding: 6px 10px; border-radius: var(--r-md); background: var(--surface); color: var(--ink);
+  border: 1px solid var(--rule); box-shadow: var(--shadow-md); font-size: var(--fs-sm); white-space: nowrap;
+}
+.world-hover[hidden] { display: none; }
+.world-layers { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
 /* ── Panel ─────────────────────────────────────────────────────────────── */
 .world-panel {
   position: sticky; top: var(--sp-4);

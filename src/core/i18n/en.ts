@@ -1119,4 +1119,7 @@ export const en: StringTable = {
   'world.country.trips': 'Trips here',
   'world.country.viewRoute': 'View route',
   'world.country.guide': 'Open guide',
+  'world.layers': 'Map layers',
+  'world.layer.routes': 'Routes',
+  'world.layer.cities': 'Cities',
 };

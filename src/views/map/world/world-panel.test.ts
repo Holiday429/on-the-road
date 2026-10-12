@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { overviewMarkup, countryMarkup, emptyMarkup, countryTip } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, type WorldLayer } from './world-panel.ts';
 import { buildWorldModel } from './world-model.ts';
 import { buildCountryDetail } from './country-model.ts';
 import type { PlottedLeg } from '../map-stats.ts';
@@ -14,7 +14,7 @@ const trips = [
 ];
 const TODAY = '2026-07-10';
 const model = buildWorldModel(legs, trips, TODAY);
-const base = { model, mode: 'count' as const, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
+const base = { model, mode: 'count' as const, layers: new Set<WorldLayer>(['routes', 'cities']), onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
 
 describe('overviewMarkup', () => {
   const html = overviewMarkup(base);
@@ -48,6 +48,20 @@ describe('overviewMarkup', () => {
   });
   it('lists stops that could not be placed', () => {
     expect(overviewMarkup({ ...base, unlocated: [{ legId: 'x', place: 'Nowhere' }] })).toContain('<li>Nowhere</li>');
+  });
+});
+
+describe('layer toggles and hover card', () => {
+  it('marks which layers are on', () => {
+    const html = overviewMarkup({ ...base, layers: new Set<WorldLayer>(['routes']) });
+    expect(html).toMatch(/map-layer-chip active" data-layer="routes"/);
+    expect(html).toMatch(/map-layer-chip" data-layer="cities"/);
+  });
+  it('hover card: name, visits and nights; only the name for a planned country', () => {
+    const rec = { name: 'Denmark', flag: '🇩🇰', state: 'visited' as const, visits: 2, nights: 27 };
+    expect(hoverCardText(rec)).toBe('🇩🇰 Denmark · 2 visits · 27 nights');
+    expect(hoverCardText({ ...rec, visits: 1, nights: 1 })).toBe('🇩🇰 Denmark · 1 visit · 1 night');
+    expect(hoverCardText({ ...rec, state: 'planned', visits: 0, nights: 0 })).toBe('🇩🇰 Denmark · planned');
   });
 });
 

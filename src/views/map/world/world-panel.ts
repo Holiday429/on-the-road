@@ -19,9 +19,13 @@ import type { ColorMode, TripRecord, WorldModel } from './world-model.ts';
 const card = (num: string, label: string) =>
   `<div class="map-stat"><div class="map-stat-num">${esc(num)}</div><div class="map-stat-label">${esc(label)}</div></div>`;
 
+export type WorldLayer = 'routes' | 'cities';
+
 export interface OverviewInput {
   model: WorldModel;
   mode: ColorMode;
+  /** Which map layers are switched on. */
+  layers: ReadonlySet<WorldLayer>;
   /** The trip the chips are filtered to, if any. */
   onlyTripId: string | null;
   currentTripId: string | null;
@@ -61,6 +65,9 @@ export function overviewMarkup(o: OverviewInput): string {
     <div class="map-scope world-mode" role="group" aria-label="${esc(t('world.color.label'))}">
       <button class="map-scope-btn${o.mode === 'count' ? ' active' : ''}" data-color="count" aria-pressed="${o.mode === 'count'}">${esc(t('world.color.count'))}</button>
       <button class="map-scope-btn${o.mode === 'trip' ? ' active' : ''}" data-color="trip" aria-pressed="${o.mode === 'trip'}">${esc(t('world.color.trip'))}</button>
+    </div>
+    <div class="world-layers" role="group" aria-label="${esc(t('world.layers'))}">
+      ${(['routes', 'cities'] as const).map((id) => `<button class="map-layer-chip${o.layers.has(id) ? ' active' : ''}" data-layer="${id}" role="switch" aria-checked="${o.layers.has(id)}">${esc(t(id === 'routes' ? 'world.layer.routes' : 'world.layer.cities'))}</button>`).join('')}
     </div>
     ${hasCurrent ? `<button class="btn btn-primary world-open-route" data-act="open-route">${esc(t('world.openRoute'))}</button>` : ''}
     ${o.passport ? `<button type="button" class="pp-strip" data-open-passport="">
@@ -134,4 +141,11 @@ export function countryTip(name: string, flag: string, visits: number, planned: 
   const label = `${flag} ${name}`.trim();
   if (planned) return t('world.tip.planned', { name: label });
   return t(visits === 1 ? 'world.tip.visit' : 'world.tip.visits', { name: label, n: visits });
+}
+
+/** Text of the hover card for a country: name, visits and nights. */
+export function hoverCardText(rec: { name: string; flag: string; state: 'visited' | 'planned'; visits: number; nights: number }): string {
+  const head = countryTip(rec.name, rec.flag, rec.visits, rec.state === 'planned');
+  if (rec.state === 'planned') return head;
+  return `${head} · ${t(rec.nights === 1 ? 'map.leg.night' : 'map.leg.nights', { n: rec.nights })}`;
 }

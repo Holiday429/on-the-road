@@ -21,7 +21,8 @@ import { stampSticker, wirePassportOpeners } from '../../passport/passport.ts';
 import { buildCountryDetail } from './country-model.ts';
 import { buildWorldModel, type ColorMode, type WorldModel, type WorldTripInput } from './world-model.ts';
 import { createWorldView, type WorldView } from './world-view.ts';
-import { overviewMarkup, countryMarkup, emptyMarkup, countryTip } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, hoverCardText, type WorldLayer } from './world-panel.ts';
+import { buildTripLines, buildCityPoints, currentSpot } from './world-geo.ts';
 import './world.css';
 
 export interface WorldHooks {
@@ -40,6 +41,7 @@ function stageMarkup(): string {
       <div class="world-main">
         <div class="world-stage">
           <div id="worldChart" class="world-chart"></div>
+          <div class="world-hover" id="worldHover" hidden></div>
           <div class="map-zoom-controls">
             <button class="map-zoom-btn" id="worldZoomIn"  title="${esc(t('map.zoomIn'))}">+</button>
             <button class="map-zoom-btn" id="worldZoomFit" title="${esc(t('map.zoomFit'))}">⊡</button>
@@ -64,6 +66,7 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
   let model: WorldModel = buildWorldModel([], [], todayIso());
   let mode: ColorMode = 'count';
   let onlyTripId: string | null = null;
+  const layers = new Set<WorldLayer>(['routes', 'cities']);
   let selectedIso: string | null = null;
   let view: WorldView | null = null;
   let plotToken = 0;
@@ -91,7 +94,7 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
     const stamps = stampsFor(legs as unknown as StampLeg[], today);
     const sum = passportSummary(stamps);
     return overviewMarkup({
-      model, mode, onlyTripId, currentTripId: currentTripId(), unlocated, locale: getLocale(),
+      model, mode, layers, onlyTripId, currentTripId: currentTripId(), unlocated, locale: getLocale(),
       passport: stamps.length ? { earned: sum.earned, countries: sum.countries } : null,
     });
   }
@@ -99,9 +102,13 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
   function paintMap() {
     if (!view) return;
     const tripColors = new Map(model.trips.filter((tr) => tr.color).map((tr) => [tr.id, tr.color]));
-    const tooltips = new Map<string, string>();
-    for (const c of model.countries.values()) tooltips.set(c.iso, countryTip(c.name, c.flag, c.visits, c.state === 'planned'));
-    view.paint({ model, mode, tripColors, tooltips });
+    const today = todayIso();
+    view.paint({
+      model, mode, tripColors,
+      lines: layers.has('routes') ? buildTripLines(legs, today, onlyTripId, tripColors) : [],
+      points: layers.has('cities') ? buildCityPoints(legs, today, onlyTripId) : [],
+      current: currentSpot(legs, model.trips, today, onlyTripId),
+    });
   }
 
   function rebuild() {
@@ -147,9 +154,15 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
   }
 
   panel.addEventListener('click', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-color],[data-trip],[data-country],[data-route-trip]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-color],[data-trip],[data-country],[data-route-trip],[data-layer]');
     if (!el || !panel.contains(el)) return;
-    const { act, color, trip, country, routeTrip } = el.dataset;
+    const { act, color, trip, country, routeTrip, layer } = el.dataset;
+    if (layer) {
+      const id = layer as WorldLayer;
+      if (layers.has(id)) layers.delete(id); else layers.add(id);
+      paintMap(); renderPanel();
+      return;
+    }
     if (country) { void selectCountry(country); return; }
     if (routeTrip) { hooks.openRoute(routeTrip); return; }
     if (color) { mode = color as ColorMode; paintMap(); renderPanel(); return; }
@@ -186,7 +199,21 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
       }
       return;
     }
-    view = createWorldView(chartEl, { onCountryClick: (iso) => void selectCountry(iso) });
+    const hoverEl = host.querySelector<HTMLElement>('#worldHover')!;
+    // Hover cards are for a mouse; on touch a tap selects instead.
+    const canHover = window.matchMedia?.('(hover: hover)').matches ?? true;
+    view = createWorldView(chartEl, {
+      onCountryClick: (iso) => void selectCountry(iso),
+      mascotSrc: `${import.meta.env.BASE_URL}art/logo-sm.webp`.replace(/\/{2,}/g, '/'),
+      onHover: (iso, x, y) => {
+        const rec = iso ? model.countries.get(iso) : undefined;
+        if (!canHover || !rec) { hoverEl.hidden = true; return; }
+        hoverEl.textContent = hoverCardText(rec);
+        hoverEl.style.left = `${x + 14}px`;
+        hoverEl.style.top = `${y + 14}px`;
+        hoverEl.hidden = false;
+      },
+    });
     host.querySelector('#worldLoading')?.remove();
     paintMap();
   }

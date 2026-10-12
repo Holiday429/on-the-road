@@ -1104,4 +1104,7 @@ export const zh: StringTable = {
   'world.country.trips': '在这里的旅行',
   'world.country.viewRoute': '查看路线',
   'world.country.guide': '打开攻略',
+  'world.layers': '地图图层',
+  'world.layer.routes': '路线',
+  'world.layer.cities': '城市',
 };
