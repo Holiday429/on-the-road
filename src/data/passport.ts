@@ -9,6 +9,7 @@
    ========================================================================== */
 
 import type { StampSpec } from '../core/paper/stamp.ts';
+import { COUNTRY_SHAPES } from '../core/paper/stamp-country.ts';
 import { buildFootprint, type FootprintLeg, type TripVisit } from './footprint.ts';
 import { countryInk } from './country-ink.ts';
 import { hashStr } from './palette.ts';
@@ -36,7 +37,7 @@ function toStamp(v: TripVisit, tripNames: ReadonlyMap<string, string>): Passport
   const id = stampKey(v.iso, v.country, v.tripId);
   return {
     id, kind: 'country', city: v.cities[0] ?? '', country: v.country, iso: v.iso, date: v.date,
-    nights: Math.max(1, v.nights), mode: v.mode, shape: 'entry', rotation: tilt(id), ink: countryInk(v.iso, v.country),
+    nights: Math.max(1, v.nights), mode: v.mode, shape: COUNTRY_SHAPES[hashStr(v.iso || v.country.toLowerCase()) % COUNTRY_SHAPES.length], rotation: tilt(id), ink: countryInk(v.iso, v.country),
     earned: true, tripId: v.tripId, tripName: tripNames.get(v.tripId) ?? '', firstEver: v.firstEver,
     cities: v.cities, legIds: v.legIds,
   };
