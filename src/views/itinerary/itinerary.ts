@@ -23,7 +23,7 @@ import { flagForCountry } from '../../data/destinations.ts';
 import type { StampLeg } from '../../data/stamps.ts';
 import { postmarksFor, type CardPostmarks } from '../../data/card-postmarks.ts';
 import { todayIso as stampToday } from '../../data/trip-phase.ts';
-import { passportStrip, wirePassportOpeners } from '../passport/passport.ts';
+import { mountPassportPockets, wirePassportOpeners } from '../passport/passport-links.ts';
 import { postmarkPair } from '../passport/postmark.ts';
 import {
   uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
@@ -277,7 +277,7 @@ function renderTimeline(): string {
 
   return `
     ${renderAddForm()}
-    ${passportStrip(legs as unknown as StampLeg[])}
+    <div class="pp-pocket-host" data-pp-pocket></div>
     ${sections}
     <div class="route-add-wrap">
       <button class="route-add-btn" id="route-add-toggle">
@@ -914,6 +914,7 @@ function mountAddFormPickers(timeline: HTMLElement) {
 
 function wireList(timeline: HTMLElement) {
   wirePassportOpeners(timeline);
+  mountPassportPockets(timeline);
   timeline.querySelector('#route-add-toggle')?.addEventListener('click', () => openAddForm(timeline));
   timeline.querySelector('#route-link-trip')?.addEventListener('click', () => {
     openTripChooser({ title: tr('route.linkTripTitle'), subtitle: tr('route.linkTripSubtitle') });

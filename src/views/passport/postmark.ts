@@ -5,6 +5,7 @@
    thunk the first time it is seen on this device, then sits still.
    ========================================================================== */
 
+import './passport-links.css';
 import { renderStamp } from '../../core/paper/stamp.ts';
 import { t } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';

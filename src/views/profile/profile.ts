@@ -12,6 +12,7 @@ import { renderEmergencySection, wireEmergencySection, subscribeEmergencySection
 import { renderHomeTzSection, wireHomeTzSection } from './profile-home-tz.ts';
 import { mountPrefControls } from '../../core/pref-mounts.ts';
 import { t } from '../../core/i18n.ts';
+import { mountPassportPocket } from '../passport/passport-links.ts';
 
 let _unsubEmergency: (() => void) | null = null;
 
@@ -27,6 +28,11 @@ function render(): void {
     </section>
 
     <section class="profile-section">
+      <h2 class="profile-section-title">${t('passport.title')}</h2>
+      <div class="pp-pocket-host" data-profile-passport></div>
+    </section>
+
+    <section class="profile-section">
       <h2 class="profile-section-title">${t('profile.sectionEmergency')}</h2>
       ${renderEmergencySection()}
     </section>
@@ -37,6 +43,8 @@ function render(): void {
       ${renderHomeTzSection()}
     </section>`;
 
+  const pp = body.querySelector<HTMLElement>('[data-profile-passport]');
+  if (pp) mountPassportPocket(pp);
   wireAccountSection(body);
   wireEmergencySection(body);
   wireHomeTzSection(body);

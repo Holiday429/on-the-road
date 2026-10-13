@@ -1,96 +1,158 @@
 /* ==========================================================================
-   On the Road · Passport
-   The book (drawer), stamp stickers and the Itinerary strip. The stamp itself
-   is drawn by the paper kit (.pp-stamp in core/paper/paper.css).
+   On the Road · Passport — the book
+   --------------------------------------------------------------------------
+   A desk, and on it a navy passport that opens: a cover, an inside page, the
+   data page, a visas page, stamp pages, a back page. Sheets hinge on the
+   spine in CSS 3D (flip.ts drives them). Pages size their own type with
+   container units (cqw), so a page reads the same at any book size.
    ========================================================================== */
 
-.pp-book { display: flex; flex-direction: column; gap: var(--sp-4); }
+.pp-body { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); padding-bottom: var(--sp-6); }
 
-/* Cover: what this passport is and how full it is. */
-.pp-cover {
-  display: flex; align-items: center; gap: var(--sp-4);
-  padding: var(--sp-4) var(--sp-5);
-  border-radius: var(--r-lg);
-  background: color-mix(in srgb, var(--select-bg) 13%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--select-bg) 30%, var(--rule));
-}
-.pp-cover-emblem { font-size: 38px; line-height: 1; }
-.pp-cover-text { min-width: 0; flex: 1; }
-.pp-cover-name { font-family: var(--font-display); font-weight: var(--fw-medium); font-size: var(--fs-lg); color: var(--ink); overflow-wrap: anywhere; }
-.pp-cover-count { font-size: var(--fs-sm); color: var(--ink-soft); }
-.pp-cover-bar { height: 5px; margin-top: var(--sp-2); border-radius: var(--r-full); background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
-.pp-cover-bar span { display: block; height: 100%; border-radius: inherit; background: var(--select-bg); }
-.pp-cover-more { margin-top: 4px; font-size: var(--fs-xs); color: var(--ink-muted); }
-
-/* A page: paper, a faint guilloche, a page number. */
-.pp-page {
-  position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2);
-  padding: var(--sp-4) var(--sp-3) var(--sp-6);
-  border: 1px solid var(--rule); border-radius: var(--r-md);
+/* ── Desk ────────────────────────────────────────────────────────────────── */
+.pp-desk {
+  width: 100%; display: grid; place-items: center; padding: var(--sp-8) var(--sp-3);
+  border-radius: var(--r-xl); overflow: hidden;
   background:
-    repeating-radial-gradient(circle at 18% 8%, transparent 0 9px, color-mix(in srgb, var(--ink) 3.5%, transparent) 9px 10px),
-    var(--paper-grain), var(--surface);
-  box-shadow: var(--shadow-sm);
+    repeating-linear-gradient(90deg, transparent 0 3px, color-mix(in srgb, var(--ink) 3%, transparent) 3px 4px),
+    repeating-linear-gradient(0deg, transparent 0 3px, color-mix(in srgb, var(--ink) 3%, transparent) 3px 4px),
+    var(--paper-grain), linear-gradient(160deg, var(--pp-desk), var(--pp-desk-2));
+  box-shadow: inset 0 2px 18px color-mix(in srgb, black 12%, transparent);
 }
-.pp-page::after {
-  content: '— ' attr(data-page) ' —';
-  position: absolute; left: 0; right: 0; bottom: 8px; text-align: center;
-  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .12em; color: var(--ink-faint);
+
+/* ── Book ────────────────────────────────────────────────────────────────── */
+.pp-stage {
+  --pw: min(44vw, 470px, calc((100dvh - 300px) * .714));
+  position: relative; width: calc(var(--pw) * 2); height: calc(var(--pw) * 1.4); perspective: 2600px;
+  touch-action: pan-y; user-select: none;
 }
-.pp-slot {
-  display: grid; place-items: center; aspect-ratio: 1 / 1; padding: 0; border: 0; background: none;
-  cursor: pointer; border-radius: var(--r-md);
-  transform: translate(var(--dx, 0), var(--dy, 0));
+.pp-book {
+  position: relative; width: 100%; height: 100%; transform-style: preserve-3d;
+  transition: transform .7s cubic-bezier(.45, .05, .25, 1);
+  filter: drop-shadow(0 18px 22px color-mix(in srgb, black 28%, transparent));
 }
-.pp-slot .pp-stamp { width: 86%; }
+.pp-book.is-closed { transform: translateX(-25%); }
+.pp-book.is-shut { transform: translateX(25%); }
+.pp-spine { position: absolute; left: 50%; top: 0; bottom: 0; width: 0; }
+
+.pp-leaf {
+  position: absolute; top: 0; left: 50%; width: 50%; height: 100%;
+  transform-origin: left center; transform-style: preserve-3d;
+  transition: transform .75s cubic-bezier(.45, .05, .25, 1);
+}
+.pp-leaf.is-turned { transform: rotateY(-180deg); }
+.pp-leaf.is-dragging { transition: none; }
+.pp-face {
+  position: absolute; inset: 0; overflow: hidden; container-type: size;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  border-radius: 3px 10px 10px 3px;
+}
+.pp-face.is-back { transform: rotateY(180deg); border-radius: 10px 3px 3px 10px; }
+/* Shading toward the spine. */
+.pp-face::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, color-mix(in srgb, black 16%, transparent), transparent 10%);
+}
+.pp-face.is-back::after { background: linear-gradient(270deg, color-mix(in srgb, black 16%, transparent), transparent 10%); }
+
+/* Narrow: one page per sheet. */
+.pp-stage.is-single { --pw: min(86vw, 420px, calc((100dvh - 330px) * .714)); width: var(--pw); }
+.pp-stage.is-single .pp-book.is-closed, .pp-stage.is-single .pp-book.is-shut { transform: none; }
+.pp-stage.is-single .pp-spine { left: 0; }
+.pp-stage.is-single .pp-leaf { left: 0; width: 100%; }
+
+/* ── Cover ───────────────────────────────────────────────────────────────── */
+.pp-cover-face {
+  position: absolute; inset: 0; display: grid; place-items: center; padding: 9cqw; text-align: center;
+  background: repeating-linear-gradient(45deg, transparent 0 2px, color-mix(in srgb, black 8%, transparent) 2px 3px), var(--paper-grain),
+    linear-gradient(150deg, var(--pp-cloth), var(--pp-cloth-2));
+  color: var(--pp-gold);
+}
+.pp-cover-frame {
+  display: grid; justify-items: center; gap: 3cqw; width: 100%; height: 100%; align-content: center;
+  border: 1px solid color-mix(in srgb, var(--pp-gold) 70%, transparent); border-radius: 2cqw;
+  box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--pp-cloth) 100%, transparent), inset 0 0 0 5px color-mix(in srgb, var(--pp-gold) 40%, transparent);
+}
+.pp-emblem { width: 30cqw; height: 30cqw; fill: none; stroke: var(--pp-gold); stroke-width: 1.6; stroke-linecap: round; }
+.pp-cover-title { font-family: var(--font-display); font-weight: var(--fw-semibold); font-size: 7.5cqw; letter-spacing: .28em; padding-left: .28em; }
+.pp-cover-rule { width: 22cqw; height: 1px; background: var(--pp-gold); opacity: .6; }
+.pp-cover-name { font-family: var(--font-display); font-size: 5.4cqw; color: color-mix(in srgb, var(--pp-gold) 80%, #fff); overflow-wrap: anywhere; max-width: 80%; }
+.pp-cover-count { font-family: var(--font-data); font-size: 3.1cqw; letter-spacing: .08em; opacity: .85; }
+.pp-cover-hint { position: absolute; bottom: 5cqw; left: 0; right: 0; font-size: 3cqw; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
+
+/* ── Paper pages ─────────────────────────────────────────────────────────── */
+.pp-sheet {
+  position: absolute; inset: 0; padding: 7cqw 7cqw 8cqw; color: var(--ink);
+  background:
+    repeating-radial-gradient(circle at 20% 6%, transparent 0 9px, color-mix(in srgb, var(--ink) 3.5%, transparent) 9px 10px),
+    var(--paper-grain), linear-gradient(180deg, var(--pp-paper), color-mix(in srgb, var(--pp-paper) 92%, var(--pp-paper-edge)));
+  display: flex; flex-direction: column; gap: 3.2cqw;
+}
+.pp-blank { background: var(--pp-paper); }
+.pp-kicker, .pp-page-head, .pp-field-l, .pp-sign-l, .pp-stat-l {
+  font-family: var(--font-data); font-size: 2.6cqw; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+}
+.pp-page-head { display: flex; justify-content: space-between; gap: 2cqw; padding-bottom: 2cqw; border-bottom: 1px solid var(--rule); position: relative; z-index: 1; }
+.pp-page-head span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-soft); }
+.pp-page-no { position: absolute; bottom: 3.4cqw; left: 0; right: 0; text-align: center; font-family: var(--font-data); font-size: 2.6cqw; color: var(--ink-faint); }
+.pp-note { margin: auto; max-width: 70%; text-align: center; font-size: 3.6cqw; line-height: 1.5; color: var(--ink-muted); }
+
+.pp-inside { justify-content: center; align-items: center; text-align: center; gap: 4cqw; }
+.pp-inside-title { font-family: var(--font-display); font-size: 7cqw; font-weight: var(--fw-semibold); overflow-wrap: anywhere; }
+.pp-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4cqw 8cqw; margin-top: 2cqw; }
+.pp-stat-n { font-family: var(--font-data); font-size: 9cqw; font-weight: var(--fw-bold); line-height: 1; }
+.pp-inside-map { margin-top: 3cqw; }
+
+/* Bio page */
+.pp-bio-head { display: flex; justify-content: space-between; font-family: var(--font-data); font-size: 3cqw; letter-spacing: .16em; color: var(--ink-soft); }
+.pp-bio-no { color: var(--ink); font-weight: var(--fw-semibold); }
+.pp-bio-main { display: grid; grid-template-columns: 34cqw 1fr; gap: 5cqw; margin-top: 2cqw; }
+.pp-photo {
+  position: relative; aspect-ratio: 3 / 4; border-radius: 2cqw; overflow: hidden; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--sky-400) 55%, var(--pp-paper)); border: 1px solid var(--rule);
+}
+.pp-photo img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.7) contrast(1.05); }
+.pp-photo-fallback { font-family: var(--font-display); font-size: 14cqw; color: color-mix(in srgb, var(--ink) 55%, transparent); }
+.pp-fields { display: grid; align-content: start; gap: 2.4cqw; min-width: 0; }
+.pp-field-v { font-family: var(--font-data); font-size: 3.7cqw; font-weight: var(--fw-semibold); text-transform: uppercase; overflow-wrap: anywhere; }
+.pp-sign { display: grid; gap: 1cqw; margin-top: 3cqw; }
+.pp-sign-line { height: 8cqw; border-bottom: 1px solid var(--ink-faint); }
+.pp-mrz {
+  margin-top: auto; padding: 2.4cqw 0 0; font-family: var(--font-data); font-size: 2.9cqw; letter-spacing: .02em; line-height: 1.5;
+  color: var(--ink-soft); overflow: hidden; white-space: nowrap;
+  background: color-mix(in srgb, var(--sky-400) 14%, transparent); margin-inline: -7cqw; padding-inline: 7cqw; padding-bottom: 2.4cqw;
+}
+
+/* Stamp pages: the stamps sit on the whole page, the header over the top. */
+.pp-stamps { padding: 0; }
+.pp-stamps .pp-page-head { margin: 7cqw 7cqw 0; }
+.pp-field-area { position: absolute; inset: 0; }
+.pp-slot { position: absolute; width: 38%; transform: translate(-50%, -50%); }
+.pp-slot .pp-stamp { display: block; width: 100%; }
 .pp-slot .pp-stamp svg { width: 100%; height: auto; }
-.pp-slot .pp-stamp.is-pressed { animation-delay: var(--delay, 0ms); }
-.pp-slot:hover .pp-stamp:not(.is-ghost) { opacity: 1; }
-.pp-slot:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
-.pp-slot.is-ghost { cursor: default; }
-.pp-empty { padding: var(--sp-8) var(--sp-4); text-align: center; color: var(--ink-muted); }
 
-/* Sticker: a stamp on a scrap of paper, so it reads on top of any photo. */
-.pp-sticker {
-  display: inline-grid; place-items: center; padding: 4px; border: 0; cursor: pointer;
-  border-radius: var(--r-md); background: color-mix(in srgb, var(--surface) 92%, transparent);
-  box-shadow: var(--shadow-sm); backdrop-filter: blur(2px);
-}
-.pp-sticker:hover { box-shadow: var(--shadow-md); }
-.pp-sticker:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+.pp-backpage { justify-content: center; align-items: center; text-align: center; gap: 4cqw; }
+.pp-backpage-sub { font-family: var(--font-data); font-size: 3cqw; color: var(--ink-muted); }
 
-/* Itinerary: one slim row that opens the book. */
-.pp-strip {
-  display: flex; align-items: center; gap: var(--sp-3); width: 100%; margin-bottom: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4); text-align: left; cursor: pointer;
-  border: 1px solid var(--rule); border-radius: var(--r-md);
-  background: var(--paper-grain), var(--surface); box-shadow: var(--shadow-sm);
-  font: inherit; color: var(--ink-soft); font-size: var(--fs-sm);
+/* ── Controls ────────────────────────────────────────────────────────────── */
+.pp-bar { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--sp-3); }
+.pp-bar .btn { min-width: 40px; }
+.pp-page-label { min-width: 120px; text-align: center; font-family: var(--font-data); font-size: var(--fs-sm); color: var(--ink-muted); }
+.pp-jumps { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); max-width: 760px; }
+.pp-jump {
+  padding: 4px 12px; border-radius: var(--r-full); border: 1px solid var(--rule); background: var(--surface); cursor: pointer;
+  font: inherit; font-size: var(--fs-xs); color: var(--ink-soft);
 }
-.pp-strip:hover { box-shadow: var(--shadow-md); }
-.pp-strip strong { color: var(--ink); font-weight: var(--fw-semibold); }
-.pp-strip-emblem { font-size: 20px; line-height: 1; }
-.pp-strip-text { flex: 1; min-width: 0; }
-.pp-strip-go { color: var(--ink-faint); font-size: 18px; }
+.pp-jump:hover { background: var(--surface-3); }
+.pp-jump:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+.pp-empty-view { padding: var(--sp-8) var(--sp-4); text-align: center; color: var(--ink-muted); }
 
-/* Where the sticker sits on an Itinerary card / hero. */
-.rd-hero-stamp { position: absolute; right: var(--sp-6); bottom: 68px; z-index: 2; }
-@media (max-width: 700px) { .rd-hero-stamp { right: var(--sp-4); bottom: 60px; } .rd-hero-stamp .pp-stamp svg { width: 80px; height: 80px; } }
-.pp-cover-map { margin-top: var(--sp-2); }
+@media (prefers-reduced-motion: reduce) {
+  .pp-book, .pp-leaf { transition: none; }
+}
 
-/* Postmarks on an Itinerary card: bare ink, arrival first, departure tucked under its edge. */
-.pm-pair {
-  display: inline-flex; align-items: center; flex: none; padding: 0; border: 0; background: none; cursor: pointer;
-  border-radius: var(--r-md);
-}
-.pm-pair:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
-.pm-mark { display: inline-flex; }
-.pm-depart { margin-left: -14px; margin-top: 10px; }
-.pm-pair:hover .pm-stamp:not(.is-ghost) { opacity: 1; }
-.route-leg-header .pm-pair { margin-right: -6px; }
-/* Over a photo: pale ink, no multiply (it would vanish on a dark shade). */
-.pm-on-photo .pp-stamp { color: color-mix(in srgb, var(--ink-c) 30%, #fff8ec); mix-blend-mode: normal; opacity: .94; }
-@media (max-width: 640px) {
-  .route-leg-header .pm-pair .pp-stamp svg { width: 46px; height: 46px; }
-  .route-leg-header .pm-depart { margin-left: -10px; }
-}
+/* A stamp not seen yet waits invisible until its page is turned to, then lands. */
+.pp-slot[data-fresh] .pp-stamp:not(.is-pressed) { opacity: 0; }
+/* Narrow: a sheet that has been turned is gone, not hanging off the left. */
+.pp-stage.is-single .pp-leaf { transition: transform .75s cubic-bezier(.45, .05, .25, 1), opacity .2s; }
+.pp-stage.is-single .pp-leaf.is-turned { opacity: 0; transition: transform .75s cubic-bezier(.45, .05, .25, 1), opacity .2s .55s; }

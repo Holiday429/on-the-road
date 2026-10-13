@@ -11,7 +11,7 @@ import { openTripPopover, closeTripPopover, wireTripCalendarHover, cancelCalenda
 import { openNewTripModal } from './trip-modals.ts';
 import profileIcon from '../../icon/profile.png';
 
-export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap';
+export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap' | 'passport';
 
 export interface NavItem {
   id: ViewId;
@@ -116,6 +116,7 @@ function buildSidebarHeader(): string {
           <div class="sidebar-profile-subtitle">${t('app.accountSubtitle')}</div>
         </div>
       </button>
+      <button type="button" class="sidebar-passport" id="sidebar-passport" title="${t('passport.title')}" aria-label="${t('passport.title')}">🛂</button>
     </div>
   `;
 }
@@ -274,6 +275,11 @@ export function buildSidebar() {
   // Signed-in profile header → Profile view (account/billing + emergency card + prefs).
   sidebar.querySelector<HTMLElement>('#sidebar-account-trigger')?.addEventListener('click', () => {
     host!.navigateTo('profile');
+  });
+
+  // The passport belongs to the account, not to a trip — it sits beside the avatar.
+  sidebar.querySelector<HTMLElement>('#sidebar-passport')?.addEventListener('click', () => {
+    host!.navigateTo('passport');
   });
 
   sidebar.querySelectorAll('.nav-item').forEach(item => {

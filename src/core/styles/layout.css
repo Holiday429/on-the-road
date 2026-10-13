@@ -56,6 +56,14 @@
   gap: var(--sp-3);
 }
 
+.sidebar-passport {
+  flex: none; width: 34px; height: 34px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--rule); border-radius: var(--r-full); background: var(--surface); cursor: pointer;
+  font-size: 16px; line-height: 1; transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+.sidebar-passport:hover { background: var(--surface-3); box-shadow: var(--shadow-sm); }
+.sidebar-passport:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+
 .sidebar-auth-trigger,
 .sidebar-account-trigger {
   width: 100%;

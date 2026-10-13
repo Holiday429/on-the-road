@@ -26,7 +26,7 @@ import { listTrips, onTripChange, currentTripId } from '../../../data/trip-conte
 import { todayIso } from '../../../data/trip-phase.ts';
 import { stampsFor, passportSummary, type StampLeg } from '../../../data/stamps.ts';
 import { unseenStamps, markStampsSeen } from '../../../data/stamp-seen.ts';
-import { stampSticker, wirePassportOpeners } from '../../passport/passport.ts';
+import { stampSticker, wirePassportOpeners } from '../../passport/passport-links.ts';
 import { buildCountryDetail } from './country-model.ts';
 import { buildWorldModel, type ColorMode, type WorldModel, type WorldTripInput } from './world-model.ts';
 import { createWorldView, type WorldView } from './world-view.ts';
