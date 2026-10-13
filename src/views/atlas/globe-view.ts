@@ -20,6 +20,7 @@ import { countryTone, type ColorMode, type WorldModel } from './world-model.ts';
 import type { LineSeg, CityPoint, CurrentSpot } from './world-geo.ts';
 import { createWorldState, type WorldState } from './world-state.ts';
 import { flingDistance, type RotationSample } from './world-motion.ts';
+import { nightCentre } from './sun.ts';
 import { clampTilt, focusFor, shortestRotation, MIN_ZOOM, MAX_ZOOM, type GeoBounds, type GlobeCamera } from './globe-focus.ts';
 
 export interface GlobePaint {
@@ -50,6 +51,8 @@ export interface GlobeView {
   zoom(action: 'in' | 'out' | 'fit'): void;
   /** Slowly turn the globe when it has been left alone for a few seconds (off by default). */
   setSpin(on: boolean): void;
+  /** Shade the half of the globe that is in darkness right now. */
+  setNight(on: boolean): void;
   /** False while the page is hidden or a replay is running: nothing should move on its own. */
   setActive(active: boolean): void;
   dispose(): void;
@@ -81,6 +84,19 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
   const world = chart.series.push(am5map.MapPolygonSeries.new(root, { geoJSON: am5geodata_worldLow, exclude: ['AQ'] }));
   const tpl = world.mapPolygons.template;
   tpl.setAll({ interactive: true, strokeWidth: 0.6, nonScalingStroke: true });
+
+  /* The night half: a flat wash over the hemisphere facing away from the sun, redrawn each minute. */
+  const night = chart.series.push(am5map.MapPolygonSeries.new(root, {}));
+  night.mapPolygons.template.setAll({ interactive: false, strokeOpacity: 0, strokeWidth: 0 });
+  let nightOn = false;
+  let nightTimer = 0;
+  function drawNight() {
+    const c = worldPalette();
+    night.mapPolygons.template.setAll({ fill: am5.color(c.night), fillOpacity: c.nightOpacity });
+    if (!nightOn) { night.data.setAll([]); return; }
+    const centre = nightCentre(new Date());
+    night.data.setAll([{ geometry: am5map.getGeoCircle(centre, 90) }]);
+  }
 
   /* Trip lines (solid once travelled, grey dashes while ahead), city dots, the traveller. */
   const lineSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
@@ -192,7 +208,7 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
     applyPaint();
     polygonsReady();
   });
-  const offRepaint = onMapRepaint(() => { applyPaint(); drawOverlays(); });
+  const offRepaint = onMapRepaint(() => { applyPaint(); drawOverlays(); drawNight(); });
 
   /* ── Tilt limit ────────────────────────────────────────────────────────── */
   chart.on('rotationY', (y: number) => {
@@ -347,9 +363,16 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
       }
     },
     setSpin(on) { spinOn = on; scheduleSpin(); },
+    setNight(on) {
+      nightOn = on;
+      window.clearInterval(nightTimer);
+      if (on) nightTimer = window.setInterval(drawNight, 60000);
+      drawNight();
+    },
     setActive(a) { active = a; if (a) scheduleSpin(); else { stopSpin(); stopGlide(); } },
     dispose() {
       abort.abort();
+      window.clearInterval(nightTimer);
       stopSpin(); stopGlide();
       state.leave();
       offRepaint();

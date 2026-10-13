@@ -18,6 +18,7 @@ import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts'
 import { t, onLocaleChange, getLocale } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { renderStamp } from '../../core/paper/stamp.ts';
+import { miniGlobeSvg } from '../../core/paper/mini-globe.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { onPassport, peekFeedLegs } from '../../data/passport-feed.ts';
 import { passportState, snapOf, type PassportFeed } from '../../data/passport-state.ts';
@@ -197,6 +198,7 @@ function render(): void {
       <div class="pp-stage${_single ? ' is-single' : ''}">
         <div class="pp-book" id="pp-book"><div class="pp-spine"></div>${_leaves.map((_, i) => leafHtml(i, near(i), c)).join('')}</div>
       </div>
+      <button type="button" class="pp-prop-globe" data-pp-map title="${esc(t('atlas.title'))}" aria-label="${esc(t('atlas.title'))}">${miniGlobeSvg(52)}</button>
     </div>
     <div class="pp-tray-host" data-pp-tray></div>
     <div class="pp-bar">

@@ -1,10 +1,11 @@
 /* ==========================================================================
-   On the Road · World — controller
+   On the Road · Atlas — controller
    --------------------------------------------------------------------------
-   Mounts the World view into the map page: subscribes to every trip's stops,
-   plots them, builds the model and keeps three things in step — the oval map
-   (world-view.ts), the side panel (world-panel.ts) and the selection (a country,
-   a trip filter, the colour mode). Clicks are wired once, by `data-*` attribute.
+   Mounts the Atlas into its page: subscribes to every trip's stops, plots them,
+   builds the model and keeps things in step — the globe (globe-view.ts), the
+   header line and settings, the side card (world-panel.ts) and the selection (a
+   country, a trip filter, the colour mode). Clicks are wired once, by `data-*`
+   attribute.
    ========================================================================== */
 
 import { t, getLocale } from '../../core/i18n.ts';
@@ -25,11 +26,12 @@ import { listTrips, onTripChange, currentTripId } from '../../data/trip-context.
 import { todayIso } from '../../data/trip-phase.ts';
 import { passportFor } from '../../data/passport.ts';
 import type { FootprintLeg } from '../../data/footprint.ts';
-import { stampSticker, wirePassportOpeners } from '../passport/passport-links.ts';
+import { stampSticker, wirePassportOpeners, openPassport } from '../passport/passport-links.ts';
 import { buildCountryDetail } from './country-model.ts';
 import { buildWorldModel, type ColorMode, type WorldModel, type WorldTripInput } from './world-model.ts';
 import { createGlobeView, type GlobeView } from './globe-view.ts';
-import { overviewMarkup, countryMarkup, emptyMarkup, replayMarkup, summaryCardsMarkup, hoverCardText, type WorldLayer } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, replayMarkup, hudStatsMarkup, settingsMarkup, hoverCardText, type WorldLayer, type AtlasSwitch } from './world-panel.ts';
+import { globeSkinSvg } from './atlas-skin.ts';
 import { buildTripLines, buildCityPoints, currentSpot } from './world-geo.ts';
 import './atlas.css';
 
@@ -50,27 +52,45 @@ export interface AtlasController {
 }
 
 const SPIN_KEY = 'otr:world:autoSpin';
-function readSpin(): boolean {
-  try { return localStorage.getItem(SPIN_KEY) === '1'; } catch { return false; }
+const NIGHT_KEY = 'otr:atlas:night';
+function readFlag(key: string, fallback: boolean): boolean {
+  try { const v = localStorage.getItem(key); return v === null ? fallback : v === '1'; } catch { return fallback; }
+}
+function writeFlag(key: string, on: boolean): void {
+  try { localStorage.setItem(key, on ? '1' : '0'); } catch { /* the preference just won't persist */ }
 }
 
 function stageMarkup(): string {
   return `
-    <div class="world-layout">
-      <div class="world-main">
-        <div class="world-stage">
-          <div id="worldChart" class="world-chart"></div>
-          <div class="world-hover" id="worldHover" hidden></div>
-          <div class="map-zoom-controls">
-            <button class="map-zoom-btn" id="worldZoomIn"  title="${esc(t('map.zoomIn'))}">+</button>
-            <button class="map-zoom-btn" id="worldZoomFit" title="${esc(t('map.zoomFit'))}">⊡</button>
-            <button class="map-zoom-btn" id="worldZoomOut" title="${esc(t('map.zoomOut'))}">−</button>
-          </div>
-          <div class="map-loading" id="worldLoading">${esc(t('map.loading'))}</div>
+    <div class="atlas-desk">
+      <header class="atlas-hud">
+        <div class="atlas-hud-text">
+          <h1 class="atlas-title">${esc(t('atlas.title'))}</h1>
+          <div class="atlas-stats" id="atlasStats"></div>
         </div>
-        <div class="map-timeline-slot" id="worldTimeline"></div>
+        <div class="atlas-tools">
+          <button type="button" class="atlas-gear" id="atlasGear" aria-haspopup="true" aria-expanded="false" title="${esc(t('atlas.settings'))}" aria-label="${esc(t('atlas.settings'))}">⚙</button>
+          <div class="atlas-settings" id="atlasSettings" role="group" aria-label="${esc(t('atlas.settings'))}" hidden></div>
+        </div>
+      </header>
+      <div class="atlas-stage" id="atlasStage">
+        <div class="globe-rig">
+          <div class="globe-sphere"><div id="worldChart" class="world-chart"></div><div class="globe-shade"></div></div>
+          ${globeSkinSvg()}
+        </div>
+        <div class="world-hover" id="worldHover" hidden></div>
+        <div class="map-zoom-controls">
+          <button class="map-zoom-btn" id="worldZoomIn"  title="${esc(t('map.zoomIn'))}">+</button>
+          <button class="map-zoom-btn" id="worldZoomFit" title="${esc(t('map.zoomFit'))}">⊡</button>
+          <button class="map-zoom-btn" id="worldZoomOut" title="${esc(t('map.zoomOut'))}">−</button>
+        </div>
+        <div class="map-loading" id="worldLoading">${esc(t('map.loading'))}</div>
       </div>
-      <aside class="world-panel" id="worldPanel"></aside>
+      <aside class="atlas-card world-panel" id="worldPanel"></aside>
+      <div class="map-timeline-slot atlas-timeline" id="worldTimeline"></div>
+      <button type="button" class="atlas-prop" id="atlasPassport" title="${esc(t('passport.title'))}" aria-label="${esc(t('passport.title'))}">
+        <span class="atlas-prop-cover" aria-hidden="true">🛂</span>
+      </button>
     </div>`;
 }
 
@@ -91,7 +111,8 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   let view: GlobeView | null = null;
   let plotToken = 0;
   let pendingIso: string | null = null;
-  let spin = readSpin();
+  let spin = readFlag(SPIN_KEY, false);
+  let night = readFlag(NIGHT_KEY, true);
   let active = true;
   let asOf: string | null = null;            // set while replaying: the map shows the world as of this date
   let scrubber: Scrubber | null = null;
@@ -105,7 +126,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     if (legs.length === 0 && unlocated.length === 0) {
       html = emptyMarkup();
     } else if (scrubber) {
-      html = replayMarkup(model.summary, getLocale());
+      html = replayMarkup();
     } else if (selectedIso) {
       const detail = buildCountryDetail(selectedIso, legs, model, now);
       html = detail
@@ -125,9 +146,28 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   function overviewHtml(now: string): string {
     const p = passportFor(legs as unknown as FootprintLeg[], now);
     return overviewMarkup({
-      model, mode, layers, spin, canReplay: timelineRange(legs) !== null, onlyTripId, currentTripId: currentTripId(), unlocated, locale: getLocale(),
+      model, mode, canReplay: timelineRange(legs) !== null, onlyTripId, currentTripId: currentTripId(), unlocated, locale: getLocale(),
       passport: p.stamps.length ? { earned: p.stamps.length, countries: p.countries } : null,
     });
+  }
+
+  /** Header line: the lifetime totals (they follow the replay cursor too). */
+  function renderHud() {
+    const el = host.querySelector<HTMLElement>('#atlasStats');
+    // eslint-disable-next-line no-restricted-syntax -- audited: numbers and translated labels, escaped in world-panel.ts
+    if (el) el.innerHTML = legs.length ? hudStatsMarkup(model.summary, getLocale()) : '';
+  }
+
+  const switches = (): Set<AtlasSwitch> => {
+    const on = new Set<AtlasSwitch>(layers);
+    if (spin) on.add('spin');
+    if (night) on.add('night');
+    return on;
+  };
+  function renderSettings() {
+    const el = host.querySelector<HTMLElement>('#atlasSettings');
+    // eslint-disable-next-line no-restricted-syntax -- audited: static markup with escaped translated labels (world-panel.ts)
+    if (el) el.innerHTML = settingsMarkup(switches());
   }
 
   function paintMap() {
@@ -145,6 +185,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   function rebuild() {
     model = buildWorldModel(legs, trips, today(), onlyTripId);
     paintMap();
+    renderHud();
     renderPanel();
     flushPending();
   }
@@ -194,22 +235,9 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   }
 
   panel.addEventListener('click', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-color],[data-trip],[data-country],[data-route-trip],[data-layer],[data-spin]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-color],[data-trip],[data-country],[data-route-trip]');
     if (!el || !panel.contains(el)) return;
-    const { act, color, trip, country, routeTrip, layer } = el.dataset;
-    if ('spin' in el.dataset) {
-      spin = !spin;
-      try { localStorage.setItem(SPIN_KEY, spin ? '1' : '0'); } catch { /* preference just won't persist */ }
-      view?.setSpin(spin);
-      renderPanel();
-      return;
-    }
-    if (layer) {
-      const id = layer as WorldLayer;
-      if (layers.has(id)) layers.delete(id); else layers.add(id);
-      paintMap(); renderPanel();
-      return;
-    }
+    const { act, color, trip, country, routeTrip } = el.dataset;
     if (country) { void selectCountry(country); return; }
     if (routeTrip) { hooks.openRoute(routeTrip); return; }
     if (color) { mode = color as ColorMode; paintMap(); renderPanel(); return; }
@@ -228,6 +256,23 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   });
   host.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selectedIso) void backToWorld(); });
 
+  /* Settings popover: layers, day/night shading, idle spin. */
+  const gear = host.querySelector<HTMLElement>('#atlasGear')!;
+  const settingsEl = host.querySelector<HTMLElement>('#atlasSettings')!;
+  const setSettingsOpen = (open: boolean) => { settingsEl.hidden = !open; gear.setAttribute('aria-expanded', String(open)); };
+  gear.addEventListener('click', (e) => { e.stopPropagation(); setSettingsOpen(settingsEl.hasAttribute('hidden')); });
+  document.addEventListener('click', (e) => { if (!settingsEl.hasAttribute('hidden') && !settingsEl.contains(e.target as Node)) setSettingsOpen(false); });
+  settingsEl.addEventListener('click', (e) => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>('[data-switch]')?.dataset.switch as AtlasSwitch | undefined;
+    if (!id) return;
+    if (id === 'spin') { spin = !spin; writeFlag(SPIN_KEY, spin); view?.setSpin(spin); }
+    else if (id === 'night') { night = !night; writeFlag(NIGHT_KEY, night); view?.setNight(night); }
+    else { if (layers.has(id)) layers.delete(id); else layers.add(id); paintMap(); }
+    renderSettings();
+  });
+  host.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !settingsEl.hasAttribute('hidden')) setSettingsOpen(false); });
+  host.querySelector('#atlasPassport')?.addEventListener('click', () => openPassport());
+
   const on = (id: string, fn: () => void) => host.querySelector(`#${id}`)?.addEventListener('click', fn);
   on('worldZoomIn', () => view?.zoom('in'));
   on('worldZoomOut', () => view?.zoom('out'));
@@ -245,9 +290,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
           asOf = msToIso(ms);
           model = buildWorldModel(legs, trips, asOf, onlyTripId);
           paintMap();
-          const stats = panel.querySelector('.world-replay-stats');
-          // eslint-disable-next-line no-restricted-syntax -- audited: numbers and translated labels, escaped in world-panel.ts
-          if (stats) stats.innerHTML = summaryCardsMarkup(model.summary, getLocale());
+          renderHud();
         },
         onTakeover: () => {},
       });
@@ -282,6 +325,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
       return;
     }
     const hoverEl = host.querySelector<HTMLElement>('#worldHover')!;
+    const stageEl = host.querySelector<HTMLElement>('#atlasStage')!;
     // Hover cards are for a mouse; on touch a tap selects instead.
     const canHover = window.matchMedia?.('(hover: hover)').matches ?? true;
     view = createGlobeView(chartEl, {
@@ -291,13 +335,17 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
         const rec = iso ? model.countries.get(iso) : undefined;
         if (!canHover || !rec) { hoverEl.hidden = true; return; }
         hoverEl.textContent = hoverCardText(rec);
-        hoverEl.style.left = `${x + 14}px`;
-        hoverEl.style.top = `${y + 14}px`;
+        // x/y are chart pixels; the card lives in the stage.
+        const off = chartEl.getBoundingClientRect();
+        const base = stageEl.getBoundingClientRect();
+        hoverEl.style.left = `${off.left - base.left + x + 14}px`;
+        hoverEl.style.top = `${off.top - base.top + y + 14}px`;
         hoverEl.hidden = false;
       },
     });
     host.querySelector('#worldLoading')?.remove();
     view.setSpin(spin);
+    view.setNight(night);
     view.setActive(active);
     paintMap();
     flushPending();
@@ -314,6 +362,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   onTripChange(() => { void loadTrips(); });
   void loadTrips();
   renderPanel();
+  renderSettings();
 
   return {
     showCountry(iso) {
@@ -333,7 +382,11 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     refreshText() {
       const set = (id: string, title: string) => { const el = host.querySelector<HTMLElement>(`#${id}`); if (el) el.title = title; };
       set('worldZoomIn', t('map.zoomIn')); set('worldZoomOut', t('map.zoomOut')); set('worldZoomFit', t('map.zoomFit'));
+      set('atlasGear', t('atlas.settings')); set('atlasPassport', t('passport.title'));
+      const title = host.querySelector('.atlas-title'); if (title) title.textContent = t('atlas.title');
       paintMap();
+      renderHud();
+      renderSettings();
       renderPanel();
     },
   };

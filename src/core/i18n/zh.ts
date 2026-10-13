@@ -1343,4 +1343,6 @@ export const zh: StringTable = {
   'atlas.subtitle': '你去过的每个国家 —— 拖动转动地球,点国家看详情。',
   'atlas.pocket': '{c} 个国家 · {n} 座城市',
   'atlas.pocket.empty': '你的地球还是空白的',
+  'atlas.settings': '地球设置',
+  'atlas.night': '昼夜',
 };

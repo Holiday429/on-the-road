@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, replayMarkup, type WorldLayer } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, replayMarkup, hudStatsMarkup, settingsMarkup, type AtlasSwitch } from './world-panel.ts';
 import { buildWorldModel } from './world-model.ts';
 import { buildCountryDetail } from './country-model.ts';
 import type { PlottedLeg } from '../map/map-stats.ts';
@@ -14,12 +14,13 @@ const trips = [
 ];
 const TODAY = '2026-07-10';
 const model = buildWorldModel(legs, trips, TODAY);
-const base = { model, mode: 'count' as const, layers: new Set<WorldLayer>(['routes', 'cities']), spin: false, canReplay: true, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
+const base = { model, mode: 'count' as const, canReplay: true, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
 
 describe('overviewMarkup', () => {
   const html = overviewMarkup(base);
-  it('shows totals that exclude the planned country', () => {
-    expect(html).toContain('map-stat-num">1<');   // countries
+  it('leaves the totals to the header line (no cards, no layer switches)', () => {
+    expect(html).not.toContain('map-stat-num');
+    expect(html).not.toContain('data-switch');
   });
   it('offers "open current route" only when the current trip has stops', () => {
     expect(html).toContain('data-act="open-route"');
@@ -51,11 +52,19 @@ describe('overviewMarkup', () => {
   });
 });
 
-describe('layer toggles and hover card', () => {
-  it('marks which layers are on', () => {
-    const html = overviewMarkup({ ...base, layers: new Set<WorldLayer>(['routes']) });
-    expect(html).toMatch(/map-layer-chip active" data-layer="routes"/);
-    expect(html).toMatch(/map-layer-chip" data-layer="cities"/);
+describe('header totals, settings and hover card', () => {
+  it('the header line counts only what has been visited, and follows the model', () => {
+    const html = hudStatsMarkup(model.summary, 'en-US');
+    expect(html).toContain('<b>1</b> Countries');       // Italy is only planned
+    expect(html).toContain('Trips');
+    expect(html.match(/atlas-stat/g)).toHaveLength(6);
+  });
+  it('settings mark which switches are on', () => {
+    const html = settingsMarkup(new Set<AtlasSwitch>(['routes', 'night']));
+    expect(html).toMatch(/map-layer-chip active" data-switch="routes"[^>]*aria-checked="true"/);
+    expect(html).toMatch(/map-layer-chip" data-switch="cities"[^>]*aria-checked="false"/);
+    expect(html).toMatch(/map-layer-chip active" data-switch="night"/);
+    expect(html).toMatch(/map-layer-chip" data-switch="spin"/);
   });
   it('hover card: name, visits and nights; only the name for a planned country', () => {
     const rec = { name: 'Denmark', flag: '🇩🇰', state: 'visited' as const, visits: 2, nights: 27 };
@@ -82,16 +91,13 @@ describe('countryMarkup', () => {
   });
 });
 
-describe('replay, spin', () => {
-  it('offers replay only when there is a timeline, and shows the auto-spin switch state', () => {
+describe('replay', () => {
+  it('offers replay only when there is a timeline', () => {
     expect(overviewMarkup(base)).toContain('data-act="replay"');
     expect(overviewMarkup({ ...base, canReplay: false })).not.toContain('data-act="replay"');
-    expect(overviewMarkup(base)).toMatch(/map-layer-chip" data-spin[^>]*aria-checked="false"/);
-    expect(overviewMarkup({ ...base, spin: true })).toMatch(/map-layer-chip active" data-spin[^>]*aria-checked="true"/);
   });
-  it('the replay panel shows running totals and a way out', () => {
-    const html = replayMarkup(model.summary, 'en-US');
-    expect(html).toContain('world-replay-stats');
+  it('the replay panel is a title and a way out', () => {
+    const html = replayMarkup();
     expect(html).toContain('data-act="replay-close"');
     expect(html).toContain('Replaying all trips');
   });

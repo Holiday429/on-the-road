@@ -288,3 +288,11 @@
 .pp-schengen-bar span { display: block; height: 100%; background: var(--sky-500); }
 .pp-schengen-note { font-size: 2.7cqw; color: var(--ink-muted); }
 .pp-danger { color: var(--danger); }
+
+/* The little desk globe in the corner of the passport's desk: a doorway into the Atlas. */
+.pp-prop-globe {
+  position: absolute; right: var(--sp-5); bottom: var(--sp-3); padding: 0; border: 0; background: transparent; cursor: pointer;
+  transform: rotate(4deg); transition: transform var(--dur-fast);
+}
+.pp-prop-globe:hover { transform: rotate(-3deg) translateY(-2px); }
+.pp-prop-globe:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 4px; }

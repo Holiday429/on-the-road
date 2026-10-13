@@ -1,43 +1,118 @@
 /* ==========================================================================
-   On the Road · World view
+   On the Road · Atlas
+   --------------------------------------------------------------------------
+   A full-bleed desk (the same desk colour as the passport's) with a flat,
+   drawn globe on it. Everything here is flat colour from tokens: the sea is one
+   disc, the crescent of shade is one hard-edged shape, the stand is a few SVG
+   strokes. No gradients, no textures, no WebGL.
    ========================================================================== */
 
-/* World | Route switch at the top of the page */
-.map-scope.map-modes { width: auto; align-self: flex-start; margin-bottom: var(--sp-4); }
-.map-modes .map-scope-btn { padding: 6px var(--sp-5); }
-.map-mode-host[hidden] { display: none; }
+/* The page fills the whole content area; its own title lives in the header line. */
+#view-atlas { max-width: none; padding: 0; }
+#view-atlas > .view-header {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
 
-.world-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: var(--sp-6);
-  align-items: start;
+.atlas-desk {
+  --card-w: 340px;
+  position: relative; overflow: hidden; min-height: 100dvh;
+  background: var(--paper-grain), var(--pp-desk);
 }
-.world-stage {
-  position: relative;
-  background: var(--surface-2);
-  border: 1px solid var(--rule);
-  border-radius: var(--r-2xl);
-  overflow: hidden;
-  box-shadow: var(--shadow-md);
+
+/* Header line: title + totals on the left, settings on the right. */
+.atlas-hud {
+  position: absolute; z-index: 6; top: var(--sp-5); left: var(--sp-6); right: var(--sp-6);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); pointer-events: none;
 }
-.world-chart { width: 100%; height: 560px; }
+.atlas-hud > * { pointer-events: auto; }
+.atlas-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-2xl); color: var(--ink); line-height: 1.1; }
+.atlas-stats {
+  margin-top: 6px; display: flex; flex-wrap: wrap; gap: 2px var(--sp-4);
+  font-family: var(--font-data); font-size: var(--fs-sm); color: var(--ink-muted);
+}
+.atlas-stat b { color: var(--ink); font-weight: var(--fw-semibold); }
+.atlas-tools { position: relative; }
+.atlas-gear {
+  width: 36px; height: 36px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: var(--r-full); background: var(--surface); color: var(--ink-muted); font-size: 18px; line-height: 1;
+}
+.atlas-gear:hover { color: var(--ink); box-shadow: var(--shadow-sm); }
+.atlas-gear:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+.atlas-settings {
+  position: absolute; right: 0; top: 44px; z-index: 8; display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2);
+  padding: var(--sp-3); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); box-shadow: var(--shadow-md);
+}
+.atlas-settings[hidden] { display: none; }
+.atlas-settings .map-layer-chip { margin: 0; justify-content: center; }
+
+/* The stage: the globe sits in the middle of whatever the card leaves free. */
+.atlas-stage {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  padding: 76px calc(var(--card-w) + var(--sp-6) * 2) var(--sp-6) var(--sp-6);
+}
+.globe-rig {
+  /* the drawing is 120 × 140: sphere 100 wide inside a ring, stem and base below */
+  --rig-h: min(calc(100dvh - 110px), calc((100vw - var(--sidebar-w) - var(--card-w) - 3 * var(--sp-6)) * 1.1667), 920px);
+  position: relative; height: var(--rig-h); aspect-ratio: 120 / 140; container-type: inline-size;
+}
+.globe-sphere {
+  position: absolute; left: 8.3333%; top: 7.1429%; width: 83.3333%; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+}
+.globe-sphere .world-chart { width: 100%; height: 100%; }
+/* One hard-edged crescent of shade on the lower right — the whole of the "lighting". */
+.globe-shade {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  box-shadow: inset -6.4cqw -4.4cqw 0 0 color-mix(in srgb, black 13%, transparent);
+}
+:root[data-theme='dark'] .globe-shade { box-shadow: inset -6.4cqw -4.4cqw 0 0 color-mix(in srgb, black 30%, transparent); }
+
+/* The frame: flat brass strokes and fills, drawn over the map but never in the way of it. */
+.globe-skin { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.globe-skin .gs-shadow { fill: color-mix(in srgb, var(--ink) 16%, transparent); }
+.globe-skin .gs-stem, .globe-skin .gs-base { fill: var(--amber-700); }
+.globe-skin .gs-ring { fill: none; stroke: var(--amber-600); stroke-width: 1.5; }
+.globe-skin .gs-ticks { fill: none; stroke: var(--amber-600); stroke-width: 3.2; stroke-dasharray: 0.5 4.5; opacity: .55; }
+.globe-skin .gs-axle { stroke: var(--amber-600); stroke-width: 2; stroke-linecap: round; }
+.globe-skin .gs-cap { fill: var(--amber-600); }
+.globe-skin .gs-shine { fill: none; stroke: var(--surface); stroke-width: 2.2; stroke-linecap: round; opacity: .7; }
 
 /* Hover card (mouse only) */
 .world-hover {
-  position: absolute; z-index: 5; pointer-events: none; max-width: 240px;
+  position: absolute; z-index: 7; pointer-events: none; max-width: 240px;
   padding: 6px 10px; border-radius: var(--r-md); background: var(--surface); color: var(--ink);
   border: 1px solid var(--rule); box-shadow: var(--shadow-md); font-size: var(--fs-sm); white-space: nowrap;
 }
 .world-hover[hidden] { display: none; }
-.world-layers { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+.atlas-stage .map-zoom-controls { right: calc(var(--card-w) + var(--sp-6) * 2); bottom: var(--sp-6); }
+.atlas-stage .map-loading { background: transparent; }
+
+/* The card: overview or one country, floating on the right. */
+.atlas-card {
+  position: absolute; z-index: 5; top: 76px; right: var(--sp-6); bottom: var(--sp-6); width: var(--card-w);
+  overflow-y: auto; padding: var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-xl); box-shadow: var(--shadow-md);
+}
+
+/* Replay timeline along the bottom, clear of the card. */
+.atlas-timeline { position: absolute; z-index: 6; left: var(--sp-6); right: calc(var(--card-w) + var(--sp-6) * 2); bottom: var(--sp-5); }
+
+/* The passport lies on the desk: a flat navy booklet in the corner, a doorway into the book. */
+.atlas-prop {
+  position: absolute; z-index: 4; left: var(--sp-6); bottom: var(--sp-6); width: 54px; height: 72px; padding: 0; border: 0; cursor: pointer;
+  background: transparent; transform: rotate(-7deg); transition: transform var(--dur-fast);
+}
+.atlas-prop:hover { transform: rotate(-3deg) translateY(-2px); }
+.atlas-prop:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 4px; }
+.atlas-prop-cover {
+  display: grid; place-items: center; width: 100%; height: 100%; font-size: 22px; line-height: 1;
+  border-radius: 3px 7px 7px 3px; background: var(--pp-cloth);
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 18%, transparent), inset 3px 0 0 color-mix(in srgb, black 22%, transparent);
+}
+.atlas-timeline:not(:empty) ~ .atlas-prop { display: none; }
 
 /* ── Panel ─────────────────────────────────────────────────────────────── */
-.world-panel {
-  position: sticky; top: var(--sp-4);
-  display: flex; flex-direction: column; gap: var(--sp-4);
-  max-height: calc(100dvh - var(--sp-8)); overflow-y: auto;
-}
+.world-panel { display: flex; flex-direction: column; gap: var(--sp-4); }
 .world-empty { padding: var(--sp-6); color: var(--ink-muted); text-align: center; }
 .world-section { display: flex; flex-direction: column; gap: var(--sp-2); }
 .world-h {
@@ -83,17 +158,6 @@
 .world-ctrip-head { display: flex; align-items: center; gap: var(--sp-2); }
 .world-ctrip-go { align-self: flex-start; margin-top: var(--sp-1); }
 
-/* ── Responsive ────────────────────────────────────────────────────────── */
-@media (max-width: 980px) {
-  .world-layout { grid-template-columns: minmax(0, 1fr) 280px; gap: var(--sp-4); }
-  .world-chart { height: 480px; }
-}
-@media (max-width: 680px) {
-  .world-layout { grid-template-columns: 1fr; }
-  .world-chart { height: 62dvh; min-height: 320px; }
-  .world-panel { position: static; max-height: none; }
-}
-
 /* Country extras */
 .world-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .world-covers { display: flex; gap: var(--sp-2); }
@@ -102,3 +166,19 @@
 .world-spend-row { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--ink); }
 .world-spend-total { border-top: 1px solid var(--rule); padding-top: 4px; }
 .world-saved { display: flex; flex-wrap: wrap; gap: var(--sp-3); font-size: var(--fs-sm); color: var(--ink-muted); }
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .atlas-desk { --card-w: 300px; }
+}
+/* Phones and small tablets: header, globe and card stack; the page scrolls. */
+@media (max-width: 820px) {
+  .atlas-desk { min-height: 0; display: flex; flex-direction: column; padding-bottom: var(--sp-6); }
+  .atlas-hud { position: static; padding: var(--sp-4) var(--sp-4) 0; }
+  .atlas-stage { position: relative; inset: auto; padding: var(--sp-3) var(--sp-3) 0; }
+  .globe-rig { --rig-h: calc(min(100vw - 2 * var(--sp-3), 560px) * 1.1667); }
+  .atlas-stage .map-zoom-controls { right: var(--sp-5); bottom: var(--sp-4); }
+  .atlas-card { position: static; width: auto; max-height: none; margin: var(--sp-4) var(--sp-4) 0; }
+  .atlas-timeline { position: static; margin: var(--sp-3) var(--sp-4) 0; }
+  .atlas-prop { display: none; }
+}

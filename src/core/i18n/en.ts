@@ -1358,4 +1358,6 @@ export const en: StringTable = {
   'atlas.subtitle': 'Every country you have been to — drag to spin the globe, tap a country for details.',
   'atlas.pocket': '{c} countries · {n} cities',
   'atlas.pocket.empty': 'Your globe is still blank',
+  'atlas.settings': 'Globe settings',
+  'atlas.night': 'Day & night',
 };
