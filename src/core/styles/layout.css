@@ -56,13 +56,6 @@
   gap: var(--sp-3);
 }
 
-.sidebar-passport {
-  flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
-  border: 0; background: none; cursor: pointer; color: var(--ink-muted);
-  font-size: 24px; line-height: 1; transition: color var(--dur-fast);
-}
-.sidebar-passport:hover { color: var(--accent-deep); }
-.sidebar-passport:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; border-radius: var(--r-sm); }
 
 .sidebar-auth-trigger,
 .sidebar-account-trigger {
@@ -161,10 +154,24 @@
   color: var(--ink-muted);
 }
 
-.sidebar-passport { position: relative; }
-.sidebar-passport.has-pending::after {
-  content: attr(data-count); position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px;
-  display: grid; place-items: center; border-radius: var(--r-full); background: var(--coral-500); color: white;
+/* ── "My world": the traveller's own shelf ────────────────────────────────
+   Pushed to the foot of the sidebar and set on its own ground, so it reads as a
+   shelf of the things that are the traveller's — the stamps collected, the
+   ground covered, who they are — rather than another stop on the trip. */
+.nav-me {
+  margin-top: auto;            /* always at the foot, whatever is above */
+  padding: var(--sp-3) 0 var(--sp-1);
+  border-top: 1px solid var(--rule);
+}
+.nav-me-label { margin-top: 2px; }
+
+/* Stamps waiting to be pressed. */
+.nav-me .nav-item[data-view="passport"] { position: relative; }
+.nav-me .nav-item.has-pending::after {
+  content: attr(data-count); position: absolute; top: 50%; right: var(--sp-3); transform: translateY(-50%);
+  min-width: 16px; height: 16px; padding: 0 4px;
+  display: grid; place-items: center; border-radius: var(--r-full); background: var(--coral-500); color: var(--surface);
   font-size: 10px; font-weight: var(--fw-semibold); line-height: 1;
 }
-.sidebar-passport.has-pending:not([data-count])::after, .sidebar-passport.has-pending[data-count='']::after { content: ''; min-width: 9px; height: 9px; padding: 0; }
+.nav-me .nav-item.has-pending:not([data-count])::after,
+.nav-me .nav-item.has-pending[data-count='']::after { content: ''; min-width: 9px; height: 9px; padding: 0; }

@@ -17,9 +17,15 @@ export const NAV_ICON = {
   budget:   '⚖️',   // Compare
   route:    '🧭',   // Itinerary
   cities:   '📖',   // Guide
-  map:      '🌍',
+  // The Map is one trip's route — a folded paper map; the Atlas is the globe
+  // standing on the traveller's own shelf, so it keeps 🌍.
+  map:      '🗺️',
   expenses: '🧾',
   journal:  '📔',
+  // Me
+  passport: '🛂',
+  atlas:    '🌍',
+  profile:  '⚙️',
 } as const;
 
 export const TRANSPORT_ICON: Record<string, string> = {

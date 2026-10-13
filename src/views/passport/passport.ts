@@ -39,6 +39,8 @@ import {
 import { createFlip, type FlipBook } from './flip.ts';
 import { pageHtml, type PageCtx } from './pages.ts';
 import { openBioEditor } from './bio-edit.ts';
+// The name the traveller goes by is one thing, shown in two places (see profile-me.ts).
+import { defaultNickname } from '../profile/profile-me.ts';
 import { openVisaEditor } from './visa-edit.ts';
 import { visaStore, type StoredVisa } from '../../data/stores/visa-store.ts';
 import { regionLabel, schengenUsage, visaUses, visaWarnings } from '../../data/visa.ts';
@@ -78,12 +80,6 @@ let _replay = 0;
 let _replaying = false;
 let _running = 0;
 const narrow = () => window.matchMedia?.('(max-width: 820px)').matches ?? false;
-
-/** The account's first name — what the passport calls the traveller until they choose a nickname. */
-function defaultNickname(): string {
-  const n = currentUser()?.displayName?.trim() ?? '';
-  return n.split(/\s+/)[0] || t('passport.bio.traveller');
-}
 
 const nickname = (): string => _profile.nickname || defaultNickname();
 const nationality = (): string => _profile.nationality || _safetyNationality;

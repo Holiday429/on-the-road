@@ -87,3 +87,31 @@
 
 .profile-hometz { margin-top: var(--sp-4); max-width: 420px; }
 .profile-hint { font-size: var(--fs-xs); color: var(--ink-muted); }
+
+/* ── "Me": the shared identity, also shown on the passport's data page ────── */
+.profile-subsection-title {
+  margin: var(--sp-5) 0 var(--sp-2); font-family: var(--font-ui); font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold); color: var(--ink-muted); letter-spacing: 0.04em;
+}
+.profile-me { display: flex; align-items: center; gap: var(--sp-4); }
+.profile-me-photo {
+  flex: none; width: 64px; height: 64px; border-radius: var(--r-full); object-fit: cover;
+  border: 1px solid var(--rule); background: var(--surface-2);
+}
+.profile-me-photo--blank { display: grid; place-items: center; font-size: 28px; }
+.profile-me-text { flex: 1; min-width: 0; }
+.profile-me-name { font-family: var(--font-ui); font-size: var(--fs-lg); font-weight: var(--fw-semibold); color: var(--ink); }
+.profile-me-meta { font-size: var(--fs-sm); color: var(--ink-muted); margin-top: 2px; }
+.profile-me-note { margin: var(--sp-3) 0 0; font-size: var(--fs-xs); color: var(--ink-faint); }
+
+/* Phones only: the sidebar's "My world" group, as two rows (see profile.ts). */
+.profile-world-links { display: none; }
+@media (max-width: 768px) {
+  .profile-world-links { display: block; }
+  .profile-world-link {
+    display: flex; align-items: center; gap: var(--sp-3); width: 100%; margin-top: var(--sp-2); padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--rule); border-radius: var(--r-md); background: var(--surface); cursor: pointer;
+    font: inherit; font-size: var(--fs-base); color: var(--ink); text-align: left;
+  }
+  .profile-world-go { margin-left: auto; color: var(--ink-faint); }
+}

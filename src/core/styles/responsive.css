@@ -24,6 +24,15 @@
     display: none;
   }
 
+  /* "My world" keeps its own ground when collapsed; the label becomes a rule. */
+  .nav-me {
+    padding: var(--sp-2) 0 var(--sp-2);
+    border-radius: 0;
+    align-self: stretch;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .nav-me .nav-item.has-pending::after { top: 2px; right: 6px; transform: none; }
+
   /* Collapsed: the pill is just the day count — everything else would not fit. */
   .trip-pill > *:not(.trip-pill-date) { display: none; }
 

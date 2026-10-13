@@ -11,7 +11,6 @@ import { openTripPopover, closeTripPopover, wireTripCalendarHover, cancelCalenda
 import { openNewTripModal } from './trip-modals.ts';
 import profileIcon from '../../icon/profile.png';
 import { onPassport, peekPassport } from '../data/passport-feed.ts';
-import { PASSPORT_ICON } from './icons.ts';
 
 export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap' | 'passport' | 'atlas';
 
@@ -22,7 +21,7 @@ export interface NavItem {
   iconSrc: string;
   emoji?: boolean;
   // `pinned` items render above the Before/During/After sections (e.g. Today).
-  section: 'pinned' | 'before' | 'during' | 'after';
+  section: 'pinned' | 'before' | 'during' | 'after' | 'me';
   // Omit from the mobile bottom bar (still routable and in the desktop sidebar).
   desktopOnly?: boolean;
 }
@@ -45,7 +44,7 @@ export function initSidebar(h: SidebarHost): void {
 export function navLabel(item: NavItem): string {
   return t(`nav.${item.id}`) || item.label;
 }
-function sectionLabel(section: 'before' | 'during' | 'after'): string {
+function sectionLabel(section: 'before' | 'during' | 'after' | 'me'): string {
   return t(`nav.section${section.charAt(0).toUpperCase()}${section.slice(1)}`);
 }
 
@@ -118,8 +117,6 @@ function buildSidebarHeader(): string {
           <div class="sidebar-profile-subtitle">${t('app.accountSubtitle')}</div>
         </div>
       </button>
-      <button type="button" class="sidebar-passport" id="sidebar-passport" title="${t('passport.title')}" aria-label="${t('passport.title')}">${PASSPORT_ICON}</button>
-      <button type="button" class="sidebar-passport sidebar-atlas" id="sidebar-atlas" title="${t('atlas.title')}" aria-label="${t('atlas.title')}">🌍</button>
     </div>
   `;
 }
@@ -259,10 +256,12 @@ function buildTripPill(): string {
   `;
 }
 
-/** The passport icon beside the avatar carries a dot while stamps wait to be pressed (or the real passport is close to expiry). One listener for the app's life: the sidebar is rebuilt often, the button is looked up each time. */
+/** "My passport" in the sidebar carries a dot while stamps wait to be pressed (or
+ *  the real passport is close to expiry). One listener for the app's life: the
+ *  sidebar is rebuilt often, so the item is looked up on each paint. */
 let _passportBadge = false;
 function paintPassportBadge(p: ReturnType<typeof peekPassport>): void {
-  const b = document.getElementById('sidebar-passport');
+  const b = document.querySelector<HTMLElement>('.nav-me .nav-item[data-view="passport"]');
   if (!b) return;
   b.classList.toggle('has-pending', p.pending.length > 0 || p.warnings.length > 0 || p.visaWarnings.length > 0);
   b.dataset.count = p.pending.length ? String(p.pending.length) : '';
@@ -293,15 +292,9 @@ export function buildSidebar() {
     host!.navigateTo('profile');
   });
 
-  // The passport belongs to the account, not to a trip — it sits beside the avatar.
+  // The passport and the atlas are nav items now (the "My world" group); only
+  // the pending-stamp dot still needs watching.
   if (user) watchPassportBadge();
-  sidebar.querySelector<HTMLElement>('#sidebar-passport')?.addEventListener('click', () => {
-    host!.navigateTo('passport');
-  });
-  // …and so does the globe, its twin: where the passport keeps the stamps, the atlas shows the ground.
-  sidebar.querySelector<HTMLElement>('#sidebar-atlas')?.addEventListener('click', () => {
-    host!.navigateTo('atlas');
-  });
 
   sidebar.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', () => host!.navigateTo((item as HTMLElement).dataset.view as ViewId));
@@ -438,5 +431,13 @@ function buildNavSections(): string {
       ${items.map(navItemMarkup).join('')}
     `;
   }).join('');
-  return pinned + grouped;
+  // "Me" is pushed to the foot of the sidebar and framed, so it reads as the
+  // traveller's own shelf rather than another stop in the trip.
+  const mine = host!.navItems().filter(n => n.section === 'me' && host!.isViewAllowed(n.id));
+  const me = mine.length ? `
+    <div class="nav-me">
+      <div class="nav-section-label nav-me-label">${sectionLabel('me')}</div>
+      ${mine.map(navItemMarkup).join('')}
+    </div>` : '';
+  return pinned + grouped + me;
 }

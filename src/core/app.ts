@@ -36,6 +36,13 @@ const NAV_ITEMS: NavItem[] = [
   // After
   { id: 'expenses', label: 'Expenses',  iconSrc: NAV_ICON.expenses, emoji: true, section: 'after'  },
   { id: 'journal',  label: 'Journal',   iconSrc: NAV_ICON.journal,  emoji: true, section: 'after'  },
+  // Me — everything that belongs to the traveller rather than to one trip: the
+  // stamps collected, the ground covered, and who they are. Sits at the foot of
+  // the sidebar, set apart from the trip pages above. Desktop only: the phone's
+  // bottom bar reaches these through its account item.
+  { id: 'passport', label: 'My passport', iconSrc: NAV_ICON.passport, emoji: true, section: 'me', desktopOnly: true },
+  { id: 'atlas',    label: 'My atlas',    iconSrc: NAV_ICON.atlas,    emoji: true, section: 'me', desktopOnly: true },
+  { id: 'profile',  label: 'Settings',    iconSrc: NAV_ICON.profile, emoji: true, section: 'me', desktopOnly: true },
 ];
 
 // Views that used to have their own NAV_ITEMS entry and are now folded into
@@ -63,8 +70,10 @@ export function setAllowedViews(ids: ViewId[] | null) {
   // Old invites may carry a since-removed page id (e.g. "nomad") — remap it
   // to its replacement so those invites don't silently lose the page.
   const mapped = ids?.map(resolveLegacyView);
+  // A share link grants trip pages only: "Me" is the recipient's own account,
+  // never the sharer's, so those ids are not grantable.
   _allowedViews = mapped && mapped.length
-    ? mapped.filter((id) => NAV_ITEMS.some((n) => n.id === id))
+    ? mapped.filter((id) => NAV_ITEMS.some((n) => n.id === id && n.section !== 'me'))
     : (ids === null ? null : []);
 }
 
@@ -76,7 +85,7 @@ export function isViewAllowed(id: ViewId): boolean {
 /** First view the current session is allowed to land on. */
 export function firstAllowedView(): ViewId {
   if (_allowedViews && _allowedViews.length) {
-    const inNav = NAV_ITEMS.find((n) => _allowedViews!.includes(n.id));
+    const inNav = NAV_ITEMS.find((n) => n.section !== 'me' && _allowedViews!.includes(n.id));
     if (inNav) return inNav.id;
   }
   return 'today';
