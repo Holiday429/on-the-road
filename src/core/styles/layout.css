@@ -162,6 +162,7 @@
   margin-top: auto;            /* always at the foot, whatever is above */
   padding: var(--sp-3) 0 var(--sp-1);
   border-top: 1px solid var(--rule);
+  display: flex; flex-direction: column; gap: 6px;
 }
 .nav-me-label { margin-top: 2px; }
 

@@ -5,8 +5,10 @@
   padding: var(--sp-3) var(--sp-3) var(--sp-4);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
 }
+/* The list scrolls when it is taller than the sidebar — rows keep their height instead of squeezing together. */
+.sidebar-nav > * { flex-shrink: 0; }
 
 .nav-section-label {
   font-family: var(--font-ui);
@@ -31,6 +33,7 @@
   transition: background var(--dur-fast), color var(--dur-fast);
   white-space: nowrap;
   overflow: hidden;
+  flex-shrink: 0;
   color: var(--ink-soft);
 }
 .nav-item:hover {

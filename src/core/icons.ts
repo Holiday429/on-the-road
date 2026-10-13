@@ -26,6 +26,7 @@ export const NAV_ICON = {
   passport: '🛂',
   atlas:    '🌍',
   profile:  '⚙️',
+  wrap:     '🎞️',
 } as const;
 
 export const TRANSPORT_ICON: Record<string, string> = {

@@ -42,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   // bottom bar reaches these through its account item.
   { id: 'passport', label: 'My passport', iconSrc: NAV_ICON.passport, emoji: true, section: 'me', desktopOnly: true },
   { id: 'atlas',    label: 'My atlas',    iconSrc: NAV_ICON.atlas,    emoji: true, section: 'me', desktopOnly: true },
-  { id: 'profile',  label: 'Settings',    iconSrc: NAV_ICON.profile, emoji: true, section: 'me', desktopOnly: true },
+  { id: 'wrap',     label: 'Trip wrap',   iconSrc: NAV_ICON.wrap,     emoji: true, section: 'me', desktopOnly: true },
 ];
 
 // Views that used to have their own NAV_ITEMS entry and are now folded into
