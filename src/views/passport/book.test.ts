@@ -90,6 +90,11 @@ describe('leaves', () => {
     ]);
   });
 
+  it('visas take a page for every two, and at least one', () => {
+    const kinds = (n: number) => bookPages(stampPages([]), n).filter((p) => p.kind === 'visas').length;
+    expect([0, 1, 2, 3, 5].map(kinds)).toEqual([1, 1, 1, 2, 3]);
+  });
+
   it('single: one page per sheet, blank backs', () => {
     const l = leavesFor(pages, true);
     expect(l).toHaveLength(pages.length + 1);

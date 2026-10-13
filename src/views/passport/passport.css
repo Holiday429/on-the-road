@@ -259,3 +259,32 @@
 .pp-slot[data-stamp] { cursor: pointer; }
 .pp-slot[data-stamp]:hover .pp-stamp { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .pp-card, .pp-card-stamp, .pp-card-scrim { animation: none; } }
+
+/* ── Visa pages ──────────────────────────────────────────────────────────── */
+.pp-visas { gap: 3cqw; }
+.pp-visa-list { display: grid; gap: 3cqw; }
+.pp-visa {
+  position: relative; display: grid; gap: .8cqw; text-align: left; padding: 3cqw 3.6cqw; cursor: pointer; font: inherit; color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--ink-c) 55%, transparent); border-radius: 1.6cqw; overflow: hidden;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--ink-c) 7%, transparent) 5px 6px),
+    color-mix(in srgb, var(--ink-c) 9%, var(--pp-paper));
+  box-shadow: 0 1px 0 color-mix(in srgb, black 8%, transparent);
+}
+.pp-visa:hover { border-color: var(--ink-c); }
+.pp-visa:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+.pp-visa-head { display: flex; justify-content: space-between; gap: 2cqw; align-items: baseline; }
+.pp-visa-region { font-family: var(--font-stamp); font-weight: var(--fw-semibold); font-size: 4.4cqw; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-c); }
+.pp-visa-type { font-family: var(--font-data); font-size: 2.6cqw; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted); }
+.pp-visa-line { font-family: var(--font-data); font-size: 2.9cqw; }
+.pp-visa-line span { color: var(--ink-muted); letter-spacing: .1em; text-transform: uppercase; font-size: 2.4cqw; margin-right: 1cqw; }
+.pp-visa-no { font-family: var(--font-data); font-size: 2.8cqw; color: var(--ink-soft); }
+.pp-visa-used { font-size: 2.7cqw; color: var(--ink-muted); }
+.pp-visa-warn { font-size: 2.8cqw; color: var(--danger); }
+.pp-visa-add { align-self: flex-start; margin-top: auto; font-size: 3cqw; padding: 1cqw 3cqw; }
+.pp-schengen { display: grid; gap: 1.2cqw; padding: 2.6cqw 3.4cqw; border-radius: 1.6cqw; border: 1px dashed var(--ink-faint); }
+.pp-schengen-head { display: flex; justify-content: space-between; font-size: 3.3cqw; }
+.pp-schengen-bar { height: 1.6cqw; border-radius: 1cqw; background: color-mix(in srgb, var(--ink) 10%, transparent); overflow: hidden; }
+.pp-schengen-bar span { display: block; height: 100%; background: var(--sky-500); }
+.pp-schengen-note { font-size: 2.7cqw; color: var(--ink-muted); }
+.pp-danger { color: var(--danger); }

@@ -38,16 +38,20 @@ import {
 import { createFlip, type FlipBook } from './flip.ts';
 import { pageHtml, type PageCtx } from './pages.ts';
 import { openBioEditor } from './bio-edit.ts';
+import { openVisaEditor } from './visa-edit.ts';
+import { visaStore, type StoredVisa } from '../../data/stores/visa-store.ts';
+import { regionLabel, schengenUsage, visaUses, visaWarnings } from '../../data/visa.ts';
 import { startPress } from './press.ts';
 import { openStampCard } from './stamp-card.ts';
 import { isSoundOn, playCover, playFlip, playThunk, setSoundOn } from './sound.ts';
 
 const view = () => document.getElementById('view-passport');
 
-let _feed: PassportFeed = { stamps: [], countries: 0, cities: 0, nights: 0, trips: 0, pressed: [], pending: [], warnings: [] };
+let _feed: PassportFeed = { stamps: [], countries: 0, cities: 0, nights: 0, trips: 0, pressed: [], pending: [], warnings: [], visaWarnings: [] };
 let _placements: Record<string, PlacementRec> = {};
 let _profile = { nickname: '', photoURL: '', nationality: '', occupation: '', signature: '' };
 let _safetyNationality = '';
+let _visas: StoredVisa[] = [];
 let _unsubs: Array<() => void> = [];
 let _flip: FlipBook | null = null;
 let _leaves: Leaf[] = [];
@@ -83,6 +87,23 @@ function defaultNickname(): string {
 const nickname = (): string => _profile.nickname || defaultNickname();
 const nationality = (): string => _profile.nationality || _safetyNationality;
 
+/** What each visa was used for (trips and countries) and which stays do not fit it, in the reader's words. */
+function visaNotes(): Map<string, { uses: string; warns: string[] }> {
+  const legs = peekFeedLegs();
+  const today = todayIso();
+  const names = new Map(_feed.stamps.map((x) => [x.tripId, x.tripName]));
+  const out = new Map<string, { uses: string; warns: string[] }>();
+  for (const v of _visas) {
+    const uses = visaUses(v, legs).map((u) => `${names.get(u.tripId) || '—'} (${u.isos.join(' ')})`).join(', ');
+    const label = regionLabel(v.region, getLocale(), t('passport.visa.schengen'));
+    const warns = visaWarnings(v, legs, today).map((w) => t(`passport.visa.warn.${w.kind}`, {
+      region: label, trip: names.get(w.tripId) ?? '', date: w.date, days: String(w.days ?? ''),
+    }));
+    out.set(v.id, { uses: uses ? t('passport.visa.usedFor', { x: uses }) : '', warns });
+  }
+  return out;
+}
+
 function state() {
   return passportState(_feed.stamps, _placements);
 }
@@ -99,6 +120,9 @@ function ctx(): PageCtx {
     photoUrl: _profile.photoURL || u?.photoURL?.trim() || '',
     uid: u?.uid ?? 'guest',
     issued: st.pressed[0]?.date ?? _feed.stamps[0]?.date ?? todayIso(),
+    visas: _visas,
+    visaNotes: visaNotes(),
+    schengen: schengenUsage(peekFeedLegs(), todayIso()),
     fresh: _replaying ? new Set(_feed.stamps.map((x) => x.id).concat(Object.keys(_placements))) : _fresh,
     locale: getLocale(),
     pageNo: (p) => _pages.indexOf(p) + 1,
@@ -162,7 +186,7 @@ function render(): void {
   if (!root) return;
   const body = root.querySelector<HTMLElement>('.pp-body')!;
   _single = narrow();
-  _pages = bookPages(layout());
+  _pages = bookPages(layout(), _visas.length);
   _leaves = leavesFor(_pages, _single);
   const c = ctx();
   const turned = Math.min(_turned, _leaves.length);
@@ -425,6 +449,9 @@ function wire(root: HTMLElement): void {
     if (el.closest('[data-pp-next]')) { _flip?.next(); return; }
     if (el.closest('[data-pp-press]')) { pressInTurn(state().pending); return; }
     if (el.closest('[data-pp-press-all]')) { pressAll(); return; }
+    const visa = el.closest<HTMLElement>('[data-pp-visa]');
+    if (visa) { openVisaEditor(_visas.find((x) => x.id === visa.dataset.ppVisa) ?? null); return; }
+    if (el.closest('[data-pp-visa-add]')) { openVisaEditor(null); return; }
     if (el.closest('[data-pp-edit]')) { openBioEditor({ nickname: defaultNickname(), nationality: _safetyNationality }, () => { /* the subscription repaints */ }); return; }
     if (el.closest('[data-pp-sound]')) {
       setSoundOn(!isSoundOn());
@@ -462,7 +489,7 @@ const signature = (): string =>
   [
     _feed.stamps.map((s) => `${s.id}:${s.nights}:${s.date}`).join('|'),
     Object.entries(_placements).map(([k, p]) => `${k}@${p.page}:${p.x}:${p.y}`).join('|'),
-    Object.values(_profile).join('~'), _safetyNationality, getLocale(), _feed.cities, _feed.nights,
+    Object.values(_profile).join('~'), peekFeedLegs().map((l) => `${l.id}${l.dateFrom}${l.dateTo}${l.country}`).join(''), _visas.map((v) => `${v.id}:${v.updatedAt}`).join('|'), _safetyNationality, getLocale(), _feed.cities, _feed.nights,
   ].join('#');
 
 /* ── Mount ───────────────────────────────────────────────────────────────── */
@@ -491,6 +518,7 @@ export function initPassport(): void {
       refresh();
     }),
     safetyProfileStore.subscribe((p) => { _safetyNationality = p?.nationality ?? ''; refresh(); }),
+    visaStore.subscribe((rows) => { _visas = rows.slice().sort((a, b) => (a.validFrom || '9').localeCompare(b.validFrom || '9')); refresh(); }),
     onLocaleChange(() => { head(root); refresh(true); }),
   ];
   const mq = window.matchMedia?.('(max-width: 820px)');

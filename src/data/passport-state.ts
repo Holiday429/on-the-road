@@ -16,6 +16,7 @@
 import type { PassportData, PassportStamp } from './passport.ts';
 import type { PlacementRec, StampSnap } from './schema/passport.ts';
 import { COUNTRY_SHAPES } from '../core/paper/stamp-country.ts';
+import type { VisaWarning } from './visa.ts';
 import { countryInk } from './country-ink.ts';
 import { hashStr } from './palette.ts';
 
@@ -48,6 +49,8 @@ export interface PassportFeed extends PassportData {
   pending: PassportStamp[];
   /** Real-document checks (expiry vs. upcoming trips); [] when none was entered. */
   warnings: DocWarning[];
+  /** Stays that do not fit a visa the traveller holds. */
+  visaWarnings: Array<VisaWarning & { tripName: string }>;
 }
 
 export function passportState(derived: PassportStamp[], placements: Readonly<Record<string, PlacementRec>>): PassportState {

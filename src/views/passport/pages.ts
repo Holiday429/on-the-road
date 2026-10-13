@@ -14,7 +14,11 @@ import { nationalityFlag, nationalityLabel } from '../../data/nationalities.ts';
 import type { PassportData } from '../../data/passport.ts';
 import { mrz, passportNumber } from './bio.ts';
 import { isSafePath } from './signature.ts';
-import type { BookPage, StampPage } from './book.ts';
+import { VISAS_PER_PAGE, type BookPage, type StampPage } from './book.ts';
+import { countryInk } from '../../data/country-ink.ts';
+import { SCHENGEN_REGION, regionFlag, regionLabel, type SchengenUsage } from '../../data/visa.ts';
+import type { Visa } from '../../data/schema/visa.ts';
+import { maskNumber } from './bio.ts';
 
 export interface PageCtx {
   data: PassportData;
@@ -31,6 +35,10 @@ export interface PageCtx {
   /** Stamp ids just pressed: they stay hidden until their page is showing, then land with the "thunk". */
   fresh: ReadonlySet<string>;
   locale: string;
+  visas: readonly Visa[];
+  /** Per visa: what it was used for and what does not fit it (already translated). */
+  visaNotes: ReadonlyMap<string, { uses: string; warns: string[] }>;
+  schengen: SchengenUsage | null;
   /** 1-based number of a book page for the page footer; 0 = none. */
   pageNo: (p: BookPage) => number;
 }
@@ -100,10 +108,44 @@ function bio(c: PageCtx): string {
   </div>`;
 }
 
-function visas(): string {
+const fullDate = (iso: string): string => (iso ? `${stampDate(iso)} ${iso.slice(0, 4)}` : '—');
+
+function visaSticker(v: Visa, c: PageCtx): string {
+  const note = c.visaNotes.get(v.id);
+  const label = regionLabel(v.region, c.locale, t('passport.visa.schengen'));
+  const ink = v.region === SCHENGEN_REGION ? 'var(--sky-500)' : countryInk(v.region, label);
+  const entries = v.entries ? t(`passport.visa.entries.${v.entries}`) : '';
+  const stay = v.stayDays ? t('passport.visa.stay', { n: v.stayDays }) : '';
+  const line = (l: string, val: string) => (val ? `<div class="pp-visa-line"><span>${esc(l)}</span> ${esc(val)}</div>` : '');
+  return `<button type="button" class="pp-visa" data-pp-visa="${esc(v.id)}" data-no-turn style="--ink-c:${esc(ink)}">
+    <div class="pp-visa-head"><span class="pp-visa-region">${regionFlag(v.region)} ${esc(label)}</span><span class="pp-visa-type">${esc(v.type || t('passport.visa.title'))}</span></div>
+    ${line(t('passport.visa.valid'), `${fullDate(v.validFrom)} – ${fullDate(v.validTo)}`)}
+    ${line(t('passport.visa.entries'), [entries, stay].filter(Boolean).join(' · '))}
+    ${v.number ? `<div class="pp-visa-no">${esc(maskNumber(v.number))}</div>` : ''}
+    ${note?.uses ? `<div class="pp-visa-used">${esc(note.uses)}</div>` : ''}
+    ${(note?.warns ?? []).map((w) => `<div class="pp-visa-warn">⚠ ${esc(w)}</div>`).join('')}
+  </button>`;
+}
+
+function schengenBox(u: SchengenUsage): string {
+  const pct = Math.min(100, Math.round((u.used / 90) * 100));
+  const over = u.overstayOn ? `<div class="pp-visa-warn">⚠ ${esc(t('passport.visa.schengenOver', { date: u.overstayOn }))}</div>` : '';
+  return `<div class="pp-schengen">
+    <div class="pp-schengen-head"><span>🇪🇺 ${esc(t('passport.visa.schengenCount'))}</span><strong>${u.used} / 90</strong></div>
+    <div class="pp-schengen-bar" role="img" aria-label="${u.used} / 90"><span style="width:${pct}%"></span></div>
+    <div class="pp-schengen-note">${esc(t('passport.visa.schengenNote', { n: u.remaining }))}</div>${over}
+  </div>`;
+}
+
+function visas(p: { index: number }, c: PageCtx): string {
+  const from = p.index * VISAS_PER_PAGE;
+  const mine = c.visas.slice(from, from + VISAS_PER_PAGE);
+  const last = from + VISAS_PER_PAGE >= c.visas.length;
   return `<div class="pp-sheet pp-visas">
     <div class="pp-page-head"><span>${esc(t('passport.visas.title'))}</span></div>
-    <div class="pp-note">${esc(t('passport.visas.empty'))}</div>
+    ${p.index === 0 && c.schengen ? schengenBox(c.schengen) : ''}
+    ${mine.length ? `<div class="pp-visa-list">${mine.map((v) => visaSticker(v, c)).join('')}</div>` : `<div class="pp-note">${esc(t('passport.visas.empty'))}</div>`}
+    ${last ? `<button type="button" class="btn btn-ghost pp-visa-add" data-pp-visa-add data-no-turn>${esc(t('passport.visa.add'))}</button>` : ''}
   </div>`;
 }
 
@@ -137,7 +179,7 @@ export function pageHtml(p: BookPage | null, c: PageCtx): string {
     case 'cover': return cover(c);
     case 'inside': return inside(c);
     case 'bio': return bio(c);
-    case 'visas': return visas();
+    case 'visas': return visas(p, c);
     case 'stamps': return stampsPage(p, c);
     case 'back': return back(c);
   }

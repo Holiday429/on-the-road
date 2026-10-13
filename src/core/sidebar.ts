@@ -262,7 +262,7 @@ let _passportBadge = false;
 function paintPassportBadge(p: ReturnType<typeof peekPassport>): void {
   const b = document.getElementById('sidebar-passport');
   if (!b) return;
-  b.classList.toggle('has-pending', p.pending.length > 0 || p.warnings.length > 0);
+  b.classList.toggle('has-pending', p.pending.length > 0 || p.warnings.length > 0 || p.visaWarnings.length > 0);
   b.dataset.count = p.pending.length ? String(p.pending.length) : '';
 }
 function watchPassportBadge(): void {

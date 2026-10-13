@@ -9,10 +9,10 @@ const LEGS = [
 ];
 const data = passportFor(LEGS, '2026-08-01', new Map([['t1', 'Euro <Trip>']]));
 const placements = Object.fromEntries(data.stamps.map((s, i) => [s.id, { page: 't1#0', x: 30 + 30 * i, y: 40, rot: 0, pressure: 1, at: 1 }]));
-const pages: BookPage[] = bookPages(stampPages(data.stamps, placements));
+const pages: BookPage[] = bookPages(stampPages(data.stamps, placements), 0);
 const ctx: PageCtx = {
   data, nickname: 'Holi<day>', nationality: 'CN', occupation: 'Pil<ot>', signature: 'M0 0L10 10', photoUrl: '', uid: 'u1', issued: '2026-06-25', fresh: new Set(['country:DK:t1']),
-  locale: 'en', pageNo: (p) => pages.indexOf(p) + 1,
+  locale: 'en', visas: [], visaNotes: new Map(), schengen: null, pageNo: (p) => pages.indexOf(p) + 1,
 };
 
 describe('pageHtml', () => {
@@ -39,6 +39,23 @@ describe('pageHtml', () => {
     expect(bio).toContain('Pil&lt;ot&gt;');
     expect(bio).toContain('d="M0 0L10 10"');
     expect(pageHtml({ kind: 'bio' }, { ...ctx, signature: 'M0 0"><script>' })).not.toContain('<script>');
+  });
+
+  it('visa pages: stickers with a masked number, notes escaped, the Schengen count, and an add button on the last page', () => {
+    const v = { id: 'v1', region: 'SCHENGEN', type: 'Tou<rist>', number: 'AB123456', validFrom: '2026-06-01', validTo: '2026-09-30', entries: 'multiple', stayDays: 90, notes: '', photoURL: '', createdAt: 0, updatedAt: 0, schemaVersion: 1 } as const;
+    const c2: PageCtx = { ...ctx, visas: [v], visaNotes: new Map([['v1', { uses: 'Used for <Euro>', warns: ['too <long>'] }]]), schengen: { used: 41, remaining: 49, peak: 41, overstayOn: '' } };
+    const html = pageHtml({ kind: 'visas', index: 0 }, c2);
+    expect(html).toContain('data-pp-visa="v1"');
+    expect(html).toContain('Tou&lt;rist&gt;');
+    expect(html).toContain('Used for &lt;Euro&gt;');
+    expect(html).toContain('too &lt;long&gt;');
+    expect(html).not.toContain('AB123456');
+    expect(html).toContain('3456');
+    expect(html).toContain('41 / 90');
+    expect(html).toContain('data-pp-visa-add');
+    const many = Array.from({ length: 3 }, (_, i) => ({ ...v, id: `v${i}` }));
+    expect(pageHtml({ kind: 'visas', index: 0 }, { ...c2, visas: many })).not.toContain('data-pp-visa-add');
+    expect(pageHtml({ kind: 'visas', index: 1 }, { ...c2, visas: many })).toContain('data-pp-visa-add');
   });
 
   it('a stamp page names its page key; a page of deleted-trip stamps says so', () => {

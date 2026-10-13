@@ -8,7 +8,8 @@
 
 import './passport-links.css';
 import { navigateTo, type NavIntent } from '../../core/app.ts';
-import { t } from '../../core/i18n.ts';
+import { t, getLocale } from '../../core/i18n.ts';
+import { regionLabel } from '../../data/visa.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { renderStamp, type StampSpec } from '../../core/paper/stamp.ts';
 import { onPassport } from '../../data/passport-feed.ts';
@@ -71,7 +72,11 @@ export function pocketHtml(p: PassportFeed): string {
   const pending = p.pending.length
     ? `<span class="pp-pocket-badge">${esc(t('passport.pocket.pending', { n: p.pending.length }))}</span>`
     : '';
-  const warn = p.warnings.length ? `<span class="pp-pocket-warn" title="${esc(t(`passport.doc.warn.${p.warnings[0].kind}`, { trip: p.warnings[0].tripName, date: p.warnings[0].expires }))}">⚠</span>` : '';
+  const vw = p.visaWarnings[0];
+  const warnText = p.warnings.length
+    ? t(`passport.doc.warn.${p.warnings[0].kind}`, { trip: p.warnings[0].tripName, date: p.warnings[0].expires })
+    : vw ? t(`passport.visa.warn.${vw.kind}`, { region: regionLabel(vw.region, getLocale(), t('passport.visa.schengen')), trip: vw.tripName, date: vw.date, days: String(vw.days ?? '') }) : '';
+  const warn = warnText ? `<span class="pp-pocket-warn" title="${esc(warnText)}">⚠</span>` : '';
   return `<button type="button" class="pp-pocket" data-open-passport="">
     <span class="pp-pocket-cover" aria-hidden="true">🛂</span>
     <span class="pp-pocket-text"><strong>${esc(t('passport.title'))}</strong> · ${text}</span>${pending}${warn}

@@ -13,12 +13,14 @@ import { todayIso } from './trip-phase.ts';
 import { passportFor } from './passport.ts';
 import { docWarnings, passportState, type PassportFeed } from './passport-state.ts';
 import { passportDocStore, passportStore } from './stores/passport-store.ts';
+import { visaStore, type StoredVisa } from './stores/visa-store.ts';
+import { visaWarnings, type VisaWarning } from './visa.ts';
 import type { PlacementRec } from './schema/passport.ts';
 import type { FootprintLeg } from './footprint.ts';
 
 type Listener = (p: PassportFeed) => void;
 
-const EMPTY: PassportFeed = { stamps: [], countries: 0, cities: 0, nights: 0, trips: 0, pressed: [], pending: [], warnings: [] };
+const EMPTY: PassportFeed = { stamps: [], countries: 0, cities: 0, nights: 0, trips: 0, pressed: [], pending: [], warnings: [], visaWarnings: [] };
 
 const listeners = new Set<Listener>();
 let current: PassportFeed = EMPTY;
@@ -26,13 +28,16 @@ let legs: FootprintLeg[] = [];
 let names = new Map<string, string>();
 let tripDates: Array<{ name: string; startDate: string; endDate: string }> = [];
 let expires = '';
+let visas: StoredVisa[] = [];
 let placements: Record<string, PlacementRec> = {};
 let stops: Array<() => void> = [];
 let legsStop: (() => void) | null = null;
 
 function recompute(): void {
   const data = passportFor(legs, todayIso(), names);
-  current = { ...data, ...passportState(data.stamps, placements), warnings: docWarnings(expires, tripDates, todayIso()) };
+  const today = todayIso();
+  const visaFlags = visas.flatMap((v) => visaWarnings(v, legs, today)).map((w): VisaWarning & { tripName: string } => ({ ...w, tripName: names.get(w.tripId) ?? '' }));
+  current = { ...data, ...passportState(data.stamps, placements), warnings: docWarnings(expires, tripDates, today), visaWarnings: visaFlags };
   listeners.forEach((l) => l(current));
 }
 
@@ -55,6 +60,7 @@ function start(): void {
   watchLegs();
   stops.push(passportStore.subscribe((p) => { placements = p?.placements ?? {}; recompute(); }));
   stops.push(passportDocStore.subscribe((d) => { expires = d?.expires ?? ''; recompute(); }));
+  stops.push(visaStore.subscribe((rows) => { visas = rows; recompute(); }));
   stops.push(onTripChange(() => { watchLegs(); void loadNames(); }));
   void loadNames();
 }
