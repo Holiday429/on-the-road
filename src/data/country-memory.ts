@@ -4,14 +4,14 @@
    What is on the back of a stamp: what the traveller did in that country on
    that trip, and what the country adds up to over every trip. Journal and
    spend rows carry a free-text place rather than a country, so the existing
-   per-country rules of the Map's country panel (views/map/world/country-extras)
+   per-country rules of the Map's country panel (views/atlas/country-extras)
    do the matching — a stamp card and the map panel can never disagree.
    ========================================================================== */
 
 import type { PassportStamp } from './passport.ts';
 import type { FootprintLeg } from './footprint.ts';
 import { legIso } from './footprint.ts';
-import { buildCountryExtras, type ExtrasData, type SpendLine } from '../views/map/world/country-extras.ts';
+import { buildCountryExtras, type ExtrasData, type SpendLine } from '../views/atlas/country-extras.ts';
 import type { PlottedLeg } from '../views/map/map-stats.ts';
 
 export interface CountryMemory {

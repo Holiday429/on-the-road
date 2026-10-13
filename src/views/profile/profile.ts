@@ -44,7 +44,7 @@ function render(): void {
     </section>`;
 
   const pp = body.querySelector<HTMLElement>('[data-profile-passport]');
-  if (pp) mountPassportPocket(pp);
+  if (pp) mountPassportPocket(pp, true);
   wireAccountSection(body);
   wireEmergencySection(body);
   wireHomeTzSection(body);

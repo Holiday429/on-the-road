@@ -45,6 +45,9 @@ export function wirePassportOpeners(root: HTMLElement): void {
       openPassport(targetFromAttr(el.dataset.openPassport ?? ''));
     });
   });
+  root.querySelectorAll<HTMLElement>('[data-open-atlas]').forEach((el) => {
+    el.addEventListener('click', (e) => { e.stopPropagation(); void navigateTo('atlas'); });
+  });
 }
 
 /** A stamp on a little paper sticker — legible on top of a photo. */
@@ -60,7 +63,7 @@ export function stampSticker(s: StampSpec, size: number, opts: { open?: boolean;
 const MAX_DOTS = 14;
 
 /** The slim "Passport · 9 countries" row that opens the book. Empty passport: an invitation. */
-export function pocketHtml(p: PassportFeed): string {
+export function pocketHtml(p: PassportFeed, withAtlas = false): string {
   const seen = new Set<string>();
   const dots = p.stamps
     .filter((s) => { const k = s.iso || s.country; if (seen.has(k)) return false; seen.add(k); return true; })
@@ -77,26 +80,39 @@ export function pocketHtml(p: PassportFeed): string {
     ? t(`passport.doc.warn.${p.warnings[0].kind}`, { trip: p.warnings[0].tripName, date: p.warnings[0].expires })
     : vw ? t(`passport.visa.warn.${vw.kind}`, { region: regionLabel(vw.region, getLocale(), t('passport.visa.schengen')), trip: vw.tripName, date: vw.date, days: String(vw.days ?? '') }) : '';
   const warn = warnText ? `<span class="pp-pocket-warn" title="${esc(warnText)}">⚠</span>` : '';
-  return `<button type="button" class="pp-pocket" data-open-passport="">
+  const passport = `<button type="button" class="pp-pocket" data-open-passport="">
     <span class="pp-pocket-cover" aria-hidden="true">🛂</span>
     <span class="pp-pocket-text"><strong>${esc(t('passport.title'))}</strong> · ${text}</span>${pending}${warn}
     <span class="pp-pocket-dots" aria-hidden="true">${dots}</span>
     <span class="pp-pocket-go" aria-hidden="true">›</span>
   </button>`;
+  return withAtlas ? `<div class="pp-pockets">${passport}${atlasPocketHtml(p)}</div>` : passport;
+}
+
+/** The matching row for the globe: where the passport records stamps, the Atlas shows the ground they cover. */
+export function atlasPocketHtml(p: PassportFeed): string {
+  const text = p.countries
+    ? esc(t('atlas.pocket', { c: p.countries, n: p.cities }))
+    : esc(t('atlas.pocket.empty'));
+  return `<button type="button" class="pp-pocket pp-pocket-atlas" data-open-atlas>
+    <span class="pp-pocket-cover pp-atlas-cover" aria-hidden="true">🌍</span>
+    <span class="pp-pocket-text"><strong>${esc(t('atlas.title'))}</strong> · ${text}</span>
+    <span class="pp-pocket-go" aria-hidden="true">›</span>
+  </button>`;
 }
 
 /** Keeps a host element showing the live pocket card; stops listening once the host leaves the page. */
-export function mountPassportPocket(host: HTMLElement): void {
+export function mountPassportPocket(host: HTMLElement, withAtlas = false): void {
   let off: (() => void) | null = null;
   off = onPassport((p) => {
     if (!host.isConnected && off) { off(); off = null; return; }
     // eslint-disable-next-line no-restricted-syntax -- audited: pocketHtml escapes every interpolation
-    host.innerHTML = pocketHtml(p);
+    host.innerHTML = pocketHtml(p, withAtlas);
     wirePassportOpeners(host);
   });
 }
 
 /** Mounts every `[data-pp-pocket]` inside `root`. */
 export function mountPassportPockets(root: HTMLElement): void {
-  root.querySelectorAll<HTMLElement>('[data-pp-pocket]').forEach(mountPassportPocket);
+  root.querySelectorAll<HTMLElement>('[data-pp-pocket]').forEach((el) => mountPassportPocket(el));
 }

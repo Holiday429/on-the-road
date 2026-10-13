@@ -14,8 +14,9 @@
    handles the date line, so Asia ↔ Americas stays one unbroken curve.
    ========================================================================== */
 
-import { legVisitState } from '../map-status.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import { legVisitState } from '../map/map-status.ts';
+import { nights } from '../map/map-geo.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 import type { TripRecord } from './world-model.ts';
 
 export interface LineSeg {
@@ -105,4 +106,45 @@ export function currentSpot(allLegs: PlottedLeg[], trips: TripRecord[], today: s
     if (done.length) return spot(done[done.length - 1]);
   }
   return null;
+}
+
+export interface NextStop {
+  city: string;
+  country: string;
+  flag: string;
+  iso: string | null;
+  /** Whole days from today to arrival (0 = today). */
+  inDays: number;
+  legId: string;
+}
+
+/** The next stop still ahead: the first stop whose arrival date is after today. */
+export function nextStop(allLegs: PlottedLeg[], today: string, onlyTripId: string | null): NextStop | null {
+  const ahead = scope(allLegs, onlyTripId).filter((l) => l.dateFrom > today).sort(cmpLeg)[0];
+  if (!ahead) return null;
+  return {
+    city: ahead.city, country: ahead.country, flag: ahead.flag, iso: ahead.iso, legId: ahead.id,
+    inDays: nights(today, ahead.dateFrom),
+  };
+}
+
+export interface YearEntry {
+  year: number;
+  /** Trips with a stop that starts in this year. */
+  trips: number;
+  /** True when every stop of the year is still ahead. */
+  planned: boolean;
+}
+
+/** The years that have stops, oldest first — the Atlas's year ribbon. */
+export function yearsOf(allLegs: PlottedLeg[], today: string): YearEntry[] {
+  const byYear = new Map<number, { trips: Set<string>; visited: boolean }>();
+  for (const l of allLegs) {
+    const y = Number(l.dateFrom.slice(0, 4));
+    if (!Number.isFinite(y)) continue;
+    const e = byYear.get(y) ?? byYear.set(y, { trips: new Set(), visited: false }).get(y)!;
+    e.trips.add(l.tripId ?? '');
+    if (legVisitState(l, today) === 'visited') e.visited = true;
+  }
+  return [...byYear.entries()].sort((a, b) => a[0] - b[0]).map(([year, e]) => ({ year, trips: e.trips.size, planned: !e.visited }));
 }

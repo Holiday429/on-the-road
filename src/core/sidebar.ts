@@ -13,7 +13,7 @@ import profileIcon from '../../icon/profile.png';
 import { onPassport, peekPassport } from '../data/passport-feed.ts';
 import { PASSPORT_ICON } from './icons.ts';
 
-export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap' | 'passport';
+export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap' | 'passport' | 'atlas';
 
 export interface NavItem {
   id: ViewId;
@@ -119,6 +119,7 @@ function buildSidebarHeader(): string {
         </div>
       </button>
       <button type="button" class="sidebar-passport" id="sidebar-passport" title="${t('passport.title')}" aria-label="${t('passport.title')}">${PASSPORT_ICON}</button>
+      <button type="button" class="sidebar-passport sidebar-atlas" id="sidebar-atlas" title="${t('atlas.title')}" aria-label="${t('atlas.title')}">🌍</button>
     </div>
   `;
 }
@@ -296,6 +297,10 @@ export function buildSidebar() {
   if (user) watchPassportBadge();
   sidebar.querySelector<HTMLElement>('#sidebar-passport')?.addEventListener('click', () => {
     host!.navigateTo('passport');
+  });
+  // …and so does the globe, its twin: where the passport keeps the stamps, the atlas shows the ground.
+  sidebar.querySelector<HTMLElement>('#sidebar-atlas')?.addEventListener('click', () => {
+    host!.navigateTo('atlas');
   });
 
   sidebar.querySelectorAll('.nav-item').forEach(item => {

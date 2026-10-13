@@ -80,7 +80,7 @@ export default tseslint.config(
   // making the problem worse. Once a file is split into src/views/<x>/submodules
   // (see views/journal/ for the pattern this repo already uses), lower its cap
   // to match — don't leave it at the old ceiling.
-  { files: ['src/views/map/map.ts'],             rules: { 'max-lines': ['error', { max: 1594, skipBlankLines: false, skipComments: false }] } },
+  { files: ['src/views/map/map.ts'],             rules: { 'max-lines': ['error', { max: 1583, skipBlankLines: false, skipComments: false }] } },
   { files: ['src/views/itinerary/itinerary.ts'], rules: { 'max-lines': ['error', { max: 1799, skipBlankLines: false, skipComments: false }] } },
   { files: ['src/views/expenses/expenses.ts'],   rules: { 'max-lines': ['error', { max: 1195, skipBlankLines: false, skipComments: false }] } },
   { files: ['src/views/guide/guide.ts'],         rules: { 'max-lines': ['error', { max: 1457, skipBlankLines: false, skipComments: false }] } },

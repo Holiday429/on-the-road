@@ -75,6 +75,8 @@ export interface WorldPalette {
   /** Visited ramp, 1 visit → 4+ visits. */
   visited: [string, string, string, string];
   planned: string; plannedLine: string;
+  /** Colour and opacity of the night half. */
+  night: string; nightOpacity: number;
 }
 
 export function worldPalette(): WorldPalette {
@@ -84,8 +86,12 @@ export function worldPalette(): WorldPalette {
     border: token('--ink-faint'),
     graticule: token('--ink-faint'),
     visited: [token('--amber-300'), token('--amber-400'), token('--amber-500'), token('--amber-600')],
-    planned: token('--amber-300'),
-    plannedLine: token('--amber-500'),
+    // Planned countries are GREY (owner): clearly not the amber of a country been to, nor the paper of one never visited.
+    planned: token('--ink-muted'),
+    plannedLine: token('--ink-muted'),
+    // Night is a darker wash: ink on the light theme, the deepest surface on the dark one.
+    night: token(isDark() ? '--surface-2' : '--ink'),
+    nightOpacity: isDark() ? 0.5 : 0.14,
   };
 }
 

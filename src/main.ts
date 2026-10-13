@@ -51,6 +51,7 @@ registerView('journal',  () => import('./views/journal/index.ts').then(m => m.in
 registerView('map',      () => import('./views/map/map-page.ts').then(m => m.initMap));
 registerView('budget',   () => import('./views/compare/compare.ts').then(m => m.initCompare));
 registerView('passport', () => import('./views/passport/passport.ts').then(m => m.initPassport));
+registerView('atlas',    () => import('./views/atlas/atlas-page.ts').then(m => m.initAtlas));
 registerView('wrap',     () => import('./views/wrap/wrap.ts').then(m => m.initWrap));
 registerView('profile',  () => import('./views/profile/profile.ts').then(m => m.initProfile));
 

@@ -648,3 +648,37 @@
 :root[data-theme='dark'] .leg-flight-row.active { background: #22304a; border-color: #4a6aa5; }
 :root[data-theme='dark'] .leg-flight-label { color: #9db8e8; }
 :root[data-theme='dark'] .leg-flight-sub { color: #6f87b3; }
+
+/* ── Route page, P8: one trip, full width ──────────────────────────────────
+   The map takes the whole width; the stop list floats over it and can be put
+   away. (The lifelong footprint is the Atlas, a page of its own.) */
+.map-trip-chip {
+  margin-top: var(--sp-2); padding: 4px 12px; border: 1px solid var(--rule); border-radius: var(--r-full); cursor: pointer;
+  background: var(--surface); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink);
+}
+.map-trip-chip:hover { border-color: var(--accent-deep); }
+.map-trip-chip:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+
+/* The little desk globe in the map's corner: a doorway into the Atlas. */
+.map-portal {
+  position: absolute; left: var(--sp-4); top: var(--sp-4); z-index: 4; padding: 0; border: 0; background: transparent; cursor: pointer;
+  transform: rotate(-4deg); transition: transform var(--dur-fast);
+}
+.map-portal:hover { transform: rotate(5deg) translateY(-2px); }
+.map-portal:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 4px; }
+
+@media (min-width: 681px) {
+  .map-layout { display: block; position: relative; }
+  .map-stage { min-height: 0; box-shadow: none; }
+  .map-chart { height: max(460px, calc(100dvh - 230px)); }
+  .map-panel {
+    position: absolute; top: 56px; right: var(--sp-3); z-index: 6; width: 300px; max-height: calc(100% - 72px); overflow-y: auto;
+    padding: var(--sp-3); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-xl); box-shadow: var(--shadow-md);
+  }
+  .map-legs { max-height: none; }
+  .map-layout.panel-collapsed .map-panel { display: none; }
+  .map-layout:not(.panel-collapsed) .map-zoom-controls { right: calc(300px + var(--sp-6)); }
+}
+@media (max-width: 680px) {
+  #mapPanelToggle { display: none; }
+}

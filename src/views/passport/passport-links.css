@@ -35,6 +35,8 @@
   flex: none; padding: 2px 10px; border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
   background: var(--amber-100); color: var(--amber-700);
 }
+.pp-pockets { display: flex; flex-direction: column; }
+.pp-atlas-cover { border-radius: 50%; background: var(--amber-100); box-shadow: none; }
 .pp-pocket-warn { flex: none; color: var(--danger); font-size: var(--fs-md); }
 .pp-pocket-go { color: var(--ink-faint); font-size: 18px; }
 @media (max-width: 640px) { .pp-pocket-dots { display: none; } }

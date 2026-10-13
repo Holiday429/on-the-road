@@ -18,6 +18,7 @@ import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts'
 import { t, onLocaleChange, getLocale } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { renderStamp } from '../../core/paper/stamp.ts';
+import { miniGlobeSvg } from '../../core/paper/mini-globe.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { onPassport, peekFeedLegs } from '../../data/passport-feed.ts';
 import { passportState, snapOf, type PassportFeed } from '../../data/passport-state.ts';
@@ -26,7 +27,7 @@ import { journalStore } from '../../data/stores/journal-store.ts';
 import { expenseStore } from '../../data/stores/expense-store.ts';
 import { countryMemory } from '../../data/country-memory.ts';
 import { currentTripId } from '../../data/trip-context.ts';
-import type { ExtrasData } from '../../views/map/world/country-extras.ts';
+import type { ExtrasData } from '../../views/atlas/country-extras.ts';
 import { safetyProfileStore } from '../../data/stores/safety-profile-store.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import type { PassportStamp } from '../../data/passport.ts';
@@ -197,6 +198,7 @@ function render(): void {
       <div class="pp-stage${_single ? ' is-single' : ''}">
         <div class="pp-book" id="pp-book"><div class="pp-spine"></div>${_leaves.map((_, i) => leafHtml(i, near(i), c)).join('')}</div>
       </div>
+      <button type="button" class="pp-prop-globe" data-pp-map title="${esc(t('atlas.title'))}" aria-label="${esc(t('atlas.title'))}">${miniGlobeSvg(52)}</button>
     </div>
     <div class="pp-tray-host" data-pp-tray></div>
     <div class="pp-bar">
@@ -365,7 +367,7 @@ function openCard(id: string): void {
   _closeCard?.();
   const memory = countryMemory(stamp, _feed.stamps, peekFeedLegs(), _extras);
   _closeCard = openStampCard(desk, memory, getLocale(), {
-    onMap: (iso) => { void navigateTo('map', { mode: 'world', iso }); },
+    onMap: (iso) => { void navigateTo('atlas', { iso }); },
     onJournal: !stamp.orphan && stamp.tripId === currentTripId() ? () => { void navigateTo('journal'); } : undefined,
     onClose: () => { _closeCard = null; },
   });
@@ -460,7 +462,7 @@ function wire(root: HTMLElement): void {
       b.setAttribute('aria-pressed', String(isSoundOn()));
       return;
     }
-    if (el.closest('[data-pp-map]')) { void navigateTo('map', { mode: 'world' }); return; }
+    if (el.closest('[data-pp-map]')) { void navigateTo('atlas'); return; }
     const jump = el.closest<HTMLElement>('[data-pp-jump]');
     if (jump) { _flip?.goTo(flippedToShow(Number(jump.dataset.ppJump), _single)); return; }
     const slot = el.closest<HTMLElement>('.pp-slot[data-stamp]');

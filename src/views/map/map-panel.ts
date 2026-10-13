@@ -11,6 +11,7 @@ import { escHtml as esc } from '../../core/utils.ts';
 import { fmtRange, nights } from './map-geo.ts';
 import type { FlightChain, PlottedLeg, RouteSummary } from './map-stats.ts';
 import { legVisitState } from './map-status.ts';
+import { miniGlobeSvg } from '../../core/paper/mini-globe.ts';
 import type { UnlocatedStop } from './map-plot.ts';
 
 export function flightRowMarkup(chain: FlightChain | null, motionId: string, activeId: string | null): string {
@@ -83,7 +84,9 @@ export function stageInnerMarkup(): string {
       <span class="map-tooltip-name" id="mapTooltipName"></span>
       <span class="map-tooltip-meta" id="mapTooltipMeta"></span>
     </div>
+    <button type="button" class="map-portal" id="mapPortal" title="${esc(t('map.portal'))}" aria-label="${esc(t('map.portal'))}">${miniGlobeSvg(46)}</button>
     <div class="map-toolbar">
+      <button class="map-tool-btn" id="mapPanelToggle" aria-pressed="true" title="${esc(t('map.panelToggle'))}">${esc(t('map.panel'))}</button>
       <button class="map-tool-btn" id="mapReplay" title="${esc(t('map.replayTitle'))}">${esc(t('map.replay'))}</button>
       <button class="map-tool-btn" id="mapExport" title="${esc(t('map.exportTitle'))}">${esc(t('map.export'))}</button>
       <button class="map-tool-btn" id="mapBack" title="${esc(t('map.backTitle'))}" hidden>${esc(t('map.back'))}</button>

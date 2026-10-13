@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, replayMarkup, type WorldLayer } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, replayMarkup, hudStatsMarkup, settingsMarkup, nextStopMarkup, lensMarkup, ribbonMarkup, type AtlasSwitch } from './world-panel.ts';
 import { buildWorldModel } from './world-model.ts';
 import { buildCountryDetail } from './country-model.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 
 const legs: PlottedLeg[] = [
   { id: '1', city: 'Copenhagen', country: 'Denmark', flag: '🇩🇰', dateFrom: '2026-04-01', dateTo: '2026-04-05', lat: 55, lng: 12, iso: 'DK', tripId: 'a', stops: [{ key: 'copenhagen', name: 'Copenhagen', lat: 55, lng: 12 }] },
@@ -14,12 +14,13 @@ const trips = [
 ];
 const TODAY = '2026-07-10';
 const model = buildWorldModel(legs, trips, TODAY);
-const base = { model, mode: 'count' as const, layers: new Set<WorldLayer>(['routes', 'cities']), spin: false, canReplay: true, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
+const base = { model, canReplay: true, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
 
 describe('overviewMarkup', () => {
   const html = overviewMarkup(base);
-  it('shows totals that exclude the planned country', () => {
-    expect(html).toContain('map-stat-num">1<');   // countries
+  it('leaves the totals to the header line (no cards, no layer switches)', () => {
+    expect(html).not.toContain('map-stat-num');
+    expect(html).not.toContain('data-switch');
   });
   it('offers "open current route" only when the current trip has stops', () => {
     expect(html).toContain('data-act="open-route"');
@@ -34,10 +35,6 @@ describe('overviewMarkup', () => {
     expect(html).toContain('data-country="DK"');
     expect(html).toMatch(/world-country planned" data-country="IT"/);
   });
-  it('marks the colour mode', () => {
-    expect(html).toMatch(/map-scope-btn active" data-color="count"/);
-    expect(overviewMarkup({ ...base, mode: 'trip' })).toMatch(/map-scope-btn active" data-color="trip"/);
-  });
   it('shows the passport card only when there are stamps', () => {
     expect(html).toContain('data-open-passport');
     expect(overviewMarkup({ ...base, passport: null })).not.toContain('data-open-passport');
@@ -51,11 +48,19 @@ describe('overviewMarkup', () => {
   });
 });
 
-describe('layer toggles and hover card', () => {
-  it('marks which layers are on', () => {
-    const html = overviewMarkup({ ...base, layers: new Set<WorldLayer>(['routes']) });
-    expect(html).toMatch(/map-layer-chip active" data-layer="routes"/);
-    expect(html).toMatch(/map-layer-chip" data-layer="cities"/);
+describe('header totals, settings and hover card', () => {
+  it('the header line counts only what has been visited, and follows the model', () => {
+    const html = hudStatsMarkup(model.summary, 'en-US');
+    expect(html).toContain('<b>1</b> Countries');       // Italy is only planned
+    expect(html).toContain('Trips');
+    expect(html.match(/atlas-stat/g)).toHaveLength(6);
+  });
+  it('settings mark which switches are on', () => {
+    const html = settingsMarkup(new Set<AtlasSwitch>(['routes', 'night']));
+    expect(html).toMatch(/map-layer-chip active" data-switch="routes"[^>]*aria-checked="true"/);
+    expect(html).toMatch(/map-layer-chip" data-switch="cities"[^>]*aria-checked="false"/);
+    expect(html).toMatch(/map-layer-chip active" data-switch="night"/);
+    expect(html).toMatch(/map-layer-chip" data-switch="spin"/);
   });
   it('hover card: name, visits and nights; only the name for a planned country', () => {
     const rec = { name: 'Denmark', flag: '🇩🇰', state: 'visited' as const, visits: 2, nights: 27 };
@@ -68,7 +73,7 @@ describe('layer toggles and hover card', () => {
 describe('countryMarkup', () => {
   it('shows header, stats, stamps, trips and the route/back actions', () => {
     const detail = buildCountryDetail('DK', legs, model, TODAY)!;
-    const html = countryMarkup({ detail, extras: null, locale: 'en-US', stampHtml: (s) => `<i data-stamp="${s.id}"></i>` });
+    const html = countryMarkup({ detail, pending: false, extras: null, locale: 'en-US', stampHtml: (s) => `<i data-stamp="${s.id}"></i>` });
     expect(html).toContain('Denmark');
     expect(html).toContain('data-act="back"');
     expect(html).toContain('data-route-trip="a"');
@@ -78,20 +83,17 @@ describe('countryMarkup', () => {
   });
   it('says so for a planned country', () => {
     const detail = buildCountryDetail('IT', legs, model, TODAY)!;
-    expect(countryMarkup({ detail, extras: null, locale: 'en-US', stampHtml: () => '' })).toContain('Planned — not visited yet');
+    expect(countryMarkup({ detail, pending: false, extras: null, locale: 'en-US', stampHtml: () => '' })).toContain('Planned — not visited yet');
   });
 });
 
-describe('replay, spin', () => {
-  it('offers replay only when there is a timeline, and shows the auto-spin switch state', () => {
+describe('replay', () => {
+  it('offers replay only when there is a timeline', () => {
     expect(overviewMarkup(base)).toContain('data-act="replay"');
     expect(overviewMarkup({ ...base, canReplay: false })).not.toContain('data-act="replay"');
-    expect(overviewMarkup(base)).toMatch(/map-layer-chip" data-spin[^>]*aria-checked="false"/);
-    expect(overviewMarkup({ ...base, spin: true })).toMatch(/map-layer-chip active" data-spin[^>]*aria-checked="true"/);
   });
-  it('the replay panel shows running totals and a way out', () => {
-    const html = replayMarkup(model.summary, 'en-US');
-    expect(html).toContain('world-replay-stats');
+  it('the replay panel is a title and a way out', () => {
+    const html = replayMarkup();
     expect(html).toContain('data-act="replay-close"');
     expect(html).toContain('Replaying all trips');
   });
@@ -99,7 +101,7 @@ describe('replay, spin', () => {
 
 describe('country extras', () => {
   const detail = buildCountryDetail('DK', legs, model, TODAY)!;
-  const render = (extras: Parameters<typeof countryMarkup>[0]['extras']) => countryMarkup({ detail, extras, locale: 'en-US', stampHtml: () => '' });
+  const render = (extras: Parameters<typeof countryMarkup>[0]['extras']) => countryMarkup({ detail, pending: false, extras, locale: 'en-US', stampHtml: () => '' });
 
   it('shows nothing extra until there is something to show', () => {
     const html = render({ journalCount: 0, covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
@@ -133,9 +135,68 @@ describe('country extras', () => {
   });
 });
 
+describe('passport link, next stop, empty state', () => {
+  const dk = buildCountryDetail('DK', legs, model, TODAY)!;
+  const it_ = buildCountryDetail('IT', legs, model, TODAY)!;
+  const render = (d: typeof dk, pending: boolean) => countryMarkup({ detail: d, pending, extras: null, locale: 'en-US', stampHtml: () => '' });
+
+  it('a visited country links to the passport; the button invites pressing when a stamp is waiting', () => {
+    const idle = render(dk, false);
+    expect(idle).toMatch(/btn btn-ghost" data-act="passport" data-iso="DK">See in the passport/);
+    const waiting = render(dk, true);
+    expect(waiting).toMatch(/btn btn-primary" data-act="passport" data-iso="DK">Press the stamp/);
+  });
+  it('a country only planned has no passport button (nothing to stamp yet)', () => {
+    expect(render(it_, false)).not.toContain('data-act="passport"');
+  });
+  it('the next-stop line opens the country, and says when', () => {
+    const html = nextStopMarkup({ city: 'Lisbon', country: 'Portugal', flag: '🇵🇹', iso: 'PT', inDays: 12 });
+    expect(html).toContain('data-country="PT"');
+    expect(html).toContain('Next stop');
+    expect(html).toContain('in 12 days');
+    expect(nextStopMarkup({ city: 'Rome', country: 'Italy', flag: '', iso: 'IT', inDays: 1 })).toContain('tomorrow');
+    expect(nextStopMarkup(null)).toBe('');
+    expect(nextStopMarkup({ city: 'X', country: 'Y', flag: '', iso: null, inDays: 3 })).not.toContain('data-country');
+  });
+  it('the empty card points at the Itinerary', () => {
+    const html = emptyMarkup();
+    expect(html).toContain('data-act="open-itinerary"');
+    expect(html).toContain('still blank');
+  });
+  it('settings include the intro switch', () => {
+    expect(settingsMarkup(new Set<AtlasSwitch>(['intro']))).toMatch(/map-layer-chip active" data-switch="intro"/);
+  });
+});
+
+describe('lenses and the year ribbon', () => {
+  it('one chip per lens, the active one pressed', () => {
+    const html = lensMarkup('trips');
+    expect(html.match(/data-lens="/g)).toHaveLength(3);
+    expect(html).toMatch(/atlas-lens active" data-lens="trips" aria-pressed="true"/);
+    expect(html).toMatch(/atlas-lens" data-lens="footprint" aria-pressed="false"/);
+    expect(html).toContain('Footprint');
+  });
+  const years = [{ year: 2025, trips: 2, planned: false }, { year: 2026, trips: 1, planned: true }];
+  it('the ribbon has All and a button per year; the selected one is pressed; a future year is marked', () => {
+    const html = ribbonMarkup(years, 2025, true);
+    expect(html).toMatch(/atlas-year" data-year="" aria-pressed="false"/);
+    expect(html).toMatch(/atlas-year active" data-year="2025" aria-pressed="true"/);
+    expect(html).toMatch(/atlas-year planned" data-year="2026"/);
+    expect(html).toContain('data-act="replay"');
+    expect(ribbonMarkup(years, null, true)).toMatch(/atlas-year active" data-year="" aria-pressed="true"/);
+  });
+  it('no play button without a timeline, and no ribbon at all without years', () => {
+    expect(ribbonMarkup(years, null, false)).not.toContain('data-act="replay"');
+    expect(ribbonMarkup([], null, true)).toBe('');
+  });
+  it('shows a dot per trip, at most four', () => {
+    expect(ribbonMarkup([{ year: 2024, trips: 9, planned: false }], null, false)).toContain('●●●●<');
+  });
+});
+
 describe('misc', () => {
   it('has an empty state and pluralised tooltips', () => {
-    expect(emptyMarkup()).toContain('No stops on the map yet');
+    expect(emptyMarkup()).toContain('still blank');
     expect(countryTip('Denmark', '🇩🇰', 1, false)).toBe('🇩🇰 Denmark · 1 visit');
     expect(countryTip('Denmark', '🇩🇰', 3, false)).toBe('🇩🇰 Denmark · 3 visits');
     expect(countryTip('Italy', '', 0, true)).toBe('Italy · planned');

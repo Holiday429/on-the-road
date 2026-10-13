@@ -6,49 +6,78 @@
    tested without a browser; world.ts wires the clicks by `data-*` attributes.
    ========================================================================== */
 
-import { t } from '../../../core/i18n.ts';
-import { escHtml as esc, safeUrl } from '../../../core/utils.ts';
-import type { StampSpec } from '../../../core/paper/stamp.ts';
-import { fmtRange } from '../map-geo.ts';
-import { fmtKm, fmtSpend } from '../map-stats.ts';
-import { unlocatedMarkup } from '../map-panel.ts';
-import type { UnlocatedStop } from '../map-plot.ts';
+import { t } from '../../core/i18n.ts';
+import { escHtml as esc, safeUrl } from '../../core/utils.ts';
+import type { StampSpec } from '../../core/paper/stamp.ts';
+import { fmtRange } from '../map/map-geo.ts';
+import { fmtKm, fmtSpend } from '../map/map-stats.ts';
+import { unlocatedMarkup } from '../map/map-panel.ts';
+import type { UnlocatedStop } from '../map/map-plot.ts';
 import type { CountryDetail } from './country-model.ts';
 import type { CountryExtras } from './country-extras.ts';
-import type { ColorMode, TripRecord, WorldModel, WorldSummary } from './world-model.ts';
+import type { TripRecord, WorldModel, WorldSummary } from './world-model.ts';
+import type { YearEntry } from './world-geo.ts';
 
 const card = (num: string, label: string) =>
   `<div class="map-stat"><div class="map-stat-num">${esc(num)}</div><div class="map-stat-label">${esc(label)}</div></div>`;
 
 export type WorldLayer = 'routes' | 'cities';
 
-/** The six lifetime totals; shared by the overview and the replay panel. */
-export function summaryCardsMarkup(s: WorldSummary, locale: string): string {
-  return `<div class="map-stats map-stats-all">
-      ${card(String(s.countries), t('map.stat.countries'))}
-      ${card(String(s.cities), t('map.stat.cities'))}
-      ${card(String(s.nights), t('map.stat.nights'))}
-      ${card(fmtKm(s.km, locale), t('map.stat.km'))}
-      ${card(String(s.continents), t(s.continents === 1 ? 'map.stat.continent' : 'map.stat.continents'))}
-      ${card(String(s.trips), t('world.stat.trips'))}
-    </div>`;
+/** The three ways of reading the globe (header chips). */
+export type Lens = 'footprint' | 'trips' | 'years';
+export const LENSES: readonly Lens[] = ['footprint', 'trips', 'years'];
+
+export function lensMarkup(active: Lens): string {
+  return LENSES.map((l) =>
+    `<button type="button" class="atlas-lens${l === active ? ' active' : ''}" data-lens="${l}" aria-pressed="${l === active}">${esc(t(`atlas.lens.${l}`))}</button>`).join('');
 }
 
-/** The panel while every trip is being replayed: the running totals and a way out. */
-export function replayMarkup(summary: WorldSummary, locale: string): string {
+/** The year ribbon under the globe: All, then one button per year with stops; the selected year filters the globe. */
+export function ribbonMarkup(years: YearEntry[], selected: number | null, canReplay: boolean): string {
+  if (!years.length) return '';
+  const dots = (n: number) => '●'.repeat(Math.min(n, 4));
+  return `
+    ${canReplay ? `<button type="button" class="atlas-ribbon-play" data-act="replay" title="${esc(t('world.replay.start'))}" aria-label="${esc(t('world.replay.start'))}">▶</button>` : ''}
+    <button type="button" class="atlas-year${selected === null ? ' active' : ''}" data-year="" aria-pressed="${selected === null}">${esc(t('atlas.ribbon.all'))}</button>
+    ${years.map((y) => `<button type="button" class="atlas-year${selected === y.year ? ' active' : ''}${y.planned ? ' planned' : ''}" data-year="${y.year}" aria-pressed="${selected === y.year}"><span class="atlas-year-n">${y.year}</span><span class="atlas-year-dots" aria-hidden="true">${dots(y.trips)}</span></button>`).join('')}`;
+}
+
+export type AtlasSwitch = WorldLayer | 'spin' | 'night' | 'intro';
+
+/** The lifetime totals as one line under the title (they follow the replay cursor too). */
+export function hudStatsMarkup(s: WorldSummary, locale: string): string {
+  const item = (num: string, label: string) => `<span class="atlas-stat"><b>${esc(num)}</b> ${esc(label)}</span>`;
+  return [
+    item(String(s.countries), t('map.stat.countries')),
+    item(String(s.continents), t(s.continents === 1 ? 'map.stat.continent' : 'map.stat.continents')),
+    item(String(s.cities), t('map.stat.cities')),
+    item(String(s.nights), t('map.stat.nights')),
+    item(fmtKm(s.km, locale), t('map.stat.km')),
+    item(String(s.trips), t('world.stat.trips')),
+  ].join('');
+}
+
+/** The small settings popover: map layers and the two things that move or shade by themselves. */
+export function settingsMarkup(on: ReadonlySet<AtlasSwitch>): string {
+  const sw = (id: AtlasSwitch, key: string) =>
+    `<button class="map-layer-chip${on.has(id) ? ' active' : ''}" data-switch="${id}" role="switch" aria-checked="${on.has(id)}">${esc(t(key))}</button>`;
+  return `
+    ${sw('routes', 'world.layer.routes')}
+    ${sw('cities', 'world.layer.cities')}
+    ${sw('night', 'atlas.night')}
+    ${sw('spin', 'world.layer.spin')}
+    ${sw('intro', 'atlas.intro')}`;
+}
+
+/** The panel while every trip is being replayed: a title and a way out (the totals are in the header). */
+export function replayMarkup(): string {
   return `
     <h2 class="world-chead-name">${esc(t('world.replay.title'))}</h2>
-    <div class="world-replay-stats">${summaryCardsMarkup(summary, locale)}</div>
     <button class="btn btn-ghost world-back" data-act="replay-close">${esc(t('world.replay.close'))}</button>`;
 }
 
 export interface OverviewInput {
   model: WorldModel;
-  mode: ColorMode;
-  /** Which map layers are switched on. */
-  layers: ReadonlySet<WorldLayer>;
-  /** Idle auto-spin preference. */
-  spin: boolean;
   /** There is more than one date to replay through. */
   canReplay: boolean;
   /** The trip the chips are filtered to, if any. */
@@ -74,20 +103,10 @@ function tripChip(tr: TripRecord, o: OverviewInput): string {
 }
 
 export function overviewMarkup(o: OverviewInput): string {
-  const s = o.model.summary;
   const trips = o.model.trips.filter((tr) => tr.legCount > 0);
   const hasCurrent = !!o.currentTripId && trips.some((tr) => tr.id === o.currentTripId);
   const countries = [...o.model.countries.values()].sort((a, b) => a.name.localeCompare(b.name));
   return `
-    ${summaryCardsMarkup(s, o.locale)}
-    <div class="map-scope world-mode" role="group" aria-label="${esc(t('world.color.label'))}">
-      <button class="map-scope-btn${o.mode === 'count' ? ' active' : ''}" data-color="count" aria-pressed="${o.mode === 'count'}">${esc(t('world.color.count'))}</button>
-      <button class="map-scope-btn${o.mode === 'trip' ? ' active' : ''}" data-color="trip" aria-pressed="${o.mode === 'trip'}">${esc(t('world.color.trip'))}</button>
-    </div>
-    <div class="world-layers" role="group" aria-label="${esc(t('world.layers'))}">
-      <button class="map-layer-chip${o.spin ? ' active' : ''}" data-spin role="switch" aria-checked="${o.spin}">${esc(t('world.layer.spin'))}</button>
-      ${(['routes', 'cities'] as const).map((id) => `<button class="map-layer-chip${o.layers.has(id) ? ' active' : ''}" data-layer="${id}" role="switch" aria-checked="${o.layers.has(id)}">${esc(t(id === 'routes' ? 'world.layer.routes' : 'world.layer.cities'))}</button>`).join('')}
-    </div>
     ${o.canReplay ? `<button class="btn btn-ghost world-replay" data-act="replay">${esc(t('world.replay.start'))}</button>` : ''}
     ${hasCurrent ? `<button class="btn btn-primary world-open-route" data-act="open-route">${esc(t('world.openRoute'))}</button>` : ''}
     ${o.passport ? `<button type="button" class="pp-pocket" data-open-passport="">
@@ -109,11 +128,27 @@ export function overviewMarkup(o: OverviewInput): string {
 }
 
 export function emptyMarkup(): string {
-  return `<div class="world-empty">${esc(t('world.empty'))}</div>`;
+  return `<div class="world-empty">
+    <p>${esc(t('atlas.empty'))}</p>
+    <button class="btn btn-primary" data-act="open-itinerary">${esc(t('atlas.empty.cta'))}</button>
+  </div>`;
+}
+
+/** The line under the totals: the next stop ahead (opens that country), or a hint while nothing has been visited yet. */
+export function nextStopMarkup(n: { city: string; country: string; flag: string; iso: string | null; inDays: number } | null): string {
+  if (!n) return '';
+  const when = n.inDays <= 0 ? t('atlas.next.today') : n.inDays === 1 ? t('atlas.next.tomorrow') : t('atlas.next.days', { n: n.inDays });
+  const label = `${n.flag} ${n.city}${n.country && n.country !== n.city ? `, ${n.country}` : ''}`.trim();
+  const body = `<span class="atlas-next-k">${esc(t('atlas.next'))}</span> ${esc(label)} · ${esc(when)}`;
+  return n.iso
+    ? `<button type="button" class="atlas-next" data-country="${esc(n.iso)}">${body} <span aria-hidden="true">›</span></button>`
+    : `<span class="atlas-next">${body}</span>`;
 }
 
 export interface CountryInput {
   detail: CountryDetail;
+  /** This country has a stamp waiting to be pressed in the passport. */
+  pending: boolean;
   /** Journal / spend / saved places for this country; null until the stores have answered. */
   extras: CountryExtras | null;
   locale: string;
@@ -121,7 +156,7 @@ export interface CountryInput {
   stampHtml: (s: StampSpec) => string;
 }
 
-export function countryMarkup({ detail: d, extras: x, locale, stampHtml }: CountryInput): string {
+export function countryMarkup({ detail: d, pending, extras: x, locale, stampHtml }: CountryInput): string {
   const planned = d.state === 'planned';
   const trips = d.trips.map((tr) => `
     <div class="world-ctrip" style="--trip:${esc(tr.color || 'var(--accent)')}">
@@ -157,6 +192,7 @@ export function countryMarkup({ detail: d, extras: x, locale, stampHtml }: Count
     </section>
     ${x ? extrasMarkup(d, x, locale) : ''}
     <div class="world-actions">
+      ${d.state === 'visited' ? `<button class="btn ${pending ? 'btn-primary' : 'btn-ghost'}" data-act="passport" data-iso="${esc(d.iso)}">${esc(t(pending ? 'atlas.press' : 'atlas.inPassport'))}</button>` : ''}
       <button class="btn btn-ghost" data-act="journal">${esc(t('world.country.journalOpen'))}</button>
       <button class="btn btn-ghost" data-act="guide">${esc(t('world.country.guide'))}</button>
     </div>`;

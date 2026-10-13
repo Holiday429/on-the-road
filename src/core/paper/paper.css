@@ -213,3 +213,13 @@
   100% { opacity: var(--ink-o, .92); transform: rotate(var(--rot, 0deg)) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) { .pp-stamp.is-pressed { animation: none; } }
+
+/* ── Little globe (mini-globe.ts) — flat, token-coloured ─────────────────── */
+.mini-globe { display: block; overflow: visible; }
+.mini-globe .mg-shadow { fill: color-mix(in srgb, var(--ink) 16%, transparent); }
+.mini-globe .mg-stem, .mini-globe .mg-base { fill: var(--amber-700); }
+.mini-globe .mg-sea { fill: var(--surface); stroke: var(--rule); stroke-width: 0.6; }
+.mini-globe .mg-land { fill: var(--amber-300); }
+.mini-globe .mg-shine { fill: none; stroke: var(--surface); stroke-width: 1.6; stroke-linecap: round; opacity: .8; }
+.mini-globe .mg-ring { fill: none; stroke: var(--amber-600); stroke-width: 1.2; }
+.mini-globe .mg-axle { stroke: var(--amber-600); stroke-width: 1.6; stroke-linecap: round; }
