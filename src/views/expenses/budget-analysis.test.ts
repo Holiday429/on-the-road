@@ -67,7 +67,6 @@ const CATEGORIES = [
 let renderFormCalls = 0;
 let renderSummaryOnlyCalls = 0;
 let jumped: string[] = [];
-let sorted = 0;
 
 function setup() {
   countryCaps = {};
@@ -78,7 +77,6 @@ function setup() {
   renderFormCalls = 0;
   renderSummaryOnlyCalls = 0;
   jumped = [];
-  sorted = 0;
   // eslint-disable-next-line no-restricted-syntax -- audited: static test fixture, no interpolation
   document.body.innerHTML = `<div class="exp-analysis-panel"></div>`;
 
@@ -91,7 +89,7 @@ function setup() {
     timeHtml: () => '<div class="exp-cal-grid"><span class="exp-cal-cell" data-iso="2026-09-02">2</span></div>',
     calNav: () => {},
     onJumpDay: (iso) => { jumped.push(iso); },
-    onSortUnsorted: () => { sorted++; },
+    onSortUnsorted: () => {},
     renderSummaryOnly: () => { renderSummaryOnlyCalls++; },
     renderForm: () => { renderFormCalls++; },
   });
