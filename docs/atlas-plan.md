@@ -4,6 +4,13 @@
 > 依据：owner 对现有 World 椭圆图的反馈（截图 1）、Marginalia 地图页（截图 2）、P5 地图（`views/map/`，已在 main）、P7 护照（`feat/p7-passport`，**尚未合并**，本方案以它为前提）。
 > 推翻的旧决定：P5 规划 §9 写过「3D 球体 owner 明确不要」。owner 现在要立体拟物的地球，以本文为准。
 
+> **实施状态（2026-10-13）**：P8.0–P8.5 已在分支 `feat/p8-atlas` 完成（代码验证：tsc / vitest / build / lint）；P8.6（three.js）按 Q1 取消，签证镜头待定。UI 细节待统一反馈后优化。与本文有出入之处以代码为准：
+> - 代码在 `views/atlas/`（`atlas.ts` 控制器、`atlas-page.ts` 页面、`globe-view.ts` 地球、`globe-focus.ts` / `sun.ts` / `world-*.ts` 纯函数、`atlas-skin.ts` 外壳）；`views/map/` 只剩路线图。
+> - 状态机沿用 `world-state.ts`（world → focusing → country）；镜头是旋转 + 缩放，不再切换投影。
+> - 年份丝带里的 ▶ 与卡片里的“回放所有旅程”是同一个回放（回放时地球随旅行者转向新的一站）。
+> - 地球上的“待盖章”标记点击直接进护照；护照桌面角落有迷你地球，地球桌面角落有护照，互为入口。
+> - 老链接 `#map` + `mode: 'world'` / `iso` 会重定向到 `#atlas`。
+
 > **已确认（2026-10-13，owner）** —— 与下文有出入处以本块为准：
 >
 > | # | 决定 |

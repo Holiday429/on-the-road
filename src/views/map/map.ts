@@ -45,6 +45,7 @@ import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { openCityActionSheet } from './map-city-sheet.ts';
 import { openMapExport } from './map-export-sheet.ts';
+import { wireRouteChrome, postmarkPin, repaintPostmarkPin } from './map-chrome.ts';
 import {
   statsMarkup, flightRowMarkup, legListMarkup, unlocatedMarkup, stageInnerMarkup,
 } from './map-panel.ts';
@@ -952,22 +953,14 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   pinSeries.bullets.push((bRoot:any, _s:any, dataItem:any) => {
     const idx = dataItem.dataContext.index;
     // Stops still ahead of today get a dashed, lighter pin.
-    const planned = legVisitState(legs[idx], today) === 'planned';
-    const c = am5.Container.new(bRoot, { opacity: planned ? 0.75 : 1 });
-    c.children.push(am5.Circle.new(bRoot, { radius:9, fill:am5.color('#fff'), stroke:am5.color(C().route), strokeWidth:3, strokeDasharray: planned ? [3,2] : [] }));
-    c.children.push(am5.Label.new(bRoot, {
-      text:String(idx+1), centerX:am5.p50, centerY:am5.p50,
-      fontSize:10, fontWeight:'700', fill:am5.color(C().route), populateText:false,
-    }));
+    const c = postmarkPin(bRoot, idx + 1, legVisitState(legs[idx], today) === 'planned');
     return am5.Bullet.new(bRoot, { sprite:c });
   });
   pinSeries.data.setAll(legs.map((l,index) => ({
     geometry:{ type:'Point', coordinates:[l.lng, l.lat] }, index, id:l.id,
   })));
   _repaintExtras.push(() => pinSeries.dataItems.forEach((di: Am5Obj) => di.bullets?.forEach((b: Am5Obj) => {
-    const sprite = b.get('sprite');
-    sprite?.children.getIndex(0)?.set('stroke', am5.color(C().route));
-    sprite?.children.getIndex(1)?.set('fill', am5.color(C().route));
+    repaintPostmarkPin(b.get('sprite'), legVisitState(legs[di.dataContext.index], today) === 'planned');
   })));
 
   /* Plane overlay */
@@ -1072,6 +1065,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     else void travelSequence(legs, true);
   });
   on('mapExport', openMapExport);
+  wireRouteChrome(_host, signal);
   on('mapBack', () => {
     stopReplayMotion();
     backToOverview();

@@ -10,10 +10,10 @@
    ========================================================================== */
 
 import './map.css';
-import { renderViewTitleMarkup, consumeNavIntent, navigateTo } from '../../core/app.ts';
+import { renderViewTitleMarkup, consumeNavIntent, navigateTo, openTripSwitcher } from '../../core/app.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import { switchTrip, currentTripId } from '../../data/trip-context.ts';
+import { switchTrip, currentTripId, currentTrip, onTripChange } from '../../data/trip-context.ts';
 
 let _inited = false;
 
@@ -21,7 +21,10 @@ function renderHeader(view: HTMLElement) {
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   view.querySelector('.view-header')!.innerHTML = `
     <div class="view-title">${renderViewTitleMarkup('map', t('map.title'))}</div>
-    <div class="view-subtitle">${esc(t('map.subtitle'))}</div>`;
+    <div class="view-subtitle">${esc(t('map.subtitle'))}</div>
+    ${currentTrip() ? `<button type="button" class="map-trip-chip" id="mapTripChip" title="${esc(t('map.tripChip'))}">✈ ${esc(currentTrip()!.name)} ▾</button>` : ''}`;
+  // This page is one trip's route — the chip says which, and switches it.
+  view.querySelector<HTMLElement>('#mapTripChip')?.addEventListener('click', (e) => openTripSwitcher(e.currentTarget as HTMLElement));
 }
 
 /**
@@ -58,6 +61,8 @@ export function initMap() {
   window.addEventListener('otr:nav-intent', (e) => {
     if ((e as CustomEvent).detail?.view === 'map') void applyIntent();
   });
+
+  onTripChange(() => renderHeader(view));
 
   onLocaleChange(() => {
     renderHeader(view);

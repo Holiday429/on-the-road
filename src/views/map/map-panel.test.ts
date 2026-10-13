@@ -74,7 +74,7 @@ describe('stats / flight row / stage', () => {
 
   it('has the ids map.ts wires up', () => {
     const html = stageInnerMarkup();
-    for (const id of ['mapChart', 'mapReplay', 'mapExport', 'mapBack', 'mapZoomIn', 'mapZoomFit', 'mapZoomOut', 'mapLoading', 'mapTooltip']) {
+    for (const id of ['mapChart', 'mapReplay', 'mapExport', 'mapBack', 'mapZoomIn', 'mapZoomFit', 'mapZoomOut', 'mapLoading', 'mapTooltip', 'mapPortal', 'mapPanelToggle']) {
       expect(html).toContain(`id="${id}"`);
     }
   });
