@@ -42,3 +42,9 @@ export function mrz(b: BioInput, issued: string): [string, string] {
     pad(`${passportNumber(b.uid)}<${nat}${when}<<TRAVELLER`),
   ];
 }
+
+/** `•••• 1234` — only the last four characters of a document number show until asked. */
+export function maskNumber(n: string): string {
+  const s = n.replace(/\s+/g, '');
+  return s.length <= 4 ? '•'.repeat(s.length) : `${'•'.repeat(Math.min(8, s.length - 4))} ${s.slice(-4)}`;
+}

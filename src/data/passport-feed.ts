@@ -10,27 +10,38 @@
 import { routeStore } from './stores/route-store.ts';
 import { listTrips, onTripChange } from './trip-context.ts';
 import { todayIso } from './trip-phase.ts';
-import { passportFor, type PassportData } from './passport.ts';
+import { passportFor } from './passport.ts';
+import { docWarnings, passportState, type PassportFeed } from './passport-state.ts';
+import { passportDocStore, passportStore } from './stores/passport-store.ts';
+import type { PlacementRec } from './schema/passport.ts';
 import type { FootprintLeg } from './footprint.ts';
 
-type Listener = (p: PassportData) => void;
+type Listener = (p: PassportFeed) => void;
 
-const EMPTY: PassportData = { stamps: [], countries: 0, cities: 0, nights: 0, trips: 0 };
+const EMPTY: PassportFeed = { stamps: [], countries: 0, cities: 0, nights: 0, trips: 0, pressed: [], pending: [], warnings: [] };
 
 const listeners = new Set<Listener>();
-let current: PassportData = EMPTY;
+let current: PassportFeed = EMPTY;
 let legs: FootprintLeg[] = [];
 let names = new Map<string, string>();
+let tripDates: Array<{ name: string; startDate: string; endDate: string }> = [];
+let expires = '';
+let placements: Record<string, PlacementRec> = {};
 let stops: Array<() => void> = [];
 let legsStop: (() => void) | null = null;
 
 function recompute(): void {
-  current = passportFor(legs, todayIso(), names);
+  const data = passportFor(legs, todayIso(), names);
+  current = { ...data, ...passportState(data.stamps, placements), warnings: docWarnings(expires, tripDates, todayIso()) };
   listeners.forEach((l) => l(current));
 }
 
 async function loadNames(): Promise<void> {
-  try { names = new Map((await listTrips()).map((t) => [t.id, t.name])); } catch { names = new Map(); }
+  try {
+    const trips = await listTrips();
+    names = new Map(trips.map((t) => [t.id, t.name]));
+    tripDates = trips.map((t) => ({ name: t.name, startDate: t.startDate, endDate: t.endDate }));
+  } catch { names = new Map(); tripDates = []; }
   recompute();
 }
 
@@ -42,6 +53,8 @@ function watchLegs(): void {
 
 function start(): void {
   watchLegs();
+  stops.push(passportStore.subscribe((p) => { placements = p?.placements ?? {}; recompute(); }));
+  stops.push(passportDocStore.subscribe((d) => { expires = d?.expires ?? ''; recompute(); }));
   stops.push(onTripChange(() => { watchLegs(); void loadNames(); }));
   void loadNames();
 }
@@ -66,6 +79,6 @@ export function onPassport(cb: Listener): () => void {
 }
 
 /** Latest data without subscribing (empty until something has subscribed). */
-export function peekPassport(): PassportData {
+export function peekPassport(): PassportFeed {
   return current;
 }

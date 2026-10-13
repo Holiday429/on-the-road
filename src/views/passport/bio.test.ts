@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mrz, passportNumber } from './bio.ts';
+import { maskNumber, mrz, passportNumber } from './bio.ts';
 
 describe('passportNumber', () => {
   it('is seven digits and fixed by the account', () => {
@@ -22,5 +22,15 @@ describe('mrz', () => {
     expect(a.startsWith('P<OTRHOLIDAY<<')).toBe(true);
     expect(b.startsWith(passportNumber('u1'))).toBe(true);
     expect(b).toContain('CN260625');
+  });
+});
+
+describe('maskNumber', () => {
+  it('shows only the last four characters', () => {
+    expect(maskNumber('E12345678')).toBe('••••• 5678');
+    expect(maskNumber('123')).toBe('•••');
+    expect(maskNumber('')).toBe('');
+    expect(maskNumber('AB 12 CD 34 56 78')).toContain('5678');
+    expect(maskNumber('AB 12 CD 34 56 78')).not.toContain('AB');
   });
 });

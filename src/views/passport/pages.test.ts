@@ -8,9 +8,10 @@ const LEGS = [
   { id: 'b', city: 'Berlin', country: 'Germany', dateFrom: '2026-07-05', dateTo: '2026-07-09', tripId: 't1' },
 ];
 const data = passportFor(LEGS, '2026-08-01', new Map([['t1', 'Euro <Trip>']]));
-const pages: BookPage[] = bookPages(stampPages(data.stamps));
+const placements = Object.fromEntries(data.stamps.map((s, i) => [s.id, { page: 't1#0', x: 30 + 30 * i, y: 40, rot: 0, pressure: 1, at: 1 }]));
+const pages: BookPage[] = bookPages(stampPages(data.stamps, placements));
 const ctx: PageCtx = {
-  data, nickname: 'Holi<day>', nationality: 'CN', photoUrl: '', uid: 'u1', issued: '2026-06-25', fresh: new Set(['country:DK:t1']),
+  data, nickname: 'Holi<day>', nationality: 'CN', occupation: 'Pil<ot>', signature: 'M0 0L10 10', photoUrl: '', uid: 'u1', issued: '2026-06-25', fresh: new Set(['country:DK:t1']),
   locale: 'en', pageNo: (p) => pages.indexOf(p) + 1,
 };
 
@@ -33,7 +34,21 @@ describe('pageHtml', () => {
     expect(bio.match(/P&lt;OTR/g)).toHaveLength(1);
   });
 
-  it('a stamp not seen yet is marked to land later; a seen one is not', () => {
+  it('the data page shows the traveller\'s occupation and signature, escaped; an unsafe signature is not painted', () => {
+    const bio = pageHtml({ kind: 'bio' }, ctx);
+    expect(bio).toContain('Pil&lt;ot&gt;');
+    expect(bio).toContain('d="M0 0L10 10"');
+    expect(pageHtml({ kind: 'bio' }, { ...ctx, signature: 'M0 0"><script>' })).not.toContain('<script>');
+  });
+
+  it('a stamp page names its page key; a page of deleted-trip stamps says so', () => {
+    const stamps = pages.find((p) => p.kind === 'stamps')!;
+    expect(pageHtml(stamps, ctx)).toContain('data-page-key="t1#0"');
+    const orphan = { ...stamps, items: stamps.kind === 'stamps' ? stamps.items.map((i) => ({ ...i, stamp: { ...i.stamp, orphan: true } })) : [] };
+    expect(pageHtml(orphan as BookPage, ctx)).toContain(' · ');
+  });
+
+  it('a stamp just pressed is marked to land later; an older one is not', () => {
     const stamps = pages.find((p) => p.kind === 'stamps')!;
     const html = pageHtml(stamps, ctx);
     expect(html).toMatch(/data-stamp="country:DK:t1" data-fresh/);

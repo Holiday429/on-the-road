@@ -22,6 +22,8 @@ export interface PassportStamp extends StampSpec {
   firstEver: boolean;
   cities: string[];
   legIds: string[];
+  /** Its trip or stop no longer exists; the stamp lives on from the copy saved when it was pressed. */
+  orphan?: boolean;
 }
 
 /** Stamp id: one per country per trip, `country:{iso}:{tripId}`. */

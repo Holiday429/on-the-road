@@ -2,14 +2,14 @@
    On the Road · Passport
    --------------------------------------------------------------------------
    `#passport` — the traveller's passport, one for the whole account: every
-   country on every trip earns a stamp (data/passport.ts, fed by
-   data/passport-feed.ts). A full-screen desk with a book on it: closed cover,
-   inside page, data page, visas, stamp pages, back page. Drag a page edge (or
-   use ← →) to turn pages; a stamp lands with a thunk the first time its page
-   is turned to.
+   country on every trip earns a stamp (data/passport.ts), and the traveller
+   presses it themselves (press.ts) — or lets it press itself. A full-screen
+   desk with a book on it: closed cover, inside page, data page, visas, stamp
+   pages, back page. Drag a page edge (or use ← →) to turn pages.
 
    Owns the DOM and the subscriptions; the layout is pure (book.ts), the
-   markup is pages.ts, the page turning is flip.ts.
+   markup is pages.ts, the page turning is flip.ts, the stamping is press.ts,
+   the data-page form is bio-edit.ts.
    ========================================================================== */
 
 import './passport.css';
@@ -17,21 +17,31 @@ import './passport-links.css';
 import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts';
 import { t, onLocaleChange, getLocale } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
+import { renderStamp } from '../../core/paper/stamp.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { onPassport } from '../../data/passport-feed.ts';
+import { passportState, snapOf, type PassportFeed } from '../../data/passport-state.ts';
+import { passportStore } from '../../data/stores/passport-store.ts';
 import { safetyProfileStore } from '../../data/stores/safety-profile-store.ts';
 import { todayIso } from '../../data/trip-phase.ts';
-import { markStampsSeen, unseenStamps } from '../../data/stamp-seen.ts';
-import type { PassportData } from '../../data/passport.ts';
-import { bookPages, flippedToShow, leavesFor, pageOfStamp, stampPages, type BookPage, type Leaf } from './book.ts';
+import type { PassportStamp } from '../../data/passport.ts';
+import type { PlacementRec } from '../../data/schema.ts';
+import {
+  PAGE_CAP, autoPlacement, bookPages, flippedToShow, leavesFor, pageOfStamp, stampPages,
+  type BookPage, type Leaf, type StampPage,
+} from './book.ts';
 import { createFlip, type FlipBook } from './flip.ts';
 import { pageHtml, type PageCtx } from './pages.ts';
+import { openBioEditor } from './bio-edit.ts';
+import { startPress } from './press.ts';
 import { isSoundOn, playCover, playFlip, playThunk, setSoundOn } from './sound.ts';
 
 const view = () => document.getElementById('view-passport');
 
-let _data: PassportData = { stamps: [], countries: 0, cities: 0, nights: 0, trips: 0 };
-let _nationality = '';
+let _feed: PassportFeed = { stamps: [], countries: 0, cities: 0, nights: 0, trips: 0, pressed: [], pending: [], warnings: [] };
+let _placements: Record<string, PlacementRec> = {};
+let _profile = { nickname: '', photoURL: '', nationality: '', occupation: '', signature: '' };
+let _safetyNationality = '';
 let _unsubs: Array<() => void> = [];
 let _flip: FlipBook | null = null;
 let _leaves: Leaf[] = [];
@@ -40,24 +50,42 @@ let _single = false;
 let _turned = 0;               // kept across rebuilds and, within a session, across visits
 let _sig = '';
 let _wired = false;
+/** Stamps just pressed: hidden until their page shows, then they land. */
+const _fresh = new Set<string>();
+/** Placements written locally that the stored copy has not echoed back yet. */
+const _unsaved = new Set<string>();
+/** The stamp the rubber stamp is hovering with, and those still to follow in the same sitting. */
+let _pressing: PassportStamp | null = null;
+let _queue: PassportStamp[] = [];
+let _stopPress: (() => void) | null = null;
 const narrow = () => window.matchMedia?.('(max-width: 820px)').matches ?? false;
 
-/** First name (or the whole display name); the passport's nickname until the traveller picks their own. */
-function nickname(): string {
+/** The account's first name — what the passport calls the traveller until they choose a nickname. */
+function defaultNickname(): string {
   const n = currentUser()?.displayName?.trim() ?? '';
   return n.split(/\s+/)[0] || t('passport.bio.traveller');
 }
 
+const nickname = (): string => _profile.nickname || defaultNickname();
+const nationality = (): string => _profile.nationality || _safetyNationality;
+
+function state() {
+  return passportState(_feed.stamps, _placements);
+}
+
 function ctx(): PageCtx {
   const u = currentUser();
+  const st = state();
   return {
-    data: _data,
+    data: _feed,
     nickname: nickname(),
-    nationality: _nationality,
-    photoUrl: u?.photoURL?.trim() ?? '',
+    nationality: nationality(),
+    occupation: _profile.occupation,
+    signature: _profile.signature,
+    photoUrl: _profile.photoURL || u?.photoURL?.trim() || '',
     uid: u?.uid ?? 'guest',
-    issued: _data.stamps[0]?.date ?? todayIso(),
-    fresh: new Set(unseenStamps(_data.stamps.map((s) => s.id))),
+    issued: st.pressed[0]?.date ?? _feed.stamps[0]?.date ?? todayIso(),
+    fresh: _fresh,
     locale: getLocale(),
     pageNo: (p) => _pages.indexOf(p) + 1,
   };
@@ -93,12 +121,34 @@ function jumpsHtml(): string {
     `<button type="button" class="pp-jump" data-pp-jump="${j.at}">${esc(j.name || t('passport.stamps.title'))}</button>`).join('');
 }
 
+/** The tray of stamps waiting to be pressed. */
+function trayHtml(): string {
+  const waiting = state().pending.filter((s) => s.id !== _pressing?.id);
+  if (waiting.length === 0 || _pressing) return '';
+  const first = state().pressed.length === 0;
+  const heads = waiting.slice(0, 5).map((s) => `<span class="pp-tray-stamp">${renderStamp(s, { size: 56 })}</span>`).join('');
+  return `<div class="pp-tray">
+    <div class="pp-tray-stamps" aria-hidden="true">${heads}</div>
+    <div class="pp-tray-text">${esc(t(first ? 'passport.tray.first' : 'passport.tray.waiting', { n: waiting.length }))}</div>
+    <div class="pp-tray-actions">
+      <button type="button" class="btn btn-primary" data-pp-press>${esc(t('passport.tray.press'))}</button>
+      <button type="button" class="btn btn-ghost" data-pp-press-all>${esc(t('passport.tray.pressAll'))}</button>
+    </div>
+  </div>`;
+}
+
+function layout(): StampPage[] {
+  const st = state();
+  const ensure = _pressing ? { tripId: _pressing.tripId, tripName: _pressing.tripName } : undefined;
+  return stampPages(st.pressed, _placements, { ensureTrip: ensure });
+}
+
 function render(): void {
   const root = view();
   if (!root) return;
   const body = root.querySelector<HTMLElement>('.pp-body')!;
   _single = narrow();
-  _pages = bookPages(stampPages(_data.stamps));
+  _pages = bookPages(layout());
   _leaves = leavesFor(_pages, _single);
   const c = ctx();
   const turned = Math.min(_turned, _leaves.length);
@@ -110,6 +160,7 @@ function render(): void {
         <div class="pp-book" id="pp-book"><div class="pp-spine"></div>${_leaves.map((_, i) => leafHtml(i, near(i), c)).join('')}</div>
       </div>
     </div>
+    <div class="pp-tray-host" data-pp-tray></div>
     <div class="pp-bar">
       <button type="button" class="btn btn-ghost" data-pp-prev aria-label="${esc(t('passport.nav.prev'))}">‹</button>
       <span class="pp-page-label" data-pp-label aria-live="polite"></span>
@@ -130,7 +181,7 @@ function render(): void {
   afterTurn();
 }
 
-/** Fills the pages now near the one showing, updates the label and lets new stamps land. */
+/** Fills the pages now near the one showing, updates the label and tray, and lets new stamps land. */
 function afterTurn(): void {
   const root = view();
   const book = root?.querySelector<HTMLElement>('#pp-book');
@@ -152,7 +203,10 @@ function afterTurn(): void {
   if (label) label.textContent = pageLabel(turned);
   (root.querySelector<HTMLButtonElement>('[data-pp-prev]'))!.disabled = turned === 0;
   (root.querySelector<HTMLButtonElement>('[data-pp-next]'))!.disabled = turned >= _leaves.length;
-  pressVisible(book, turned);
+  const tray = root.querySelector<HTMLElement>('[data-pp-tray]');
+  // eslint-disable-next-line no-restricted-syntax -- audited: tray markup escapes every interpolation
+  if (tray) tray.innerHTML = trayHtml();
+  landVisible(book, turned);
 }
 
 /** The faces showing at this turned-count. */
@@ -166,30 +220,106 @@ function visibleFaces(book: HTMLElement, turned: number): HTMLElement[] {
   return faces.filter((f): f is HTMLElement => !!f);
 }
 
-/** Stamps on the page(s) now showing that this device has not seen yet land one after another. */
-function pressVisible(book: HTMLElement, turned: number): void {
-  const fresh = visibleFaces(book, turned).flatMap((f) => [...f.querySelectorAll<HTMLElement>('.pp-slot[data-fresh]')]);
-  if (fresh.length === 0) return;
-  markStampsSeen(fresh.map((el) => el.dataset.stamp!).filter(Boolean));
-  fresh.forEach((el, i) => {
-    const stamp = el.querySelector<HTMLElement>('.pp-stamp');
-    window.setTimeout(() => {
-      el.removeAttribute('data-fresh');
-      stamp?.classList.add('is-pressed');
-      playThunk();
-    }, 450 + i * 320);
+/** Stamps just pressed that are on a page now showing land one after another, with the thunk. */
+function landVisible(book: HTMLElement, turned: number): void {
+  const slots = visibleFaces(book, turned).flatMap((f) => [...f.querySelectorAll<HTMLElement>('.pp-slot[data-fresh]')]);
+  slots.forEach((el, i) => {
+    const id = el.dataset.stamp ?? '';
+    const pressure = _placements[id]?.pressure ?? 0.75;
+    _fresh.delete(id);
+    el.removeAttribute('data-fresh');
+    el.querySelector<HTMLElement>('.pp-stamp')?.classList.add('is-pressed');
+    window.setTimeout(() => playThunk(pressure), i * 320);
   });
+}
+
+/* ── Pressing ────────────────────────────────────────────────────────────── */
+
+function endPress(): void {
+  _stopPress?.();
+  _stopPress = null;
+  _pressing = null;
+  _queue = [];
+  render();
+}
+
+function commit(s: PassportStamp, p: PlacementRec): void {
+  _placements = { ..._placements, [s.id]: p };
+  _fresh.add(s.id);
+  _unsaved.add(s.id);
+  void passportStore.save({ placements: _placements });
+}
+
+/** Presses the next stamp in the queue: shows its page, then lets the traveller stamp it. */
+function nextPress(): void {
+  const s = _queue.shift();
+  if (!s) { endPress(); return; }
+  _stopPress?.();
+  _pressing = s;
+  render();
+  const at = _pages.findIndex((p) => p.kind === 'stamps' && p.tripId === s.tripId && p.items.length < PAGE_CAP);
+  if (at < 0) { endPress(); return; }
+  const target = flippedToShow(at, _single);
+  const moved = target !== (_flip?.turned() ?? 0);
+  _turned = target;
+  _flip?.goTo(target, true);
+  afterTurn();
+  window.setTimeout(() => {
+    const root = view();
+    const page = _pages[at] as StampPage;
+    const face = root?.querySelector<HTMLElement>(`.pp-sheet[data-page-key="${CSS.escape(page.key)}"]`)?.closest<HTMLElement>('.pp-face');
+    const desk = root?.querySelector<HTMLElement>('.pp-desk');
+    if (!face || !desk || _pressing?.id !== s.id) return;
+    const suggest = autoPlacement(s, _pages.filter((p): p is StampPage => p.kind === 'stamps'));
+    const done = (p: PlacementRec) => { _stopPress = null; commit(s, p); _pressing = null; render(); window.setTimeout(nextPress, 900); };
+    _stopPress = startPress({
+      desk, face, stamp: s, start: { x: suggest.x, y: suggest.y },
+      onDone: (r) => done({ page: suggest.page, x: r.x, y: r.y, rot: s.rotation, pressure: r.pressure, at: Date.now(), snap: snapOf(s) }),
+      onAuto: () => done({ ...suggest, snap: snapOf(s) }),
+      onCancel: endPress,
+    });
+  }, moved ? 820 : 80);
+}
+
+/** Press these one by one. */
+function pressInTurn(stamps: PassportStamp[]): void {
+  _queue = [...stamps];
+  nextPress();
+}
+
+/** Press every waiting stamp at once, each on the first free spot. */
+function pressAll(): void {
+  const pending = state().pending;
+  if (pending.length === 0) return;
+  let acc = { ..._placements };
+  let pressed = [...state().pressed];
+  for (const s of pending) {
+    const pages = stampPages(pressed, acc, { ensureTrip: { tripId: s.tripId, tripName: s.tripName } });
+    const p: PlacementRec = { ...autoPlacement(s, pages), snap: snapOf(s) };
+    acc = { ...acc, [s.id]: p };
+    pressed = [...pressed, s];
+    _fresh.add(s.id);
+    _unsaved.add(s.id);
+  }
+  _placements = acc;
+  void passportStore.save({ placements: _placements });
+  render();
+  // Open on the first of the new stamps so the traveller watches them land.
+  const at = pageOfStamp(_pages, pending[0].id);
+  if (at >= 0) { _turned = flippedToShow(at, _single); _flip?.goTo(_turned, true); afterTurn(); }
 }
 
 /* ── Intent: open the book on a given stamp ──────────────────────────────── */
 
 function applyIntent(intent: NavIntent | null): void {
   if (!intent) return;
-  let stampId = intent.stamp;
-  if (!stampId && intent.legId) stampId = _data.stamps.find((s) => s.legIds.includes(intent.legId!))?.id;
-  if (!stampId && intent.iso) stampId = [..._data.stamps].reverse().find((s) => s.iso === intent.iso)?.id;
-  if (!stampId) return;
-  const at = pageOfStamp(_pages, stampId);
+  let stamp = intent.stamp ? _feed.stamps.find((s) => s.id === intent.stamp) : undefined;
+  if (!stamp && intent.legId) stamp = _feed.stamps.find((s) => s.legIds.includes(intent.legId!));
+  if (!stamp && intent.iso) stamp = [..._feed.stamps].reverse().find((s) => s.iso === intent.iso);
+  if (!stamp) return;
+  // A stamp still waiting to be pressed opens straight into the ceremony.
+  if (!_placements[stamp.id]) { pressInTurn([stamp]); return; }
+  const at = pageOfStamp(_pages, stamp.id);
   if (at < 0) return;
   _turned = flippedToShow(at, _single);
   _flip?.goTo(_turned, false);
@@ -203,8 +333,12 @@ function wire(root: HTMLElement): void {
   _wired = true;
   root.addEventListener('click', (e) => {
     const el = e.target as HTMLElement;
+    if (el.closest('.pp-press')) return;
     if (el.closest('[data-pp-prev]')) { _flip?.prev(); return; }
     if (el.closest('[data-pp-next]')) { _flip?.next(); return; }
+    if (el.closest('[data-pp-press]')) { pressInTurn(state().pending); return; }
+    if (el.closest('[data-pp-press-all]')) { pressAll(); return; }
+    if (el.closest('[data-pp-edit]')) { openBioEditor({ nickname: defaultNickname(), nationality: _safetyNationality }, () => { /* the subscription repaints */ }); return; }
     if (el.closest('[data-pp-sound]')) {
       setSoundOn(!isSoundOn());
       const b = el.closest<HTMLElement>('[data-pp-sound]')!;
@@ -235,8 +369,12 @@ function head(root: HTMLElement): void {
     <div class="view-subtitle">${esc(t('passport.view.subtitle'))}</div>`;
 }
 
-const signature = (d: PassportData): string =>
-  `${d.stamps.map((s) => `${s.id}:${s.nights}:${s.date}`).join('|')}#${d.cities}#${d.nights}#${_nationality}#${getLocale()}`;
+const signature = (): string =>
+  [
+    _feed.stamps.map((s) => `${s.id}:${s.nights}:${s.date}`).join('|'),
+    Object.entries(_placements).map(([k, p]) => `${k}@${p.page}:${p.x}:${p.y}`).join('|'),
+    Object.values(_profile).join('~'), _safetyNationality, getLocale(), _feed.cities, _feed.nights,
+  ].join('#');
 
 /* ── Mount ───────────────────────────────────────────────────────────────── */
 
@@ -246,14 +384,24 @@ export function initPassport(): void {
   _unsubs.forEach((u) => u());
   head(root);
   const refresh = (force = false) => {
-    const s = signature(_data);
+    const s = signature();
     if (!force && s === _sig) return;
     _sig = s;
+    // Do not pull the page out from under a stamp that is being pressed.
+    if (_pressing) return;
     render();
   };
   _unsubs = [
-    onPassport((d) => { _data = d; refresh(); }),
-    safetyProfileStore.subscribe((p) => { _nationality = p?.nationality ?? ''; refresh(); }),
+    onPassport((d) => { _feed = d; refresh(); }),
+    passportStore.subscribe((p) => {
+      _profile = { nickname: p?.nickname ?? '', photoURL: p?.photoURL ?? '', nationality: p?.nationality ?? '', occupation: p?.occupation ?? '', signature: p?.signature ?? '' };
+      // Placements written in this sitting stand until the stored copy has caught up with them.
+      const stored = p?.placements ?? {};
+      for (const id of [..._unsaved]) if (stored[id]) _unsaved.delete(id);
+      _placements = { ...stored, ...Object.fromEntries([..._unsaved].map((id) => [id, _placements[id]]).filter(([, v]) => v)) };
+      refresh();
+    }),
+    safetyProfileStore.subscribe((p) => { _safetyNationality = p?.nationality ?? ''; refresh(); }),
     onLocaleChange(() => { head(root); refresh(true); }),
   ];
   const mq = window.matchMedia?.('(max-width: 820px)');
@@ -263,7 +411,7 @@ export function initPassport(): void {
   window.addEventListener('otr:nav-intent', onIntent);
   _unsubs.push(() => window.removeEventListener('otr:nav-intent', onIntent));
   wire(root);
-  _sig = signature(_data);
+  _sig = signature();
   render();
   applyIntent(consumeNavIntent('passport'));
 }

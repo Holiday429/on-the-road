@@ -161,3 +161,10 @@
   color: var(--ink-muted);
 }
 
+.sidebar-passport { position: relative; }
+.sidebar-passport.has-pending::after {
+  content: attr(data-count); position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px;
+  display: grid; place-items: center; border-radius: var(--r-full); background: var(--coral-500); color: white;
+  font-size: 10px; font-weight: var(--fw-semibold); line-height: 1;
+}
+.sidebar-passport.has-pending:not([data-count])::after, .sidebar-passport.has-pending[data-count='']::after { content: ''; min-width: 9px; height: 9px; padding: 0; }

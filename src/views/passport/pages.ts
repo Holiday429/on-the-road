@@ -13,17 +13,22 @@ import { stampDate } from '../../core/paper/stamp-base.ts';
 import { nationalityFlag, nationalityLabel } from '../../data/nationalities.ts';
 import type { PassportData } from '../../data/passport.ts';
 import { mrz, passportNumber } from './bio.ts';
+import { isSafePath } from './signature.ts';
 import type { BookPage, StampPage } from './book.ts';
 
 export interface PageCtx {
   data: PassportData;
   nickname: string;
   nationality: string;
+  /** '' = "Traveller". */
+  occupation: string;
+  /** Stored signature path data, '' = unsigned. */
+  signature: string;
   photoUrl: string;
   uid: string;
   /** First stamp date, or today when there are none. */
   issued: string;
-  /** Stamp ids not yet seen on this device: they stay hidden until their page is turned to, then land with the "thunk". */
+  /** Stamp ids just pressed: they stay hidden until their page is showing, then land with the "thunk". */
   fresh: ReadonlySet<string>;
   locale: string;
   /** 1-based number of a book page for the page footer; 0 = none. */
@@ -83,11 +88,14 @@ function bio(c: PageCtx): string {
       <div class="pp-fields">
         ${row(t('passport.bio.nickname'), esc(c.nickname))}
         ${row(t('passport.bio.nationality'), nat)}
-        ${row(t('passport.bio.occupation'), esc(t('passport.bio.traveller')))}
+        ${row(t('passport.bio.occupation'), esc(c.occupation || t('passport.bio.traveller')))}
         ${row(t('passport.bio.issued'), esc(c.issued))}
       </div>
     </div>
-    <div class="pp-sign"><span class="pp-sign-l">${esc(t('passport.bio.signature'))}</span><span class="pp-sign-line"></span></div>
+    <div class="pp-sign"><span class="pp-sign-l">${esc(t('passport.bio.signature'))}</span><span class="pp-sign-line">${
+      c.signature && isSafePath(c.signature) ? `<svg viewBox="0 0 300 100" preserveAspectRatio="xMidYMax meet" aria-hidden="true"><path d="${esc(c.signature)}"/></svg>` : ''
+    }</span></div>
+    <button type="button" class="btn btn-ghost pp-bio-edit" data-pp-edit data-no-turn>${esc(t('passport.edit.open'))}</button>
     <div class="pp-mrz" aria-hidden="true"><div>${esc(l1)}</div><div>${esc(l2)}</div></div>
   </div>`;
 }
@@ -105,8 +113,10 @@ function stampsPage(p: StampPage, c: PageCtx): string {
     return `<span class="pp-slot" data-stamp="${esc(i.stamp.id)}"${c.fresh.has(i.stamp.id) ? ' data-fresh' : ''} style="left:${i.x.toFixed(1)}%;top:${i.y.toFixed(1)}%">${renderStamp(st, { size: 160 })}</span>`;
   }).join('');
   const range = p.items.length ? `${stampDate(p.items[0].stamp.date)} – ${stampDate(p.items[p.items.length - 1].stamp.date)}` : '';
-  return `<div class="pp-sheet pp-stamps">
-    <div class="pp-page-head"><span>${esc(p.tripName || t('passport.stamps.title'))}</span><span class="pp-page-range">${esc(range)}</span></div>
+  const deleted = p.items.length > 0 && p.items.every((i) => i.stamp.orphan);
+  const name = (p.tripName || t('passport.stamps.title')) + (deleted ? ` · ${t('passport.deletedTrip')}` : '');
+  return `<div class="pp-sheet pp-stamps" data-page-key="${esc(p.key)}">
+    <div class="pp-page-head"><span>${esc(name)}</span><span class="pp-page-range">${esc(range)}</span></div>
     ${p.items.length ? `<div class="pp-field-area">${items}</div>` : `<div class="pp-note">${esc(t('passport.empty'))}</div>`}
     <div class="pp-page-no">${c.pageNo(p) || ''}</div>
   </div>`;
