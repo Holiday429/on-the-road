@@ -7,10 +7,10 @@
    panel and on the map can never disagree.
    ========================================================================== */
 
-import { passportFor, type PassportStamp } from '../../../data/passport.ts';
-import type { FootprintLeg } from '../../../data/footprint.ts';
+import { passportFor, type PassportStamp } from '../../data/passport.ts';
+import type { FootprintLeg } from '../../data/footprint.ts';
 import { spentNights, type CountryRecord, type TripPhase, type WorldModel } from './world-model.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 
 export interface CountryTrip {
   id: string;

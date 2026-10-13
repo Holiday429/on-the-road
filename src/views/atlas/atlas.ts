@@ -7,40 +7,38 @@
    a trip filter, the colour mode). Clicks are wired once, by `data-*` attribute.
    ========================================================================== */
 
-import { t, getLocale } from '../../../core/i18n.ts';
-import { escHtml as esc } from '../../../core/utils.ts';
-import { loadAmCharts } from '../amcharts-loader.ts';
-import { waitForSize } from '../amcharts-boot.ts';
-import { plotStoredLegs, type StoredLegInput, type UnlocatedStop } from '../map-plot.ts';
-import type { PlottedLeg } from '../map-stats.ts';
-import { routeStore } from '../../../data/stores/route-store.ts';
-import { journalStore } from '../../../data/stores/journal-store.ts';
-import { expenseStore } from '../../../data/stores/expense-store.ts';
-import { nomadStore } from '../../../data/stores/nomad-store.ts';
-import { cityStore } from '../../../data/stores/city-store.ts';
+import { t, getLocale } from '../../core/i18n.ts';
+import { escHtml as esc } from '../../core/utils.ts';
+import { loadAmCharts } from '../map/amcharts-loader.ts';
+import { waitForSize } from '../map/amcharts-boot.ts';
+import { plotStoredLegs, type StoredLegInput, type UnlocatedStop } from '../map/map-plot.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
+import { routeStore } from '../../data/stores/route-store.ts';
+import { journalStore } from '../../data/stores/journal-store.ts';
+import { expenseStore } from '../../data/stores/expense-store.ts';
+import { nomadStore } from '../../data/stores/nomad-store.ts';
+import { cityStore } from '../../data/stores/city-store.ts';
 import { buildCountryExtras, type ExtrasData } from './country-extras.ts';
-import { pickArrival } from './world-motion.ts';
-import { mountScrubber, type Scrubber } from '../map-scrubber.ts';
-import { timelineRange, msToIso } from '../map-timeline.ts';
-import { listTrips, onTripChange, currentTripId } from '../../../data/trip-context.ts';
-import { todayIso } from '../../../data/trip-phase.ts';
-import { passportFor } from '../../../data/passport.ts';
-import type { FootprintLeg } from '../../../data/footprint.ts';
-import { unseenStamps, markStampsSeen } from '../../../data/stamp-seen.ts';
-import { stampSticker, wirePassportOpeners } from '../../passport/passport-links.ts';
+import { mountScrubber, type Scrubber } from '../map/map-scrubber.ts';
+import { timelineRange, msToIso } from '../map/map-timeline.ts';
+import { listTrips, onTripChange, currentTripId } from '../../data/trip-context.ts';
+import { todayIso } from '../../data/trip-phase.ts';
+import { passportFor } from '../../data/passport.ts';
+import type { FootprintLeg } from '../../data/footprint.ts';
+import { stampSticker, wirePassportOpeners } from '../passport/passport-links.ts';
 import { buildCountryDetail } from './country-model.ts';
 import { buildWorldModel, type ColorMode, type WorldModel, type WorldTripInput } from './world-model.ts';
 import { createWorldView, type WorldView } from './world-view.ts';
 import { overviewMarkup, countryMarkup, emptyMarkup, replayMarkup, summaryCardsMarkup, hoverCardText, type WorldLayer } from './world-panel.ts';
 import { buildTripLines, buildCityPoints, currentSpot } from './world-geo.ts';
-import './world.css';
+import './atlas.css';
 
-export interface WorldHooks {
+export interface AtlasHooks {
   /** Open the Route view — for this trip (switching to it first), or the current one. */
   openRoute(tripId: string | null): void;
 }
 
-export interface WorldController {
+export interface AtlasController {
   /** Re-apply translated text after a language switch. */
   refreshText(): void;
   /** Open a country's detail (deep link). Applied once its data is ready. */
@@ -76,7 +74,7 @@ function stageMarkup(): string {
     </div>`;
 }
 
-export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldController {
+export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasController {
   // eslint-disable-next-line no-restricted-syntax -- audited: static markup; every interpolation is escaped via esc()
   host.innerHTML = stageMarkup();
   const panel = host.querySelector<HTMLElement>('#worldPanel')!;
@@ -97,8 +95,6 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
   let active = true;
   let asOf: string | null = null;            // set while replaying: the map shows the world as of this date
   let scrubber: Scrubber | null = null;
-  let arrivalDone = false;
-  let ceremonyStampId: string | null = null;  // the entry stamp to press when its country panel opens
   const today = () => asOf ?? todayIso();
   const extrasData: ExtrasData = { journal: [], expenses: [], nomad: [], intel: [] };
 
@@ -112,11 +108,9 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
       html = replayMarkup(model.summary, getLocale());
     } else if (selectedIso) {
       const detail = buildCountryDetail(selectedIso, legs, model, now);
-      const pressed = ceremonyStampId;
-      ceremonyStampId = null;        // the stamp is pressed once, as the panel opens
       html = detail
         ? countryMarkup({
-          detail, locale: getLocale(), stampHtml: (s) => stampSticker(s, 76, { pressed: s.id === pressed }),
+          detail, locale: getLocale(), stampHtml: (s) => stampSticker(s, 76),
           extras: buildCountryExtras(selectedIso, legs, extrasData),
         })
         : overviewHtml(now);
@@ -153,24 +147,6 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
     paintMap();
     renderPanel();
     flushPending();
-    maybeArrival();
-  }
-
-  /**
-   * A country entered since the traveller last looked: turn the world to it and
-   * press its entry stamp. Once per visit to the page, never over a deep link or
-   * a trip filter, and only when there is a fresh earned stamp to show.
-   */
-  function maybeArrival() {
-    if (arrivalDone || !view || legs.length === 0 || pendingIso || onlyTripId) return;
-    arrivalDone = true;
-    const stamps = passportFor(legs as unknown as FootprintLeg[], todayIso()).stamps;
-    const fresh = unseenStamps(stamps.map((s) => s.id));
-    const pick = pickArrival(stamps, fresh);
-    if (!pick || !model.countries.has(pick.iso)) return;
-    markStampsSeen([pick.id]);
-    ceremonyStampId = pick.id;
-    void selectCountry(pick.iso);
   }
 
   /** Open a deep-linked country as soon as both the chart and the data are ready. */
@@ -247,8 +223,8 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
     else if (act === 'open-route') hooks.openRoute(currentTripId());
     else if (act === 'replay') startReplay();
     else if (act === 'replay-close') endReplay();
-    else if (act === 'guide') void import('../../../core/app.ts').then(({ navigateTo }) => navigateTo('cities'));
-    else if (act === 'journal') void import('../../../core/app.ts').then(({ navigateTo }) => navigateTo('journal'));
+    else if (act === 'guide') void import('../../core/app.ts').then(({ navigateTo }) => navigateTo('cities'));
+    else if (act === 'journal') void import('../../core/app.ts').then(({ navigateTo }) => navigateTo('journal'));
   });
   host.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selectedIso) void backToWorld(); });
 
@@ -325,7 +301,6 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
     view.setActive(active);
     paintMap();
     flushPending();
-    maybeArrival();
   }
 
   void bootChart();

@@ -6,13 +6,13 @@
    tested without a browser; world.ts wires the clicks by `data-*` attributes.
    ========================================================================== */
 
-import { t } from '../../../core/i18n.ts';
-import { escHtml as esc, safeUrl } from '../../../core/utils.ts';
-import type { StampSpec } from '../../../core/paper/stamp.ts';
-import { fmtRange } from '../map-geo.ts';
-import { fmtKm, fmtSpend } from '../map-stats.ts';
-import { unlocatedMarkup } from '../map-panel.ts';
-import type { UnlocatedStop } from '../map-plot.ts';
+import { t } from '../../core/i18n.ts';
+import { escHtml as esc, safeUrl } from '../../core/utils.ts';
+import type { StampSpec } from '../../core/paper/stamp.ts';
+import { fmtRange } from '../map/map-geo.ts';
+import { fmtKm, fmtSpend } from '../map/map-stats.ts';
+import { unlocatedMarkup } from '../map/map-panel.ts';
+import type { UnlocatedStop } from '../map/map-plot.ts';
 import type { CountryDetail } from './country-model.ts';
 import type { CountryExtras } from './country-extras.ts';
 import type { ColorMode, TripRecord, WorldModel, WorldSummary } from './world-model.ts';

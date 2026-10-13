@@ -594,11 +594,6 @@ function applyPendingLeg() {
   _chart.zoomToGeoPoint?.({ longitude: leg.lng, latitude: leg.lat }, 6, true, motionMs(700));
 }
 
-/** The Route tab was shown again after being hidden: re-fit the camera. */
-export function routeShown() {
-  if (_chart && _legsRef.length > 0 && !_drillSeries) fitToRoute(_legsRef, 0);
-}
-
 function stageMarkup(): string {
   return `
     <div class="map-layout">

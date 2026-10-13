@@ -525,7 +525,7 @@ function render(): void {
   // A rebuild must be invisible: carry typed text + focus across, and keep the
   // (expensive, async-built) map canvas node instead of recreating the map.
   const ui = captureUiState(body);
-  swapHtml(body, `${renderGreeting()}${renderHero(phase)}<div class="td-passport">${pocketHtml(peekPassport())}</div>${layout(phase)}`, '#td-map-canvas');
+  swapHtml(body, `${renderGreeting()}${renderHero(phase)}<div class="td-passport">${pocketHtml(peekPassport(), true)}</div>${layout(phase)}`, '#td-map-canvas');
   wire(body);
   wirePassportOpeners(body);
   restoreUiState(body, ui);

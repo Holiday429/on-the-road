@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildTripLines, buildCityPoints, currentSpot } from './world-geo.ts';
 import { buildWorldModel } from './world-model.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 
 const mk = (id: string, city: string, iso: string, from: string, to: string, tripId: string, lng: number, lat: number, extraStops: string[] = []): PlottedLeg => ({
   id, city, country: iso, flag: '', dateFrom: from, dateTo: to, lat, lng, iso, tripId,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFootprint, type FootprintLeg } from './footprint.ts';
 import { passportFor, pendingStamps } from './passport.ts';
-import { buildWorldModel } from '../views/map/world/world-model.ts';
+import { buildWorldModel } from '../views/atlas/world-model.ts';
 import type { PlottedLeg } from '../views/map/map-stats.ts';
 
 const leg = (id: string, city: string, country: string, from: string, to: string, tripId: string, extra: Partial<FootprintLeg> = {}): FootprintLeg =>

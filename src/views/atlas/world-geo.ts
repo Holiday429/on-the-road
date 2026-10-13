@@ -14,8 +14,8 @@
    handles the date line, so Asia ↔ Americas stays one unbroken curve.
    ========================================================================== */
 
-import { legVisitState } from '../map-status.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import { legVisitState } from '../map/map-status.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 import type { TripRecord } from './world-model.ts';
 
 export interface LineSeg {

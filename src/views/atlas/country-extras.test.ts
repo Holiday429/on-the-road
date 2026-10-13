@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildCountryExtras, journalIso, type ExtrasData } from './country-extras.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 
 const leg = (id: string, city: string, iso: string, from: string, to: string, tripId: string, extra: string[] = []): PlottedLeg => ({
   id, city, country: iso, flag: '', dateFrom: from, dateTo: to, lat: 0, lng: 0, iso, tripId,

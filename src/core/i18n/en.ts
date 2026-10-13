@@ -1354,4 +1354,8 @@ export const en: StringTable = {
   'wrap.end.line': '{days} days, {countries} countries, {km} km — {stamps} stamps to show for it.',
   'wrap.end.lineNoKm': '{days} days, {countries} countries — {stamps} stamps to show for it.',
   'wrap.end.back': 'Back to Dashboard',
+  'atlas.title': 'My Atlas',
+  'atlas.subtitle': 'Every country you have been to — drag to spin the globe, tap a country for details.',
+  'atlas.pocket': '{c} countries · {n} cities',
+  'atlas.pocket.empty': 'Your globe is still blank',
 };

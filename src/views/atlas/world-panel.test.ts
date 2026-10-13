@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, replayMarkup, type WorldLayer } from './world-panel.ts';
 import { buildWorldModel } from './world-model.ts';
 import { buildCountryDetail } from './country-model.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 
 const legs: PlottedLeg[] = [
   { id: '1', city: 'Copenhagen', country: 'Denmark', flag: '🇩🇰', dateFrom: '2026-04-01', dateTo: '2026-04-05', lat: 55, lng: 12, iso: 'DK', tripId: 'a', stops: [{ key: 'copenhagen', name: 'Copenhagen', lat: 55, lng: 12 }] },

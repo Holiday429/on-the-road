@@ -5,7 +5,7 @@ import { zh } from '../../core/i18n/zh.ts';
 /* Every `map.*` / `world.*` translation key the Map page's code mentions must exist in
    English and Chinese (the two languages new copy ships in). */
 
-const SOURCES = import.meta.glob(['./*.ts', './world/*.ts'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
+const SOURCES = import.meta.glob(['./*.ts', '../atlas/*.ts'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
 const FILES = Object.keys(SOURCES).filter((f) => !f.endsWith('.test.ts'));
 
 describe('map translation keys', () => {

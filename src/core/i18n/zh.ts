@@ -1339,4 +1339,8 @@ export const zh: StringTable = {
   'wrap.end.line': '{days} 天,{countries} 个国家,{km} 公里——收获 {stamps} 枚印章。',
   'wrap.end.lineNoKm': '{days} 天,{countries} 个国家——收获 {stamps} 枚印章。',
   'wrap.end.back': '回到 Dashboard',
+  'atlas.title': '我的地球',
+  'atlas.subtitle': '你去过的每个国家 —— 拖动转动地球,点国家看详情。',
+  'atlas.pocket': '{c} 个国家 · {n} 座城市',
+  'atlas.pocket.empty': '你的地球还是空白的',
 };

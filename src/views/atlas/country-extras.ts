@@ -12,8 +12,8 @@
      added together — a grand total appears only when every trip agrees.
    ========================================================================== */
 
-import { isoForCountry } from '../../../data/geo-index.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import { isoForCountry } from '../../data/geo-index.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 
 export interface JournalRow { destination?: string; happenedOn: string; tripId?: string | null; images?: string[]; coverImage?: string }
 export interface ExpenseRow { country?: string; baseAmount?: number; baseCurrency?: string; tripId?: string | null }

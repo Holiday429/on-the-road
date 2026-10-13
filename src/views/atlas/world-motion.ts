@@ -3,10 +3,8 @@
    --------------------------------------------------------------------------
    The arithmetic behind the extras that make the world feel physical, kept apart
    from amCharts so it can be tested: how far a flick should keep spinning the
-   world, and which newly earned country deserves the arrival ceremony.
+   world.
    ========================================================================== */
-
-import type { StampSpec } from '../../../core/paper/stamp.ts';
 
 /** One reading of the world's rotation while a finger / mouse was dragging it. */
 export interface RotationSample { t: number; x: number; }
@@ -29,15 +27,4 @@ export function flingDistance(samples: RotationSample[], upAt: number): number {
   const v = (last.x - first.x) / (last.t - first.t);          // degrees per ms
   const d = Math.max(-MAX_DEG, Math.min(MAX_DEG, v * GLIDE_MS));
   return Math.abs(d) < MIN_DEG ? 0 : d;
-}
-
-/**
- * The country to welcome with a stamp being pressed: the most recently entered
- * country whose entry stamp has been earned but not yet seen. Null if none.
- */
-export function pickArrival(stamps: StampSpec[], unseenIds: readonly string[]): StampSpec | null {
-  const fresh = new Set(unseenIds);
-  const candidates = stamps.filter((s) => s.kind === 'country' && s.earned && s.iso && fresh.has(s.id));
-  if (!candidates.length) return null;
-  return candidates.reduce((a, b) => (b.date > a.date ? b : a));
 }

@@ -26,7 +26,7 @@ import { journalStore } from '../../data/stores/journal-store.ts';
 import { expenseStore } from '../../data/stores/expense-store.ts';
 import { countryMemory } from '../../data/country-memory.ts';
 import { currentTripId } from '../../data/trip-context.ts';
-import type { ExtrasData } from '../../views/map/world/country-extras.ts';
+import type { ExtrasData } from '../../views/atlas/country-extras.ts';
 import { safetyProfileStore } from '../../data/stores/safety-profile-store.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import type { PassportStamp } from '../../data/passport.ts';
@@ -365,7 +365,7 @@ function openCard(id: string): void {
   _closeCard?.();
   const memory = countryMemory(stamp, _feed.stamps, peekFeedLegs(), _extras);
   _closeCard = openStampCard(desk, memory, getLocale(), {
-    onMap: (iso) => { void navigateTo('map', { mode: 'world', iso }); },
+    onMap: (iso) => { void navigateTo('atlas', { iso }); },
     onJournal: !stamp.orphan && stamp.tripId === currentTripId() ? () => { void navigateTo('journal'); } : undefined,
     onClose: () => { _closeCard = null; },
   });
@@ -460,7 +460,7 @@ function wire(root: HTMLElement): void {
       b.setAttribute('aria-pressed', String(isSoundOn()));
       return;
     }
-    if (el.closest('[data-pp-map]')) { void navigateTo('map', { mode: 'world' }); return; }
+    if (el.closest('[data-pp-map]')) { void navigateTo('atlas'); return; }
     const jump = el.closest<HTMLElement>('[data-pp-jump]');
     if (jump) { _flip?.goTo(flippedToShow(Number(jump.dataset.ppJump), _single)); return; }
     const slot = el.closest<HTMLElement>('.pp-slot[data-stamp]');

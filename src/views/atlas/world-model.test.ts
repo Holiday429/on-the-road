@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildWorldModel, countryTone, spentNights, tripPhase, type WorldTripInput } from './world-model.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 
 let n = 0;
 function leg(over: Partial<PlottedLeg> & { iso: string; city: string; dateFrom: string; dateTo: string; tripId: string }): PlottedLeg {

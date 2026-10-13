@@ -13,10 +13,10 @@
      (Copenhagen → Berlin → Copenhagen is two visits to Denmark).
    ========================================================================== */
 
-import { continentFor, haversineKm, EUROPE_CENTER } from '../../../data/geo-index.ts';
-import { nights } from '../map-geo.ts';
-import { legVisitState, type VisitState } from '../map-status.ts';
-import type { PlottedLeg } from '../map-stats.ts';
+import { continentFor, haversineKm, EUROPE_CENTER } from '../../data/geo-index.ts';
+import { nights } from '../map/map-geo.ts';
+import { legVisitState, type VisitState } from '../map/map-status.ts';
+import type { PlottedLeg } from '../map/map-stats.ts';
 
 export interface WorldTripInput {
   id: string;

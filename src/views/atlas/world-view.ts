@@ -10,11 +10,11 @@
    WorldModel; when a transition may proceed comes from world-state.ts.
    ========================================================================== */
 
-import { createMapRoot, disposeRoot, motionMs, prefersReducedMotion } from '../amcharts-boot.ts';
-import { loadCountryGeodata, DRILLDOWN_COUNTRIES } from '../amcharts-loader.ts';
-import { expandBounds } from '../map-geo.ts';
-import { onMapRepaint, worldPalette } from '../map-theme.ts';
-import type { Am5Obj } from '../map-amcharts.ts';
+import { createMapRoot, disposeRoot, motionMs, prefersReducedMotion } from '../map/amcharts-boot.ts';
+import { loadCountryGeodata, DRILLDOWN_COUNTRIES } from '../map/amcharts-loader.ts';
+import { expandBounds } from '../map/map-geo.ts';
+import { onMapRepaint, worldPalette } from '../map/map-theme.ts';
+import type { Am5Obj } from '../map/map-amcharts.ts';
 import { countryTone, type ColorMode, type WorldModel } from './world-model.ts';
 import type { LineSeg, CityPoint, CurrentSpot } from './world-geo.ts';
 import { createWorldState, type WorldState } from './world-state.ts';
