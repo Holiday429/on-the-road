@@ -108,6 +108,12 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
     night.data.setAll([{ geometry: am5map.getGeoCircle(centre, 90) }]);
   }
 
+  // Which country the pointer is actually over. `globalpointermove` fires on EVERY
+  // polygon for any move, so it may only follow the card along — the country itself
+  // comes from pointerover/out, or the card would end up naming whichever polygon
+  // amCharts happened to tell last.
+  let hovered: string | null = null;
+
   /* Trip lines (solid once travelled, grey dashes while ahead), city dots, the traveller. */
   const lineSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
   const plannedLines = chart.series.push(am5map.MapLineSeries.new(root, {}));
@@ -129,8 +135,8 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
       fill: am5.color(c.planned ? pal.land : pal.visited[3]),
     }));
     box.events.on('click', () => { if (c.iso) hooks.onCountryClick(c.iso); });
-    box.events.on('pointerover', (ev: Am5Obj) => { if (c.iso) hooks.onHover(c.iso, ev.point.x, ev.point.y); });
-    box.events.on('pointerout', () => hooks.onHover(null, 0, 0));
+    box.events.on('pointerover', (ev: Am5Obj) => { if (c.iso) { hovered = c.iso; hooks.onHover(c.iso, ev.point.x, ev.point.y); } });
+    box.events.on('pointerout', () => { hovered = null; hooks.onHover(null, 0, 0); });
     return am5.Bullet.new(bRoot, { sprite: box });
   });
   /* Stamps waiting to be pressed: a small dashed, softly pulsing stamp-shaped ring on the country. */
@@ -170,13 +176,20 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
   });
   tpl.events.on('pointerover', (ev: Am5Obj) => {
     const id = ev.target.dataItem?.get('id');
-    if (id && current?.model.countries.has(id)) hooks.onHover(id, ev.point.x, ev.point.y);
+    if (!id || !current?.model.countries.has(id)) return;
+    hovered = id;
+    hooks.onHover(id, ev.point.x, ev.point.y);
   });
   tpl.events.on('globalpointermove', (ev: Am5Obj) => {
-    const id = ev.target?.dataItem?.get('id');
-    if (id && current?.model.countries.has(id) && ev.point) hooks.onHover(id, ev.point.x, ev.point.y);
+    if (!hovered || !ev.point) return;
+    if (ev.target?.dataItem?.get('id') !== hovered) return;   // moved off this country
+    hooks.onHover(hovered, ev.point.x, ev.point.y);
   });
-  tpl.events.on('pointerout', () => hooks.onHover(null, 0, 0));
+  tpl.events.on('pointerout', (ev: Am5Obj) => {
+    if (ev.target?.dataItem?.get('id') !== hovered) return;   // a neighbour's pointerout
+    hovered = null;
+    hooks.onHover(null, 0, 0);
+  });
 
   /* ── Painting ──────────────────────────────────────────────────────────── */
   function colourBase() {

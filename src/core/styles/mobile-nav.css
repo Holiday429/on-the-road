@@ -99,17 +99,16 @@
   }
 
   .sidebar-profile-meta,
-  .trip-pill-label,
-  .trip-pill-name,
-  .trip-pill-days,
   .nav-item .nav-label {
     display: none;
   }
 
+  /* Collapsed: the pill is just the day count — everything else would not fit. */
+  .trip-pill > *:not(.trip-pill-date) { display: none; }
+
   .trip-pill {
     margin: var(--sp-3) var(--sp-2) 0;
     padding: var(--sp-2) 2px;
-    text-align: center;
     overflow: hidden;
   }
 
