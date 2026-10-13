@@ -1,56 +1,4 @@
-/* ── Budget card ─────────────────────────────────────────────────────────── */
-.exp-budget-card {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: var(--surface);
-  border: 1.5px dashed var(--amber-300);
-  border-radius: var(--r-lg);
-  padding: var(--sp-4) var(--sp-5);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
-}
-.exp-budget-card:hover { border-color: var(--amber-400); box-shadow: var(--shadow-md); }
-.exp-budget-empty {
-  display: flex; align-items: center; gap: var(--sp-3);
-  justify-content: space-between;
-}
-.exp-budget-top {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: var(--sp-2);
-}
-.exp-budget-label {
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
-  color: var(--ink-muted);
-  letter-spacing: 0.01em;
-}
-.exp-budget-edit {
-  font-size: 13px;
-  color: var(--ink-faint);
-  padding: 2px 6px;
-  border-radius: var(--r-sm);
-  transition: all var(--dur-fast);
-}
-.exp-budget-edit:hover { background: var(--surface-3); color: var(--ink); }
-.exp-budget-amounts {
-  display: flex; align-items: baseline; gap: 4px;
-  margin-bottom: var(--sp-3);
-}
-.exp-budget-spent {
-  font-family: var(--font-data);
-  font-size: var(--fs-xl);
-  font-weight: var(--fw-semibold);
-  color: var(--ink);
-}
-.exp-budget-sep { color: var(--ink-faint); font-size: var(--fs-md); }
-.exp-budget-total {
-  font-family: var(--font-data);
-  font-size: var(--fs-md);
-  font-weight: var(--fw-medium);
-  color: var(--ink-muted);
-}
+/* ── Budget bars (used by the summary strip and Budget & analysis) ─────────── */
 .exp-budget-bar-track {
   height: 8px;
   background: var(--surface-3);
@@ -63,28 +11,8 @@
   border-radius: var(--r-full);
   transition: width var(--dur-slow) var(--ease-out), background var(--dur-mid);
 }
-.exp-budget-footer {
-  display: flex; align-items: center; justify-content: space-between;
-}
 .exp-budget-remain { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--success); }
 .exp-budget-over   { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--coral-500); }
-.exp-budget-pct {
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  color: var(--ink-muted);
-}
-.exp-budget-set {
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  color: var(--amber-700);
-  background: var(--amber-100);
-  padding: 6px 14px;
-  border-radius: var(--r-full);
-  transition: background var(--dur-fast);
-}
-.exp-budget-set:hover { background: var(--amber-200); }
 
 /* ── Budget modal body bits (shell comes from core/modal.ts) ───────────────── */
 .otr-modal-body .input { margin-top: var(--sp-2); }
