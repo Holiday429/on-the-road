@@ -476,6 +476,8 @@ export const en: StringTable = {
   'expenses.tapToSet':      'Tap to set ›',
   'expenses.budgetAnalysisTitle': 'Budget & analysis',
   'expenses.editBudgets': 'Edit budgets',
+  'expenses.mart.keysPrev': 'Previous keys',
+  'expenses.mart.keysNext': 'Next keys',
   'expenses.mart.welcome': 'WELCOME TO ON THE ROAD MART',
   'expenses.mart.ready': 'READY TO SCAN',
   'expenses.mart.enterAmount': 'ENTER AMOUNT',

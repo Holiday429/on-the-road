@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  altLine, barcodeBars, breakdownRows, convertedHint, dayFigures, odoMarkup, renderReceipt, renderVfd,
+  altLine, barcodeBars, breakdownRows, convertedHint, dayFigures, odoMarkup, renderReceipt, renderScreenTop,
   type MartLine,
 } from './checkout.ts';
 
@@ -93,15 +93,15 @@ describe('barcodeBars', () => {
   });
 });
 
-describe('odoMarkup / renderVfd', () => {
+describe('odoMarkup / renderScreenTop', () => {
   it('draws one strip per digit and keeps separators as text', () => {
     const html = odoMarkup(1284);
     expect(html.match(/odo-digit/g)).toHaveLength(4);
     expect(html).toContain('odo-sep');
     expect(html).toContain('translateY(-1em)');
   });
-  it('the display carries the line, the day and the count', () => {
-    const html = renderVfd({ line1: '☕ COFFEE', dayLabel: 'TODAY · 12 OCT', count: 5, total: 1284, baseSymbol: '¥', alt: '' });
+  it('the screen top carries the line, the day and the count', () => {
+    const html = renderScreenTop({ line1: '☕ COFFEE', dayLabel: 'TODAY · 12 OCT', count: 5, total: 1284, baseSymbol: '¥', alt: '' });
     expect(html).toContain('☕ COFFEE');
     expect(html).toContain('TODAY · 12 OCT');
     expect(html).toContain('>05<');

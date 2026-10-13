@@ -12,7 +12,7 @@
    ========================================================================== */
 
 import {
-  dayFigures, breakdownRows, altLine, renderVfd, renderReceipt,
+  dayFigures, breakdownRows, altLine, renderScreenTop, renderReceipt,
   type MartLine,
 } from './checkout.ts';
 import { showLine, rollOdometer, playScan, beep, pulse, reducedMotion } from './checkout-fx.ts';
@@ -29,6 +29,8 @@ export interface MartContext {
   inBase: (e: StoredExpense) => number;
   fmt: (n: number) => string;
   categoryById: (id: string) => Category | undefined;
+  /** Country-budget standing for the place selected in the form, as one display line ('' if no cap). */
+  reminder: () => string;
   /** The place currently selected in the form (used when the day has no spend yet). */
   place: () => { city: string; country: string };
   remove: (id: string) => void;
@@ -46,7 +48,12 @@ let shownTotal = 0;                    // origin for the next odometer roll
 let idleTimer: number | undefined;
 
 const todayIso = () => new Date().toISOString().split('T')[0];
-const idleMsg = (i: number) => (i % 2 === 0 ? t('expenses.mart.welcome') : t('expenses.mart.ready'));
+const idleMsg = (i: number): string => {
+  const msgs = [t('expenses.mart.welcome'), t('expenses.mart.ready')];
+  const note = ctx?.reminder();
+  if (note) msgs.push(note);
+  return msgs[i % msgs.length];
+};
 const dayShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase();
 const money = (amount: number, currency: string) => {
   const whole = currency === 'JPY' || Number.isInteger(amount);
@@ -73,13 +80,14 @@ function toLines(rows: StoredExpense[]): MartLine[] {
 
 /* ── Display ─────────────────────────────────────────────────────────────── */
 
-/** Markup for the display + scan window, drawn from the day `iso`. Also re-baselines the odometer. */
+/** Markup for the screen's status bar + last-scanned line, drawn from the day `iso`. Re-baselines the odometer. */
 export function martVfd(iso: string): string {
   const lines = toLines(dayRows(iso));
   const fig = dayFigures(lines, baseCurrency());
   shownTotal = fig.total;
-  if (!line1) line1 = idleMsg(idleIdx);
-  return renderVfd({
+  // A country with a budget cap opens the screen with its standing; otherwise the greeting.
+  if (!line1) line1 = ctx?.reminder() || idleMsg(idleIdx);
+  return renderScreenTop({
     line1, count: fig.count, total: fig.total, baseSymbol: currencySymbol(baseCurrency()),
     dayLabel: `${iso === todayIso() ? `${t('expenses.mart.today')} · ` : ''}${dayShort(iso)}`,
     alt: altLine(fig.foreign, money),
@@ -100,7 +108,7 @@ export function startIdle(): void {
 
 /** Empty amount: the display shakes and asks for one. */
 export function vfdError(): void {
-  const box = document.getElementById('exp-vfd');
+  const box = document.getElementById('exp-screen');
   if (!box) return;
   box.classList.add('is-err');
   line1 = t('expenses.mart.enterAmount');
@@ -126,7 +134,6 @@ export function refreshMart(formEl: HTMLElement, reset: boolean, feed = false): 
   const pad = String(fig.count).padStart(2, '0');
   const set = (id: string, text: string) => { const n = document.getElementById(id); if (n) n.textContent = text; };
   set('exp-vfd-count', pad);
-  set('exp-bag-count', pad);
   set('exp-vfd-alt', altLine(fig.foreign, money));
   set('exp-vfd-day', `${iso === todayIso() ? `${t('expenses.mart.today')} · ` : ''}${dayShort(iso)}`);
   if (fig.total !== shownTotal) { rollOdometer(document.getElementById('exp-vfd-odo'), shownTotal, fig.total); shownTotal = fig.total; }
@@ -228,10 +235,10 @@ export async function runScan(formEl: HTMLElement, a: ScanArgs): Promise<void> {
   line1 = `${a.icon} ${a.label.toUpperCase()}  ${money(a.amount, a.currency)}`;
   holdIdleUntil = Date.now() + 3200;
   showLine(document.getElementById('exp-vfd1'), line1);
-  const box = document.getElementById('exp-vfd');
+  const box = document.getElementById('exp-screen');
   box?.classList.remove('is-err');
   pulse(box, 'is-ok');
-  pulse(document.getElementById('exp-bag'), 'is-bump');
+  pulse(document.getElementById('exp-vfd-count'), 'is-bump');
   refreshMart(formEl, false);
 
   void saving.then((ok) => { if (!ok) { a.restore(); a.onFailed(); } });

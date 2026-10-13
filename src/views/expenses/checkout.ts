@@ -73,8 +73,8 @@ export function odoMarkup(n: number): string {
     : `<span class="odo-sep">${escHtml(ch)}</span>`)).join('');
 }
 
-export interface VfdInput {
-  /** Line 1 — what was last scanned, or the idle greeting. */
+export interface ScreenTopInput {
+  /** The "last scanned" line, or the idle greeting. */
   line1: string;
   /** "TODAY · 12 OCT" */
   dayLabel: string;
@@ -85,30 +85,19 @@ export interface VfdInput {
   alt: string;
 }
 
-export function renderVfd(o: VfdInput): string {
+/** The top of the till's one screen: a status bar (day · items · foreign spend · running total)
+ *  over the line that shows what was last scanned — and that the next product label slides across. */
+export function renderScreenTop(o: ScreenTopInput): string {
   return `
-    <div class="ck-vfd" id="exp-vfd">
-      <div class="ck-vfd-bezel">
-        <span class="ck-vfd-led" aria-hidden="true"></span>
-        <div class="ck-vfd-glass">
-          <div class="ck-vfd-row ck-vfd-row--1" aria-live="polite"><span class="ck-vfd-text" id="exp-vfd1">${escHtml(o.line1)}</span><span class="ck-vfd-caret" aria-hidden="true">_</span></div>
-          <div class="ck-vfd-row ck-vfd-row--2">
-            <span id="exp-vfd-day">${escHtml(o.dayLabel)}</span>
-            <span>${escHtml(t('expenses.mart.items'))} <b id="exp-vfd-count">${String(o.count).padStart(2, '0')}</b></span>
-            <span class="ck-vfd-alt" id="exp-vfd-alt">${escHtml(o.alt)}</span>
-            <span class="ck-vfd-total"><span>${escHtml(o.baseSymbol)}</span><span class="odo" id="exp-vfd-odo" data-total="${Math.round(o.total)}">${odoMarkup(o.total)}</span></span>
-          </div>
-        </div>
-      </div>
-      <div class="ck-bag" id="exp-bag" title="${escHtml(t('expenses.mart.bag'))}">
-        <span class="ck-bag-lbl">${escHtml(t('expenses.mart.bag'))}</span>
-        <span class="ck-bag-glyph" aria-hidden="true">🧺</span>
-        <span class="ck-bag-count" id="exp-bag-count">${String(o.count).padStart(2, '0')}</span>
-      </div>
+    <div class="ck-status">
+      <span id="exp-vfd-day">${escHtml(o.dayLabel)}</span>
+      <span>${escHtml(t('expenses.mart.items'))} <b id="exp-vfd-count">${String(o.count).padStart(2, '0')}</b></span>
+      <span class="ck-status-alt" id="exp-vfd-alt">${escHtml(o.alt)}</span>
+      <span class="ck-status-total"><span>${escHtml(o.baseSymbol)}</span><span class="odo" id="exp-vfd-odo" data-total="${Math.round(o.total)}">${odoMarkup(o.total)}</span></span>
+      <span class="ck-led" aria-hidden="true"></span>
     </div>
-    <div class="ck-scan" id="exp-scan" aria-hidden="true">
-      <div class="ck-scan-glass"></div>
-      <span class="ck-scan-label">${escHtml(t('expenses.mart.scanWindow'))}</span>
+    <div class="ck-scanline" id="exp-scan" aria-live="polite">
+      <span class="ck-last" id="exp-vfd1">${escHtml(o.line1)}</span><span class="ck-caret" aria-hidden="true">_</span>
     </div>`;
 }
 
