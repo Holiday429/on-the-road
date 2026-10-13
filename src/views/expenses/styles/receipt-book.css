@@ -10,10 +10,10 @@
 .exp-summary { position: relative; }
 .exp-days-btn {
   position: absolute; z-index: 2; top: 10px; right: calc(50% + 12px); padding: 3px 11px; border-radius: var(--r-full); cursor: pointer;
-  border: 1px solid var(--paper-perf); background: color-mix(in srgb, white 80%, transparent); color: var(--ink-soft);
+  border: 1px solid var(--paper-perf); background: color-mix(in srgb, var(--surface) 70%, var(--surface-3)); color: var(--ink-soft);
   font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .08em; text-transform: uppercase;
 }
-.exp-days-btn:hover { background: var(--amber-100); color: var(--ink); }
+.exp-days-btn:hover { background: var(--amber-100); color: var(--amber-700); }
 .exp-days-btn:focus-visible { outline: 2px solid var(--amber-400); outline-offset: 2px; }
 @media (max-width: 500px) { .exp-days-btn { right: 10px; } }
 

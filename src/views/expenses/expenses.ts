@@ -356,15 +356,17 @@ function renderForm(el: HTMLElement) {
           <label class="field-label">Date</label>
           <input class="input" type="date" id="exp-date" value="${dateValue}">
         </div>
-        <div${!isWholeTrip && cityOpts ? '' : ' class="ck-span2"'}>
-          <label class="field-label">Country</label>
-          <select class="input select" id="exp-country">${countryOptions(formCountry)}</select>
+        <div class="${!isWholeTrip && cityOpts ? 'ck-pair' : ''}">
+          <div>
+            <label class="field-label">Country</label>
+            <select class="input select" id="exp-country">${countryOptions(formCountry)}</select>
+          </div>
+          ${!isWholeTrip && cityOpts ? `
+          <div>
+            <label class="field-label">City</label>
+            <select class="input select" id="exp-city">${cityOpts}</select>
+          </div>` : ''}
         </div>
-        ${!isWholeTrip && cityOpts ? `
-        <div>
-          <label class="field-label">City</label>
-          <select class="input select" id="exp-city">${cityOpts}</select>
-        </div>` : ''}
       </div>
       <div class="ck-buyrow">
         <div class="ck-what">
