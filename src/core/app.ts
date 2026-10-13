@@ -230,10 +230,9 @@ function clearGuestStates() {
 export function renderSession(user: User | null, onPrimaryAction: () => void) {
   sessionState = { user };
   sessionPrimaryAction = onPrimaryAction;
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-  document.getElementById('app-topbar')!.innerHTML = '';
   buildSidebar();
   buildMobileNav();
+  void import('../views/topbar/topbar.ts').then((m) => m.initTopbar());
   applyRoleState();
   if (!user) {
     const hash = resolveLegacyView(window.location.hash.replace('#', ''));
@@ -294,8 +293,7 @@ initTripPopover({
 });
 
 export function initApp() {
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-  document.getElementById('app-topbar')!.innerHTML = '';
+  void import('../views/topbar/topbar.ts').then((m) => m.initTopbar());
   buildSidebar();
   buildMobileNav();
   decorateViewTitles();

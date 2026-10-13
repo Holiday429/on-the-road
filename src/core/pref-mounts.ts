@@ -2,26 +2,25 @@
    On the Road · Preference controls mount
    --------------------------------------------------------------------------
    Mounts the language picker + theme toggle side by side into a host element
-   (today: the Dashboard greeting row's [data-lang-mount]; later also the
-   Profile page). The host is rebuilt via innerHTML on every dashboard render,
-   so previous instances are disposed before mounting fresh ones.
+   (the global top bar and the Settings page). A host that is rebuilt via
+   innerHTML gets its previous instances disposed before fresh ones mount.
    ========================================================================== */
 
 import { createLanguagePicker, type LanguagePickerInstance } from './language-picker.ts';
 import { createThemeToggle, type ThemeToggleInstance } from './theme.ts';
 
-let _lang: LanguagePickerInstance | null = null;
-let _theme: ThemeToggleInstance | null = null;
+/** One pair per host, so the global top bar and the Settings page can both show the controls. */
+const mounted = new WeakMap<HTMLElement, { lang: LanguagePickerInstance; theme: ThemeToggleInstance }>();
 
 export function mountPrefControls(host: HTMLElement): void {
-  _lang?.destroy();
-  _theme?.destroy();
+  const prev = mounted.get(host);
+  prev?.lang.destroy();
+  prev?.theme.destroy();
   host.classList.add('pref-controls');
 
   const themeMount = document.createElement('div');
   const langMount = document.createElement('div');
   host.append(themeMount, langMount);
 
-  _theme = createThemeToggle(themeMount);
-  _lang = createLanguagePicker(langMount);
+  mounted.set(host, { theme: createThemeToggle(themeMount), lang: createLanguagePicker(langMount) });
 }

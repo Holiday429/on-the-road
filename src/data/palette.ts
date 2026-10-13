@@ -5,7 +5,7 @@
 
 export const MAP_PALETTE = ['#c8b4d4','#b4c8d4','#d4c8b4','#b4d4c8','#d4b4b4','#b4d4b4'];
 /* Darker desaturated counterparts for the dark map theme (see map-theme.ts). */
-export const MAP_PALETTE_DARK = ['#4a3f50','#3f4a50','#504a3f','#3f504a','#504040','#405040'];
+export const MAP_PALETTE_DARK = ['#6a5a72','#5a6a72','#72695a','#5a726a','#725a5a','#5a725a'];
 
 export function hashStr(s: string): number {
   let h = 0;

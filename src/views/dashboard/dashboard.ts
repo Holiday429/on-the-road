@@ -19,7 +19,7 @@ import { expenseSlip } from '../expenses/expense-slip.ts';
 import { addExpenseWithDefaults, defaultPlace, defaultCurrency, suggestedCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, allCurrencies, currencyFlag, isKnownCurrency, isApproxCurrency } from '../../data/rates.ts';
 import { currencyForCountry } from '../../data/country-currency.ts';
-import { navigateTo, type ViewId, type NavIntent, openNewTrip, openTripSwitcher } from '../../core/app.ts';
+import { navigateTo, type ViewId, type NavIntent, openTripSwitcher } from '../../core/app.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import type { PlanItem } from '../../data/schema.ts';
@@ -29,7 +29,6 @@ import { geocode, geocodeLocal } from '../map/geocode.ts';
 import { openStaysDrawer } from './banner-drawers.ts';
 import { openAgendaItemDrawer } from './agenda-drawer.ts';
 import { openSpendDrawer, openSpendAnalysisDrawer } from './spend-drawer.ts';
-import { renderAlertBell, wireAlertBell } from './dashboard-alert-bell.ts';
 import { PIN_COLORS } from '../map/map-status.ts';
 import { AGENDA_COLORS } from '../../data/day-agenda.ts';
 import { renderAgendaWidget, wireAgenda, resetAgenda, shownAgendaDay } from './dashboard-agenda.ts';
@@ -43,8 +42,6 @@ import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts
 import { t, onLocaleChange, getLocale } from '../../core/i18n.ts';
 import { appNow, onSimChange, isSimulating } from '../../data/sim-clock.ts';
 import { expensesAsOf, todosAsOf, daySpend } from '../../data/as-of.ts';
-import { renderSimControl, wireSimControl } from './dashboard-simclock.ts';
-import { mountPrefControls } from '../../core/pref-mounts.ts';
 // Lazy (see call site below) — journal/index.ts pulls in Leaflet via capture.ts,
 // which Dashboard shouldn't eagerly load just to wire up a click handler.
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
@@ -181,12 +178,6 @@ function renderGreeting(): string {
   return `
     <div class="td-greeting-row">
       <div class="td-greeting">${greetingWord()}, ${esc(firstName())}! 👋</div>
-      <div class="td-greeting-actions">
-        ${renderSimControl()}
-        ${renderAlertBell({ expenses: _expenses, legs: _legs, todos: _todos, today: todayIso(), inBase })}
-        <button class="btn btn-ghost td-new-trip-btn" data-action="new-trip">${esc(t('common.newTrip'))}</button>
-        <div class="td-lang-mount" data-lang-mount></div>
-      </div>
     </div>`;
 }
 
@@ -663,22 +654,12 @@ function wire(body: HTMLElement): void {
     });
   });
 
-  // New trip button.
-  body.querySelector<HTMLButtonElement>('[data-action="new-trip"]')?.addEventListener('click', () => {
-    openNewTrip();
-  });
-
   wireBanner(body, () => bannerData(tripPhase()), render);
-  wireSimControl(body, () => { const tr = currentTrip(); return { trip: tr ? { startDate: tr.startDate, endDate: tr.endDate } : null, legs: _legs }; });
   wireTodo(body, render);
   wireWhereTo(body, render);
   wireAgenda(body, render, () => ({ src: agendaSources(), today: todayIso() }));
   wirePack(body, () => ({ list: _packLists[0], legs: _legs, today: todayIso() }));
   wireJournal(body, () => ({ entries: _journal, legs: _legs }));
-  wireAlertBell(body, render);
-  // Language + theme controls (top-right of the greeting row).
-  const langMount = body.querySelector<HTMLElement>('[data-lang-mount]');
-  if (langMount) mountPrefControls(langMount);
 
   // Spend: the corner expand button → Expense Analysis in the drawer; the total → recent entries.
   body.querySelector<HTMLElement>('[data-spend-analysis]')?.addEventListener('click', e => {

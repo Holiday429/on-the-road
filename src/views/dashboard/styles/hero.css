@@ -6,7 +6,7 @@
 /* Container context lives on the body (the parent), not on .td-grid itself —
    container queries can't restyle the container element they're declared on, so
    the responsive grid-template-columns must target .td-grid as a descendant. */
-.today-body  { padding-top: var(--sp-5); container-type: inline-size; container-name: tdgrid; }
+.today-body  { padding-top: var(--sp-3); container-type: inline-size; container-name: tdgrid; }
 
 /* ── Greeting row (above banner) ─────────────────────────────────────────── */
 .td-greeting-row {
@@ -22,18 +22,6 @@
   font-weight: var(--fw-semibold);
   color: var(--ink);
   line-height: 1.15;
-}
-.td-new-trip-btn {
-  flex-shrink: 0;
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  white-space: nowrap;
-}
-.td-greeting-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-shrink: 0;
 }
 
 /* ── Language picker + theme toggle ──────────────────────────────────────── */

@@ -214,74 +214,74 @@
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root[data-theme='dark'] {
-  --pp-desk:       #26231f;
-  --pp-desk-2:     #2d2a25;
-  --pp-cloth:      #26364d;
-  --pp-cloth-2:    #1d2a3c;
-  --pp-gold:       #b39563;
-  --pp-paper:      #34302a;
-  --pp-paper-edge: #3f3a32;
+  --pp-desk:       #2e2a25;
+  --pp-desk-2:     #35312b;
+  --pp-cloth:      #2f4562;
+  --pp-cloth-2:    #263650;
+  --pp-gold:       #c4a672;
+  --pp-paper:      #403b33;
+  --pp-paper-edge: #4b453b;
   /* 50–200 are backgrounds (deep amber); 300–700 are fills / text / borders and
      are re-themed too: 600–700 become light ambers so amber text stays readable
      on the dark surfaces. */
-  --amber-50:  #2b2415;
-  --amber-100: #372d19;
-  --amber-200: #4d3f22;
-  --amber-300: #a88a4a;
-  --amber-400: #c9a24e;
-  --amber-500: #d4ae60;
-  --amber-600: #dcba74;
-  --amber-700: #e6c98e;
+  --amber-50:  #352c1a;
+  --amber-100: #43371f;
+  --amber-200: #5c4b28;
+  --amber-300: #bb9b55;
+  --amber-400: #d9b25a;
+  --amber-500: #e3bd6c;
+  --amber-600: #ebca84;
+  --amber-700: #f1d8a2;
 
-  --coral-400: #b8736a;
-  --coral-500: #d3857a;
-  --sky-400:   #6f93b3;
-  --sky-500:   #7fa8c6;
-  --sage-400:  #5f8f72;
-  --sage-500:  #78a98a;
+  --coral-400: #cc857b;
+  --coral-500: #e29a8e;
+  --sky-400:   #84a9c9;
+  --sky-500:   #95bdd9;
+  --sage-400:  #72a586;
+  --sage-500:  #8cbf9f;
 
-  --ink:       #ece6da;
-  --ink-soft:  #c9c1b2;
-  --ink-muted: #9a9283;
-  --ink-faint: #6f685c;
+  --ink:       #f3eee3;
+  --ink-soft:  #d8d1c3;
+  --ink-muted: #b4ac9c;
+  --ink-faint: #948c7d;
 
-  --surface:   #211e1a;
-  --surface-2: #171512;
-  --surface-3: #2b2723;
-  --surface-4: #3a352f;
+  --surface:   #292520;
+  --surface-2: #1e1b17;
+  --surface-3: #342f29;
+  --surface-4: #463f37;
 
-  --rule:      rgba(236,230,218,0.12);
-  --rule-soft: rgba(236,230,218,0.07);
+  --rule:      rgba(236,230,218,0.16);
+  --rule-soft: rgba(236,230,218,0.10);
 
   --on-accent: #1f1a12;
   --on-solid: #14231b;
-  --select-bg:       #c9a24e;
+  --select-bg:       #d9b25a;
   --select-ink:      #241b08;
   --select-soft-bg:  var(--amber-100);
   --select-soft-ink: var(--amber-700);
 
-  --success:      #7fc096;
-  --success-bg:   #1b2e22;
-  --success-bg-soft: #16261c;
+  --success:      #93d3aa;
+  --success-bg:   #24402e;
+  --success-bg-soft: #1e3426;
   --success-on-ink: #2f6a56; /* --ink flips light in dark mode — needs a dark green instead */
-  --danger:       #e49488;
-  --danger-bg:    #35201d;
-  --danger-bg-soft: #2b1a18;
-  --warning:      #e0bd78;
-  --warning-bg:   #322a17;
-  --warning-bg-soft: #2a2314;
-  --info:         #8dbbd8;
-  --info-bg:      #1b2a35;
+  --danger:       #f0a79c;
+  --danger-bg:    #432826;
+  --danger-bg-soft: #38211f;
+  --warning:      #ecce8e;
+  --warning-bg:   #41361d;
+  --warning-bg-soft: #352d19;
+  --info:         #a2cde8;
+  --info-bg:      #24384a;
 
-  --cat-stay: #6f93b3;   --cat-food: #b99a5a;   --cat-transport: #6aa68c; --cat-activities: #b8736a;
-  --cat-shopping: #8e7fb5; --cat-health: #b98a5c; --cat-misc: #7f796e;
-  --tint-stay: #2d3a47;  --tint-stay-ink: #bcd3ea;
-  --tint-food: #41351d;  --tint-food-ink: #ecd29b;
-  --tint-transport: #25403a; --tint-transport-ink: #a9d9cb;
-  --tint-activities: #432b2f; --tint-activities-ink: #e8b9c0;
-  --tint-shopping: #353048; --tint-shopping-ink: #cdc6ea;
-  --tint-health: #433024; --tint-health-ink: #ecc7ad;
-  --tint-misc: #34362f;  --tint-misc-ink: #d3d6cb;
+  --cat-stay: #84a9c9;   --cat-food: #cfae68;   --cat-transport: #7fbba1; --cat-activities: #cc857b;
+  --cat-shopping: #a393c9; --cat-health: #cf9d6c; --cat-misc: #968f83;
+  --tint-stay: #394958;  --tint-stay-ink: #bcd3ea;
+  --tint-food: #524526;  --tint-food-ink: #ecd29b;
+  --tint-transport: #30514a; --tint-transport-ink: #a9d9cb;
+  --tint-activities: #54373c; --tint-activities-ink: #e8b9c0;
+  --tint-shopping: #443d5b; --tint-shopping-ink: #cdc6ea;
+  --tint-health: #54402f; --tint-health-ink: #ecc7ad;
+  --tint-misc: #434539;  --tint-misc-ink: #d3d6cb;
 
   /* Depth reads through borders + darker shadows, not glow. */
   --shadow-sm:  0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
@@ -415,7 +415,7 @@ img, svg { display: block; }
 
 .view-header {
   /* Vertically aligned with sidebar-header: same top padding, compact height */
-  padding: var(--sp-5) 0 var(--sp-4);
+  padding: var(--sp-3) 0 var(--sp-4);
   margin-bottom: var(--sp-5);
 }
 .view-title {

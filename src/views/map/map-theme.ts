@@ -21,14 +21,14 @@ const MAP_COLORS_LIGHT = {
 };
 
 const MAP_COLORS_DARK = {
-  land:        '#3a352a',
-  landStroke:  '#524a38',
-  route:       '#e0685a',
-  ink:         '#c9b8f5',
+  land:        '#4d4637',
+  landStroke:  '#7a6e55',
+  route:       '#f07a6a',
+  ink:         '#d8cbf9',
   hover:       '#f0947e',
-  miniLand:    '#26241f',
-  miniStroke:  '#3c372c',
-  flightArc:   '#5f7a99',
+  miniLand:    '#38342b',
+  miniStroke:  '#554e3e',
+  flightArc:   '#7f9bbd',
 };
 
 const COUNTRY_COLORS_LIGHT: Record<string, string> = {
@@ -44,8 +44,8 @@ const COUNTRY_COLORS_LIGHT: Record<string, string> = {
 };
 
 const COUNTRY_COLORS_DARK: Record<string, string> = {
-  DK: '#5a3a3a', DE: '#33473f', NL: '#5a4a2c', BE: '#3f3650',
-  FR: '#2c3f50', ES: '#4a3a2c', PT: '#33472c', CH: '#4a3f22', IT: '#3f2c50',
+  DK: '#7d5252', DE: '#4a6b5e', NL: '#80693c', BE: '#5c4f76',
+  FR: '#40607a', ES: '#6e5640', PT: '#4b6b40', CH: '#6e5f31', IT: '#5e4276',
 };
 
 function isDark(): boolean {

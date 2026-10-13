@@ -1,0 +1,17 @@
+/* ==========================================================================
+   On the Road · Global top bar — sits above every view, right-aligned to the
+   page's content column.
+   ========================================================================== */
+
+.tb-inner {
+  max-width: var(--content-max);
+  padding: var(--sp-3) var(--gutter) 0;
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2);
+}
+.tb-slot { display: contents; }
+.tb-new-trip { flex-shrink: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap; }
+.tb-prefs { display: flex; align-items: center; gap: var(--sp-2); }
+
+@media (max-width: 560px) {
+  .tb-new-trip { padding-inline: var(--sp-3); }
+}
