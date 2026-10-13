@@ -38,7 +38,6 @@ let ctx: MartContext | null = null;
 export function initMart(c: MartContext): void { ctx = c; }
 
 let seen: Set<string> | null = null;   // receipt lines already printed
-let expanded = false;                  // all lines vs. newest FOLD_AT
 let scanHold = false;
 let line1 = '';                        // what display line 1 currently shows ('' = idle greeting)
 let idleIdx = 0;
@@ -135,14 +134,18 @@ export function refreshMart(formEl: HTMLElement, reset: boolean, feed = false): 
   // Receipt.
   const wrap = document.querySelector<HTMLElement>('#view-expenses .exp-receipt-wrap');
   if (!wrap) return;
-  if (reset || !seen) { seen = new Set(rows.map((e) => e.id)); expanded = false; }
+  if (reset || !seen) seen = new Set(rows.map((e) => e.id));
   const fresh = new Set(rows.filter((e) => !seen!.has(e.id)).map((e) => e.id));
   fresh.forEach((id) => seen!.add(id));
+  const prevScroll = wrap.querySelector<HTMLElement>('.rc-scroll')?.scrollTop ?? 0;
   // eslint-disable-next-line no-restricted-syntax -- audited: renderReceipt escapes every value
   wrap.innerHTML = `
     <div class="ck-printer" aria-hidden="true"><div class="ck-printer-body"><div class="ck-printer-slot"></div></div></div>
     <div class="rc paper paper--zigzag${feed && !reducedMotion() ? ' rc--feed' : ''}">${receiptHtml(iso, lines, rows, fresh, false)}</div>`;
   bindReceipt(wrap);
+  // Newest line is at the bottom: follow it when one prints (or the day changes), else stay where the reader was.
+  const scroller = wrap.querySelector<HTMLElement>('.rc-scroll');
+  if (scroller) scroller.scrollTop = reset || fresh.size ? scroller.scrollHeight : prevScroll;
 }
 
 function receiptHtml(iso: string, lines: MartLine[], rows: StoredExpense[], fresh: ReadonlySet<string>, readonly: boolean): string {
@@ -155,7 +158,7 @@ function receiptHtml(iso: string, lines: MartLine[], rows: StoredExpense[], fres
   const time = iso === todayIso() ? new Date() : new Date(last?.createdAt ?? Date.now());
   const hhmm = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`;
   return renderReceipt({
-    lines, expanded: readonly || expanded, store: store.toUpperCase(), stamp: `${iso}  ${hhmm}`,
+    lines, store: store.toUpperCase(), stamp: `${iso}  ${hhmm}`,
     fmt: c.fmt,
     breakdown: breakdownRows(lines, (id) => {
       const cat = c.categoryById(id);
@@ -169,12 +172,6 @@ function bindReceipt(wrap: HTMLElement): void {
   const rc = wrap.querySelector<HTMLElement>('.rc');
   rc?.addEventListener('click', (ev) => {
     const target = ev.target as HTMLElement;
-    if (target.closest('[data-act="fold"]')) {
-      expanded = !expanded;
-      const form = document.querySelector<HTMLElement>('#view-expenses .exp-form-wrap');
-      if (form) refreshMart(form, false);
-      return;
-    }
     if (target.closest('[data-act="zoom"]')) { openFullReceipt(); return; }
     const del = target.closest<HTMLElement>('[data-void]');
     if (del) voidLine(del.dataset.void!, del.closest<HTMLElement>('.rc-line'));

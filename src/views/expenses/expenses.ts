@@ -50,6 +50,7 @@ import {
   type Category, BUILTIN_CATEGORIES, UNCLASSIFIED, categoryDisplayColor, categoryInkColor, categoryChartColor,
   type AnalysisDim, ANALYSIS_DIMS, nightCount, renderDonut,
 } from './expense-helpers.ts';
+import { initAnalysisPage, openAnalysisPage, closeAnalysisPage, renderAnalysisPage, isAnalysisOpen } from './analysis-page.ts';
 import {
   initBudgetPage, openBudgetPage, closeBudgetPage, renderBudgetPage, isBudgetOpen,
 } from './budget-page.ts';
@@ -168,7 +169,7 @@ function renderSummary(el: HTMLElement) {
         const over = sum > budget;
         const barColor = budgetBarColor(pct);
         return `
-          <div class="exp-hero-eyebrow">${t('expenses.budgetTitle')}</div>
+          <div class="exp-hero-eyebrow">${t('expenses.budgetAnalysisTitle')}</div>
           <div class="exp-hero-num">${sym}${Math.round(budget).toLocaleString()}</div>
           <div class="exp-hero-bar-track">
             <div class="exp-hero-bar-fill" style="width:${pct}%;background:${barColor}"></div>
@@ -178,7 +179,7 @@ function renderSummary(el: HTMLElement) {
           </div>
           ${over ? paperStamp({ text: t('expenses.overBudget'), tone: 'bad', corner: true }) : ''}`;
       })()
-    : `<div class="exp-hero-eyebrow">${t('expenses.budgetTitle')}</div>
+    : `<div class="exp-hero-eyebrow">${t('expenses.budgetAnalysisTitle')}</div>
        <div class="exp-hero-num exp-hero-empty">—</div>
        <div class="exp-hero-label">${t('expenses.tapToSet')}</div>`;
 
@@ -195,7 +196,7 @@ function renderSummary(el: HTMLElement) {
   `;
 
   el.querySelector('#exp-open-records')?.addEventListener('click', () => openRecords());
-  el.querySelector('#exp-open-budget')?.addEventListener('click', () => openBudgetPage());
+  el.querySelector('#exp-open-budget')?.addEventListener('click', () => openAnalysisPage());
   el.querySelector('#exp-tosort-chip')?.addEventListener('click', (ev) => {
     ev.stopPropagation();
     filterCategory = UNCLASSIFIED;
@@ -324,7 +325,6 @@ function renderForm(el: HTMLElement) {
         </div>
       </div>
       ${martVfd(dateValue)}
-      <div class="ck-keys-head"><span>${escHtml(t('expenses.mart.keys'))}</span></div>
       <div class="ck-keybed">
         <div class="ck-keys" id="exp-cat-chips" role="group" aria-label="${escHtml(t('expenses.mart.keys'))}">
           ${categories().map((c, i) => `
@@ -360,11 +360,7 @@ function renderForm(el: HTMLElement) {
           <label class="field-label">Date</label>
           <input class="input" type="date" id="exp-date" value="${dateValue}">
         </div>
-        <div class="field-full">
-          <label class="field-label">What for?</label>
-          <input class="input" id="exp-desc" placeholder="${t('expenses.descPh')}" value="${escHtml(draftDesc)}">
-        </div>
-        <div>
+        <div${!isWholeTrip && cityOpts ? '' : ' class="ck-span2"'}>
           <label class="field-label">Country</label>
           <select class="input select" id="exp-country">${countryOptions(formCountry)}</select>
         </div>
@@ -372,9 +368,15 @@ function renderForm(el: HTMLElement) {
         <div>
           <label class="field-label">City</label>
           <select class="input select" id="exp-city">${cityOpts}</select>
-        </div>` : '<div></div>'}
+        </div>` : ''}
       </div>
-      <button class="ck-scanbtn" id="exp-add-btn" type="button"><span>${escHtml(t('expenses.mart.scan'))}</span><span class="ck-scanbtn-hint">${escHtml(t('expenses.mart.enter'))}</span></button>
+      <div class="ck-buyrow">
+        <div class="ck-what">
+          <label class="field-label">What for?</label>
+          <input class="input" id="exp-desc" placeholder="${t('expenses.descPh')}" value="${escHtml(draftDesc)}">
+        </div>
+        <button class="ck-scanbtn" id="exp-add-btn" type="button"><span>${escHtml(t('expenses.mart.scan'))}</span><span class="ck-scanbtn-hint">${escHtml(t('expenses.mart.enter'))}</span></button>
+      </div>
     </div>
   `;
   syncCounter(el);
@@ -851,8 +853,8 @@ function openExpenseEditor(id: string) {
 interface Row { label: string; sum: number; color: string; sub?: string; catId?: string; country?: string; budget?: number; isDay?: boolean; }
 
 /** Group expenses for the active dimension into sorted, displayable rows. */
-function analysisRows(): Row[] {
-  if (analysisDim === 'category') {
+function analysisRows(dim: AnalysisDim = analysisDim): Row[] {
+  if (dim === 'category') {
     const caps = categoryBudgets();
     const rows: Row[] = categories()
       .map((cat) => ({
@@ -870,7 +872,7 @@ function analysisRows(): Row[] {
       .sort((a, b) => b.sum - a.sum);
   }
 
-  if (analysisDim === 'time') {
+  if (dim === 'time') {
     // One row per day with spend, most recent first.
     const byDay = new Map<string, number>();
     for (const e of expenses) byDay.set(e.date, (byDay.get(e.date) ?? 0) + inBase(e));
@@ -961,21 +963,14 @@ function renderExpenseCalendar(): string {
     </div>`;
 }
 
-function renderBreakdown(el: HTMLElement) {
-  const rows = analysisRows();
-  const dimLabels: Record<AnalysisDim, string> = {
-    category: t('expenses.dimCategory'),
-    place:    t('expenses.dimPlace'),
-    time:     t('expenses.dimTime'),
-  };
-  const tabs = ANALYSIS_DIMS.map((d) => `
-    <button class="exp-analysis-tab ${d.id === analysisDim ? 'active' : ''}" data-dim="${d.id}">${dimLabels[d.id]}</button>
-  `).join('');
+/** One analysis dimension's body (donut + legend / daily bars + calendar / countries and cities). */
+function breakdownContent(dim: AnalysisDim): string {
+  const rows = analysisRows(dim);
   const empty = `<p class="exp-breakdown-empty">${t('expenses.breakdownEmpty')}</p>`;
 
   let content = '';
 
-  if (analysisDim === 'category') {
+  if (dim === 'category') {
     if (rows.length === 0) {
       content = empty;
     } else {
@@ -1008,7 +1003,7 @@ function renderBreakdown(el: HTMLElement) {
     }
   }
 
-  else if (analysisDim === 'time') {
+  else if (dim === 'time') {
     if (rows.length === 0) {
       content = empty + renderExpenseCalendar();
     } else {
@@ -1104,12 +1099,25 @@ function renderBreakdown(el: HTMLElement) {
     }
   }
 
+  return content;
+}
+
+function renderBreakdown(el: HTMLElement) {
+  const dimLabels: Record<AnalysisDim, string> = {
+    category: t('expenses.dimCategory'),
+    place:    t('expenses.dimPlace'),
+    time:     t('expenses.dimTime'),
+  };
+  const tabs = ANALYSIS_DIMS.map((d) => `
+    <button class="exp-analysis-tab ${d.id === analysisDim ? 'active' : ''}" data-dim="${d.id}">${dimLabels[d.id]}</button>
+  `).join('');
+
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   el.innerHTML = `
     <div class="exp-breakdown">
       <div class="exp-form-title" style="margin-bottom:var(--sp-4)">${t('expenses.analysisTitle')}</div>
       <div class="exp-analysis-tabs">${tabs}</div>
-      ${content}
+      ${breakdownContent(analysisDim)}
     </div>`;
 
   el.querySelectorAll('.exp-analysis-tab').forEach((btn) => {
@@ -1118,7 +1126,23 @@ function renderBreakdown(el: HTMLElement) {
       renderBreakdown(el);
     });
   });
+  bindBreakdown(el, () => renderBreakdown(el));
+}
 
+/** The Budget & analysis sub-page body: all three dimensions side by side, no tabs. */
+export function renderAnalysisColumns(el: HTMLElement): void {
+  const label: Record<AnalysisDim, string> = { category: t('expenses.dimCategory'), place: t('expenses.dimPlace'), time: t('expenses.dimTime') };
+  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
+  el.innerHTML = ANALYSIS_DIMS.map((d) => `
+    <section class="exp-acol exp-breakdown" data-dim="${d.id}">
+      <h3 class="exp-acol-title">${label[d.id]}</h3>
+      ${breakdownContent(d.id)}
+    </section>`).join('');
+  bindBreakdown(el, () => renderAnalysisColumns(el));
+}
+
+/** Shared wiring for the analysis bodies: cap buttons open the editor, calendar nav repaints. */
+function bindBreakdown(el: HTMLElement, repaint: () => void) {
   el.querySelectorAll<HTMLElement>('.exp-cat-budget-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1126,17 +1150,15 @@ function renderBreakdown(el: HTMLElement) {
       openBudgetPage(kind === 'country' ? 'country' : 'category');
     });
   });
-
-  // Expense calendar nav
   el.querySelector('[data-cal-prev]')?.addEventListener('click', () => {
     calViewMonth--;
     if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
-    renderBreakdown(el);
+    repaint();
   });
   el.querySelector('[data-cal-next]')?.addEventListener('click', () => {
     calViewMonth++;
     if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
-    renderBreakdown(el);
+    repaint();
   });
 }
 
@@ -1148,6 +1170,7 @@ function renderBreakdown(el: HTMLElement) {
 function renderSummaryOnly() {
   const root = document.getElementById('view-expenses');
   if (root) renderSummary(root.querySelector('.exp-summary')!);
+  if (isAnalysisOpen()) renderAnalysisPage();   // behind the editor: shows the caps just saved
 }
 
 function renderSummaryRoot() {
@@ -1162,7 +1185,7 @@ function render() {
   const formEl = root.querySelector<HTMLElement>('.exp-form-wrap');
   if (formEl) refreshMart(formEl, false);
   renderRecordsPanel();
-  renderBreakdown(root.querySelector('.exp-breakdown-wrap')!);
+  if (isAnalysisOpen()) renderAnalysisPage();
 }
 
 /** The Analysis panel mounted into `el` (the Dashboard drawer): feeds this module's state
@@ -1201,6 +1224,7 @@ export function initExpenses() {
     renderForm: () => renderForm(root.querySelector('.exp-form-wrap') as HTMLElement),
   });
 
+  initAnalysisPage({ expenses: () => expenses, inBase, fmt, renderColumns: renderAnalysisColumns });
   initMart({
     expenses: () => expenses, inBase, fmt, categoryById,
     place: () => ({ city: formCity, country: formCountry === WHOLE_TRIP ? '' : formCountry }),
@@ -1213,6 +1237,7 @@ export function initExpenses() {
     if (view !== 'expenses') {
       if (showRecords) closeRecords();
       if (isBudgetOpen()) closeBudgetPage();
+      if (isAnalysisOpen()) closeAnalysisPage();
     }
   });
 

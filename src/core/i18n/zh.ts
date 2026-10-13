@@ -467,6 +467,8 @@ export const zh: StringTable = {
   'expenses.totalSpent':    '总花费',
   'expenses.toSort':        '{n} 笔待分类',
   'expenses.tapToSet':      '点击设置 ›',
+  'expenses.budgetAnalysisTitle': '预算与分析',
+  'expenses.editBudgets': '编辑预算',
   'expenses.mart.welcome': '欢迎光临 ON THE ROAD MART',
   'expenses.mart.ready': '请扫描商品',
   'expenses.mart.enterAmount': '请输入金额',

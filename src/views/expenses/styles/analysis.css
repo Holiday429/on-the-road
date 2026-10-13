@@ -1,0 +1,29 @@
+/* ==========================================================================
+   On the Road · Expenses · Budget & analysis sub-page
+   Full-screen sheet (same shell as records / budget): a budget strip, then the
+   three analysis dimensions side by side. See analysis-page.ts.
+   ========================================================================== */
+
+body.exp-analysis-lock { overflow: hidden; }
+.exp-analysis-panel { display: none; }
+.exp-analysis-panel.open { display: block; }
+
+.exp-astrip {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3) var(--sp-6);
+  padding: var(--sp-3) var(--sp-5); margin-bottom: var(--sp-4);
+  background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg);
+}
+.exp-astrip-fig { display: flex; flex-direction: column; line-height: 1.2; }
+.exp-astrip-k { font-size: var(--fs-xs); color: var(--ink-muted); }
+.exp-astrip-fig b { font-family: var(--font-data); font-size: 1.2rem; font-weight: 700; letter-spacing: -.03em; }
+.exp-astrip-bar { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-xs); }
+.exp-astrip .exp-modal-hint { margin: 0; flex: 1; }
+.exp-acol-edit { margin-left: auto; white-space: nowrap; }
+
+.exp-acols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
+@media (max-width: 1100px) { .exp-acols { grid-template-columns: minmax(0, 1fr); } }
+.exp-acol {
+  min-width: 0; padding: var(--sp-4) var(--sp-4) var(--sp-5);
+  background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
+}
+.exp-acol-title { margin: 0 0 var(--sp-3); font-family: var(--font-ui); font-size: var(--fs-md); font-weight: var(--fw-semibold); }

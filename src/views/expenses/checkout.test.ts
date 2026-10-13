@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FOLD_AT, altLine, barcodeBars, breakdownRows, convertedHint, dayFigures, odoMarkup, receiptLines, renderReceipt, renderVfd,
+  altLine, barcodeBars, breakdownRows, convertedHint, dayFigures, odoMarkup, renderReceipt, renderVfd,
   type MartLine,
 } from './checkout.ts';
 
@@ -9,7 +9,7 @@ const line = (i: number, base = 10, over: Partial<MartLine> = {}): MartLine => (
 });
 const fmt = (n: number) => `¥${n}`;
 const receipt = (lines: MartLine[], extra: Partial<Parameters<typeof renderReceipt>[0]> = {}) =>
-  renderReceipt({ lines, expanded: false, store: 'LISBON · PORTUGAL', stamp: '2026-10-12  18:42', fmt, breakdown: [], paid: false, seed: '20261012050429', ...extra });
+  renderReceipt({ lines, store: 'LISBON · PORTUGAL', stamp: '2026-10-12  18:42', fmt, breakdown: [], paid: false, seed: '20261012050429', ...extra });
 
 describe('dayFigures', () => {
   it('totals the base amounts and counts the lines', () => {
@@ -46,28 +46,20 @@ describe('breakdownRows', () => {
   });
 });
 
-describe('receiptLines', () => {
-  const many = Array.from({ length: FOLD_AT + 3 }, (_, i) => line(i + 1));
-  it('folds the earlier lines, keeping the newest and their original numbers', () => {
-    const { shown, hidden } = receiptLines(many, false);
-    expect(hidden).toBe(3);
-    expect(shown).toHaveLength(FOLD_AT);
-    expect(shown[0].no).toBe(4);
-    expect(shown[shown.length - 1].line.id).toBe(`e${FOLD_AT + 3}`);
-  });
-  it('shows everything when expanded or short', () => {
-    expect(receiptLines(many, true).shown).toHaveLength(many.length);
-    expect(receiptLines(many.slice(0, 3), false).hidden).toBe(0);
-  });
-});
-
 describe('renderReceipt', () => {
-  it('prints the store, the lines and a total that counts folded lines too', () => {
+  it('prints the store, every line numbered, and the total', () => {
     const html = receipt(Array.from({ length: 8 }, (_, i) => line(i, 5)));
     expect(html).toContain('LISBON · PORTUGAL');
     expect(html).toContain('ON THE ROAD MART');
     expect(html).toContain('¥40');
-    expect(html).toContain('data-act="fold"');
+    expect(html.match(/class="rc-line/g)).toHaveLength(8);
+    expect(html).toContain('>08<');
+  });
+  it('keeps the lines in a scrolling middle and the total in the foot', () => {
+    const html = receipt([line(1)]);
+    expect(html.indexOf('rc-scroll')).toBeLessThan(html.indexOf('rc-foot'));
+    expect(html.indexOf('rc-line')).toBeLessThan(html.indexOf('rc-foot'));
+    expect(html.indexOf('rc-total')).toBeGreaterThan(html.indexOf('rc-foot'));
   });
   it('an empty day: a quiet line, no stamp', () => {
     const html = receipt([], { paid: true });

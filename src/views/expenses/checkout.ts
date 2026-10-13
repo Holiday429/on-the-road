@@ -13,9 +13,6 @@
 import { t } from '../../core/i18n.ts';
 import { escHtml } from '../../core/utils.ts';
 
-/** How many lines the receipt shows before folding the earlier ones into "+N earlier". */
-export const FOLD_AT = 6;
-
 export interface MartLine {
   id: string;
   icon: string;
@@ -98,9 +95,9 @@ export function renderVfd(o: VfdInput): string {
           <div class="ck-vfd-row ck-vfd-row--2">
             <span id="exp-vfd-day">${escHtml(o.dayLabel)}</span>
             <span>${escHtml(t('expenses.mart.items'))} <b id="exp-vfd-count">${String(o.count).padStart(2, '0')}</b></span>
+            <span class="ck-vfd-alt" id="exp-vfd-alt">${escHtml(o.alt)}</span>
             <span class="ck-vfd-total"><span>${escHtml(o.baseSymbol)}</span><span class="odo" id="exp-vfd-odo" data-total="${Math.round(o.total)}">${odoMarkup(o.total)}</span></span>
           </div>
-          <div class="ck-vfd-alt" id="exp-vfd-alt">${escHtml(o.alt)}</div>
         </div>
       </div>
       <div class="ck-bag" id="exp-bag" title="${escHtml(t('expenses.mart.bag'))}">
@@ -142,8 +139,6 @@ export function barcodeBars(seed: string): { w: number; gap: boolean }[] {
 
 export interface ReceiptInput {
   lines: MartLine[];
-  /** Show every line instead of the newest FOLD_AT. */
-  expanded: boolean;
   /** "LISBON · PORTUGAL" */
   store: string;
   /** "2026-10-12  18:42" */
@@ -154,28 +149,20 @@ export interface ReceiptInput {
   paid: boolean;
   /** Ids that were not on the receipt before this refresh — they print in. */
   fresh?: ReadonlySet<string>;
-  /** Hide the void buttons and the fold/zoom controls (the full-receipt modal). */
+  /** Hide the void buttons and the zoom control (the full-receipt modal). */
   readonly?: boolean;
   /** Seed for the barcode. */
   seed: string;
 }
 
-export function receiptLines(lines: MartLine[], expanded: boolean): { shown: { line: MartLine; no: number }[]; hidden: number } {
-  const numbered = lines.map((line, i) => ({ line, no: i + 1 }));
-  if (expanded || numbered.length <= FOLD_AT) return { shown: numbered, hidden: 0 };
-  return { shown: numbered.slice(-FOLD_AT), hidden: numbered.length - FOLD_AT };
-}
-
+/** The receipt: head and meta on top, lines + subtotal + breakdown in a scrolling middle
+ *  (a long day scrolls instead of growing the page), total / barcode / thanks fixed at the foot. */
 export function renderReceipt(inp: ReceiptInput): string {
-  const { shown, hidden } = receiptLines(inp.lines, inp.expanded);
   const total = inp.lines.reduce((s, l) => s + l.baseAmount, 0);
-  const fold = !inp.readonly && inp.lines.length > FOLD_AT
-    ? `<button type="button" class="rc-fold" data-act="fold">${escHtml(inp.expanded ? t('expenses.mart.foldLines') : t('expenses.mart.moreLines', { n: hidden }))}</button>`
-    : '';
   const body = inp.lines.length
-    ? shown.map(({ line: l, no }) => `
+    ? inp.lines.map((l, i) => `
         <div class="rc-line${inp.fresh?.has(l.id) ? ' rc-line--print' : ''}" data-line="${escHtml(l.id)}">
-          <span class="rc-no">${String(no).padStart(2, '0')}</span>
+          <span class="rc-no">${String(i + 1).padStart(2, '0')}</span>
           <span class="rc-emoji" aria-hidden="true">${escHtml(l.icon)}</span>
           <span class="rc-desc" title="${escHtml(l.name)}">${escHtml(l.name.toUpperCase())}</span>
           <span class="rc-dots" aria-hidden="true"></span>
@@ -201,15 +188,18 @@ export function renderReceipt(inp: ReceiptInput): string {
         <div><span>${escHtml(t('expenses.mart.cashier'))}</span><span>#0429</span></div>
         <div><span>${escHtml(t('expenses.mart.date'))}</span><span>${escHtml(inp.stamp)}</span></div>
       </div>
-      <div class="rc-lines">${inp.expanded ? '' : fold}${body}${inp.expanded ? fold : ''}</div>
-      <div class="rc-row rc-row--sub"><span>${escHtml(t('expenses.tapeSubtotal').toUpperCase())}</span><span>${escHtml(inp.fmt(total))}</span></div>
-      ${breakdown ? `<div class="rc-break">${breakdown}</div>` : ''}
-      <div class="rc-total"><span>${escHtml(t('expenses.mart.total'))}</span><span>${escHtml(inp.fmt(total))}</span></div>
-      <div class="rc-perf" aria-hidden="true"></div>
-      <div class="rc-barcode" aria-hidden="true">${bars}</div>
-      <div class="rc-bcnum">${escHtml(inp.seed.replace(/\D/g, '').slice(0, 12))}</div>
-      <div class="rc-thanks">${escHtml(t('expenses.mart.thanks'))}</div>
-      ${inp.readonly ? '' : `<button type="button" class="rc-view" data-act="zoom">${escHtml(t('expenses.mart.viewFull'))}</button>`}
+      <div class="rc-scroll">
+        <div class="rc-lines">${body}</div>
+        <div class="rc-row rc-row--sub"><span>${escHtml(t('expenses.tapeSubtotal').toUpperCase())}</span><span>${escHtml(inp.fmt(total))}</span></div>
+        ${breakdown ? `<div class="rc-break">${breakdown}</div>` : ''}
+      </div>
+      <div class="rc-foot">
+        <div class="rc-total"><span>${escHtml(t('expenses.mart.total'))}</span><span>${escHtml(inp.fmt(total))}</span></div>
+        <div class="rc-barcode" aria-hidden="true">${bars}</div>
+        <div class="rc-bcnum">${escHtml(inp.seed.replace(/\D/g, '').slice(0, 12))}</div>
+        <div class="rc-thanks">${escHtml(t('expenses.mart.thanks'))}</div>
+        ${inp.readonly ? '' : `<button type="button" class="rc-view" data-act="zoom">${escHtml(t('expenses.mart.viewFull'))}</button>`}
+      </div>
       ${inp.paid && inp.lines.length ? `<div class="rc-stamp">${escHtml(t('expenses.mart.paid'))}</div>` : ''}
     </div>`;
 }
