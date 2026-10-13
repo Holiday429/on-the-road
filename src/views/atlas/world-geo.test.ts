@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTripLines, buildCityPoints, currentSpot, nextStop } from './world-geo.ts';
+import { buildTripLines, buildCityPoints, currentSpot, nextStop, yearsOf } from './world-geo.ts';
 import { buildWorldModel } from './world-model.ts';
 import type { PlottedLeg } from '../map/map-stats.ts';
 
@@ -104,5 +104,21 @@ describe('nextStop', () => {
   it('is null when nothing is ahead, and honours the trip filter', () => {
     expect(nextStop(legs, '2026-09-01', null)).toBeNull();
     expect(nextStop(legs, '2026-07-10', 'b')).toBeNull();
+  });
+});
+
+describe('yearsOf', () => {
+  it('lists the years with stops, counting trips, and marks years that are all still ahead', () => {
+    const legs = [
+      mk('1', 'Tokyo', 'JP', '2025-04-01', '2025-04-05', 'a', 139.7, 35.7),
+      mk('2', 'Kyoto', 'JP', '2025-04-05', '2025-04-08', 'a', 135.7, 35),
+      mk('3', 'Paris', 'FR', '2025-09-01', '2025-09-05', 'b', 2.35, 48.85),
+      mk('4', 'Rome', 'IT', '2026-12-01', '2026-12-05', 'c', 12.5, 41.9),
+    ];
+    expect(yearsOf(legs, '2026-07-10')).toEqual([
+      { year: 2025, trips: 2, planned: false },
+      { year: 2026, trips: 1, planned: true },
+    ]);
+    expect(yearsOf([], '2026-07-10')).toEqual([]);
   });
 });

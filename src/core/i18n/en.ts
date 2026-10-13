@@ -1371,4 +1371,10 @@ export const en: StringTable = {
   'atlas.inPassport': 'See in the passport',
   'atlas.pending': '{n} stamps to press',
   'atlas.plannedOnly': 'Nothing visited yet — once you set off, your stamps will fill the globe.',
+  'atlas.lens.footprint': 'Footprint',
+  'atlas.lens.trips': 'Trips',
+  'atlas.lens.years': 'Years',
+  'atlas.lens.label': 'Read the globe by',
+  'atlas.ribbon.all': 'All',
+  'atlas.ribbon.label': 'Years',
 };

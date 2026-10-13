@@ -1356,4 +1356,10 @@ export const zh: StringTable = {
   'atlas.inPassport': '在护照里看',
   'atlas.pending': '{n} 枚章待盖',
   'atlas.plannedOnly': '还没有去过的地方 —— 出发之后,你的章会一点点印满这个地球。',
+  'atlas.lens.footprint': '足迹',
+  'atlas.lens.trips': '行程',
+  'atlas.lens.years': '年份',
+  'atlas.lens.label': '看地球的方式',
+  'atlas.ribbon.all': '全部',
+  'atlas.ribbon.label': '年份',
 };

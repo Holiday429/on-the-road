@@ -48,6 +48,8 @@ export interface CountryRecord {
   latestTripId: string | null;
   firstDate: string;
   lastDate: string;
+  /** Arrival date of the first stop that has actually started ('' while planned only). */
+  firstVisit: string;
 }
 
 export interface TripRecord extends WorldTripInput {
@@ -71,6 +73,8 @@ export interface WorldModel {
   countries: Map<string, CountryRecord>;
   trips: TripRecord[];
   summary: WorldSummary;
+  /** Distinct years countries were first visited in, oldest first (drives the "years" lens). */
+  years: number[];
   /** Where the camera should start: the current (else latest, else first) trip. */
   focus: { longitude: number; latitude: number };
 }
@@ -122,13 +126,14 @@ export function buildWorldModel(
     if (!rec) {
       rec = {
         iso: l.iso, name: l.country, flag: l.flag, state: 'planned', visits: 0, nights: 0,
-        cities: [], tripIds: [], latestTripId: null, firstDate: l.dateFrom, lastDate: l.dateTo,
+        cities: [], tripIds: [], latestTripId: null, firstDate: l.dateFrom, lastDate: l.dateTo, firstVisit: '',
       };
       countries.set(l.iso, rec);
     }
     const visited = legVisitState(l, today) === 'visited';
     if (visited) {
       rec.state = 'visited';
+      if (!rec.firstVisit || l.dateFrom < rec.firstVisit) rec.firstVisit = l.dateFrom;
       rec.nights += spentNights(l, today);
       for (const s of l.stops.length ? l.stops : [{ name: l.city }]) {
         if (!rec.cities.includes(s.name)) rec.cities.push(s.name);
@@ -203,12 +208,13 @@ export function buildWorldModel(
     ?? [...pool].reverse().find((t) => t.phase === 'past')
     ?? pool.find((t) => t.phase === 'future');
   const focusLegs = pick ? legs.filter((l) => l.tripId === pick.id) : legs;
-  return { countries, trips, summary, focus: footprintCentre(focusLegs.length ? focusLegs : legs) };
+  const years = [...new Set(visitedIsos.map((c) => Number(c.firstVisit.slice(0, 4))).filter(Number.isFinite))].sort((a, b) => a - b);
+  return { countries, trips, summary, years, focus: footprintCentre(focusLegs.length ? focusLegs : legs) };
 }
 
 /* ── Colouring (data only — the view turns tones into colours) ───────────────── */
 
-export type ColorMode = 'count' | 'trip';
+export type ColorMode = 'count' | 'trip' | 'year';
 
 export type CountryTone =
   | { kind: 'none' }
@@ -217,9 +223,22 @@ export type CountryTone =
   | { kind: 'trip'; tripId: string | null };
 
 /** How a country should be painted. Planned countries are never counted as visited. */
-export function countryTone(rec: CountryRecord | undefined, mode: ColorMode): CountryTone {
+export function countryTone(rec: CountryRecord | undefined, mode: ColorMode, years: readonly number[] = []): CountryTone {
   if (!rec) return { kind: 'none' };
   if (rec.state === 'planned') return { kind: 'planned' };
   if (mode === 'trip') return { kind: 'trip', tripId: rec.latestTripId };
+  if (mode === 'year') return { kind: 'visited', level: yearLevel(rec.firstVisit, years) };
   return { kind: 'visited', level: Math.min(4, Math.max(1, rec.visits)) as 1 | 2 | 3 | 4 };
+}
+
+/**
+ * Shade for a country's first-visit year: the oldest year is the lightest, the
+ * newest the deepest; with more than four years they are spread evenly over the
+ * four shades. A lone year takes the deepest shade.
+ */
+export function yearLevel(firstVisit: string, years: readonly number[]): 1 | 2 | 3 | 4 {
+  const idx = years.indexOf(Number(firstVisit.slice(0, 4)));
+  if (idx < 0 || years.length <= 1) return 4;
+  if (years.length <= 4) return (4 - (years.length - 1) + idx) as 1 | 2 | 3 | 4;
+  return (1 + Math.min(3, Math.floor((idx * 4) / years.length))) as 1 | 2 | 3 | 4;
 }

@@ -30,9 +30,9 @@ import { stampSticker, wirePassportOpeners, openPassport } from '../passport/pas
 import { buildCountryDetail } from './country-model.ts';
 import { buildWorldModel, type ColorMode, type WorldModel, type WorldTripInput } from './world-model.ts';
 import { createGlobeView, type GlobeView } from './globe-view.ts';
-import { overviewMarkup, countryMarkup, emptyMarkup, replayMarkup, hudStatsMarkup, nextStopMarkup, settingsMarkup, hoverCardText, type WorldLayer, type AtlasSwitch } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, replayMarkup, hudStatsMarkup, nextStopMarkup, settingsMarkup, lensMarkup, ribbonMarkup, hoverCardText, type WorldLayer, type AtlasSwitch, type Lens } from './world-panel.ts';
 import { globeSkinSvg } from './atlas-skin.ts';
-import { buildTripLines, buildCityPoints, currentSpot, nextStop } from './world-geo.ts';
+import { buildTripLines, buildCityPoints, currentSpot, nextStop, yearsOf } from './world-geo.ts';
 import { onPassport } from '../../data/passport-feed.ts';
 import { prefersReducedMotion } from '../map/amcharts-boot.ts';
 import './atlas.css';
@@ -74,6 +74,7 @@ function stageMarkup(): string {
           <div class="atlas-line"><span id="atlasNext"></span><button type="button" class="atlas-pending" id="atlasPending" hidden></button></div>
         </div>
         <div class="atlas-tools">
+          <div class="atlas-lenses" id="atlasLenses" role="group" aria-label="${esc(t('atlas.lens.label'))}"></div>
           <button type="button" class="atlas-gear" id="atlasGear" aria-haspopup="true" aria-expanded="false" title="${esc(t('atlas.settings'))}" aria-label="${esc(t('atlas.settings'))}">⚙</button>
           <div class="atlas-settings" id="atlasSettings" role="group" aria-label="${esc(t('atlas.settings'))}" hidden></div>
         </div>
@@ -91,6 +92,7 @@ function stageMarkup(): string {
         </div>
         <div class="map-loading" id="worldLoading">${esc(t('map.loading'))}</div>
       </div>
+      <div class="atlas-ribbon" id="atlasRibbon" role="group" aria-label="${esc(t('atlas.ribbon.label'))}"></div>
       <aside class="atlas-card world-panel" id="worldPanel"></aside>
       <div class="map-timeline-slot atlas-timeline" id="worldTimeline"></div>
       <button type="button" class="atlas-prop" id="atlasPassport" title="${esc(t('passport.title'))}" aria-label="${esc(t('passport.title'))}">
@@ -109,7 +111,12 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   let unlocated: UnlocatedStop[] = [];
   let trips: WorldTripInput[] = [];
   let model: WorldModel = buildWorldModel([], [], todayIso());
-  let mode: ColorMode = 'count';
+  let lens: Lens = 'footprint';
+  let yearFilter: number | null = null;          // the year ribbon: only that year's stops show
+  let followedLeg = '';                           // replay: the stop the globe last turned to
+  const modeOf = (): ColorMode => (lens === 'trips' ? 'trip' : lens === 'years' ? 'year' : 'count');
+  /** The stops the globe is showing: everything, or one year of it. */
+  const viewLegs = () => (yearFilter === null ? legs : legs.filter((l) => l.dateFrom.startsWith(String(yearFilter))));
   let onlyTripId: string | null = null;
   const layers = new Set<WorldLayer>(['routes', 'cities']);
   let selectedIso: string | null = null;
@@ -156,7 +163,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   function overviewHtml(now: string): string {
     const p = passportFor(legs as unknown as FootprintLeg[], now);
     return overviewMarkup({
-      model, mode, canReplay: timelineRange(legs) !== null, onlyTripId, currentTripId: currentTripId(), unlocated, locale: getLocale(),
+      model, canReplay: timelineRange(legs) !== null, onlyTripId, currentTripId: currentTripId(), unlocated, locale: getLocale(),
       passport: p.stamps.length ? { earned: p.stamps.length, countries: p.countries } : null,
     });
   }
@@ -170,12 +177,25 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     const next = host.querySelector<HTMLElement>('#atlasNext');
     // eslint-disable-next-line no-restricted-syntax -- audited: names escaped in world-panel.ts
     if (next) next.innerHTML = scrubber ? '' : nextStopMarkup(nextStop(legs, today(), onlyTripId));
+    renderLens();
+    renderRibbon();
     const pend = host.querySelector<HTMLButtonElement>('#atlasPending');
     if (pend) {
       const n = [...pendingIsos].filter((iso) => model.countries.get(iso)?.state === 'visited').length;
       pend.hidden = n === 0 || !!scrubber;
       pend.textContent = t('atlas.pending', { n });
     }
+  }
+
+  function renderLens() {
+    const el = host.querySelector<HTMLElement>('#atlasLenses');
+    // eslint-disable-next-line no-restricted-syntax -- audited: static markup with escaped translated labels (world-panel.ts)
+    if (el) el.innerHTML = legs.length ? lensMarkup(lens) : '';
+  }
+  function renderRibbon() {
+    const el = host.querySelector<HTMLElement>('#atlasRibbon');
+    // eslint-disable-next-line no-restricted-syntax -- audited: numbers and escaped labels (world-panel.ts)
+    if (el) el.innerHTML = scrubber ? '' : ribbonMarkup(yearsOf(legs, todayIso()), yearFilter, timelineRange(legs) !== null);
   }
 
   const switches = (): Set<AtlasSwitch> => {
@@ -197,16 +217,16 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     const now = today();
     const filling = reveal !== null;     // during the fill-in the map is just colour: no lines, dots or marks yet
     view.paint({
-      model, mode, tripColors, reveal,
-      lines: layers.has('routes') && !filling ? buildTripLines(legs, now, onlyTripId, tripColors) : [],
-      points: layers.has('cities') && !filling ? buildCityPoints(legs, now, onlyTripId) : [],
-      current: filling ? null : currentSpot(legs, model.trips, now, onlyTripId),
+      model, mode: modeOf(), tripColors, reveal, boldLines: lens === 'trips',
+      lines: layers.has('routes') && !filling ? buildTripLines(viewLegs(), now, onlyTripId, tripColors) : [],
+      points: layers.has('cities') && !filling ? buildCityPoints(viewLegs(), now, onlyTripId) : [],
+      current: filling ? null : currentSpot(viewLegs(), model.trips, now, onlyTripId),
       pending: filling || scrubber ? new Set() : new Set([...pendingIsos].filter((iso) => model.countries.get(iso)?.state === 'visited')),
     });
   }
 
   function rebuild() {
-    model = buildWorldModel(legs, trips, today(), onlyTripId);
+    model = buildWorldModel(viewLegs(), trips, today(), onlyTripId);
     paintMap();
     renderHud();
     renderPanel();
@@ -294,12 +314,11 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   }
 
   panel.addEventListener('click', (e) => {
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-color],[data-trip],[data-country],[data-route-trip]');
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-trip],[data-country],[data-route-trip]');
     if (!el || !panel.contains(el)) return;
-    const { act, color, trip, country, routeTrip } = el.dataset;
+    const { act, trip, country, routeTrip } = el.dataset;
     if (country) { void selectCountry(country); return; }
     if (routeTrip) { hooks.openRoute(routeTrip); return; }
-    if (color) { mode = color as ColorMode; paintMap(); renderPanel(); return; }
     if (trip) {
       onlyTripId = onlyTripId === trip ? null : trip;
       if (selectedIso) void backToWorld();
@@ -334,6 +353,22 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   });
   host.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !settingsEl.hasAttribute('hidden')) setSettingsOpen(false); });
   host.querySelector('#atlasPassport')?.addEventListener('click', () => openPassport());
+  // Lenses (header) and years (ribbon).
+  host.querySelector('#atlasLenses')?.addEventListener('click', (e) => {
+    const next = (e.target as HTMLElement).closest<HTMLElement>('[data-lens]')?.dataset.lens as Lens | undefined;
+    if (!next || next === lens) return;
+    lens = next; skipIntro(); paintMap(); renderLens();
+  });
+  host.querySelector('#atlasRibbon')?.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-year],[data-act="replay"]');
+    if (!btn) return;
+    if (btn.dataset.act === 'replay') { startReplay(); return; }
+    skipIntro();
+    const y = btn.dataset.year ? Number(btn.dataset.year) : null;
+    yearFilter = y === yearFilter ? null : y;
+    if (selectedIso) void backToWorld();
+    rebuild();
+  });
   host.querySelector('#atlasPending')?.addEventListener('click', () => openPassport());
   host.querySelector('#atlasNext')?.addEventListener('click', (e) => {
     const iso = (e.target as HTMLElement).closest<HTMLElement>('[data-country]')?.dataset.country;
@@ -352,6 +387,9 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     const range = timelineRange(legs);
     const slot = host.querySelector<HTMLElement>('#worldTimeline');
     if (!range || !slot || scrubber) return;
+    skipIntro();
+    yearFilter = null;                              // the replay tells the whole story
+    followedLeg = '';
     const go = () => {
       view?.setActive(false);                       // no spinning while the timeline drives the map
       scrubber = mountScrubber(slot, range, {
@@ -360,6 +398,9 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
           model = buildWorldModel(legs, trips, asOf, onlyTripId);
           paintMap();
           renderHud();
+          // Follow the traveller: when they reach a new stop, turn the globe to it.
+          const spot = currentSpot(legs, model.trips, asOf, onlyTripId);
+          if (spot && spot.legId !== followedLeg) { followedLeg = spot.legId; view?.turnTo(spot.lng, spot.lat); }
         },
         onTakeover: () => {},
       });
@@ -373,6 +414,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     scrubber?.destroy();
     scrubber = null;
     asOf = null;
+    followedLeg = '';
     view?.setActive(active);
     rebuild();
   }

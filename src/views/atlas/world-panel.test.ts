@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, replayMarkup, hudStatsMarkup, settingsMarkup, nextStopMarkup, type AtlasSwitch } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, countryTip, hoverCardText, replayMarkup, hudStatsMarkup, settingsMarkup, nextStopMarkup, lensMarkup, ribbonMarkup, type AtlasSwitch } from './world-panel.ts';
 import { buildWorldModel } from './world-model.ts';
 import { buildCountryDetail } from './country-model.ts';
 import type { PlottedLeg } from '../map/map-stats.ts';
@@ -14,7 +14,7 @@ const trips = [
 ];
 const TODAY = '2026-07-10';
 const model = buildWorldModel(legs, trips, TODAY);
-const base = { model, mode: 'count' as const, canReplay: true, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
+const base = { model, canReplay: true, onlyTripId: null, currentTripId: 'a', unlocated: [], passport: { earned: 3, countries: 1 }, locale: 'en-US' };
 
 describe('overviewMarkup', () => {
   const html = overviewMarkup(base);
@@ -34,10 +34,6 @@ describe('overviewMarkup', () => {
   it('lists countries as buttons and tags the planned one', () => {
     expect(html).toContain('data-country="DK"');
     expect(html).toMatch(/world-country planned" data-country="IT"/);
-  });
-  it('marks the colour mode', () => {
-    expect(html).toMatch(/map-scope-btn active" data-color="count"/);
-    expect(overviewMarkup({ ...base, mode: 'trip' })).toMatch(/map-scope-btn active" data-color="trip"/);
   });
   it('shows the passport card only when there are stamps', () => {
     expect(html).toContain('data-open-passport');
@@ -169,6 +165,32 @@ describe('passport link, next stop, empty state', () => {
   });
   it('settings include the intro switch', () => {
     expect(settingsMarkup(new Set<AtlasSwitch>(['intro']))).toMatch(/map-layer-chip active" data-switch="intro"/);
+  });
+});
+
+describe('lenses and the year ribbon', () => {
+  it('one chip per lens, the active one pressed', () => {
+    const html = lensMarkup('trips');
+    expect(html.match(/data-lens="/g)).toHaveLength(3);
+    expect(html).toMatch(/atlas-lens active" data-lens="trips" aria-pressed="true"/);
+    expect(html).toMatch(/atlas-lens" data-lens="footprint" aria-pressed="false"/);
+    expect(html).toContain('Footprint');
+  });
+  const years = [{ year: 2025, trips: 2, planned: false }, { year: 2026, trips: 1, planned: true }];
+  it('the ribbon has All and a button per year; the selected one is pressed; a future year is marked', () => {
+    const html = ribbonMarkup(years, 2025, true);
+    expect(html).toMatch(/atlas-year" data-year="" aria-pressed="false"/);
+    expect(html).toMatch(/atlas-year active" data-year="2025" aria-pressed="true"/);
+    expect(html).toMatch(/atlas-year planned" data-year="2026"/);
+    expect(html).toContain('data-act="replay"');
+    expect(ribbonMarkup(years, null, true)).toMatch(/atlas-year active" data-year="" aria-pressed="true"/);
+  });
+  it('no play button without a timeline, and no ribbon at all without years', () => {
+    expect(ribbonMarkup(years, null, false)).not.toContain('data-act="replay"');
+    expect(ribbonMarkup([], null, true)).toBe('');
+  });
+  it('shows a dot per trip, at most four', () => {
+    expect(ribbonMarkup([{ year: 2024, trips: 9, planned: false }], null, false)).toContain('●●●●<');
   });
 });
 

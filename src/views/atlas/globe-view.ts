@@ -32,6 +32,8 @@ export interface GlobePaint {
   lines: LineSeg[];
   points: CityPoint[];
   current: CurrentSpot | null;
+  /** The "trips" lens: the lines are the subject, so draw them heavier. */
+  boldLines: boolean;
   /** Countries with a stamp still to press: they get a small pulsing mark. */
   pending: ReadonlySet<string>;
   /** While set, only these countries show their colour (the first-open fill-in); null = all. */
@@ -57,6 +59,8 @@ export interface GlobeView {
   zoom(action: 'in' | 'out' | 'fit'): void;
   /** Slowly turn the globe when it has been left alone for a few seconds (off by default). */
   setSpin(on: boolean): void;
+  /** Turn the globe (same zoom) to face a point — used while replaying, to follow the traveller. */
+  turnTo(lng: number, lat: number): void;
   /** Shade the half of the globe that is in darkness right now. */
   setNight(on: boolean): void;
   /** False while the page is hidden or a replay is running: nothing should move on its own. */
@@ -189,7 +193,7 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
     polyById.forEach((poly, id) => {
       const rec = current?.model.countries.get(id);
       const shown = !current?.reveal || current.reveal.has(id);
-      const tone = countryTone(shown ? rec : undefined, current?.mode ?? 'count');
+      const tone = countryTone(shown ? rec : undefined, current?.mode ?? 'count', current?.model.years);
       const dim = picked !== null && id !== picked;
       let fill = c.land, opacity = 1, stroke = c.border, dash: number[] = [];
       if (tone.kind === 'visited') fill = c.visited[tone.level - 1];
@@ -213,6 +217,8 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
       lineSettings: { stroke: am5.color(l.planned ? c.plannedLine : (l.color || c.visited[2])) },
     });
     const lines = current?.lines ?? [];
+    const bold = current?.boldLines ?? false;
+    lineSeries.mapLines.template.setAll({ strokeWidth: bold ? 3 : 1.8, strokeOpacity: bold ? 1 : 0.65 });
     lineSeries.data.setAll(lines.filter((l) => !l.planned).map(seg));
     plannedLines.data.setAll(lines.filter((l) => l.planned).map(seg));
     dots.data.setAll((current?.points ?? []).map((p) => ({
@@ -390,6 +396,11 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
         const b = state.iso ? countryBounds(state.iso) : null;
         void settled(flyTo(b ? focusFor(b) : { rotationX: camera().rotationX, rotationY: camera().rotationY, zoom: 1 }, 600));
       }
+    },
+    turnTo(lng, lat) {
+      if (state.phase !== 'world') return;
+      stopGlide(); stopSpin();
+      void settled(flyTo({ rotationX: -lng, rotationY: -clampTilt(lat), zoom: camera().zoom }, 700));
     },
     setSpin(on) { spinOn = on; scheduleSpin(); },
     setNight(on) {

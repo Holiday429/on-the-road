@@ -127,3 +127,24 @@ export function nextStop(allLegs: PlottedLeg[], today: string, onlyTripId: strin
     inDays: nights(today, ahead.dateFrom),
   };
 }
+
+export interface YearEntry {
+  year: number;
+  /** Trips with a stop that starts in this year. */
+  trips: number;
+  /** True when every stop of the year is still ahead. */
+  planned: boolean;
+}
+
+/** The years that have stops, oldest first — the Atlas's year ribbon. */
+export function yearsOf(allLegs: PlottedLeg[], today: string): YearEntry[] {
+  const byYear = new Map<number, { trips: Set<string>; visited: boolean }>();
+  for (const l of allLegs) {
+    const y = Number(l.dateFrom.slice(0, 4));
+    if (!Number.isFinite(y)) continue;
+    const e = byYear.get(y) ?? byYear.set(y, { trips: new Set(), visited: false }).get(y)!;
+    e.trips.add(l.tripId ?? '');
+    if (legVisitState(l, today) === 'visited') e.visited = true;
+  }
+  return [...byYear.entries()].sort((a, b) => a[0] - b[0]).map(([year, e]) => ({ year, trips: e.trips.size, planned: !e.visited }));
+}

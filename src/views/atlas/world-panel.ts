@@ -15,12 +15,32 @@ import { unlocatedMarkup } from '../map/map-panel.ts';
 import type { UnlocatedStop } from '../map/map-plot.ts';
 import type { CountryDetail } from './country-model.ts';
 import type { CountryExtras } from './country-extras.ts';
-import type { ColorMode, TripRecord, WorldModel, WorldSummary } from './world-model.ts';
+import type { TripRecord, WorldModel, WorldSummary } from './world-model.ts';
+import type { YearEntry } from './world-geo.ts';
 
 const card = (num: string, label: string) =>
   `<div class="map-stat"><div class="map-stat-num">${esc(num)}</div><div class="map-stat-label">${esc(label)}</div></div>`;
 
 export type WorldLayer = 'routes' | 'cities';
+
+/** The three ways of reading the globe (header chips). */
+export type Lens = 'footprint' | 'trips' | 'years';
+export const LENSES: readonly Lens[] = ['footprint', 'trips', 'years'];
+
+export function lensMarkup(active: Lens): string {
+  return LENSES.map((l) =>
+    `<button type="button" class="atlas-lens${l === active ? ' active' : ''}" data-lens="${l}" aria-pressed="${l === active}">${esc(t(`atlas.lens.${l}`))}</button>`).join('');
+}
+
+/** The year ribbon under the globe: All, then one button per year with stops; the selected year filters the globe. */
+export function ribbonMarkup(years: YearEntry[], selected: number | null, canReplay: boolean): string {
+  if (!years.length) return '';
+  const dots = (n: number) => '●'.repeat(Math.min(n, 4));
+  return `
+    ${canReplay ? `<button type="button" class="atlas-ribbon-play" data-act="replay" title="${esc(t('world.replay.start'))}" aria-label="${esc(t('world.replay.start'))}">▶</button>` : ''}
+    <button type="button" class="atlas-year${selected === null ? ' active' : ''}" data-year="" aria-pressed="${selected === null}">${esc(t('atlas.ribbon.all'))}</button>
+    ${years.map((y) => `<button type="button" class="atlas-year${selected === y.year ? ' active' : ''}${y.planned ? ' planned' : ''}" data-year="${y.year}" aria-pressed="${selected === y.year}"><span class="atlas-year-n">${y.year}</span><span class="atlas-year-dots" aria-hidden="true">${dots(y.trips)}</span></button>`).join('')}`;
+}
 
 export type AtlasSwitch = WorldLayer | 'spin' | 'night' | 'intro';
 
@@ -58,7 +78,6 @@ export function replayMarkup(): string {
 
 export interface OverviewInput {
   model: WorldModel;
-  mode: ColorMode;
   /** There is more than one date to replay through. */
   canReplay: boolean;
   /** The trip the chips are filtered to, if any. */
@@ -88,10 +107,6 @@ export function overviewMarkup(o: OverviewInput): string {
   const hasCurrent = !!o.currentTripId && trips.some((tr) => tr.id === o.currentTripId);
   const countries = [...o.model.countries.values()].sort((a, b) => a.name.localeCompare(b.name));
   return `
-    <div class="map-scope world-mode" role="group" aria-label="${esc(t('world.color.label'))}">
-      <button class="map-scope-btn${o.mode === 'count' ? ' active' : ''}" data-color="count" aria-pressed="${o.mode === 'count'}">${esc(t('world.color.count'))}</button>
-      <button class="map-scope-btn${o.mode === 'trip' ? ' active' : ''}" data-color="trip" aria-pressed="${o.mode === 'trip'}">${esc(t('world.color.trip'))}</button>
-    </div>
     ${o.canReplay ? `<button class="btn btn-ghost world-replay" data-act="replay">${esc(t('world.replay.start'))}</button>` : ''}
     ${hasCurrent ? `<button class="btn btn-primary world-open-route" data-act="open-route">${esc(t('world.openRoute'))}</button>` : ''}
     ${o.passport ? `<button type="button" class="pp-pocket" data-open-passport="">

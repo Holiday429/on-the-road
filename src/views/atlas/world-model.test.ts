@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildWorldModel, countryTone, spentNights, tripPhase, type WorldTripInput } from './world-model.ts';
+import { buildWorldModel, countryTone, spentNights, tripPhase, yearLevel, type WorldTripInput } from './world-model.ts';
 import type { PlottedLeg } from '../map/map-stats.ts';
 
 let n = 0;
@@ -123,7 +123,7 @@ describe('spentNights / countryTone', () => {
     expect(spentNights({ dateFrom: '2026-07-01', dateTo: '2026-07-03' }, TODAY)).toBe(2);
   });
   const rec = (visits: number, state: 'visited' | 'planned' = 'visited') => ({
-    iso: 'DK', name: 'Denmark', flag: '', state, visits, nights: 0, cities: [], tripIds: ['a'], latestTripId: 'a', firstDate: '', lastDate: '',
+    iso: 'DK', name: 'Denmark', flag: '', state, visits, nights: 0, cities: [], tripIds: ['a'], latestTripId: 'a', firstDate: '', lastDate: '', firstVisit: '2026-01-01',
   });
   it('deepens with visits, capped at level 4', () => {
     expect(countryTone(rec(1), 'count')).toEqual({ kind: 'visited', level: 1 });
@@ -150,5 +150,40 @@ describe('trips missing from the trip list', () => {
     expect(m.trips).toHaveLength(1);
     expect(m.trips[0]).toMatchObject({ id: 'ghost', name: 'Ghost trip', startDate: '2026-06-01', endDate: '2026-06-08', phase: 'past', countries: ['DK', 'DE'] });
     expect(m.trips[0].color).toBe('');
+  });
+});
+
+describe('years lens', () => {
+  const legs = [
+    leg({ iso: 'JP', city: 'Tokyo', dateFrom: '2023-04-01', dateTo: '2023-04-08', tripId: 'a' }),
+    leg({ iso: 'FR', city: 'Paris', dateFrom: '2025-05-01', dateTo: '2025-05-08', tripId: 'b' }),
+    leg({ iso: 'DK', city: 'Copenhagen', dateFrom: '2026-06-01', dateTo: '2026-06-08', tripId: 'c' }),
+    leg({ iso: 'IT', city: 'Rome', dateFrom: '2026-12-01', dateTo: '2026-12-08', tripId: 'c' }),
+    leg({ iso: 'JP', city: 'Osaka', dateFrom: '2026-06-10', dateTo: '2026-06-12', tripId: 'c' }),
+  ];
+  const m = buildWorldModel(legs, [trip('a', '2023-04-01', '2023-04-08'), trip('b', '2025-05-01', '2025-05-08'), trip('c', '2026-06-01', '2026-12-08')], TODAY);
+
+  it('records the first visit and lists the years, oldest first, without planned-only ones', () => {
+    expect(m.countries.get('JP')!.firstVisit).toBe('2023-04-01');     // not the later Osaka stop
+    expect(m.countries.get('IT')!.firstVisit).toBe('');               // only planned
+    expect(m.years).toEqual([2023, 2025, 2026]);
+  });
+  it('shades older first visits lighter and recent ones deeper', () => {
+    const level = (iso: string) => (countryTone(m.countries.get(iso), 'year', m.years) as { level: number }).level;
+    expect(level('JP')).toBeLessThan(level('FR'));
+    expect(level('FR')).toBeLessThan(level('DK'));
+    expect(level('DK')).toBe(4);
+  });
+  it('a planned country stays planned in every lens', () => {
+    expect(countryTone(m.countries.get('IT'), 'year', m.years)).toEqual({ kind: 'planned' });
+  });
+  it('yearLevel spreads many years over four shades and gives one year the deepest', () => {
+    expect(yearLevel('2026-01-01', [2026])).toBe(4);
+    const years = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025];
+    const levels = years.map((y) => yearLevel(`${y}-01-01`, years));
+    expect(levels[0]).toBe(1);
+    expect(levels[years.length - 1]).toBe(4);
+    expect([...levels].sort()).toEqual(levels);      // never gets lighter as the years go on
+    expect(yearLevel('2001-01-01', [2020, 2021])).toBe(4);   // unknown year: harmless
   });
 });
