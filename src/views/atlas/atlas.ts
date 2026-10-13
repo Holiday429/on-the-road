@@ -30,9 +30,11 @@ import { stampSticker, wirePassportOpeners, openPassport } from '../passport/pas
 import { buildCountryDetail } from './country-model.ts';
 import { buildWorldModel, type ColorMode, type WorldModel, type WorldTripInput } from './world-model.ts';
 import { createGlobeView, type GlobeView } from './globe-view.ts';
-import { overviewMarkup, countryMarkup, emptyMarkup, replayMarkup, hudStatsMarkup, settingsMarkup, hoverCardText, type WorldLayer, type AtlasSwitch } from './world-panel.ts';
+import { overviewMarkup, countryMarkup, emptyMarkup, replayMarkup, hudStatsMarkup, nextStopMarkup, settingsMarkup, hoverCardText, type WorldLayer, type AtlasSwitch } from './world-panel.ts';
 import { globeSkinSvg } from './atlas-skin.ts';
-import { buildTripLines, buildCityPoints, currentSpot } from './world-geo.ts';
+import { buildTripLines, buildCityPoints, currentSpot, nextStop } from './world-geo.ts';
+import { onPassport } from '../../data/passport-feed.ts';
+import { prefersReducedMotion } from '../map/amcharts-boot.ts';
 import './atlas.css';
 
 export interface AtlasHooks {
@@ -53,6 +55,8 @@ export interface AtlasController {
 
 const SPIN_KEY = 'otr:world:autoSpin';
 const NIGHT_KEY = 'otr:atlas:night';
+const INTRO_KEY = 'otr:atlas:intro';            // the setting (default on)
+const INTRO_SEEN_KEY = 'otr:atlas:introSeen';   // played once on this device
 function readFlag(key: string, fallback: boolean): boolean {
   try { const v = localStorage.getItem(key); return v === null ? fallback : v === '1'; } catch { return fallback; }
 }
@@ -67,6 +71,7 @@ function stageMarkup(): string {
         <div class="atlas-hud-text">
           <h1 class="atlas-title">${esc(t('atlas.title'))}</h1>
           <div class="atlas-stats" id="atlasStats"></div>
+          <div class="atlas-line"><span id="atlasNext"></span><button type="button" class="atlas-pending" id="atlasPending" hidden></button></div>
         </div>
         <div class="atlas-tools">
           <button type="button" class="atlas-gear" id="atlasGear" aria-haspopup="true" aria-expanded="false" title="${esc(t('atlas.settings'))}" aria-label="${esc(t('atlas.settings'))}">⚙</button>
@@ -113,6 +118,11 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   let pendingIso: string | null = null;
   let spin = readFlag(SPIN_KEY, false);
   let night = readFlag(NIGHT_KEY, true);
+  let introOn = readFlag(INTRO_KEY, true);
+  let introChecked = false;
+  let introToken = 0;
+  let reveal: Set<string> | null = null;      // the first-open fill-in: only these countries show colour yet
+  let pendingIsos = new Set<string>();          // countries with a stamp still to press
   let active = true;
   let asOf: string | null = null;            // set while replaying: the map shows the world as of this date
   let scrubber: Scrubber | null = null;
@@ -131,7 +141,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
       const detail = buildCountryDetail(selectedIso, legs, model, now);
       html = detail
         ? countryMarkup({
-          detail, locale: getLocale(), stampHtml: (s) => stampSticker(s, 76),
+          detail, pending: pendingIsos.has(selectedIso), locale: getLocale(), stampHtml: (s) => stampSticker(s, 76),
           extras: buildCountryExtras(selectedIso, legs, extrasData),
         })
         : overviewHtml(now);
@@ -154,14 +164,25 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   /** Header line: the lifetime totals (they follow the replay cursor too). */
   function renderHud() {
     const el = host.querySelector<HTMLElement>('#atlasStats');
+    const nothingYet = legs.length > 0 && model.summary.countries === 0;
     // eslint-disable-next-line no-restricted-syntax -- audited: numbers and translated labels, escaped in world-panel.ts
-    if (el) el.innerHTML = legs.length ? hudStatsMarkup(model.summary, getLocale()) : '';
+    if (el) el.innerHTML = nothingYet ? `<span class="atlas-stat">${esc(t('atlas.plannedOnly'))}</span>` : legs.length ? hudStatsMarkup(model.summary, getLocale()) : '';
+    const next = host.querySelector<HTMLElement>('#atlasNext');
+    // eslint-disable-next-line no-restricted-syntax -- audited: names escaped in world-panel.ts
+    if (next) next.innerHTML = scrubber ? '' : nextStopMarkup(nextStop(legs, today(), onlyTripId));
+    const pend = host.querySelector<HTMLButtonElement>('#atlasPending');
+    if (pend) {
+      const n = [...pendingIsos].filter((iso) => model.countries.get(iso)?.state === 'visited').length;
+      pend.hidden = n === 0 || !!scrubber;
+      pend.textContent = t('atlas.pending', { n });
+    }
   }
 
   const switches = (): Set<AtlasSwitch> => {
     const on = new Set<AtlasSwitch>(layers);
     if (spin) on.add('spin');
     if (night) on.add('night');
+    if (introOn) on.add('intro');
     return on;
   };
   function renderSettings() {
@@ -174,11 +195,13 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     if (!view) return;
     const tripColors = new Map(model.trips.filter((tr) => tr.color).map((tr) => [tr.id, tr.color]));
     const now = today();
+    const filling = reveal !== null;     // during the fill-in the map is just colour: no lines, dots or marks yet
     view.paint({
-      model, mode, tripColors,
-      lines: layers.has('routes') ? buildTripLines(legs, now, onlyTripId, tripColors) : [],
-      points: layers.has('cities') ? buildCityPoints(legs, now, onlyTripId) : [],
-      current: currentSpot(legs, model.trips, now, onlyTripId),
+      model, mode, tripColors, reveal,
+      lines: layers.has('routes') && !filling ? buildTripLines(legs, now, onlyTripId, tripColors) : [],
+      points: layers.has('cities') && !filling ? buildCityPoints(legs, now, onlyTripId) : [],
+      current: filling ? null : currentSpot(legs, model.trips, now, onlyTripId),
+      pending: filling || scrubber ? new Set() : new Set([...pendingIsos].filter((iso) => model.countries.get(iso)?.state === 'visited')),
     });
   }
 
@@ -188,6 +211,41 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     renderHud();
     renderPanel();
     flushPending();
+    maybeIntro();
+  }
+
+  /**
+   * First time on this device (and unless switched off): the globe starts as plain
+   * paper and the countries you have been to take their colour one by one, oldest
+   * first, in about two seconds. Any touch skips it; reduced motion never plays it.
+   */
+  function maybeIntro() {
+    if (introChecked || !view || legs.length === 0 || pendingIso || selectedIso) return;
+    introChecked = true;
+    if (!introOn || prefersReducedMotion() || readFlag(INTRO_SEEN_KEY, false)) return;
+    const order = [...model.countries.values()].filter((c) => c.state === 'visited')
+      .sort((a, b) => a.firstDate.localeCompare(b.firstDate)).map((c) => c.iso);
+    if (order.length === 0) return;
+    writeFlag(INTRO_SEEN_KEY, true);
+    const token = ++introToken;
+    const step = Math.max(60, Math.min(220, 2200 / order.length));
+    let i = 0;
+    reveal = new Set();
+    paintMap();
+    const tick = () => {
+      if (token !== introToken) return;
+      i += 1;
+      if (i >= order.length) { reveal = null; paintMap(); renderHud(); return; }
+      reveal = new Set(order.slice(0, i));
+      paintMap();
+      window.setTimeout(tick, step);
+    };
+    window.setTimeout(tick, 500);
+  }
+
+  function skipIntro() {
+    introToken += 1;
+    if (reveal) { reveal = null; paintMap(); }
   }
 
   /** Open a deep-linked country as soon as both the chart and the data are ready. */
@@ -222,6 +280,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   /* ── Selection ───────────────────────────────────────────────────────── */
   async function selectCountry(iso: string) {
     if (!view || !model.countries.has(iso) || scrubber) return;
+    skipIntro();
     selectedIso = iso;
     renderPanel();
     const ok = await view.enterCountry(iso);
@@ -250,6 +309,8 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     if (act === 'back') void backToWorld();
     else if (act === 'open-route') hooks.openRoute(currentTripId());
     else if (act === 'replay') startReplay();
+    else if (act === 'passport') openPassport({ iso: el.dataset.iso });
+    else if (act === 'open-itinerary') void import('../../core/app.ts').then(({ navigateTo }) => navigateTo('route'));
     else if (act === 'replay-close') endReplay();
     else if (act === 'guide') void import('../../core/app.ts').then(({ navigateTo }) => navigateTo('cities'));
     else if (act === 'journal') void import('../../core/app.ts').then(({ navigateTo }) => navigateTo('journal'));
@@ -267,11 +328,19 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     if (!id) return;
     if (id === 'spin') { spin = !spin; writeFlag(SPIN_KEY, spin); view?.setSpin(spin); }
     else if (id === 'night') { night = !night; writeFlag(NIGHT_KEY, night); view?.setNight(night); }
+    else if (id === 'intro') { introOn = !introOn; writeFlag(INTRO_KEY, introOn); }
     else { if (layers.has(id)) layers.delete(id); else layers.add(id); paintMap(); }
     renderSettings();
   });
   host.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !settingsEl.hasAttribute('hidden')) setSettingsOpen(false); });
   host.querySelector('#atlasPassport')?.addEventListener('click', () => openPassport());
+  host.querySelector('#atlasPending')?.addEventListener('click', () => openPassport());
+  host.querySelector('#atlasNext')?.addEventListener('click', (e) => {
+    const iso = (e.target as HTMLElement).closest<HTMLElement>('[data-country]')?.dataset.country;
+    if (iso) void selectCountry(iso);
+  });
+  // A touch anywhere on the globe skips the fill-in.
+  host.querySelector('#atlasStage')?.addEventListener('pointerdown', skipIntro);
 
   const on = (id: string, fn: () => void) => host.querySelector(`#${id}`)?.addEventListener('click', fn);
   on('worldZoomIn', () => view?.zoom('in'));
@@ -330,6 +399,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     const canHover = window.matchMedia?.('(hover: hover)').matches ?? true;
     view = createGlobeView(chartEl, {
       onCountryClick: (iso) => void selectCountry(iso),
+      onPendingClick: (iso) => openPassport({ iso }),
       mascotSrc: `${import.meta.env.BASE_URL}art/logo-sm.webp`.replace(/\/{2,}/g, '/'),
       onHover: (iso, x, y) => {
         const rec = iso ? model.countries.get(iso) : undefined;
@@ -349,6 +419,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     view.setActive(active);
     paintMap();
     flushPending();
+    maybeIntro();
   }
 
   void bootChart();
@@ -360,6 +431,12 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   nomadStore.subscribeForTrip(null, (r) => { extrasData.nomad = r; refreshExtras(); });
   cityStore.subscribeAll((r) => { extrasData.intel = r; refreshExtras(); });
   onTripChange(() => { void loadTrips(); });
+  // Stamps waiting to be pressed: marked on the globe, counted in the header.
+  onPassport((feed) => {
+    pendingIsos = new Set(feed.pending.map((s) => s.iso).filter(Boolean));
+    paintMap(); renderHud();
+    if (selectedIso) renderPanel();
+  });
   void loadTrips();
   renderPanel();
   renderSettings();

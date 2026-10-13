@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTripLines, buildCityPoints, currentSpot } from './world-geo.ts';
+import { buildTripLines, buildCityPoints, currentSpot, nextStop } from './world-geo.ts';
 import { buildWorldModel } from './world-model.ts';
 import type { PlottedLeg } from '../map/map-stats.ts';
 
@@ -83,5 +83,26 @@ describe('currentSpot', () => {
   it('is null before and after the trip', () => {
     expect(currentSpot(legs, trips('2026-06-01'), '2026-06-01', null)).toBeNull();
     expect(currentSpot(legs, trips('2026-08-01'), '2026-08-01', null)).toBeNull();
+  });
+});
+
+describe('nextStop', () => {
+  const legs = [
+    mk('1', 'Copenhagen', 'DK', '2026-07-01', '2026-07-05', 'a', 12.5, 55.7),
+    mk('2', 'Berlin', 'DE', '2026-07-12', '2026-07-15', 'a', 13.4, 52.5),
+    mk('3', 'Rome', 'IT', '2026-08-01', '2026-08-04', 'a', 12.5, 41.9),
+    mk('4', 'Lisbon', 'PT', '2026-02-01', '2026-02-04', 'b', -9.1, 38.7),
+  ];
+  it('is the first stop that has not started, with the days to go', () => {
+    const n = nextStop(legs, '2026-07-10', null)!;
+    expect(n).toMatchObject({ city: 'Berlin', iso: 'DE', inDays: 2, legId: '2' });
+    expect(nextStop(legs, '2026-07-11', null)!.inDays).toBe(1);
+  });
+  it('a stop that starts today is not "next" any more (you are there)', () => {
+    expect(nextStop(legs, '2026-07-12', null)!.city).toBe('Rome');
+  });
+  it('is null when nothing is ahead, and honours the trip filter', () => {
+    expect(nextStop(legs, '2026-09-01', null)).toBeNull();
+    expect(nextStop(legs, '2026-07-10', 'b')).toBeNull();
   });
 });

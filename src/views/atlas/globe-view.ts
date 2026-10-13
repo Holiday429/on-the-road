@@ -32,6 +32,10 @@ export interface GlobePaint {
   lines: LineSeg[];
   points: CityPoint[];
   current: CurrentSpot | null;
+  /** Countries with a stamp still to press: they get a small pulsing mark. */
+  pending: ReadonlySet<string>;
+  /** While set, only these countries show their colour (the first-open fill-in); null = all. */
+  reveal: ReadonlySet<string> | null;
 }
 
 export interface GlobeViewHooks {
@@ -39,6 +43,8 @@ export interface GlobeViewHooks {
   onCountryClick(iso: string): void;
   /** The pointer is over a country with data (null = left). x/y are chart pixels. */
   onHover(iso: string | null, x: number, y: number): void;
+  /** A pending-stamp mark was clicked: go and press it. */
+  onPendingClick(iso: string): void;
   /** URL of the traveller picture that marks "you are here". */
   mascotSrc: string;
 }
@@ -123,6 +129,22 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
     box.events.on('pointerout', () => hooks.onHover(null, 0, 0));
     return am5.Bullet.new(bRoot, { sprite: box });
   });
+  /* Stamps waiting to be pressed: a small dashed, softly pulsing stamp-shaped ring on the country. */
+  const marks = chart.series.push(am5map.MapPointSeries.new(root, {}));
+  marks.bullets.push((bRoot: Am5Obj, _s: Am5Obj, di: Am5Obj) => {
+    const iso = (di.dataContext as { iso: string }).iso;
+    const pal = worldPalette();
+    const box = am5.Container.new(bRoot, { interactive: true, cursorOverStyle: 'pointer' });
+    box.children.push(am5.Circle.new(bRoot, { radius: 14, fill: am5.color(pal.land), fillOpacity: 0.001 }));
+    const ring = box.children.push(am5.Circle.new(bRoot, {
+      radius: 8, strokeWidth: 1.8, strokeDasharray: [3, 2], stroke: am5.color(pal.visited[3]), fill: am5.color(pal.visited[0]), fillOpacity: 0.35,
+    }));
+    if (!prefersReducedMotion()) {
+      ring.animate({ key: 'scale', from: 0.85, to: 1.2, duration: 900, easing: am5.ease.inOut(am5.ease.quad), loops: Infinity });
+    }
+    box.events.on('click', () => hooks.onPendingClick(iso));
+    return am5.Bullet.new(bRoot, { sprite: box });
+  });
   const here = chart.series.push(am5map.MapPointSeries.new(root, {}));
   here.bullets.push((bRoot: Am5Obj) => am5.Bullet.new(bRoot, {
     sprite: am5.Picture.new(bRoot, { src: hooks.mascotSrc, width: 30, height: 30, centerX: am5.p50, centerY: am5.p100, interactive: false }),
@@ -166,7 +188,8 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
     const picked = state.iso;
     polyById.forEach((poly, id) => {
       const rec = current?.model.countries.get(id);
-      const tone = countryTone(rec, current?.mode ?? 'count');
+      const shown = !current?.reveal || current.reveal.has(id);
+      const tone = countryTone(shown ? rec : undefined, current?.mode ?? 'count');
       const dim = picked !== null && id !== picked;
       let fill = c.land, opacity = 1, stroke = c.border, dash: number[] = [];
       if (tone.kind === 'visited') fill = c.visited[tone.level - 1];
@@ -195,6 +218,11 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
     dots.data.setAll((current?.points ?? []).map((p) => ({
       geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, iso: p.iso, planned: p.planned,
     })));
+    marks.data.setAll([...(current?.pending ?? [])].flatMap((iso) => {
+      const geo = polyById.get(iso)?.dataItem?.get('geometry');
+      const c = geo ? am5map.getGeoCentroid(geo) : null;
+      return c ? [{ geometry: { type: 'Point', coordinates: [c.longitude, c.latitude] }, iso }] : [];
+    }));
     const cur = current?.current;
     here.data.setAll(cur ? [{ geometry: { type: 'Point', coordinates: [cur.lng, cur.lat] } }] : []);
   }
@@ -206,6 +234,7 @@ export function createGlobeView(container: HTMLElement, hooks: GlobeViewHooks): 
       if (id) polyById.set(id, poly);
     });
     applyPaint();
+    drawOverlays();      // pending-stamp marks sit on the countries, so they need the polygons
     polygonsReady();
   });
   const offRepaint = onMapRepaint(() => { applyPaint(); drawOverlays(); drawNight(); });

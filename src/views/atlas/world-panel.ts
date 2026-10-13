@@ -22,7 +22,7 @@ const card = (num: string, label: string) =>
 
 export type WorldLayer = 'routes' | 'cities';
 
-export type AtlasSwitch = WorldLayer | 'spin' | 'night';
+export type AtlasSwitch = WorldLayer | 'spin' | 'night' | 'intro';
 
 /** The lifetime totals as one line under the title (they follow the replay cursor too). */
 export function hudStatsMarkup(s: WorldSummary, locale: string): string {
@@ -45,7 +45,8 @@ export function settingsMarkup(on: ReadonlySet<AtlasSwitch>): string {
     ${sw('routes', 'world.layer.routes')}
     ${sw('cities', 'world.layer.cities')}
     ${sw('night', 'atlas.night')}
-    ${sw('spin', 'world.layer.spin')}`;
+    ${sw('spin', 'world.layer.spin')}
+    ${sw('intro', 'atlas.intro')}`;
 }
 
 /** The panel while every trip is being replayed: a title and a way out (the totals are in the header). */
@@ -112,11 +113,27 @@ export function overviewMarkup(o: OverviewInput): string {
 }
 
 export function emptyMarkup(): string {
-  return `<div class="world-empty">${esc(t('world.empty'))}</div>`;
+  return `<div class="world-empty">
+    <p>${esc(t('atlas.empty'))}</p>
+    <button class="btn btn-primary" data-act="open-itinerary">${esc(t('atlas.empty.cta'))}</button>
+  </div>`;
+}
+
+/** The line under the totals: the next stop ahead (opens that country), or a hint while nothing has been visited yet. */
+export function nextStopMarkup(n: { city: string; country: string; flag: string; iso: string | null; inDays: number } | null): string {
+  if (!n) return '';
+  const when = n.inDays <= 0 ? t('atlas.next.today') : n.inDays === 1 ? t('atlas.next.tomorrow') : t('atlas.next.days', { n: n.inDays });
+  const label = `${n.flag} ${n.city}${n.country && n.country !== n.city ? `, ${n.country}` : ''}`.trim();
+  const body = `<span class="atlas-next-k">${esc(t('atlas.next'))}</span> ${esc(label)} · ${esc(when)}`;
+  return n.iso
+    ? `<button type="button" class="atlas-next" data-country="${esc(n.iso)}">${body} <span aria-hidden="true">›</span></button>`
+    : `<span class="atlas-next">${body}</span>`;
 }
 
 export interface CountryInput {
   detail: CountryDetail;
+  /** This country has a stamp waiting to be pressed in the passport. */
+  pending: boolean;
   /** Journal / spend / saved places for this country; null until the stores have answered. */
   extras: CountryExtras | null;
   locale: string;
@@ -124,7 +141,7 @@ export interface CountryInput {
   stampHtml: (s: StampSpec) => string;
 }
 
-export function countryMarkup({ detail: d, extras: x, locale, stampHtml }: CountryInput): string {
+export function countryMarkup({ detail: d, pending, extras: x, locale, stampHtml }: CountryInput): string {
   const planned = d.state === 'planned';
   const trips = d.trips.map((tr) => `
     <div class="world-ctrip" style="--trip:${esc(tr.color || 'var(--accent)')}">
@@ -160,6 +177,7 @@ export function countryMarkup({ detail: d, extras: x, locale, stampHtml }: Count
     </section>
     ${x ? extrasMarkup(d, x, locale) : ''}
     <div class="world-actions">
+      ${d.state === 'visited' ? `<button class="btn ${pending ? 'btn-primary' : 'btn-ghost'}" data-act="passport" data-iso="${esc(d.iso)}">${esc(t(pending ? 'atlas.press' : 'atlas.inPassport'))}</button>` : ''}
       <button class="btn btn-ghost" data-act="journal">${esc(t('world.country.journalOpen'))}</button>
       <button class="btn btn-ghost" data-act="guide">${esc(t('world.country.guide'))}</button>
     </div>`;
