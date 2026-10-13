@@ -74,7 +74,23 @@
 .pp-strip-go { color: var(--ink-faint); font-size: 18px; }
 
 /* Where the sticker sits on an Itinerary card / hero. */
-.route-leg-stamp { position: absolute; right: 8px; bottom: 8px; z-index: 2; }
 .rd-hero-stamp { position: absolute; right: var(--sp-6); bottom: 68px; z-index: 2; }
 @media (max-width: 700px) { .rd-hero-stamp { right: var(--sp-4); bottom: 60px; } .rd-hero-stamp .pp-stamp svg { width: 80px; height: 80px; } }
 .pp-cover-map { margin-top: var(--sp-2); }
+
+/* Postmarks on an Itinerary card: bare ink, arrival first, departure tucked under its edge. */
+.pm-pair {
+  display: inline-flex; align-items: center; flex: none; padding: 0; border: 0; background: none; cursor: pointer;
+  border-radius: var(--r-md);
+}
+.pm-pair:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+.pm-mark { display: inline-flex; }
+.pm-depart { margin-left: -14px; margin-top: 10px; }
+.pm-pair:hover .pm-stamp:not(.is-ghost) { opacity: 1; }
+.route-leg-header .pm-pair { margin-right: -6px; }
+/* Over a photo: pale ink, no multiply (it would vanish on a dark shade). */
+.pm-on-photo .pp-stamp { color: color-mix(in srgb, var(--ink-c) 30%, #fff8ec); mix-blend-mode: normal; opacity: .94; }
+@media (max-width: 640px) {
+  .route-leg-header .pm-pair .pp-stamp svg { width: 46px; height: 46px; }
+  .route-leg-header .pm-depart { margin-left: -10px; }
+}

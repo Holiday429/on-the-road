@@ -141,8 +141,6 @@
   transition: transform var(--dur-slow) var(--ease-out), filter var(--dur-mid);
 }
 .route-leg-card:hover .route-leg-cover-img { transform: scale(1.04); }
-.route-leg.status-past .route-leg-cover-img { filter: saturate(0.55); }
-.route-leg.status-past .route-leg-card:hover .route-leg-cover-img { filter: none; }
 
 /* No photo yet — a per-city tint with the flag, so cities stay distinct. */
 .route-leg-cover-fallback,

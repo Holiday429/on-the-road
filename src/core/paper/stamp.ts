@@ -36,6 +36,8 @@ export interface StampSpec {
   ink: string;
   /** False = a stamp still to come; drawn as a faint ghost. */
   earned: boolean;
+  /** Itinerary-card postmarks: which end of the stay this one marks. Absent = a plain city stamp. */
+  phase?: 'arrive' | 'depart';
 }
 
 export interface StampRenderOpts {
@@ -133,6 +135,8 @@ function inner(s: StampSpec, arcId: string, frame: Frame): string {
   const year = stampYear(s.date);
   const mode = s.mode ? MODE_TEXT[s.mode] ?? 'ARR' : 'ARR';
   const nights = s.nights === 1 ? '1 NIGHT' : `${s.nights} NIGHTS`;
+  // Postmarks say which end of the stay they mark instead of how long it was.
+  const tail = s.phase ? `${s.phase === 'arrive' ? 'ARRIVED' : 'DEPARTED'}${s.mode ? ` · ${mode}` : ''}` : `${mode} · ${nights}`;
 
   if (s.kind === 'country') {
     const name = stampText(s.country, 18);
@@ -152,13 +156,13 @@ function inner(s: StampSpec, arcId: string, frame: Frame): string {
       <text class="pp-t pp-md" font-size="${fontFor(city.length, 11)}" letter-spacing="${track}"><textPath href="#${arcId}" startOffset="50%" text-anchor="middle">${esc(city)}</textPath></text>
       <text x="60" y="${tight ? 57 : 59}" class="pp-t pp-xl" text-anchor="middle" font-size="${tight ? 15 : 17}">${esc(date)}</text>
       <text x="60" y="${tight ? 68 : 71}" class="pp-t pp-sm" text-anchor="middle" letter-spacing="1.2">${esc(year)}</text>
-      <text x="60" y="${tight ? 80 : 85}" class="pp-t pp-xs" text-anchor="middle" letter-spacing=".8">${esc(mode)} · ${esc(nights)}</text>`;
+      <text x="60" y="${tight ? 80 : 85}" class="pp-t pp-xs" text-anchor="middle" letter-spacing=".8">${esc(tail)}</text>`;
   }
   return `
     <text x="60" y="45" class="pp-t pp-md" text-anchor="middle" font-size="${fontFor(city.length, 12)}" letter-spacing="${track}">${esc(city)}</text>
     <text x="60" y="68" class="pp-t pp-xl" text-anchor="middle">${esc(date)}</text>
     <text x="60" y="80" class="pp-t pp-sm" text-anchor="middle" letter-spacing="1.2">${esc(year)}</text>
-    <text x="60" y="91" class="pp-t pp-xs" text-anchor="middle" letter-spacing=".8">${esc(mode)} · ${esc(nights)}</text>`;
+    <text x="60" y="91" class="pp-t pp-xs" text-anchor="middle" letter-spacing=".8">${esc(tail)}</text>`;
 }
 
 /** The stamp as an inline-SVG wrapper. Returns '' for an empty spec. */
