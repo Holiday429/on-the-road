@@ -26,8 +26,7 @@ import { openCityDrawer } from './city-drawer.ts';
 import { openClocksDrawer } from './clock-drawer.ts';
 
 import { transportIcon } from '../../core/icons.ts';
-import { STAY_ICON, PASSPORT_ICON } from '../../core/icons.ts';
-import { peekPassport } from '../../data/passport-feed.ts';
+import { STAY_ICON } from '../../core/icons.ts';
 export interface BannerData {
   phase: Phase;
   legs: StoredLeg[];
@@ -106,8 +105,8 @@ function renderSummary(d: Extract<Dial, { kind: 'after' }>, legs: StoredLeg[]): 
     countries ? t('dash.hero.countries', { n: countries }) : '',
     legs.length ? t('dash.hero.stops', { n: legs.length }) : '',
   ].filter(Boolean);
-  // The whole line opens the trip wrap.
-  return `<button type="button" class="td-banner-row td-banner-row--wrap" data-banner="wrap"><span class="td-banner-text td-banner-summary">${esc(parts.join(' · '))}</span><span class="td-banner-cta">${esc(t('wrap.open'))}</span></button>`;
+  // The summary reads in full; the wrap link sits on its own line beneath it.
+  return `<div class="td-banner-end"><div class="td-banner-summary">${esc(parts.join(' · '))}</div><button type="button" class="td-banner-cta" data-banner="wrap">${esc(t('wrap.open'))}</button></div>`;
 }
 
 /* ── Clocks ──────────────────────────────────────────────────────────────── */
@@ -144,13 +143,6 @@ function renderClocks(leg: StoredLeg | null, homeTz: string | null, now: Date): 
     </button>`;
 }
 
-/** The account passport as a bare icon at the banner's right edge; a dot while stamps wait to be pressed. */
-function renderPassportIcon(): string {
-  const p = peekPassport();
-  const pending = p.pending.length > 0 || p.warnings.length > 0 || p.visaWarnings.length > 0;
-  return `<button type="button" class="td-hero-passport${pending ? ' has-pending' : ''}" data-open-passport="" title="${esc(t('passport.title'))}" aria-label="${esc(t('passport.title'))}">${PASSPORT_ICON}</button>`;
-}
-
 /* ── Public ──────────────────────────────────────────────────────────────── */
 
 export function renderBanner(d: BannerData, now: Date = appNow()): string {
@@ -167,8 +159,7 @@ export function renderBanner(d: BannerData, now: Date = appNow()): string {
   return `
     ${renderDial(dial, stop?.leg ?? null, stop?.index ?? 0, stop?.count ?? 0)}
     <div class="td-hero-info">${middle}</div>
-    ${renderClocks(stop?.leg ?? null, d.homeTz, new Date())}
-    ${renderPassportIcon()}`;   // real time: time travel moves the date, not the world clocks
+    ${renderClocks(stop?.leg ?? null, d.homeTz, new Date())}`;   // real time: time travel moves the date, not the world clocks
 }
 
 /** Wire the banner's drawer triggers. `getData` is read at click time so the

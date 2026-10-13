@@ -15,7 +15,7 @@
 
 .atlas-desk {
   --card-w: 340px;
-  position: relative; overflow: hidden; min-height: 100dvh;
+  position: relative; overflow: hidden; min-height: calc(100dvh - var(--topbar-h));
   background: var(--paper-grain), var(--pp-desk);
 }
 

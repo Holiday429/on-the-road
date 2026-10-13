@@ -19,7 +19,7 @@ import { initTripPopover, openTripSwitcher, setTripList } from './trip-popover.t
 export type { ViewId } from './sidebar.ts';
 export { renderViewTitleMarkup, openTripSwitcher };
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   // Pinned
   { id: 'today',    label: 'Dashboard', iconSrc: NAV_ICON.today,  emoji: true, section: 'pinned' },
   // Agenda is a cross-cutting time view, not a content area — pinned beside the
@@ -40,9 +40,11 @@ const NAV_ITEMS: NavItem[] = [
   // stamps collected, the ground covered, and who they are. Sits at the foot of
   // the sidebar, set apart from the trip pages above. Desktop only: the phone's
   // bottom bar reaches these through its account item.
-  { id: 'passport', label: 'My passport', iconSrc: NAV_ICON.passport, emoji: true, section: 'me', desktopOnly: true },
-  { id: 'atlas',    label: 'My atlas',    iconSrc: NAV_ICON.atlas,    emoji: true, section: 'me', desktopOnly: true },
-  { id: 'wrap',     label: 'Trip wrap',   iconSrc: NAV_ICON.wrap,     emoji: true, section: 'me', desktopOnly: true },
+  // One entry, "My world": the page switches between passport, atlas and trip wrap with tabs in the top bar.
+  { id: 'passport', label: 'My world',    iconSrc: NAV_ICON.world,    emoji: true, section: 'me', desktopOnly: true, labelKey: 'nav.sectionMe', aliases: ['atlas', 'wrap'] },
+  // Tabs of My world: not sidebar entries, but they keep a label and icon for their page titles.
+  { id: 'atlas',    label: 'My atlas',    iconSrc: NAV_ICON.atlas,    emoji: true, section: 'sub', desktopOnly: true },
+  { id: 'wrap',     label: 'Trip wrap',   iconSrc: NAV_ICON.wrap,     emoji: true, section: 'sub', desktopOnly: true },
 ];
 
 // Views that used to have their own NAV_ITEMS entry and are now folded into
@@ -73,7 +75,7 @@ export function setAllowedViews(ids: ViewId[] | null) {
   // A share link grants trip pages only: "Me" is the recipient's own account,
   // never the sharer's, so those ids are not grantable.
   _allowedViews = mapped && mapped.length
-    ? mapped.filter((id) => NAV_ITEMS.some((n) => n.id === id && n.section !== 'me'))
+    ? mapped.filter((id) => NAV_ITEMS.some((n) => n.id === id && n.section !== 'me' && n.section !== 'sub'))
     : (ids === null ? null : []);
 }
 
@@ -85,7 +87,7 @@ export function isViewAllowed(id: ViewId): boolean {
 /** First view the current session is allowed to land on. */
 export function firstAllowedView(): ViewId {
   if (_allowedViews && _allowedViews.length) {
-    const inNav = NAV_ITEMS.find((n) => n.section !== 'me' && _allowedViews!.includes(n.id));
+    const inNav = NAV_ITEMS.find((n) => n.section !== 'me' && n.section !== 'sub' && _allowedViews!.includes(n.id));
     if (inNav) return inNav.id;
   }
   return 'today';
@@ -206,7 +208,8 @@ export async function navigateTo(id: ViewId, intent?: NavIntent) {
 
   // Update nav highlight
   document.querySelectorAll('.nav-item, .mobile-nav-item').forEach(item => {
-    item.classList.toggle('active', (item as HTMLElement).dataset.view === id);
+    const el = item as HTMLElement;
+    el.classList.toggle('active', el.dataset.view === id || (el.dataset.aliases?.split(' ').includes(id) ?? false));
   });
 
   // Scroll active mobile tab into view
@@ -214,6 +217,7 @@ export async function navigateTo(id: ViewId, intent?: NavIntent) {
   activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
   window.location.hash = id;
+  window.dispatchEvent(new CustomEvent('otr:view-change', { detail: { id } }));
 
   // Notify an already-mounted target view that it was (re-)activated with an
   // intent — fresh mounts pick it up via consumeNavIntent() in their init, but

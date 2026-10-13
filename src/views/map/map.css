@@ -641,7 +641,7 @@
 
 /* ── Dark theme ──────────────────────────────────────────────────────────── */
 :root[data-theme='dark'] .map-stage {
-  background: radial-gradient(120% 90% at 30% 0%, #121d24 0%, #0e161c 70%);
+  background: #1b222b;
 }
 :root[data-theme='dark'] .map-guide-pin-count { color: #2dd4bf; }
 :root[data-theme='dark'] .leg-flight-row { background: #1b2333; border-color: #2c3a55; }

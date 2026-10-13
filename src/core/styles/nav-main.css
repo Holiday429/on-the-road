@@ -99,3 +99,19 @@
   display: none;
 }
 
+
+/* ── One screen ──────────────────────────────────────────────────────────────
+   Every entry fits without scrolling: spacing and icon size follow the window's
+   height instead of being fixed, so a short laptop screen just gets a tighter
+   list. (The list still scrolls as a last resort rather than hiding an entry.) */
+.sidebar-nav { padding-block: var(--sp-2); gap: clamp(2px, 0.45vh, 5px); }
+.nav-item { padding: clamp(4px, 0.9vh, 9px) var(--sp-3); }
+.nav-item .nav-icon, .nav-icon-image { width: clamp(20px, 2.9vh, 26px); height: clamp(20px, 2.9vh, 26px); }
+.nav-icon-emoji { font-size: clamp(16px, 2.4vh, 21px); }
+.nav-item .nav-label { font-size: clamp(14px, 1.8vh, 16px); }
+.nav-section-label { padding: clamp(4px, 1vh, 12px) var(--sp-2) 2px; }
+.nav-section-label:first-child { padding-top: var(--sp-1); }
+.trip-pill { margin-top: clamp(6px, 1.2vh, 12px); padding-block: clamp(6px, 1.2vh, 12px); }
+@media (max-height: 640px) {
+  .trip-pill-label { display: none; }
+}

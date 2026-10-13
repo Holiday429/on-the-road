@@ -47,8 +47,6 @@ import { expensesAsOf, todosAsOf, daySpend } from '../../data/as-of.ts';
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { openAddPlanModal } from './dashboard-modals.ts';
 import { budgetBarColor } from '../../data/budget-tone.ts';
-import { onPassport } from '../../data/passport-feed.ts';
-import { wirePassportOpeners } from '../passport/passport-links.ts';
 import { renderBanner, wireBanner, startBannerClock, type BannerData } from './dashboard-banner.ts';
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
 import { resolveHomeTimezone } from '../../data/home-timezone.ts';
@@ -518,9 +516,9 @@ function render(): void {
   const ui = captureUiState(body);
   swapHtml(body, `${renderGreeting()}${renderHero(phase)}${layout(phase)}`, '#td-map-canvas');
   wire(body);
-  wirePassportOpeners(body);
   restoreUiState(body, ui);
   bootMap();
+  window.dispatchEvent(new Event('otr:title-refresh'));
 }
 
 /** Store callbacks go through this so a burst (eight listeners all fire once at
@@ -805,7 +803,6 @@ export function initDashboard(): void {
     packStore.subscribe(rows => { _packLists = rows; scheduleRender(); }),
     nomadStore.subscribeForTrip(currentTripId(), rows => { _nomadSpots = rows; scheduleRender(); }),
     cityStore.subscribe(rows => { _cityIntel = rows; scheduleRender(); }),
-    onPassport(() => scheduleRender()),
     userPrefsStore.subscribe(p => { const tz = p?.homeTimezone ?? ''; if (tz !== _homeTzPref) { _homeTzPref = tz; scheduleRender(); } }),
     onTripChange(() => {
       _nomadSpots = nomadStore.peek();

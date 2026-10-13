@@ -21,7 +21,11 @@ export interface NavItem {
   iconSrc: string;
   emoji?: boolean;
   // `pinned` items render above the Before/During/After sections (e.g. Today).
-  section: 'pinned' | 'before' | 'during' | 'after' | 'me';
+  section: 'pinned' | 'before' | 'during' | 'after' | 'me' | 'sub';
+  // i18n key for the sidebar label when it is not `nav.<id>`.
+  labelKey?: string;
+  // Other views that belong under this entry (they highlight it, and appear as its tabs).
+  aliases?: ViewId[];
   // Omit from the mobile bottom bar (still routable and in the desktop sidebar).
   desktopOnly?: boolean;
 }
@@ -42,7 +46,7 @@ export function initSidebar(h: SidebarHost): void {
 
 /** Localized nav label for a view; falls back to the English NAV_ITEMS label. */
 export function navLabel(item: NavItem): string {
-  return t(`nav.${item.id}`) || item.label;
+  return t(item.labelKey ?? `nav.${item.id}`) || item.label;
 }
 function sectionLabel(section: 'before' | 'during' | 'after' | 'me'): string {
   return t(`nav.section${section.charAt(0).toUpperCase()}${section.slice(1)}`);
@@ -404,7 +408,7 @@ function buildMobileAccountItem(): string {
 
 function navItemMarkup(item: NavItem): string {
   return `
-    <div class="nav-item" data-view="${item.id}" role="button" tabindex="0">
+    <div class="nav-item" data-view="${item.id}"${item.aliases ? ` data-aliases="${item.aliases.join(' ')}"` : ''} role="button" tabindex="0">
       <span class="nav-icon" aria-hidden="true">${renderNavIcon(item)}</span>
       <span class="nav-label">${navLabel(item)}</span>
     </div>`;
@@ -426,12 +430,9 @@ function buildNavSections(): string {
   }).join('');
   // "Me" is pushed to the foot of the sidebar and framed, so it reads as the
   // traveller's own shelf rather than another stop in the trip.
-  // The trip's wrap only exists once the trip is over.
-  const tripOver = (() => { const tr = currentTrip(); return !!tr?.endDate && todayIso() > tr.endDate; })();
-  const mine = host!.navItems().filter(n => n.section === 'me' && host!.isViewAllowed(n.id) && (n.id !== 'wrap' || tripOver));
+  const mine = host!.navItems().filter(n => n.section === 'me' && host!.isViewAllowed(n.id));
   const me = mine.length ? `
     <div class="nav-me">
-      <div class="nav-section-label nav-me-label">${sectionLabel('me')}</div>
       ${mine.map(navItemMarkup).join('')}
     </div>` : '';
   return pinned + grouped + me;

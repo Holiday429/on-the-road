@@ -42,9 +42,9 @@
 .sidebar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: var(--sp-3);
-  padding: var(--sp-5) var(--sp-4);
+  padding: clamp(10px, 2vh, 20px) var(--sp-4);
   border-bottom: 1px solid var(--rule-soft);
   flex-shrink: 0;
 }
@@ -53,6 +53,7 @@
   min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--sp-3);
 }
 

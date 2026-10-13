@@ -27,6 +27,7 @@ export const NAV_ICON = {
   atlas:    '🌍',
   profile:  '⚙️',
   wrap:     '🎞️',
+  world:    '🌏',
 } as const;
 
 export const TRANSPORT_ICON: Record<string, string> = {
@@ -42,13 +43,6 @@ export function transportIcon(type: string | undefined | null): string {
 }
 
 export const STAY_ICON = '🏨';
-
-/** A closed passport booklet — cover, globe emblem, text line. Line art, takes the surrounding text colour. */
-export const PASSPORT_ICON =
-  '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-  + '<rect x="4.5" y="2.5" width="15" height="19" rx="2"/>'
-  + '<circle cx="12" cy="9.5" r="3.6"/><path d="M8.4 9.5h7.2M12 5.9c-1.5 1.9-1.5 5.3 0 7.2M12 5.9c1.5 1.9 1.5 5.3 0 7.2"/>'
-  + '<path d="M8.5 17.5h7"/></svg>';
 
 /** Pack containers, by kind. */
 export const BAG_ICON: Record<string, string> = { suitcase: '🧳', backpack: '🎒', personal: '👜' };

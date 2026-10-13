@@ -21,13 +21,13 @@ const MAP_COLORS_LIGHT = {
 };
 
 const MAP_COLORS_DARK = {
-  land:        '#4d4637',
-  landStroke:  '#7a6e55',
+  land:        '#39414b',
+  landStroke:  '#66717e',
   route:       '#f07a6a',
   ink:         '#d8cbf9',
   hover:       '#f0947e',
-  miniLand:    '#38342b',
-  miniStroke:  '#554e3e',
+  miniLand:    '#2d343c',
+  miniStroke:  '#4a5460',
   flightArc:   '#7f9bbd',
 };
 
@@ -79,12 +79,15 @@ export interface WorldPalette {
   night: string; nightOpacity: number;
 }
 
+/** Dark maps sit on neutral slate: the page's warm browns made sea and unvisited land read as one yellowish wash. */
+const DARK_SEA = '#1b222b', DARK_LAND = '#39414b', DARK_BORDER = '#66717e';
+
 export function worldPalette(): WorldPalette {
   return {
-    ocean: token('--surface'),
-    land: token('--surface-3'),
-    border: token('--ink-faint'),
-    graticule: token('--ink-faint'),
+    ocean: isDark() ? DARK_SEA : token('--surface'),
+    land: isDark() ? DARK_LAND : token('--surface-3'),
+    border: isDark() ? DARK_BORDER : token('--ink-faint'),
+    graticule: isDark() ? DARK_BORDER : token('--ink-faint'),
     visited: [token('--amber-300'), token('--amber-400'), token('--amber-500'), token('--amber-600')],
     // Planned countries are GREY (owner): clearly not the amber of a country been to, nor the paper of one never visited.
     planned: token('--ink-muted'),

@@ -194,6 +194,7 @@
 .td-sp-base { color: var(--ink-faint); font-size: var(--fs-xs); }
 
 /* ── Map: Leaflet day mode ───────────────────────────────────────────────── */
+:root[data-theme='dark'] .td-map-container { background: #1b222b; }
 .td-map-container { isolation: isolate; }          /* keep Leaflet's panes under the app chrome */
 .td-map-note {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3;
