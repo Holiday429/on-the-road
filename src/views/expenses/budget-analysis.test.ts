@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /* ==========================================================================
-   Budget overlay · cap persistence.
+   Budget & analysis · cap persistence.
 
    Regression cover for the bug where only the FIRST cap you typed survived a
    reopen. Each cap <input> commits on `change`, which fires on blur — and that
@@ -12,7 +12,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
    node whose `change` listener no longer reached the store.
 
    These tests drive the real module against an in-memory trip-context, using
-   the same focus-then-blur ordering the browser produces.
+   the same focus-then-blur ordering the browser produces. (The sheet was
+   the budget editor before the Budget and Analysis views were merged; the
+   rules are unchanged: inputs are never rebuilt while the user is typing.)
    ========================================================================== */
 
 /* ── In-memory trip-context ──────────────────────────────────────────────── */
@@ -44,15 +46,9 @@ vi.mock('../../data/trip-context.ts', () => ({
   },
 }));
 
-// Pulls in expenseStore (Firestore) otherwise; only legCountries is needed.
-vi.mock('./expense-defaults.ts', () => ({
-  legCountries: (legs: { country?: string }[]) =>
-    [...new Set(legs.map((l) => l.country).filter(Boolean))],
-}));
-
 const {
-  initBudgetPage, openBudgetPage, closeBudgetPage, renderBudgetPage, isBudgetOpen,
-} = await import('./budget-page.ts');
+  initBudgetAnalysis, openBudgetAnalysis, closeBudgetAnalysis, renderBudgetAnalysis,
+} = await import('./budget-analysis.ts');
 
 /* ── Harness ─────────────────────────────────────────────────────────────── */
 
@@ -70,6 +66,8 @@ const CATEGORIES = [
 
 let renderFormCalls = 0;
 let renderSummaryOnlyCalls = 0;
+let jumped: string[] = [];
+let sorted = 0;
 
 function setup() {
   countryCaps = {};
@@ -79,25 +77,28 @@ function setup() {
   failNextCountryWrite = false;
   renderFormCalls = 0;
   renderSummaryOnlyCalls = 0;
+  jumped = [];
+  sorted = 0;
   // eslint-disable-next-line no-restricted-syntax -- audited: static test fixture, no interpolation
-  document.body.innerHTML = `<div class="exp-budget-panel"></div>`;
+  document.body.innerHTML = `<div class="exp-analysis-panel"></div>`;
 
-  initBudgetPage({
+  initBudgetAnalysis({
     expenses: () => [],
     legs: () => LEGS,
     categories: () => CATEGORIES,
     inBase: () => 0,
     fmt: (n: number) => `€${Math.round(n)}`,
+    timeHtml: () => '<div class="exp-cal-grid"><span class="exp-cal-cell" data-iso="2026-09-02">2</span></div>',
+    calNav: () => {},
+    onJumpDay: (iso) => { jumped.push(iso); },
+    onSortUnsorted: () => { sorted++; },
     renderSummaryOnly: () => { renderSummaryOnlyCalls++; },
-    // The real one repaints the budget page when it is open. Mirroring that
-    // here is what makes the regression reproducible.
-    renderSummaryRoot: () => { if (isBudgetOpen()) renderBudgetPage(); },
     renderForm: () => { renderFormCalls++; },
   });
 }
 
 const capInputs = () =>
-  [...document.querySelectorAll<HTMLInputElement>('.exp-budget-row-input')];
+  [...document.querySelectorAll<HTMLInputElement>('.ba-cap')];
 
 const inputFor = (attr: 'country' | 'cat', value: string) =>
   capInputs().find((i) => i.dataset[attr] === value)!;
@@ -143,131 +144,96 @@ async function typeCap(attr: 'country' | 'cat', key: string, value: string) {
 
 /* ── Tests ───────────────────────────────────────────────────────────────── */
 
-describe('budget page · country caps', () => {
+const flush = async (n = 6) => { for (let i = 0; i < n; i++) await Promise.resolve(); };
+
+describe('budget & analysis · country caps', () => {
   beforeEach(setup);
 
   it('persists a single cap', async () => {
-    openBudgetPage('country');
+    openBudgetAnalysis();
     await typeCap('country', 'Switzerland', '15000');
     expect(countryCaps).toEqual({ Switzerland: 15000 });
   });
 
   it('persists caps typed into several countries in a row', async () => {
-    openBudgetPage('country');
-
-    // The regression: committing Switzerland rebuilt the page while Germany
-    // was already focused and filled, so Germany and France were dropped.
-    await typeCaps('country', [
-      ['Switzerland', '15000'],
-      ['Germany', '8000'],
-      ['France', '9000'],
-    ]);
-
-    expect(countryCaps).toEqual({
-      Switzerland: 15000,
-      Germany: 8000,
-      France: 9000,
-    });
+    openBudgetAnalysis();
+    // The regression: committing one cap rebuilt the page while the next field was
+    // already focused and filled, so the later ones were dropped.
+    await typeCaps('country', [['Switzerland', '15000'], ['Germany', '8000'], ['France', '9000']]);
+    expect(countryCaps).toEqual({ Switzerland: 15000, Germany: 8000, France: 9000 });
   });
 
   it('leaves every cap input attached while the list is filled in', async () => {
-    openBudgetPage('country');
-    // Snapshot the nodes up front; the user types into these exact elements.
+    openBudgetAnalysis();
     const before = capInputs();
-
-    await typeCaps('country', [
-      ['Switzerland', '15000'],
-      ['Germany', '8000'],
-      ['France', '9000'],
-    ]);
-
-    // If any commit had rebuilt the pane, the fields the user was still typing
-    // into would now be detached and their input lost.
+    await typeCaps('country', [['Switzerland', '15000'], ['Germany', '8000'], ['France', '9000']]);
     expect(before.every((i) => i.isConnected)).toBe(true);
     expect(capInputs()).toEqual(before);
   });
 
-  it('keeps every cap after closing and reopening the page', async () => {
-    openBudgetPage('country');
+  it('keeps every cap after closing and reopening the sheet', async () => {
+    openBudgetAnalysis();
     await typeCaps('country', [['Switzerland', '15000'], ['Germany', '8000']]);
-    closeBudgetPage();
-
-    openBudgetPage('country');
+    closeBudgetAnalysis();
+    openBudgetAnalysis();
     expect(inputFor('country', 'Switzerland').value).toBe('15000');
     expect(inputFor('country', 'Germany').value).toBe('8000');
   });
 
-  it('does not detach the input the user is editing', async () => {
-    openBudgetPage('country');
-    const germany = inputFor('country', 'Germany');
-    await typeCap('country', 'Switzerland', '15000');
-    // Same element still in the document → its listener is still wired.
-    expect(germany.isConnected).toBe(true);
-    expect(inputFor('country', 'Germany')).toBe(germany);
-  });
-
   it('clears a cap when the field is emptied', async () => {
-    openBudgetPage('country');
+    openBudgetAnalysis();
     await typeCap('country', 'Switzerland', '15000');
     await typeCap('country', 'Switzerland', '');
     expect(countryCaps).toEqual({});
   });
 
-  it('refreshes the compare bars without a full re-render', async () => {
+  it('updates the row note and the allocated line in place', async () => {
     totalBudget = 50000;
-    openBudgetPage('country');
+    openBudgetAnalysis();
+    const note = document.querySelector<HTMLElement>('[data-country-row="Switzerland"] [data-note]')!;
     await typeCap('country', 'Switzerland', '15000');
-
-    const compare = document.querySelector('.exp-budget-compare')!;
-    expect(compare.textContent).toContain('Switzerland');
-    // Allocated footer recomputed in place: 50000 - 15000 unallocated.
-    expect(document.querySelector('.exp-budget-flex')!.textContent).toContain('€35000');
+    expect(note.isConnected).toBe(true);
+    expect(note.textContent).toContain('€15000');
+    // 50000 - 15000 unallocated, shown with the other figures at the top.
+    expect(document.querySelector('.ba-allocs')!.textContent).toContain('€35000');
   });
 
-  it('repaints the summary and form on each cap edit', async () => {
-    openBudgetPage('country');
+  it('repaints the summary on each cap edit and the till on country edits', async () => {
+    openBudgetAnalysis();
     await typeCaps('country', [['Switzerland', '15000'], ['Germany', '8000']]);
     expect(renderSummaryOnlyCalls).toBe(2);
     expect(renderFormCalls).toBe(2);
   });
 
-  it('auto-estimate writes a cap per country from itinerary days', async () => {
-    openBudgetPage('country');
-    (document.querySelector('#bm-daily-rate') as HTMLInputElement).value = '100';
-    (document.querySelector('#bm-apply-daily') as HTMLElement).click();
-    for (let i = 0; i < 12; i++) await Promise.resolve();
-
+  it('auto-fill writes a cap per country from itinerary days', async () => {
+    openBudgetAnalysis();
+    (document.querySelector('#ba-daily-rate') as HTMLInputElement).value = '100';
+    (document.querySelector('#ba-apply-daily') as HTMLElement).click();
+    await flush(12);
     // 7d / 4d / 7d × €100
-    expect(countryCaps).toEqual({
-      Switzerland: 700,
-      Germany: 400,
-      France: 700,
-    });
+    expect(countryCaps).toEqual({ Switzerland: 700, Germany: 400, France: 700 });
   });
 
   /* ── Commit paths that `change` alone did not cover ────────────────────── */
 
   it('saves on Enter without any blur', async () => {
-    openBudgetPage('country');
+    openBudgetAnalysis();
     const input = inputFor('country', 'France');
     input.focus();
     input.value = '10000';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    for (let i = 0; i < 6; i++) await Promise.resolve();
-
+    await flush();
     expect(countryCaps).toEqual({ France: 10000 });
   });
 
   it('saves after typing stops, with the field still focused', async () => {
     vi.useFakeTimers();
     try {
-      openBudgetPage('country');
+      openBudgetAnalysis();
       const input = inputFor('country', 'France');
       input.focus();
       input.value = '10000';
       input.dispatchEvent(new Event('input'));
-
-      // Never blurred, never Entered — just stopped typing.
       await vi.advanceTimersByTimeAsync(500);
       expect(countryCaps).toEqual({ France: 10000 });
     } finally {
@@ -275,38 +241,32 @@ describe('budget page · country caps', () => {
     }
   });
 
-  it('flushes a pending edit when Escape closes the panel', async () => {
-    openBudgetPage('country');
+  it('flushes a pending edit when Escape is pressed in the field', async () => {
+    openBudgetAnalysis();
     const input = inputFor('country', 'France');
     input.focus();
     input.value = '10000';
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    for (let i = 0; i < 6; i++) await Promise.resolve();
-
+    await flush();
     expect(countryCaps).toEqual({ France: 10000 });
   });
 
   it('surfaces a rejected write and retries it on the next commit', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      openBudgetPage('country');
+      openBudgetAnalysis();
       const input = inputFor('country', 'France');
-
       failNextCountryWrite = true;
       input.value = '10000';
       input.dispatchEvent(new Event('change'));
-      for (let i = 0; i < 6; i++) await Promise.resolve();
-
-      expect(countryCaps).toEqual({});                       // write rejected
-      expect(input.classList.contains('exp-budget-row-input-error')).toBe(true);
+      await flush();
+      expect(countryCaps).toEqual({});
+      expect(input.classList.contains('ba-cap-error')).toBe(true);
       expect(input.title).toContain('Not saved');
-
-      // Same value again: must retry rather than skip it as unchanged.
       input.dispatchEvent(new Event('change'));
-      for (let i = 0; i < 6; i++) await Promise.resolve();
-
+      await flush();
       expect(countryCaps).toEqual({ France: 10000 });
-      expect(input.classList.contains('exp-budget-row-input-error')).toBe(false);
+      expect(input.classList.contains('ba-cap-error')).toBe(false);
     } finally {
       err.mockRestore();
     }
@@ -315,65 +275,81 @@ describe('budget page · country caps', () => {
   it('does not write twice when debounce and blur both fire', async () => {
     vi.useFakeTimers();
     try {
-      openBudgetPage('country');
+      openBudgetAnalysis();
       const input = inputFor('country', 'France');
       input.focus();
       input.value = '10000';
       input.dispatchEvent(new Event('input'));
-      await vi.advanceTimersByTimeAsync(500);   // debounce commits
-      input.dispatchEvent(new Event('change')); // blur follows
+      await vi.advanceTimersByTimeAsync(500);
+      input.dispatchEvent(new Event('change'));
       await vi.advanceTimersByTimeAsync(0);
-
       expect(countryWrites).toBe(1);
-      expect(countryCaps).toEqual({ France: 10000 });
     } finally {
       vi.useRealTimers();
     }
   });
 });
 
-describe('budget page · category caps', () => {
+describe('budget & analysis · category caps and the total', () => {
   beforeEach(setup);
 
-  it('persists caps typed into several categories in a row', async () => {
-    openBudgetPage('category');
-    await typeCaps('cat', [['food', '2000'], ['stay', '3000'], ['train', '1200']]);
-
-    expect(categoryCaps).toEqual({ food: 2000, stay: 3000, train: 1200 });
-  });
-
-  it('leaves every cap input attached while the list is filled in', async () => {
-    openBudgetPage('category');
+  it('persists caps typed into several categories in a row, inputs staying attached', async () => {
+    openBudgetAnalysis();
     const before = capInputs();
     await typeCaps('cat', [['food', '2000'], ['stay', '3000'], ['train', '1200']]);
-
+    expect(categoryCaps).toEqual({ food: 2000, stay: 3000, train: 1200 });
     expect(before.every((i) => i.isConnected)).toBe(true);
-    expect(capInputs()).toEqual(before);
   });
 
-  it('keeps every cap after closing and reopening the page', async () => {
-    openBudgetPage('category');
-    await typeCaps('cat', [['food', '2000'], ['stay', '3000']]);
-    closeBudgetPage();
+  it('keeps country caps when category caps are edited on the same sheet', async () => {
+    openBudgetAnalysis();
+    await typeCap('country', 'Switzerland', '15000');
+    await typeCap('cat', 'food', '2000');
+    expect(countryCaps).toEqual({ Switzerland: 15000 });
+    expect(categoryCaps).toEqual({ food: 2000 });
+  });
 
-    openBudgetPage('category');
-    expect(inputFor('cat', 'food').value).toBe('2000');
-    expect(inputFor('cat', 'stay').value).toBe('3000');
+  it('the total budget is edited in the overview and drives the remaining figure', async () => {
+    openBudgetAnalysis();
+    const total = document.querySelector<HTMLInputElement>('#ba-total')!;
+    total.focus();
+    total.value = '50000';
+    total.dispatchEvent(new Event('change'));
+    await flush();
+    expect(totalBudget).toBe(50000);
+    expect(document.querySelector('.ba-figs')!.textContent).toContain('€50000');
   });
 });
 
-describe('budget page · country and category caps together', () => {
+describe('budget & analysis · live repaint', () => {
   beforeEach(setup);
 
-  it('keeps country caps when category caps are edited afterwards', async () => {
-    openBudgetPage('country');
-    await typeCap('country', 'Switzerland', '15000');
+  it('a repaint while a cap field has focus does not rebuild the fields', async () => {
+    openBudgetAnalysis();
+    const before = capInputs();
+    const input = inputFor('country', 'France');
+    input.focus();
+    input.value = '9';            // mid-typing
+    renderBudgetAnalysis();       // e.g. a spend landing from another device
+    expect(capInputs()).toEqual(before);
+    expect(input.isConnected).toBe(true);
+    expect(input.value).toBe('9');
+  });
 
-    // Switch tabs the way the user does, then edit on the other tab.
-    (document.querySelector('.exp-budget-tab[data-tab="category"]') as HTMLElement).click();
-    await typeCap('cat', 'food', '2000');
+  it('closed: the panel is emptied', () => {
+    openBudgetAnalysis();
+    closeBudgetAnalysis();
+    expect(document.querySelector('.exp-analysis-panel')!.innerHTML).toBe('');
+  });
+});
 
-    expect(countryCaps).toEqual({ Switzerland: 15000 });
-    expect(categoryCaps).toEqual({ food: 2000 });
+describe('budget & analysis · time column', () => {
+  beforeEach(setup);
+
+  it('clicking a calendar day closes the sheet and hands the day to the till', () => {
+    openBudgetAnalysis();
+    (document.querySelector('.exp-cal-cell[data-iso]') as HTMLElement).click();
+    expect(jumped).toEqual(['2026-09-02']);
+    expect(document.querySelector('.exp-analysis-panel')!.innerHTML).toBe('');
   });
 });

@@ -35,6 +35,7 @@ import {
   CURRENCIES, allCurrencies, isApproxCurrency, currencySymbol, getRateTable, peekRateTable, type RateTable,
 } from '../../data/rates.ts';
 import { budgetBarColor } from '../../data/budget-tone.ts';
+import { budgetPace, tripSpan } from '../../data/budget-pace.ts';
 import { openModal } from '../../core/modal.ts';
 import '../../core/paper/paper.css';
 import { convertedHint } from './checkout.ts';
@@ -50,10 +51,9 @@ import {
   type Category, BUILTIN_CATEGORIES, UNCLASSIFIED, categoryDisplayColor, categoryInkColor, categoryChartColor,
   type AnalysisDim, ANALYSIS_DIMS, nightCount, renderDonut,
 } from './expense-helpers.ts';
-import { initAnalysisPage, openAnalysisPage, closeAnalysisPage, renderAnalysisPage, isAnalysisOpen } from './analysis-page.ts';
 import {
-  initBudgetPage, openBudgetPage, closeBudgetPage, renderBudgetPage, isBudgetOpen,
-} from './budget-page.ts';
+  initBudgetAnalysis, openBudgetAnalysis, closeBudgetAnalysis, renderBudgetAnalysis, isBudgetAnalysisOpen,
+} from './budget-analysis.ts';
 
 /** Built-ins followed by the user's custom categories (sorted). */
 function categories(): Category[] {
@@ -167,15 +167,17 @@ function renderSummary(el: HTMLElement) {
     ? (() => {
         const pct = Math.min(100, Math.round((sum / budget) * 100));
         const over = sum > budget;
-        const barColor = budgetBarColor(pct);
+        const span = tripSpan(legs);
+        const fast = budgetPace({ spent: sum, budget, startIso: span.startIso, endIso: span.endIso, todayIso: new Date().toISOString().slice(0, 10) }).status === 'fast';
+        const barColor = fast && !over ? 'var(--amber-500)' : budgetBarColor(pct);
         return `
           <div class="exp-hero-eyebrow">${t('expenses.budgetAnalysisTitle')}</div>
           <div class="exp-hero-num">${sym}${Math.round(budget).toLocaleString()}</div>
           <div class="exp-hero-bar-track">
             <div class="exp-hero-bar-fill" style="width:${pct}%;background:${barColor}"></div>
           </div>
-          <div class="exp-hero-label ${over ? 'exp-hero-label-over' : ''}">
-            ${over ? `▲ ${fmt(sum - budget)} ${t('expenses.over')}` : `${fmt(budget - sum)} ${t('expenses.remaining')} ›`}
+          <div class="exp-hero-label ${over ? 'exp-hero-label-over' : fast ? 'exp-hero-label-fast' : ''}">
+            ${over ? `▲ ${fmt(sum - budget)} ${t('expenses.over')}` : `${fmt(budget - sum)} ${t('expenses.remaining')}${fast ? ` · ${t('expenses.ba.statusFast')}` : ''} ›`}
           </div>
           ${over ? paperStamp({ text: t('expenses.overBudget'), tone: 'bad', corner: true }) : ''}`;
       })()
@@ -196,7 +198,7 @@ function renderSummary(el: HTMLElement) {
   `;
 
   el.querySelector('#exp-open-records')?.addEventListener('click', () => openRecords());
-  el.querySelector('#exp-open-budget')?.addEventListener('click', () => openAnalysisPage());
+  el.querySelector('#exp-open-budget')?.addEventListener('click', () => openBudgetAnalysis());
   el.querySelector('#exp-tosort-chip')?.addEventListener('click', (ev) => {
     ev.stopPropagation();
     filterCategory = UNCLASSIFIED;
@@ -974,13 +976,10 @@ function breakdownContent(dim: AnalysisDim): string {
         const budgetStr = hasBudget
           ? `<span class="exp-legend-budget${r.sum > r.budget! ? ' is-over' : ''}">${fmt(r.sum)} / ${fmt(r.budget!)}${r.sum > r.budget! ? ' ▲ ' + t('expenses.over') : ''}</span>`
           : '';
-        const setBtn = r.catId
-          ? `<button class="exp-cat-budget-btn" data-budget-key="cat:${r.catId}" title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '+'}</button>`
-          : '';
         return `
           <div class="exp-legend-row">
             <span class="exp-legend-dot" style="background:${r.color}"></span>
-            <span class="exp-legend-name">${escHtml(r.label)} ${setBtn}</span>
+            <span class="exp-legend-name">${escHtml(r.label)}</span>
             <span class="paper-row-lead" aria-hidden="true"></span>
             <span class="exp-legend-pct">${pct}%</span>
             <span class="exp-legend-amt">${fmt(r.sum)}</span>
@@ -1077,8 +1076,6 @@ function breakdownContent(dim: AnalysisDim): string {
             <div class="exp-place-header">
               <span class="exp-place-flag">${flag}</span>
               <span class="exp-place-name">${escHtml(r.country)}</span>
-              <button class="exp-cat-budget-btn" data-budget-key="country:${escHtml(r.country)}"
-                title="${hasBudget ? 'Edit budget' : 'Set budget'}">${hasBudget ? '✎' : '+'}</button>
               <span class="exp-place-total">${fmt(r.sum)}</span>
             </div>
             <div class="exp-cat-bar-track" style="margin:4px 0 6px">
@@ -1121,53 +1118,33 @@ function renderBreakdown(el: HTMLElement) {
   bindBreakdown(el, () => renderBreakdown(el));
 }
 
-/** The Budget & analysis sub-page body: all three dimensions side by side, no tabs. */
-export function renderAnalysisColumns(el: HTMLElement): void {
-  const label: Record<AnalysisDim, string> = { category: t('expenses.dimCategory'), place: t('expenses.dimPlace'), time: t('expenses.dimTime') };
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-  el.innerHTML = ANALYSIS_DIMS.map((d) => `
-    <section class="exp-acol exp-breakdown" data-dim="${d.id}">
-      <h3 class="exp-acol-title">${label[d.id]}</h3>
-      ${breakdownContent(d.id)}
-    </section>`).join('');
-  bindBreakdown(el, () => renderAnalysisColumns(el));
+/** Calendar month nav for the Time body (shared by the Dashboard drawer and the Budget & analysis sheet). */
+function stepCalendar(dir: -1 | 1) {
+  calViewMonth += dir;
+  if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
+  if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
 }
 
-/** Shared wiring for the analysis bodies: cap buttons open the editor, calendar nav repaints. */
 function bindBreakdown(el: HTMLElement, repaint: () => void) {
-  el.querySelectorAll<HTMLElement>('.exp-cat-budget-btn').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const [kind] = btn.dataset.budgetKey!.split(/:(.+)/);
-      openBudgetPage(kind === 'country' ? 'country' : 'category');
-    });
-  });
-  el.querySelector('[data-cal-prev]')?.addEventListener('click', () => {
-    calViewMonth--;
-    if (calViewMonth < 0) { calViewMonth = 11; calViewYear--; }
-    repaint();
-  });
-  el.querySelector('[data-cal-next]')?.addEventListener('click', () => {
-    calViewMonth++;
-    if (calViewMonth > 11) { calViewMonth = 0; calViewYear++; }
-    repaint();
-  });
+  el.querySelector('[data-cal-prev]')?.addEventListener('click', () => { stepCalendar(-1); repaint(); });
+  el.querySelector('[data-cal-next]')?.addEventListener('click', () => { stepCalendar(1); repaint(); });
+}
+
+/** The till picks up a day chosen on the Budget & analysis calendar (to ring up a missed spend). */
+function jumpToDate(iso: string) {
+  draftDate = iso;
+  const formEl = document.querySelector<HTMLElement>('#view-expenses .exp-form-wrap');
+  const input = formEl?.querySelector<HTMLInputElement>('#exp-date');
+  if (formEl && input) { input.value = iso; refreshMart(formEl, true, true); }
 }
 
 /* ── Orchestration ───────────────────────────────────────────────────────── */
 
-/** Repaint the expenses summary card only. The budget cap editors use this
- *  instead of renderSummaryRoot: rebuilding the budget page mid-edit would
- *  detach the input the user just focused (see budget-page.ts). */
+/** Repaint the expenses summary card only (a cap edit must never rebuild the Budget & analysis
+ *  sheet it came from — see the editing invariant in budget-analysis.ts). */
 function renderSummaryOnly() {
   const root = document.getElementById('view-expenses');
   if (root) renderSummary(root.querySelector('.exp-summary')!);
-  if (isAnalysisOpen()) renderAnalysisPage();   // behind the editor: shows the caps just saved
-}
-
-function renderSummaryRoot() {
-  renderSummaryOnly();
-  if (isBudgetOpen()) renderBudgetPage();
 }
 
 function render() {
@@ -1177,7 +1154,7 @@ function render() {
   const formEl = root.querySelector<HTMLElement>('.exp-form-wrap');
   if (formEl) refreshMart(formEl, false);
   renderRecordsPanel();
-  if (isAnalysisOpen()) renderAnalysisPage();
+  if (isBudgetAnalysisOpen()) renderBudgetAnalysis();
 }
 
 /** The Analysis panel mounted into `el` (the Dashboard drawer): feeds this module's state
@@ -1187,7 +1164,7 @@ export function mountExpenseAnalysis(el: HTMLElement): () => void {
   expenses = expenseStore.peek();
   legs = routeStore.peek();
   customCategories = expenseCategoryStore.peek();
-  const paint = () => { renderBreakdown(el); el.querySelectorAll('.exp-cat-budget-btn').forEach((b) => b.remove()); };
+  const paint = () => renderBreakdown(el);
   paint();
   const unsubs = [
     expenseStore.subscribe((rows) => { expenses = rows; paint(); }),
@@ -1202,21 +1179,21 @@ export function initExpenses() {
   const root = document.getElementById('view-expenses');
   if (!root) return;
 
-  // Hand the budget overlay live accessors into this module's state, plus the
-  // repaint callbacks it needs. Getters, not snapshots, so the store
-  // subscriptions below keep it current without re-initialising.
-  initBudgetPage({
+  // Hand the Budget & analysis sheet live accessors (getters, not snapshots, so the store
+  // subscriptions below keep it current without re-initialising).
+  initBudgetAnalysis({
     expenses: () => expenses,
     legs: () => legs,
     categories,
     inBase,
     fmt,
+    timeHtml: () => breakdownContent('time'),
+    calNav: stepCalendar,
+    onJumpDay: jumpToDate,
+    onSortUnsorted: () => { filterCategory = UNCLASSIFIED; openRecords(); },
     renderSummaryOnly,
-    renderSummaryRoot,
     renderForm: () => renderForm(root.querySelector('.exp-form-wrap') as HTMLElement),
   });
-
-  initAnalysisPage({ expenses: () => expenses, inBase, fmt, renderColumns: renderAnalysisColumns });
   initMart({
     expenses: () => expenses, inBase, fmt, categoryById,
     reminder: countryReminderText,
@@ -1229,8 +1206,7 @@ export function initExpenses() {
     const view = window.location.hash.replace('#', '');
     if (view !== 'expenses') {
       if (showRecords) closeRecords();
-      if (isBudgetOpen()) closeBudgetPage();
-      if (isAnalysisOpen()) closeAnalysisPage();
+      if (isBudgetAnalysisOpen()) closeBudgetAnalysis();
     }
   });
 
