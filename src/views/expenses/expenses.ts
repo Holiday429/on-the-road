@@ -40,7 +40,7 @@ import { openModal } from '../../core/modal.ts';
 import '../../core/paper/paper.css';
 import { convertedHint } from './checkout.ts';
 import { initMart, martVfd, refreshMart, startIdle, vfdError, runScan } from './checkout-wire.ts';
-import { beepEnabled, setBeepEnabled, bindKeyPager } from './checkout-fx.ts';
+import { beepEnabled, setBeepEnabled } from './checkout-fx.ts';
 import { paperStamp } from '../../core/paper/paper.ts';
 import { openCurrencyManager } from './currency-manager.ts';
 import {
@@ -195,9 +195,14 @@ function renderSummary(el: HTMLElement) {
     <button class="exp-hero-btn exp-hero-budget" id="exp-open-budget">
       ${budgetRight}
     </button>
+    <button type="button" class="exp-days-btn" id="exp-open-days" title="${t('expenses.book.title')}">🧾 ${t('expenses.book.open')} ›</button>
   `;
 
   el.querySelector('#exp-open-records')?.addEventListener('click', () => openRecords());
+  el.querySelector('#exp-open-days')?.addEventListener('click', () => {
+    const day = (document.getElementById('exp-date') as HTMLInputElement | null)?.value || new Date().toISOString().split('T')[0];
+    void import('./receipt-book.ts').then((m) => m.openReceiptBook(day));
+  });
   el.querySelector('#exp-open-budget')?.addEventListener('click', () => openBudgetAnalysis());
   el.querySelector('#exp-tosort-chip')?.addEventListener('click', (ev) => {
     ev.stopPropagation();
@@ -318,7 +323,6 @@ function renderForm(el: HTMLElement) {
       <div class="ck-screen" id="exp-screen">
         ${martVfd(dateValue)}
         <div class="ck-keys-row">
-          <button type="button" class="ck-page" id="exp-keys-prev" aria-label="${escHtml(t('expenses.mart.keysPrev'))}">‹</button>
           <div class="ck-keys" id="exp-cat-chips" role="group" aria-label="${escHtml(t('expenses.mart.keys'))}">
             ${categories().map((c) => `
               <button type="button" class="ck-key ${c.id === selectedCategory ? 'is-on' : ''}" data-cat="${escHtml(c.id)}" aria-pressed="${c.id === selectedCategory}" style="--kc:${categoryDisplayColor(c.color)}">
@@ -331,7 +335,6 @@ function renderForm(el: HTMLElement) {
               <span class="ck-key-label">${escHtml(t('expenses.mart.newKey'))}</span>
             </button>
           </div>
-          <button type="button" class="ck-page" id="exp-keys-next" aria-label="${escHtml(t('expenses.mart.keysNext'))}">›</button>
         </div>
         <div class="ck-display" id="exp-led">
           <span class="ck-sym" id="exp-sym">${escHtml(currencySymbol(curValue))}</span>
@@ -375,7 +378,6 @@ function renderForm(el: HTMLElement) {
   syncCounter(el);
   refreshMart(el, true);
   startIdle();
-  bindKeyPager(el);
 
   const curInput = el.querySelector('#exp-currency') as HTMLSelectElement;
   const countrySel = el.querySelector('#exp-country') as HTMLSelectElement;

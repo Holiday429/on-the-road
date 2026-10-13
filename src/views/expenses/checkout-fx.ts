@@ -126,27 +126,3 @@ export function pulse(el: Element | null, cls: string): void {
   void (el as HTMLElement).offsetWidth;
   el.classList.add(cls);
 }
-
-/* ── Soft-key strip ──────────────────────────────────────────────────────── */
-
-/** The category keys scroll sideways in one fixed-height row; ‹ › page it and go dim at the ends. */
-export function bindKeyPager(root: HTMLElement): void {
-  const strip = root.querySelector<HTMLElement>('#exp-cat-chips');
-  const prev = root.querySelector<HTMLButtonElement>('#exp-keys-prev');
-  const next = root.querySelector<HTMLButtonElement>('#exp-keys-next');
-  if (!strip || !prev || !next) return;
-  const sync = () => {
-    prev.disabled = strip.scrollLeft <= 2;
-    next.disabled = strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 2;
-  };
-  const page = (dir: number) => strip.scrollBy({ left: dir * strip.clientWidth * 0.85, behavior: reducedMotion() ? 'auto' : 'smooth' });
-  prev.addEventListener('click', () => page(-1));
-  next.addEventListener('click', () => page(1));
-  strip.addEventListener('scroll', sync, { passive: true });
-  // Bring the engaged key into view, then settle the arrows once layout is known.
-  requestAnimationFrame(() => {
-    const on = strip.querySelector<HTMLElement>('.ck-key.is-on');
-    if (on) strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth / 2 + on.offsetWidth / 2);
-    sync();
-  });
-}

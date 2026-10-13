@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  altLine, barcodeBars, breakdownRows, convertedHint, dayFigures, odoMarkup, renderReceipt, renderScreenTop,
+  altLine, barcodeBars, convertedHint, dayFigures, odoMarkup, renderReceipt, renderScreenTop,
   type MartLine,
 } from './checkout.ts';
 
@@ -9,7 +9,7 @@ const line = (i: number, base = 10, over: Partial<MartLine> = {}): MartLine => (
 });
 const fmt = (n: number) => `¥${n}`;
 const receipt = (lines: MartLine[], extra: Partial<Parameters<typeof renderReceipt>[0]> = {}) =>
-  renderReceipt({ lines, store: 'LISBON · PORTUGAL', stamp: '2026-10-12  18:42', fmt, breakdown: [], paid: false, seed: '20261012050429', ...extra });
+  renderReceipt({ lines, store: 'LISBON · PORTUGAL', stamp: '2026-10-12  18:42', fmt, paid: false, seed: '20261012050429', ...extra });
 
 describe('dayFigures', () => {
   it('totals the base amounts and counts the lines', () => {
@@ -35,17 +35,6 @@ describe('altLine', () => {
   });
 });
 
-describe('breakdownRows', () => {
-  const meta = (id: string) => (id === 'food' ? { icon: '🍜', label: 'Food', color: 'red' } : id === 'stay' ? { icon: '🏨', label: 'Stay', color: 'blue' } : undefined);
-  it('groups by category, biggest first, with a share of the day', () => {
-    const rows = breakdownRows([line(1, 30), line(2, 10), line(3, 60, { category: 'stay' })], meta);
-    expect(rows.map((r) => [r.label, r.amount, r.share])).toEqual([['Stay', 60, 60], ['Food', 40, 40]]);
-  });
-  it('an unknown category falls back to a generic row', () => {
-    expect(breakdownRows([line(1, 5, { category: '' })], meta)[0].icon).toBe('🗂️');
-  });
-});
-
 describe('renderReceipt', () => {
   it('prints the store, every line numbered, and the total', () => {
     const html = receipt(Array.from({ length: 8 }, (_, i) => line(i, 5)));
@@ -60,6 +49,18 @@ describe('renderReceipt', () => {
     expect(html.indexOf('rc-scroll')).toBeLessThan(html.indexOf('rc-foot'));
     expect(html.indexOf('rc-line')).toBeLessThan(html.indexOf('rc-foot'));
     expect(html.indexOf('rc-total')).toBeGreaterThan(html.indexOf('rc-foot'));
+  });
+  it('lists what was bought once — no second per-category block with bars', () => {
+    const html = receipt([line(1), line(2, 5, { category: 'stay' })]);
+    expect(html).not.toContain('rc-bk');
+    expect(html).not.toContain('rc-break');
+  });
+  it('the receipt book adds a trip-so-far line and prints every line in with a stagger', () => {
+    const html = receipt([line(1), line(2)], { running: 'TRIP SO FAR ¥99', stagger: true });
+    expect(html).toContain('TRIP SO FAR ¥99');
+    expect(html.match(/rc-line--print/g)).toHaveLength(2);
+    expect(html).toContain('animation-delay');
+    expect(html).toContain('data-total="20"');
   });
   it('an empty day: a quiet line, no stamp', () => {
     const html = receipt([], { paid: true });

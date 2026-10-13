@@ -12,9 +12,10 @@
    ========================================================================== */
 
 import {
-  dayFigures, breakdownRows, altLine, renderScreenTop, renderReceipt,
+  dayFigures, altLine, renderScreenTop, renderReceipt,
   type MartLine,
 } from './checkout.ts';
+import { bookDays, runningTotal, type BookDay } from './receipt-book-model.ts';
 import { showLine, rollOdometer, playScan, beep, pulse, reducedMotion } from './checkout-fx.ts';
 import { t } from '../../core/i18n.ts';
 import { openModal } from '../../core/modal.ts';
@@ -22,7 +23,6 @@ import { baseCurrency } from '../../data/trip-context.ts';
 import { currencySymbol } from '../../data/rates.ts';
 import type { StoredExpense } from '../../data/stores/expense-store.ts';
 import type { Category } from './expense-helpers.ts';
-import { categoryChartColor } from './expense-helpers.ts';
 
 export interface MartContext {
   expenses: () => StoredExpense[];
@@ -155,7 +155,24 @@ export function refreshMart(formEl: HTMLElement, reset: boolean, feed = false): 
   if (scroller) scroller.scrollTop = reset || fresh.size ? scroller.scrollHeight : prevScroll;
 }
 
-function receiptHtml(iso: string, lines: MartLine[], rows: StoredExpense[], fresh: ReadonlySet<string>, readonly: boolean): string {
+/** Every day that has spend, for the receipt book. */
+export function spendDays(): BookDay[] {
+  const c = ctx;
+  return c ? bookDays(c.expenses(), (e) => c.inBase(e)) : [];
+}
+
+/** One day's receipt for the receipt book: read-only, lines printing in one after another, with the trip-so-far under the total. */
+export function bookReceiptHtml(iso: string): string {
+  const c = ctx!;
+  const rows = dayRows(iso);
+  const so = runningTotal(spendDays(), iso);
+  return receiptHtml(iso, toLines(rows), rows, new Set(), true, { stagger: true, running: t('expenses.book.running', { total: c.fmt(so) }) });
+}
+
+/** The format the receipt book shows money in. */
+export function bookMoney(n: number): string { return ctx ? ctx.fmt(n) : String(Math.round(n)); }
+
+function receiptHtml(iso: string, lines: MartLine[], rows: StoredExpense[], fresh: ReadonlySet<string>, readonly: boolean, extra: { stagger?: boolean; running?: string } = {}): string {
   const c = ctx!;
   const last = rows[rows.length - 1];
   // The store is wherever the day was spent (latest line that says), else where the form points now.
@@ -167,11 +184,7 @@ function receiptHtml(iso: string, lines: MartLine[], rows: StoredExpense[], fres
   return renderReceipt({
     lines, store: store.toUpperCase(), stamp: `${iso}  ${hhmm}`,
     fmt: c.fmt,
-    breakdown: breakdownRows(lines, (id) => {
-      const cat = c.categoryById(id);
-      return cat ? { icon: cat.icon, label: cat.label, color: categoryChartColor(cat.color) } : undefined;
-    }),
-    paid: iso < todayIso(), fresh, readonly, seed: `${iso.replace(/-/g, '')}${String(lines.length).padStart(2, '0')}0429`,
+    paid: iso < todayIso(), fresh, readonly, ...extra, seed: `${iso.replace(/-/g, '')}${String(lines.length).padStart(2, '0')}0429`,
   });
 }
 

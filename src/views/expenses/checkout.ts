@@ -45,24 +45,6 @@ export function dayFigures(lines: MartLine[], baseCurrency: string): DayFigures 
   return { count: lines.length, total, foreign: [...foreign].map(([currency, amount]) => ({ currency, amount })) };
 }
 
-export interface BreakdownRow { icon: string; label: string; amount: number; share: number; color: string }
-
-/** Spend per category for the day, biggest first. `share` is 0–100 of the day total. */
-export function breakdownRows(
-  lines: MartLine[],
-  meta: (id: string) => { icon: string; label: string; color: string } | undefined,
-): BreakdownRow[] {
-  const sums = new Map<string, number>();
-  for (const l of lines) sums.set(l.category, (sums.get(l.category) ?? 0) + l.baseAmount);
-  const total = [...sums.values()].reduce((a, b) => a + b, 0);
-  return [...sums]
-    .map(([id, amount]) => {
-      const m = meta(id);
-      return { icon: m?.icon ?? '🗂️', label: m?.label ?? t('dash.spend.unlabelled'), amount, share: total > 0 ? Math.max(4, Math.round((amount / total) * 100)) : 0, color: m?.color ?? 'var(--cat-misc)' };
-    })
-    .sort((a, b) => b.amount - a.amount);
-}
-
 /* ── Display (VFD) ───────────────────────────────────────────────────────── */
 
 /** The digits of a whole-number total as rolling strips (see rollOdometer in checkout-fx.ts). */
@@ -133,7 +115,6 @@ export interface ReceiptInput {
   /** "2026-10-12  18:42" */
   stamp: string;
   fmt: (n: number) => string;
-  breakdown: BreakdownRow[];
   /** A past day: its receipt is settled and carries the PAID stamp. */
   paid: boolean;
   /** Ids that were not on the receipt before this refresh — they print in. */
@@ -142,15 +123,19 @@ export interface ReceiptInput {
   readonly?: boolean;
   /** Seed for the barcode. */
   seed: string;
+  /** A small line under the total, e.g. "TRIP SO FAR ¥1,284" (the receipt book). */
+  running?: string;
+  /** Animate the lines printing in one after another (the receipt book). */
+  stagger?: boolean;
 }
 
-/** The receipt: head and meta on top, lines + subtotal + breakdown in a scrolling middle
+/** The receipt: head and meta on top, lines + subtotal in a scrolling middle
  *  (a long day scrolls instead of growing the page), total / barcode / thanks fixed at the foot. */
 export function renderReceipt(inp: ReceiptInput): string {
   const total = inp.lines.reduce((s, l) => s + l.baseAmount, 0);
   const body = inp.lines.length
     ? inp.lines.map((l, i) => `
-        <div class="rc-line${inp.fresh?.has(l.id) ? ' rc-line--print' : ''}" data-line="${escHtml(l.id)}">
+        <div class="rc-line${inp.fresh?.has(l.id) || inp.stagger ? ' rc-line--print' : ''}" data-line="${escHtml(l.id)}"${inp.stagger ? ` style="animation-delay:${Math.min(i, 14) * 70 + 260}ms"` : ''}>
           <span class="rc-no">${String(i + 1).padStart(2, '0')}</span>
           <span class="rc-emoji" aria-hidden="true">${escHtml(l.icon)}</span>
           <span class="rc-desc" title="${escHtml(l.name)}">${escHtml(l.name.toUpperCase())}</span>
@@ -160,11 +145,6 @@ export function renderReceipt(inp: ReceiptInput): string {
           ${l.original ? `<span class="rc-orig">${escHtml(l.original)}</span>` : ''}
         </div>`).join('')
     : `<div class="rc-empty">${escHtml(t('expenses.tapeEmpty'))}</div>`;
-  const breakdown = inp.breakdown.map((b) => `
-        <div class="rc-bk">
-          <span aria-hidden="true">${escHtml(b.icon)}</span><span>${escHtml(b.label.toUpperCase())}</span><span class="rc-dots" aria-hidden="true"></span><span class="rc-bk-amt">${escHtml(inp.fmt(b.amount))}</span>
-          <span class="rc-bk-bar" style="width:${b.share}%;background:${escHtml(b.color)}"></span>
-        </div>`).join('');
   const bars = barcodeBars(inp.seed).map((b) => `<i class="${b.gap ? 'is-gap ' : ''}w${b.w}"></i>`).join('');
   return `
     <div class="rc-inner">
@@ -180,10 +160,10 @@ export function renderReceipt(inp: ReceiptInput): string {
       <div class="rc-scroll">
         <div class="rc-lines">${body}</div>
         <div class="rc-row rc-row--sub"><span>${escHtml(t('expenses.tapeSubtotal').toUpperCase())}</span><span>${escHtml(inp.fmt(total))}</span></div>
-        ${breakdown ? `<div class="rc-break">${breakdown}</div>` : ''}
       </div>
       <div class="rc-foot">
-        <div class="rc-total"><span>${escHtml(t('expenses.mart.total'))}</span><span>${escHtml(inp.fmt(total))}</span></div>
+        <div class="rc-total"><span>${escHtml(t('expenses.mart.total'))}</span><span class="rc-total-amt" data-total="${Math.round(total)}">${escHtml(inp.fmt(total))}</span></div>
+        ${inp.running ? `<div class="rc-running">${escHtml(inp.running)}</div>` : ''}
         <div class="rc-barcode" aria-hidden="true">${bars}</div>
         <div class="rc-bcnum">${escHtml(inp.seed.replace(/\D/g, '').slice(0, 12))}</div>
         <div class="rc-thanks">${escHtml(t('expenses.mart.thanks'))}</div>
