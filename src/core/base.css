@@ -129,6 +129,17 @@
   --font-ui:      var(--font-body);
   --font-data:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-hand:    'Caveat', 'DM Sans', cursive;
+  --font-stamp:   'Oswald', 'Arial Narrow', 'Helvetica Neue', sans-serif;   /* passport stamps only */
+
+  /* ── Passport (views/passport) ───────────────────────────────────────
+     A matte linen desk, navy cloth cover with muted gold, cream pages. */
+  --pp-desk:       #d8d0c0;
+  --pp-desk-2:     #cdc4b2;
+  --pp-cloth:      #34465e;
+  --pp-cloth-2:    #283750;
+  --pp-gold:       #c4a672;
+  --pp-paper:      #f7f1e2;
+  --pp-paper-edge: #e3d9c2;
 
   /* Weight steps. Anything heavier than --fw-bold reads as cartoon, so there
      are only four. */
@@ -203,6 +214,13 @@
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root[data-theme='dark'] {
+  --pp-desk:       #26231f;
+  --pp-desk-2:     #2d2a25;
+  --pp-cloth:      #26364d;
+  --pp-cloth-2:    #1d2a3c;
+  --pp-gold:       #b39563;
+  --pp-paper:      #34302a;
+  --pp-paper-edge: #3f3a32;
   /* 50–200 are backgrounds (deep amber); 300–700 are fills / text / borders and
      are re-themed too: 600–700 become light ambers so amber text stays readable
      on the dark surfaces. */

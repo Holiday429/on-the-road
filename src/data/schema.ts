@@ -34,3 +34,5 @@ export * from './schema/guide.ts';
 export * from './schema/safety.ts';
 export * from './schema/journal.ts';
 export * from './schema/nomad-todo.ts';
+export * from './schema/passport.ts';
+export * from './schema/visa.ts';

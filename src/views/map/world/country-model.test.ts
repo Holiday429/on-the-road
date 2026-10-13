@@ -36,11 +36,10 @@ describe('buildCountryDetail', () => {
     expect(d.trips[1].dateTo).toBe('2026-09-03');
   });
 
-  it('gives only this country its stamps, with future ones unearned', () => {
-    expect(d.stamps.every((s) => s.iso === 'DK')).toBe(true);
-    expect(d.stamps.filter((s) => s.kind === 'country')).toHaveLength(1);
-    expect(d.stamps.find((s) => s.city === 'Odense')!.earned).toBe(false);
-    expect(d.stamps.find((s) => s.city === 'Copenhagen')!.earned).toBe(true);
+  it('gives only this country its passport stamps: one per trip that has reached it, none for planned stops', () => {
+    expect(d.stamps.every((s) => s.iso === 'DK' && s.kind === 'country')).toBe(true);
+    expect(d.stamps.map((s) => s.id)).toEqual(['country:DK:a', 'country:DK:b']);
+    expect(d.stamps.map((s) => s.firstEver)).toEqual([true, false]);
   });
 
   it('is null for a country that is not on the map', () => {

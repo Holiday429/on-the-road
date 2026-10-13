@@ -119,3 +119,14 @@ export async function uploadLegCover(file: File, tripId: string, legId: string):
   await uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg' });
   return getDownloadURL(storageRef);
 }
+
+/** Upload the passport photo to `users/{uid}/passport/<id>.jpg` (owner-only, per storage.rules). Downscaled: it is shown ~120 px wide. */
+export async function uploadPassportPhoto(file: File): Promise<string> {
+  const user = currentUser();
+  if (!user) throw new Error('Not signed in.');
+  const blob = await downscaleImage(file, 640, 0.85);
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const storageRef = ref(storage, `users/${user.uid}/passport/${id}.jpg`);
+  await uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg' });
+  return getDownloadURL(storageRef);
+}

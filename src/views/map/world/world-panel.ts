@@ -90,10 +90,10 @@ export function overviewMarkup(o: OverviewInput): string {
     </div>
     ${o.canReplay ? `<button class="btn btn-ghost world-replay" data-act="replay">${esc(t('world.replay.start'))}</button>` : ''}
     ${hasCurrent ? `<button class="btn btn-primary world-open-route" data-act="open-route">${esc(t('world.openRoute'))}</button>` : ''}
-    ${o.passport ? `<button type="button" class="pp-strip" data-open-passport="">
-      <span class="pp-strip-emblem" aria-hidden="true">🛂</span>
-      <span class="pp-strip-text"><strong>${esc(t('passport.title'))}</strong> · ${esc(t('passport.summary', { n: o.passport.earned, c: o.passport.countries }))}</span>
-      <span class="pp-strip-go" aria-hidden="true">›</span>
+    ${o.passport ? `<button type="button" class="pp-pocket" data-open-passport="">
+      <span class="pp-pocket-cover" aria-hidden="true">🛂</span>
+      <span class="pp-pocket-text"><strong>${esc(t('passport.title'))}</strong> · ${esc(t('passport.summary', { n: o.passport.earned, c: o.passport.countries }))}</span>
+      <span class="pp-pocket-go" aria-hidden="true">›</span>
     </button>` : ''}
     <section class="world-section">
       <h3 class="world-h">${esc(t('world.trips'))}</h3>

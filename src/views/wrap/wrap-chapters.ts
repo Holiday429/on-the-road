@@ -11,6 +11,7 @@ import { t } from '../../core/i18n.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { paperReceipt, paperTag, type PaperRow } from '../../core/paper/paper.ts';
 import { renderStamp } from '../../core/paper/stamp.ts';
+import { renderTripStamp } from '../../core/paper/stamp-trip.ts';
 import { transportIcon, bagIcon, GLYPH } from '../../core/icons.ts';
 import type { WrapModel } from '../../data/trip-wrap.ts';
 import { sketchRoute, sketchSvg } from './wrap-map.ts';
@@ -87,10 +88,16 @@ export function passportChapter(c: WrapCtx): string {
   const body = stamps.length
     ? `<div class="wrap-stamps">${stamps.map((s) => `<div class="wrap-stamp">${renderStamp(s, { size: 112 })}</div>`).join('')}</div>`
     : `<div class="wrap-note">${esc(t('wrap.passport.none'))}</div>`;
+  // The full stop of the trip: only once it is over, and on this page — the passport itself collects countries only.
+  const trip = c.ongoing ? '' : `<div class="wrap-tripstamp">${renderTripStamp({
+    name: c.m.cover.name, startDate: c.m.cover.startDate, endDate: c.m.cover.endDate, days: c.m.cover.days,
+    ink: stamps[stamps.length - 1]?.ink ?? 'var(--ink-soft)',
+  }, 150)}</div>`;
   return section('passport', `
     ${head('🛂', t('wrap.passport.title'))}
     <div class="wrap-sub">${esc(t('passport.summary', { n: c.m.cover.stamps, c: c.m.cover.stampCountries }))}</div>
     ${body}
+    ${trip}
     ${stamps.length ? `<button type="button" class="btn btn-ghost" data-wrap-passport>${esc(t('passport.open'))}</button>` : ''}`, t('wrap.ch.passport'));
 }
 

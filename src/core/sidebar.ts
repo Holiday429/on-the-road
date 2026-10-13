@@ -10,8 +10,9 @@ import { t } from './i18n.ts';
 import { openTripPopover, closeTripPopover, wireTripCalendarHover, cancelCalendarHover, setTripList } from './trip-popover.ts';
 import { openNewTripModal } from './trip-modals.ts';
 import profileIcon from '../../icon/profile.png';
+import { onPassport, peekPassport } from '../data/passport-feed.ts';
 
-export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap';
+export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap' | 'passport';
 
 export interface NavItem {
   id: ViewId;
@@ -116,6 +117,7 @@ function buildSidebarHeader(): string {
           <div class="sidebar-profile-subtitle">${t('app.accountSubtitle')}</div>
         </div>
       </button>
+      <button type="button" class="sidebar-passport" id="sidebar-passport" title="${t('passport.title')}" aria-label="${t('passport.title')}">🛂</button>
     </div>
   `;
 }
@@ -255,6 +257,19 @@ function buildTripPill(): string {
   `;
 }
 
+/** The 🛂 button beside the avatar carries a dot while stamps wait to be pressed (or the real passport is close to expiry). One listener for the app's life: the sidebar is rebuilt often, the button is looked up each time. */
+let _passportBadge = false;
+function paintPassportBadge(p: ReturnType<typeof peekPassport>): void {
+  const b = document.getElementById('sidebar-passport');
+  if (!b) return;
+  b.classList.toggle('has-pending', p.pending.length > 0 || p.warnings.length > 0 || p.visaWarnings.length > 0);
+  b.dataset.count = p.pending.length ? String(p.pending.length) : '';
+}
+function watchPassportBadge(): void {
+  if (!_passportBadge) { _passportBadge = true; onPassport(paintPassportBadge); }
+  paintPassportBadge(peekPassport());
+}
+
 export function buildSidebar() {
   const sidebar = document.getElementById('sidebar')!;
   const user = host!.sessionUser();
@@ -274,6 +289,12 @@ export function buildSidebar() {
   // Signed-in profile header → Profile view (account/billing + emergency card + prefs).
   sidebar.querySelector<HTMLElement>('#sidebar-account-trigger')?.addEventListener('click', () => {
     host!.navigateTo('profile');
+  });
+
+  // The passport belongs to the account, not to a trip — it sits beside the avatar.
+  if (user) watchPassportBadge();
+  sidebar.querySelector<HTMLElement>('#sidebar-passport')?.addEventListener('click', () => {
+    host!.navigateTo('passport');
   });
 
   sidebar.querySelectorAll('.nav-item').forEach(item => {

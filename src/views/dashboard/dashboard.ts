@@ -50,6 +50,8 @@ import { mountPrefControls } from '../../core/pref-mounts.ts';
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { openAddPlanModal } from './dashboard-modals.ts';
 import { budgetBarColor } from '../../data/budget-tone.ts';
+import { onPassport, peekPassport } from '../../data/passport-feed.ts';
+import { pocketHtml, wirePassportOpeners } from '../passport/passport-links.ts';
 import { renderBanner, wireBanner, startBannerClock, type BannerData } from './dashboard-banner.ts';
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
 import { resolveHomeTimezone } from '../../data/home-timezone.ts';
@@ -523,8 +525,9 @@ function render(): void {
   // A rebuild must be invisible: carry typed text + focus across, and keep the
   // (expensive, async-built) map canvas node instead of recreating the map.
   const ui = captureUiState(body);
-  swapHtml(body, `${renderGreeting()}${renderHero(phase)}${layout(phase)}`, '#td-map-canvas');
+  swapHtml(body, `${renderGreeting()}${renderHero(phase)}<div class="td-passport">${pocketHtml(peekPassport())}</div>${layout(phase)}`, '#td-map-canvas');
   wire(body);
+  wirePassportOpeners(body);
   restoreUiState(body, ui);
   bootMap();
 }
@@ -821,6 +824,7 @@ export function initDashboard(): void {
     packStore.subscribe(rows => { _packLists = rows; scheduleRender(); }),
     nomadStore.subscribeForTrip(currentTripId(), rows => { _nomadSpots = rows; scheduleRender(); }),
     cityStore.subscribe(rows => { _cityIntel = rows; scheduleRender(); }),
+    onPassport(() => scheduleRender()),
     userPrefsStore.subscribe(p => { const tz = p?.homeTimezone ?? ''; if (tz !== _homeTzPref) { _homeTzPref = tz; scheduleRender(); } }),
     onTripChange(() => {
       _nomadSpots = nomadStore.peek();

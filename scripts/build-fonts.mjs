@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Self-host the web fonts (Sora, DM Sans, Caveat, JetBrains Mono) so first paint never waits on
+/* Self-host the web fonts (Sora, DM Sans, Caveat, JetBrains Mono, Oswald) so first paint never waits on
    fonts.googleapis.com / fonts.gstatic.com — a third-party round trip that is slow
    on some networks and unreachable on others — and so the PWA precache can serve
    them offline.
@@ -7,7 +7,7 @@
    Run only when the family list or weights change:   node scripts/build-fonts.mjs
    Output (committed): public/fonts/*.woff2 + public/fonts/fonts.css
 
-   All four families are variable fonts: every weight of a family/style/subset is
+   All five families are variable fonts: every weight of a family/style/subset is
    the same file, so each is emitted as ONE @font-face with a weight range. Only the
    latin + latin-ext subsets are kept (en/es/fr and friends); CJK and Cyrillic text
    falls through to the system font stack, same as before. Keep the weights in sync
@@ -23,7 +23,8 @@ const FAMILIES =
   'family=Sora:wght@400;500;600;700;800' +
   '&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400' +
   '&family=Caveat:wght@500;600;700' +
-  '&family=JetBrains+Mono:wght@400;500;600';
+  '&family=JetBrains+Mono:wght@400;500;600' +
+  '&family=Oswald:wght@500;600';
 // A modern UA makes Google serve woff2 + unicode-range subsets.
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 

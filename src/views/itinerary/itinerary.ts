@@ -20,10 +20,11 @@ import { createDestinationInput, type DestinationInputInstance } from '../../cor
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { flagForCountry } from '../../data/destinations.ts';
-import { stampsFor, stampForLeg, type StampLeg } from '../../data/stamps.ts';
-import type { StampSpec } from '../../core/paper/stamp.ts';
+import type { StampLeg } from '../../data/stamps.ts';
+import { postmarksFor, type CardPostmarks } from '../../data/card-postmarks.ts';
 import { todayIso as stampToday } from '../../data/trip-phase.ts';
-import { passportStrip, stampSticker, wirePassportOpeners } from '../passport/passport.ts';
+import { mountPassportPockets, wirePassportOpeners } from '../passport/passport-links.ts';
+import { postmarkPair } from '../passport/postmark.ts';
 import {
   uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
   legStays, NOTE_COLORS, noteColor, resolveNoteColor, dayColour, bearing,
@@ -198,23 +199,21 @@ async function setLegCover(leg: Leg, url: string | null) {
 
 /* ── Render: list (timeline grouped by country) ─────────────────────────── */
 
-/** The earned passport stamp for a stop (memoised per render), if it has been reached. */
-let _stampMemo: { legs: Leg[]; today: string; stamps: StampSpec[] } | null = null;
-function legStamp(leg: Leg): StampSpec | undefined {
+/** A stop's arrival / departure postmarks (memoised per route + day). */
+let _markMemo: { legs: Leg[]; today: string; marks: Map<string, CardPostmarks> } | null = null;
+function legMarks(leg: Leg): CardPostmarks | undefined {
   const today = stampToday();
-  if (!_stampMemo || _stampMemo.legs !== legs || _stampMemo.today !== today) {
-    _stampMemo = { legs, today, stamps: stampsFor(legs as unknown as StampLeg[], today) };
+  if (!_markMemo || _markMemo.legs !== legs || _markMemo.today !== today) {
+    _markMemo = { legs, today, marks: postmarksFor(legs as unknown as StampLeg[], today) };
   }
-  const s = stampForLeg(_stampMemo.stamps, leg.id);
-  return s?.earned ? s : undefined;
+  return _markMemo.marks.get(leg.id);
 }
 
 function renderLegCard(leg: Leg): string {
   const days = daysBetween(leg.dateFrom, leg.dateTo);
   const status = legStatus(leg);
-  // Visited stops wear their passport stamp instead of a "visited" label; only "now" keeps a pill.
+  // Stops wear arrival / departure postmarks instead of a "visited" label; only "now" keeps a pill.
   const statusLabel = status === 'active' ? tr('route.statusActive') : '';
-  const stamp = legStamp(leg);
   return `
     <div class="route-leg status-${status}" data-id="${leg.id}">
       <div class="route-leg-dot"></div>
@@ -222,7 +221,6 @@ function renderLegCard(leg: Leg): string {
         <div class="route-leg-cover">
           ${legCoverArt(leg, 'route-leg-cover')}
           ${statusLabel ? `<span class="route-leg-status">${statusLabel}</span>` : ''}
-          ${stamp ? `<span class="route-leg-stamp">${stampSticker(stamp, 76)}</span>` : ''}
         </div>
         <div class="route-leg-body">
           <div class="route-leg-header">
@@ -230,6 +228,7 @@ function renderLegCard(leg: Leg): string {
               <span class="route-leg-city">${esc(leg.city)}</span>
               <span class="route-leg-flag">${leg.flag || ''}</span>
             </div>
+            ${postmarkPair(legMarks(leg), { size: 60, openId: `city:${leg.id}` })}
             <div class="route-leg-dates">
               <span class="route-leg-range">${fmtDate(leg.dateFrom)} <span class="route-leg-arrow">→</span> ${fmtDate(leg.dateTo)}</span>
               <span class="route-leg-duration">${nightsLabel(days)}</span>
@@ -278,7 +277,7 @@ function renderTimeline(): string {
 
   return `
     ${renderAddForm()}
-    ${passportStrip(legs as unknown as StampLeg[])}
+    <div class="pp-pocket-host" data-pp-pocket></div>
     ${sections}
     <div class="route-add-wrap">
       <button class="route-add-btn" id="route-add-toggle">
@@ -784,7 +783,7 @@ function renderDetail(leg: Leg): string {
       <header class="rd-hero ${hasCover ? 'has-cover' : ''}">
         ${legCoverArt(leg, 'rd-hero', true)}
         <div class="rd-hero-shade"></div>
-        ${legStamp(leg) ? `<div class="rd-hero-stamp">${stampSticker(legStamp(leg)!, 104)}</div>` : ''}
+        ${(() => { const pm = postmarkPair(legMarks(leg), { size: 84, openId: `city:${leg.id}`, onPhoto: true }); return pm ? `<div class="rd-hero-stamp">${pm}</div>` : ''; })()}
         <div class="rd-hero-tools">
           <button class="rd-glass-btn" data-act="open-guide">${tr('route.btnCityGuide')}</button>
           <button class="rd-glass-btn" data-act="open-compare">${tr('route.btnCompare')}</button>
@@ -915,6 +914,7 @@ function mountAddFormPickers(timeline: HTMLElement) {
 
 function wireList(timeline: HTMLElement) {
   wirePassportOpeners(timeline);
+  mountPassportPockets(timeline);
   timeline.querySelector('#route-add-toggle')?.addEventListener('click', () => openAddForm(timeline));
   timeline.querySelector('#route-link-trip')?.addEventListener('click', () => {
     openTripChooser({ title: tr('route.linkTripTitle'), subtitle: tr('route.linkTripSubtitle') });

@@ -168,7 +168,7 @@ function wire(root: HTMLElement): void {
     if (!el || (el as HTMLButtonElement).disabled) return;
     if (el.dataset.wrapGo) goChapter(el.dataset.wrapGo);
     else if ('wrapReplay' in el.dataset) replayRoute(root);
-    else if ('wrapPassport' in el.dataset) void import('../passport/passport.ts').then((m) => m.openPassport({ returnFocus: el }));
+    else if ('wrapPassport' in el.dataset) void import('../passport/passport-links.ts').then((m) => m.openPassport());
     else if (el.dataset.wrapJournal) void openJournalMode(el.dataset.wrapJournal as 'capture' | 'story' | 'recap');
     else if ('wrapHome' in el.dataset) void navigateTo('today');
   });

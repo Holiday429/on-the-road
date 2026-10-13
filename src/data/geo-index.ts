@@ -81,6 +81,9 @@ const CONTINENT_BY_ISO: Record<string, string> = (() => {
   return map;
 })();
 
+/** Every country the app knows a continent for (ISO-3166 alpha-2) — the visa form's country list. */
+export const KNOWN_ISOS: readonly string[] = Object.keys(CONTINENT_BY_ISO);
+
 export function continentFor(iso: string): string | null {
   return CONTINENT_BY_ISO[iso] ?? null;
 }

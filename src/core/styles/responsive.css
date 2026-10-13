@@ -17,6 +17,8 @@
     justify-content: center;
   }
 
+  .sidebar-passport { display: none; }
+
   .sidebar-profile-meta,
   .trip-pill-label,
   .trip-pill-name,
