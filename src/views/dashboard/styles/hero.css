@@ -145,4 +145,3 @@
   flex-shrink: 0;
 }
 @media (max-width: 560px) { .td-hero-logo { display: none; } }
-.td-passport { margin-top: var(--sp-4); } .td-passport .pp-pocket { margin-bottom: 0; }

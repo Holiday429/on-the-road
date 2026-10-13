@@ -26,7 +26,8 @@ import { openCityDrawer } from './city-drawer.ts';
 import { openClocksDrawer } from './clock-drawer.ts';
 
 import { transportIcon } from '../../core/icons.ts';
-import { STAY_ICON } from '../../core/icons.ts';
+import { STAY_ICON, PASSPORT_ICON } from '../../core/icons.ts';
+import { peekPassport } from '../../data/passport-feed.ts';
 export interface BannerData {
   phase: Phase;
   legs: StoredLeg[];
@@ -143,6 +144,13 @@ function renderClocks(leg: StoredLeg | null, homeTz: string | null, now: Date): 
     </button>`;
 }
 
+/** The account passport as a bare icon at the banner's right edge; a dot while stamps wait to be pressed. */
+function renderPassportIcon(): string {
+  const p = peekPassport();
+  const pending = p.pending.length > 0 || p.warnings.length > 0 || p.visaWarnings.length > 0;
+  return `<button type="button" class="td-hero-passport${pending ? ' has-pending' : ''}" data-open-passport="" title="${esc(t('passport.title'))}" aria-label="${esc(t('passport.title'))}">${PASSPORT_ICON}</button>`;
+}
+
 /* ── Public ──────────────────────────────────────────────────────────────── */
 
 export function renderBanner(d: BannerData, now: Date = appNow()): string {
@@ -159,7 +167,8 @@ export function renderBanner(d: BannerData, now: Date = appNow()): string {
   return `
     ${renderDial(dial, stop?.leg ?? null, stop?.index ?? 0, stop?.count ?? 0)}
     <div class="td-hero-info">${middle}</div>
-    ${renderClocks(stop?.leg ?? null, d.homeTz, new Date())}`;   // real time: time travel moves the date, not the world clocks
+    ${renderClocks(stop?.leg ?? null, d.homeTz, new Date())}
+    ${renderPassportIcon()}`;   // real time: time travel moves the date, not the world clocks
 }
 
 /** Wire the banner's drawer triggers. `getData` is read at click time so the

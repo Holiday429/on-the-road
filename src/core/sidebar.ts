@@ -11,6 +11,7 @@ import { openTripPopover, closeTripPopover, wireTripCalendarHover, cancelCalenda
 import { openNewTripModal } from './trip-modals.ts';
 import profileIcon from '../../icon/profile.png';
 import { onPassport, peekPassport } from '../data/passport-feed.ts';
+import { PASSPORT_ICON } from './icons.ts';
 
 export type ViewId = 'today' | 'prep' | 'route' | 'expenses' | 'pack' | 'cities' | 'budget' | 'journal' | 'map' | 'nomad' | 'agenda' | 'profile' | 'wrap' | 'passport';
 
@@ -117,7 +118,7 @@ function buildSidebarHeader(): string {
           <div class="sidebar-profile-subtitle">${t('app.accountSubtitle')}</div>
         </div>
       </button>
-      <button type="button" class="sidebar-passport" id="sidebar-passport" title="${t('passport.title')}" aria-label="${t('passport.title')}">🛂</button>
+      <button type="button" class="sidebar-passport" id="sidebar-passport" title="${t('passport.title')}" aria-label="${t('passport.title')}">${PASSPORT_ICON}</button>
     </div>
   `;
 }
@@ -257,7 +258,7 @@ function buildTripPill(): string {
   `;
 }
 
-/** The 🛂 button beside the avatar carries a dot while stamps wait to be pressed (or the real passport is close to expiry). One listener for the app's life: the sidebar is rebuilt often, the button is looked up each time. */
+/** The passport icon beside the avatar carries a dot while stamps wait to be pressed (or the real passport is close to expiry). One listener for the app's life: the sidebar is rebuilt often, the button is looked up each time. */
 let _passportBadge = false;
 function paintPassportBadge(p: ReturnType<typeof peekPassport>): void {
   const b = document.getElementById('sidebar-passport');
