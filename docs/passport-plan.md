@@ -1,5 +1,7 @@
 # 护照 v2 & Itinerary 印章 — 方案（P7）
 
+> **实施状态（2026-10-13）**：P7.0–P7.7 已在分支 `feat/p7-passport` 完成（代码验证：tsc / vitest / eslint / build）。UI 细节待统一反馈后优化。与本文有出入之处，以代码和 `PASSPORT_iOS_契约.md` 为准：路由是 `#passport` + NavIntent（`stamp` / `legId` / `iso`），不是带子路径的 hash；盖章前的章不在页面上，在「托盘」里等待；每页最多 6 枚；签证每页 2 份。
+
 > v2 · 2026-10-13 · 已按 owner 第一轮反馈修订，仅规划，未改代码。
 > 现状基线：P4（`core/paper/stamp.ts` · `data/stamps.ts` · `data/stamp-seen.ts` · `views/passport/`），P5 World 地图（`views/map/world/`，`routeStore.subscribeAll` 跨行程足迹）。
 
