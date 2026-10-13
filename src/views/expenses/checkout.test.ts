@@ -52,7 +52,7 @@ describe('renderReceipt', () => {
     expect(html).toContain('LISBON · PORTUGAL');
     expect(html).toContain('ON THE ROAD MART');
     expect(html).toContain('¥40');
-    expect(html.match(/class="rc-line/g)).toHaveLength(8);
+    expect(html.match(/class="rc-line[ "]/g)).toHaveLength(8);
     expect(html).toContain('>08<');
   });
   it('keeps the lines in a scrolling middle and the total in the foot', () => {
