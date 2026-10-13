@@ -72,7 +72,7 @@
 @keyframes rc-tear { 40% { transform: translateX(6px) rotate(1deg); opacity: .7; } to { transform: translateX(130px) rotate(7deg); opacity: 0; } }
 .rc-no { color: var(--ink-muted); font-size: 10px; }
 .rc-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rc-dots, .rc-bk .rc-dots { border-bottom: 1px dotted color-mix(in srgb, var(--ink) 28%, transparent); align-self: center; height: 1px; min-width: 8px; }
+.rc-dots { border-bottom: 1px dotted color-mix(in srgb, var(--ink) 28%, transparent); align-self: center; height: 1px; min-width: 8px; }
 .rc-amt { font-weight: 700; font-variant-numeric: tabular-nums; }
 .rc-void { width: 1.3em; height: 1.3em; display: grid; place-items: center; border: 0; border-radius: 3px; background: transparent; color: var(--danger); font-size: 9px; cursor: pointer; opacity: 0; transition: opacity .12s; }
 .rc-line:hover .rc-void, .rc-void:focus-visible { opacity: 1; }
@@ -87,10 +87,6 @@
 
 .rc-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 3px 0; }
 .rc-row--sub { border-top: 1px dashed var(--paper-perf); margin-top: 4px; padding-top: 6px; font-weight: 700; letter-spacing: .1em; font-size: 11px; }
-.rc-break { display: flex; flex-direction: column; gap: 1px; padding: 6px 0 4px; font-size: 9.5px; color: var(--ink-muted); }
-.rc-bk { display: grid; grid-template-columns: 1.4em auto minmax(8px, 1fr) auto; align-items: baseline; column-gap: 4px; }
-.rc-bk-amt { font-variant-numeric: tabular-nums; }
-.rc-bk-bar { grid-column: 2 / -1; height: 2px; border-radius: 2px; margin: 1px 0 3px; }
 .rc-total {
   display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 6px 11px;
   border: 1px solid var(--ink); box-shadow: inset 0 0 0 3px var(--surface), inset 0 0 0 4px var(--ink);

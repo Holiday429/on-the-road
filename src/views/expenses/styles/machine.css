@@ -143,25 +143,28 @@
 .ck-ptag-amt { font-weight: 700; }
 .ck-ptag-code { width: 24px; height: 14px; flex: none; background: repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 2px, var(--ink) 2px 4px, transparent 4px 6px); }
 
-/* soft keys: one fixed-height row, scrolls sideways, ‹ › page it */
-.ck-keys-row { display: flex; align-items: stretch; gap: 6px; margin-bottom: 8px; }
-.ck-page {
-  flex: none; width: 24px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 16px; line-height: 1;
-  color: var(--scr-ink); background: color-mix(in srgb, var(--scr-ink) 8%, transparent); border: 1px solid var(--scr-line);
-}
-.ck-page:disabled { opacity: .3; cursor: default; }
-.ck-keys { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding: 1px; }
-.ck-keys::-webkit-scrollbar { display: none; }
+/* soft keys: every category on screen at once, wrapping onto as many rows as needed */
+.ck-keys-row { margin-bottom: 8px; }
+.ck-keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; padding: 1px; }
 .ck-key {
   --tile: color-mix(in srgb, var(--kc, var(--scr-bg)) 62%, var(--scr-bg));
-  flex: 0 0 auto; width: 88px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  padding: 7px 4px 6px; border-radius: 7px; cursor: pointer; font: inherit; color: var(--scr-ink);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0;
+  padding: 6px 4px 5px; border-radius: 7px; cursor: pointer; font: inherit; color: var(--scr-ink);
   background: var(--tile); border: 1px solid var(--scr-line); border-bottom: 3px solid color-mix(in srgb, var(--kc, var(--scr-line)) 100%, #000 22%);
-  transition: transform .06s, background .1s;
+  transition: transform .06s, background .1s, box-shadow .1s;
 }
 .ck-key:hover { transform: translateY(-1px); }
 .ck-key:active { transform: translateY(1px); }
-.ck-key.is-on { background: var(--scr-ink); color: var(--scr-bg); text-shadow: none; border-color: var(--scr-ink); }
+/* Chosen: the key's own colour at full strength with a ring — never a dark fill on the light LCD. */
+.ck-key.is-on {
+  background: color-mix(in srgb, var(--kc, var(--scr-ink)) 100%, var(--scr-bg));
+  border-color: color-mix(in srgb, var(--kc, var(--scr-ink)) 55%, var(--scr-ink));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--kc, var(--scr-ink)) 55%, var(--scr-ink));
+  transform: translateY(1px); border-bottom-width: 1px;
+}
+.ck-key.is-on .ck-key-label { font-weight: var(--fw-bold); }
+/* On the dark VFD the chosen key lights up instead. */
+:root[data-theme='dark'] .ck-key.is-on { background: var(--scr-ink); color: var(--scr-bg); text-shadow: none; border-color: var(--scr-ink); box-shadow: none; }
 .ck-key-emoji { font-size: 18px; line-height: 1; text-shadow: none; }
 .ck-key-label { font-size: 9px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .ck-key--new { --tile: transparent; border-style: dashed; border-bottom-width: 1px; color: var(--scr-dim); }
@@ -209,7 +212,7 @@
 .ck-scanbtn:disabled { cursor: progress; filter: saturate(.6) brightness(.95); animation: ck-busy .6s ease-in-out infinite alternate; }
 .ck-scanbtn-hint { font-family: var(--font-data); font-size: 10px; letter-spacing: 0; opacity: .65; }
 @keyframes ck-busy { to { filter: saturate(.6) brightness(1.06); } }
-.ck-scanbtn:focus-visible, .ck-key:focus-visible, .ck-page:focus-visible { outline: 2px solid var(--amber-400); outline-offset: 2px; }
+.ck-scanbtn:focus-visible, .ck-key:focus-visible { outline: 2px solid var(--amber-400); outline-offset: 2px; }
 
 @media (prefers-reduced-motion: reduce) {
   .ck-caret, .ck-last.is-marquee, .ck-scanbtn:disabled, .ck-status b.is-bump, .ck-screen.is-ok .ck-led, .ck-screen.is-err { animation: none; }
