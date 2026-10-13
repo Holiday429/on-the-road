@@ -19,9 +19,14 @@ import { t, onLocaleChange, getLocale } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { renderStamp } from '../../core/paper/stamp.ts';
 import { currentUser } from '../../firebase/auth.ts';
-import { onPassport } from '../../data/passport-feed.ts';
+import { onPassport, peekFeedLegs } from '../../data/passport-feed.ts';
 import { passportState, snapOf, type PassportFeed } from '../../data/passport-state.ts';
 import { passportStore } from '../../data/stores/passport-store.ts';
+import { journalStore } from '../../data/stores/journal-store.ts';
+import { expenseStore } from '../../data/stores/expense-store.ts';
+import { countryMemory } from '../../data/country-memory.ts';
+import { currentTripId } from '../../data/trip-context.ts';
+import type { ExtrasData } from '../../views/map/world/country-extras.ts';
 import { safetyProfileStore } from '../../data/stores/safety-profile-store.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import type { PassportStamp } from '../../data/passport.ts';
@@ -34,6 +39,7 @@ import { createFlip, type FlipBook } from './flip.ts';
 import { pageHtml, type PageCtx } from './pages.ts';
 import { openBioEditor } from './bio-edit.ts';
 import { startPress } from './press.ts';
+import { openStampCard } from './stamp-card.ts';
 import { isSoundOn, playCover, playFlip, playThunk, setSoundOn } from './sound.ts';
 
 const view = () => document.getElementById('view-passport');
@@ -58,6 +64,14 @@ const _unsaved = new Set<string>();
 let _pressing: PassportStamp | null = null;
 let _queue: PassportStamp[] = [];
 let _stopPress: (() => void) | null = null;
+let _closeCard: (() => void) | null = null;
+/** Journal and spend rows for the back of a stamp — subscribed to the first time a stamp is opened. */
+const _extras: ExtrasData = { journal: [], expenses: [], nomad: [], intel: [] };
+let _extrasOn = false;
+/** Bumped to stop a replay in progress. */
+let _replay = 0;
+let _replaying = false;
+let _running = 0;
 const narrow = () => window.matchMedia?.('(max-width: 820px)').matches ?? false;
 
 /** The account's first name — what the passport calls the traveller until they choose a nickname. */
@@ -85,7 +99,7 @@ function ctx(): PageCtx {
     photoUrl: _profile.photoURL || u?.photoURL?.trim() || '',
     uid: u?.uid ?? 'guest',
     issued: st.pressed[0]?.date ?? _feed.stamps[0]?.date ?? todayIso(),
-    fresh: _fresh,
+    fresh: _replaying ? new Set(_feed.stamps.map((x) => x.id).concat(Object.keys(_placements))) : _fresh,
     locale: getLocale(),
     pageNo: (p) => _pages.indexOf(p) + 1,
   };
@@ -165,6 +179,7 @@ function render(): void {
       <button type="button" class="btn btn-ghost" data-pp-prev aria-label="${esc(t('passport.nav.prev'))}">‹</button>
       <span class="pp-page-label" data-pp-label aria-live="polite"></span>
       <button type="button" class="btn btn-ghost" data-pp-next aria-label="${esc(t('passport.nav.next'))}">›</button>
+      <button type="button" class="btn btn-ghost" data-pp-replay>${esc(t('passport.replay'))}</button>
       <button type="button" class="btn btn-ghost" data-pp-sound aria-pressed="${isSoundOn()}" title="${esc(t('passport.sound'))}">${isSoundOn() ? '🔊' : '🔈'}</button>
       <button type="button" class="btn btn-ghost" data-pp-map>${esc(t('passport.onMap'))}</button>
     </div>
@@ -309,6 +324,75 @@ function pressAll(): void {
   if (at >= 0) { _turned = flippedToShow(at, _single); _flip?.goTo(_turned, true); afterTurn(); }
 }
 
+/* ── The back of a stamp ─────────────────────────────────────────────────── */
+
+function ensureExtras(): void {
+  if (_extrasOn) return;
+  _extrasOn = true;
+  _unsubs.push(journalStore.subscribeAll((rows) => { _extras.journal = rows; }));
+  _unsubs.push(expenseStore.subscribeAll((rows) => { _extras.expenses = rows; }));
+}
+
+function openCard(id: string): void {
+  const stamp = state().pressed.find((x) => x.id === id);
+  const desk = view()?.querySelector<HTMLElement>('.pp-desk');
+  if (!stamp || !desk) return;
+  ensureExtras();
+  _closeCard?.();
+  const memory = countryMemory(stamp, _feed.stamps, peekFeedLegs(), _extras);
+  _closeCard = openStampCard(desk, memory, getLocale(), {
+    onMap: (iso) => { void navigateTo('map', { mode: 'world', iso }); },
+    onJournal: !stamp.orphan && stamp.tripId === currentTripId() ? () => { void navigateTo('journal'); } : undefined,
+    onClose: () => { _closeCard = null; },
+  });
+}
+
+/* ── Replay: the whole passport, pressed again in order ──────────────────── */
+
+const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
+
+async function replay(): Promise<void> {
+  const token = ++_replay;
+  const alive = () => token === _replay;
+  const root = view();
+  const book = root?.querySelector<HTMLElement>('#pp-book');
+  const withStamps = _pages.map((p, i) => (p.kind === 'stamps' && p.items.length ? i : -1)).filter((i) => i >= 0);
+  if (!root || !book || withStamps.length === 0) return;
+  _closeCard?.();
+  _running += 1;
+  _replaying = true;
+  book.querySelectorAll<HTMLElement>('.pp-slot[data-stamp]').forEach((el) => el.setAttribute('data-fresh', ''));
+  const done = new Set<string>();
+  _flip?.goTo(0, true);
+  await sleep(600);
+  for (const at of withStamps) {
+    const target = flippedToShow(at, _single);
+    while (alive() && (_flip?.turned() ?? 0) < target) { _flip?.next(); await sleep(750); }
+    if (!alive()) break;
+    const faces = visibleFaces(book, _flip?.turned() ?? 0);
+    const slots = faces.flatMap((f) => [...f.querySelectorAll<HTMLElement>('.pp-slot[data-stamp]')])
+      .filter((el) => !done.has(el.dataset.stamp!))
+      .sort((a, b) => (state().pressed.find((x) => x.id === a.dataset.stamp)?.date ?? '').localeCompare(state().pressed.find((x) => x.id === b.dataset.stamp)?.date ?? ''));
+    for (const el of slots) {
+      if (!alive()) break;
+      const id = el.dataset.stamp!;
+      done.add(id);
+      el.removeAttribute('data-fresh');
+      el.querySelector<HTMLElement>('.pp-stamp')?.classList.add('is-pressed');
+      playThunk(_placements[id]?.pressure ?? 0.75);
+      await sleep(560);
+    }
+  }
+  if (alive()) await sleep(600);
+  // Whatever the way out (finished, interrupted), nothing may stay hidden — unless a newer replay has taken over.
+  _running -= 1;
+  if (_running > 0) return;
+  _replaying = false;
+  book.querySelectorAll<HTMLElement>('.pp-slot[data-fresh]').forEach((el) => {
+    if (!_fresh.has(el.dataset.stamp ?? '')) el.removeAttribute('data-fresh');
+  });
+}
+
 /* ── Intent: open the book on a given stamp ──────────────────────────────── */
 
 function applyIntent(intent: NavIntent | null): void {
@@ -334,6 +418,9 @@ function wire(root: HTMLElement): void {
   root.addEventListener('click', (e) => {
     const el = e.target as HTMLElement;
     if (el.closest('.pp-press')) return;
+    if (el.closest('[data-pp-card-close], .pp-card-scrim')) return;
+    if (el.closest('[data-pp-replay]')) { void replay(); return; }
+    if (el.closest('[data-pp-prev], [data-pp-next], [data-pp-jump]')) _replay++;     // any turn of the traveller's own ends a replay
     if (el.closest('[data-pp-prev]')) { _flip?.prev(); return; }
     if (el.closest('[data-pp-next]')) { _flip?.next(); return; }
     if (el.closest('[data-pp-press]')) { pressInTurn(state().pending); return; }
@@ -349,6 +436,8 @@ function wire(root: HTMLElement): void {
     if (el.closest('[data-pp-map]')) { void navigateTo('map', { mode: 'world' }); return; }
     const jump = el.closest<HTMLElement>('[data-pp-jump]');
     if (jump) { _flip?.goTo(flippedToShow(Number(jump.dataset.ppJump), _single)); return; }
+    const slot = el.closest<HTMLElement>('.pp-slot[data-stamp]');
+    if (slot && !_pressing && !_flip?.justDragged() && !slot.hasAttribute('data-fresh')) { openCard(slot.dataset.stamp!); return; }
     // The cover opens on a tap; a page's outer edge turns it.
     const face = el.closest<HTMLElement>('.pp-face');
     if (!face || el.closest('[data-no-turn], button, a') || _flip?.justDragged()) return;

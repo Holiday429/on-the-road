@@ -32,7 +32,7 @@ describe('chapters', () => {
     const html = coverChapter(ctx());
     expect(html).toContain('Europe &lt;2026&gt;');
     expect(html).not.toContain('<2026>');
-    expect(html).toContain('4 stamps');
+    expect(html).toContain('2 stamps');
     expect(html).not.toContain('wrap-note');
     expect(coverChapter(ctx({}, { ongoing: true }))).toContain('wrap-note');
   });
@@ -47,9 +47,11 @@ describe('chapters', () => {
     expect(lone).toContain('wrap-note');
   });
 
-  it('passport: every earned stamp, and a button to the book', () => {
+  it('passport: one stamp per country of the trip, a trip-complete stamp once it is over, and a button to the book', () => {
     const html = passportChapter(ctx());
-    expect((html.match(/class="wrap-stamp"/g) ?? []).length).toBe(4);
+    expect((html.match(/class="wrap-stamp"/g) ?? []).length).toBe(2);
+    expect(html).toContain('TRIP COMPLETE');
+    expect(passportChapter(ctx({}, { ongoing: true }))).not.toContain('TRIP COMPLETE');
     expect(html).toContain('data-wrap-passport');
     expect(passportChapter(ctx({ legs: [] }))).not.toContain('data-wrap-passport');
   });

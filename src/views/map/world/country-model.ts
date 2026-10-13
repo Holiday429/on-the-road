@@ -7,8 +7,8 @@
    panel and on the map can never disagree.
    ========================================================================== */
 
-import type { StampSpec } from '../../../core/paper/stamp.ts';
-import { stampsFor, type StampLeg } from '../../../data/stamps.ts';
+import { passportFor, type PassportStamp } from '../../../data/passport.ts';
+import type { FootprintLeg } from '../../../data/footprint.ts';
 import { spentNights, type CountryRecord, type TripPhase, type WorldModel } from './world-model.ts';
 import type { PlottedLeg } from '../map-stats.ts';
 
@@ -32,8 +32,8 @@ export interface CountryDetail {
   visits: number;
   nights: number;
   cities: string[];
-  /** Country-entry stamp first, then one per city stop; `earned` follows the date. */
-  stamps: StampSpec[];
+  /** The passport's country stamps for this country: one per trip that has reached it. */
+  stamps: PassportStamp[];
   trips: CountryTrip[];
 }
 
@@ -48,7 +48,7 @@ export function buildCountryDetail(
   if (!rec) return null;
 
   const inCountry = legs.filter((l) => l.iso === iso);
-  const stamps = stampsFor(legs as unknown as StampLeg[], today).filter((s) => s.iso === iso);
+  const stamps = passportFor(legs as unknown as FootprintLeg[], today).stamps.filter((s) => s.iso === iso);
 
   const trips: CountryTrip[] = [];
   for (const trip of model.trips) {

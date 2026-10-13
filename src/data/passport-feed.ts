@@ -82,3 +82,8 @@ export function onPassport(cb: Listener): () => void {
 export function peekPassport(): PassportFeed {
   return current;
 }
+
+/** Raw legs of every trip as last seen (empty until something has subscribed). */
+export function peekFeedLegs(): FootprintLeg[] {
+  return legs;
+}

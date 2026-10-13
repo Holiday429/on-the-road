@@ -203,15 +203,15 @@ describe('tripWrap', () => {
   };
   it('puts the chapters together', () => {
     const m = tripWrap(input);
-    expect(m.cover).toMatchObject({ name: 'Europe', days: 20, stamps: 7, stampCountries: 3 });
-    expect(m.stamps).toHaveLength(7);
+    expect(m.cover).toMatchObject({ name: 'Europe', days: 20, stamps: 3, stampCountries: 3 });
+    expect(m.stamps).toHaveLength(3);        // one passport stamp per country on this trip
     expect(m.hasRoute).toBe(true);
     expect(m.pack).toBeNull();
   });
-  it('mid-trip, only the stamps already pressed count', () => {
+  it('mid-trip, only the countries reached so far count', () => {
     const m = tripWrap({ ...input, today: '2026-07-06' });
-    expect(m.cover.stamps).toBe(4);
-    expect(m.stamps.every((s) => s.earned)).toBe(true);
+    expect(m.cover.stamps).toBe(2);
+    expect(m.stamps.map((s) => s.iso)).toEqual(['DK', 'DE']);
   });
   it('a trip with no stops has nothing to wrap', () => {
     expect(tripWrap({ ...input, legs: [] }).hasRoute).toBe(false);

@@ -230,3 +230,32 @@
 .pp-doc summary { cursor: pointer; font-weight: var(--fw-medium); }
 .pp-doc-hint { margin: 0; font-size: var(--fs-xs); color: var(--ink-muted); }
 .pp-doc-warn { display: grid; gap: 4px; color: var(--danger); font-size: var(--fs-sm); }
+
+/* ── The back of a stamp ─────────────────────────────────────────────────── */
+.pp-card-scrim {
+  position: absolute; inset: 0; z-index: 60; display: grid; place-items: center; padding: var(--sp-4);
+  background: color-mix(in srgb, black 38%, transparent); backdrop-filter: blur(2px); animation: pp-fade .25s both;
+}
+.pp-card {
+  display: flex; gap: var(--sp-6); align-items: center; max-width: min(760px, 100%); max-height: 100%; overflow: auto;
+  padding: var(--sp-6); border-radius: var(--r-xl); background: var(--pp-paper); color: var(--ink);
+  box-shadow: var(--shadow-lg); transform-origin: left center; animation: pp-card-in .55s cubic-bezier(.3, 1.2, .5, 1) both;
+}
+.pp-card-stamp { flex: none; animation: pp-lift .7s cubic-bezier(.3, 1.2, .5, 1) both; }
+.pp-card-body { min-width: 0; display: grid; gap: var(--sp-3); }
+.pp-card-title { font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); }
+.pp-card-sub { font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .06em; color: var(--ink-muted); }
+.pp-card-rows { margin: 0; display: grid; gap: 6px; }
+.pp-card-row { display: grid; grid-template-columns: 110px 1fr; gap: var(--sp-3); font-size: var(--fs-sm); }
+.pp-card-row dt { color: var(--ink-muted); }
+.pp-card-row dd { margin: 0; overflow-wrap: anywhere; }
+.pp-card-photos { display: flex; gap: var(--sp-2); }
+.pp-card-photos img { width: 84px; height: 84px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--rule); }
+.pp-card-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
+@media (max-width: 640px) { .pp-card { flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); } .pp-card-stamp .pp-stamp svg { width: 150px; height: 150px; } }
+@keyframes pp-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pp-card-in { from { opacity: 0; transform: perspective(900px) rotateY(-70deg); } to { opacity: 1; transform: none; } }
+@keyframes pp-lift { 0% { transform: translateY(24px) scale(.8) rotate(-8deg); } 100% { transform: none; } }
+.pp-slot[data-stamp] { cursor: pointer; }
+.pp-slot[data-stamp]:hover .pp-stamp { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .pp-card, .pp-card-stamp, .pp-card-scrim { animation: none; } }

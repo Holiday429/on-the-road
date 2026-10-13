@@ -96,3 +96,4 @@
 @media (prefers-reduced-motion: reduce) {
   .wrap-map-line { transition: none; }
 }
+.wrap-tripstamp { display: grid; place-items: center; margin-top: var(--sp-4); }

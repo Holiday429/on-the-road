@@ -12,11 +12,11 @@
 
 import { haversineKm, type LatLng } from './geo-index.ts';
 import { daysBetween } from './trip-phase.ts';
-import { stampsFor, passportSummary, type StampLeg } from './stamps.ts';
+import { passportFor, type PassportStamp } from './passport.ts';
+import type { FootprintLeg } from './footprint.ts';
 import { itemWeightG, itemsPresentAtLeg } from './packing-formula.ts';
 import type { PackList } from './schema.ts';
 import type { StoredLeg } from './stores/route-store.ts';
-import type { StampSpec } from '../core/paper/stamp.ts';
 
 /* ── Input ───────────────────────────────────────────────────────────────── */
 
@@ -145,7 +145,7 @@ export interface WrapModel {
   cover: { name: string; startDate: string; endDate: string; days: number; stamps: number; stampCountries: number };
   route: WrapRoute;
   /** Every earned stamp, oldest first. */
-  stamps: StampSpec[];
+  stamps: PassportStamp[];
   stays: WrapStays;
   spend: WrapSpend;
   pack: WrapPack | null;
@@ -363,14 +363,14 @@ export function wrapJournal(
 
 export function tripWrap(input: WrapInput): WrapModel {
   const { trip, legs, today } = input;
-  // Stamps are earned by arrival, so a wrap opened mid-trip only shows what has been pressed.
-  const stamps = stampsFor(legs as unknown as StampLeg[], today).filter((s) => s.earned);
-  const sum = passportSummary(stamps);
+  // The passport's country stamps for this trip: earned by arrival, so a wrap opened mid-trip only shows the countries reached so far.
+  const passport = passportFor(legs as unknown as FootprintLeg[], today);
+  const stamps = passport.stamps;
   return {
     cover: {
       name: trip.name, startDate: trip.startDate, endDate: trip.endDate,
       days: Math.max(1, daysBetween(trip.startDate, trip.endDate) + 1),
-      stamps: sum.earned, stampCountries: sum.countries,
+      stamps: stamps.length, stampCountries: passport.countries,
     },
     route: wrapRoute(trip, legs, input.coordOf),
     stamps,

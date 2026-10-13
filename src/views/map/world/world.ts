@@ -24,7 +24,8 @@ import { mountScrubber, type Scrubber } from '../map-scrubber.ts';
 import { timelineRange, msToIso } from '../map-timeline.ts';
 import { listTrips, onTripChange, currentTripId } from '../../../data/trip-context.ts';
 import { todayIso } from '../../../data/trip-phase.ts';
-import { stampsFor, passportSummary, type StampLeg } from '../../../data/stamps.ts';
+import { passportFor } from '../../../data/passport.ts';
+import type { FootprintLeg } from '../../../data/footprint.ts';
 import { unseenStamps, markStampsSeen } from '../../../data/stamp-seen.ts';
 import { stampSticker, wirePassportOpeners } from '../../passport/passport-links.ts';
 import { buildCountryDetail } from './country-model.ts';
@@ -128,11 +129,10 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
   }
 
   function overviewHtml(now: string): string {
-    const stamps = stampsFor(legs as unknown as StampLeg[], now);
-    const sum = passportSummary(stamps);
+    const p = passportFor(legs as unknown as FootprintLeg[], now);
     return overviewMarkup({
       model, mode, layers, spin, canReplay: timelineRange(legs) !== null, onlyTripId, currentTripId: currentTripId(), unlocated, locale: getLocale(),
-      passport: stamps.length ? { earned: sum.earned, countries: sum.countries } : null,
+      passport: p.stamps.length ? { earned: p.stamps.length, countries: p.countries } : null,
     });
   }
 
@@ -164,8 +164,8 @@ export function mountWorld(host: HTMLElement, hooks: WorldHooks): WorldControlle
   function maybeArrival() {
     if (arrivalDone || !view || legs.length === 0 || pendingIso || onlyTripId) return;
     arrivalDone = true;
-    const stamps = stampsFor(legs as unknown as StampLeg[], todayIso());
-    const fresh = unseenStamps(stamps.filter((s) => s.earned).map((s) => s.id));
+    const stamps = passportFor(legs as unknown as FootprintLeg[], todayIso()).stamps;
+    const fresh = unseenStamps(stamps.map((s) => s.id));
     const pick = pickArrival(stamps, fresh);
     if (!pick || !model.countries.has(pick.iso)) return;
     markStampsSeen([pick.id]);
