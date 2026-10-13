@@ -18,6 +18,7 @@ import {
 import { bookDays, runningTotal, type BookDay } from './receipt-book-model.ts';
 import { showLine, rollOdometer, playScan, beep, pulse, reducedMotion } from './checkout-fx.ts';
 import { t } from '../../core/i18n.ts';
+import { escHtml } from '../../core/utils.ts';
 import { openModal } from '../../core/modal.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import { currencySymbol } from '../../data/rates.ts';
@@ -147,7 +148,7 @@ export function refreshMart(formEl: HTMLElement, reset: boolean, feed = false): 
   const prevScroll = wrap.querySelector<HTMLElement>('.rc-scroll')?.scrollTop ?? 0;
   // eslint-disable-next-line no-restricted-syntax -- audited: renderReceipt escapes every value
   wrap.innerHTML = `
-    <div class="ck-printer" aria-hidden="true"><div class="ck-printer-body"><div class="ck-printer-slot"></div></div></div>
+    <div class="ck-printer" aria-hidden="true"><div class="ck-printer-body"></div></div>
     <div class="rc paper paper--zigzag${feed && !reducedMotion() ? ' rc--feed' : ''}">${receiptHtml(iso, lines, rows, fresh, false)}</div>`;
   bindReceipt(wrap);
   // Newest line is at the bottom: follow it when one prints (or the day changes), else stay where the reader was.
@@ -194,12 +195,38 @@ function bindReceipt(wrap: HTMLElement): void {
     const target = ev.target as HTMLElement;
     if (target.closest('[data-act="zoom"]')) { openFullReceipt(); return; }
     const del = target.closest<HTMLElement>('[data-void]');
-    if (del) voidLine(del.dataset.void!, del.closest<HTMLElement>('.rc-line'));
+    if (del) void voidLine(del.dataset.void!, del.closest<HTMLElement>('.rc-line'));
   });
 }
 
-function voidLine(id: string, row: HTMLElement | null): void {
-  if (!confirm(t('expenses.mart.voidConfirm'))) return;
+/** "Void this line?" as a small till slip, in the receipt's own type — not the browser's dialog. */
+function confirmVoid(row: HTMLElement | null): Promise<boolean> {
+  const name = row?.querySelector('.rc-desc')?.textContent ?? '';
+  const amt = row?.querySelector('.rc-amt')?.textContent ?? '';
+  return new Promise((resolve) => {
+    let settled = false;
+    const settle = (v: boolean) => { if (!settled) { settled = true; resolve(v); } };
+    const m = openModal({
+      body: `<div class="rc-confirm paper paper--zigzag"><div class="rc-confirm-inner">
+        <div class="rc-confirm-title">${escHtml(t('expenses.mart.voidTitle'))}</div>
+        ${name ? `<div class="rc-confirm-line"><span class="rc-confirm-name">${escHtml(name)}</span><span class="rc-dots" aria-hidden="true"></span><span>${escHtml(amt)}</span></div>` : ''}
+        <p class="rc-confirm-msg">${escHtml(t('expenses.mart.voidConfirm'))}</p>
+        <div class="rc-confirm-actions">
+          <button type="button" class="rc-confirm-btn" data-void-no>${escHtml(t('common.cancel').toUpperCase())}</button>
+          <button type="button" class="rc-confirm-btn rc-confirm-btn--void" data-void-yes>${escHtml(t('expenses.mart.voidOk'))}</button>
+        </div>
+      </div></div>`,
+      className: 'rc-modal rc-confirm-modal',
+      onClose: () => settle(false),
+    });
+    m.root.querySelector('[data-void-no]')?.addEventListener('click', () => m.close());
+    m.root.querySelector('[data-void-yes]')?.addEventListener('click', () => { settle(true); m.close(); });
+    m.root.querySelector<HTMLElement>('[data-void-no]')?.focus();
+  });
+}
+
+async function voidLine(id: string, row: HTMLElement | null): Promise<void> {
+  if (!(await confirmVoid(row))) return;
   if (!row || reducedMotion()) { ctx!.remove(id); return; }
   row.classList.add('rc-line--void');
   window.setTimeout(() => ctx!.remove(id), 400);

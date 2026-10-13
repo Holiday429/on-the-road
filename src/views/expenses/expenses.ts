@@ -173,11 +173,11 @@ function renderSummary(el: HTMLElement) {
         return `
           <div class="exp-hero-eyebrow">${t('expenses.budgetAnalysisTitle')}</div>
           <div class="exp-hero-num">${sym}${Math.round(budget).toLocaleString()}</div>
-          <div class="exp-hero-bar-track">
-            <div class="exp-hero-bar-fill" style="width:${pct}%;background:${barColor}"></div>
-          </div>
           <div class="exp-hero-label ${over ? 'exp-hero-label-over' : fast ? 'exp-hero-label-fast' : ''}">
             ${over ? `▲ ${fmt(sum - budget)} ${t('expenses.over')}` : `${fmt(budget - sum)} ${t('expenses.remaining')}${fast ? ` · ${t('expenses.ba.statusFast')}` : ''} ›`}
+          </div>
+          <div class="exp-hero-bar-track">
+            <div class="exp-hero-bar-fill" style="width:${pct}%;background:${barColor}"></div>
           </div>
           ${over ? paperStamp({ text: t('expenses.overBudget'), tone: 'bad', corner: true }) : ''}`;
       })()

@@ -77,7 +77,7 @@ export function openReceiptBook(startIso: string): void {
     <div class="rb-stage">
       <button type="button" class="rb-nav" data-rb-step="-1" aria-label="${esc(t('expenses.book.prev'))}">‹</button>
       <div class="rb-counter">
-        <div class="ck-printer" aria-hidden="true"><div class="ck-printer-body"><div class="ck-printer-slot"></div></div></div>
+        <div class="ck-printer" aria-hidden="true"><div class="ck-printer-body"></div></div>
         <div class="rb-paper" data-rb-paper></div>
       </div>
       <button type="button" class="rb-nav" data-rb-step="1" aria-label="${esc(t('expenses.book.next'))}">›</button>
