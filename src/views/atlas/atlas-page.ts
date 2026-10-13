@@ -8,6 +8,7 @@
    the globe itself is atlas.ts.
    ========================================================================== */
 
+import '../map/map.css';   // shared chips, stat cards, zoom buttons, timeline (split out in P8.5)
 import { renderViewTitleMarkup, consumeNavIntent, navigateTo } from '../../core/app.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';

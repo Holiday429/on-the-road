@@ -11,7 +11,7 @@ const FILES = Object.keys(SOURCES).filter((f) => !f.endsWith('.test.ts'));
 describe('map translation keys', () => {
   const used = new Map<string, string>();
   for (const f of FILES) {
-    for (const m of SOURCES[f].matchAll(/['`"]((?:map|world)\.[A-Za-z][\w.]*)['`"]/g)) used.set(m[1], f);
+    for (const m of SOURCES[f].matchAll(/['`"]((?:map|world|atlas)\.[A-Za-z][\w.]*)['`"]/g)) used.set(m[1], f);
   }
 
   it('finds the keys', () => {
@@ -27,6 +27,6 @@ describe('map translation keys', () => {
     expect([...used].filter(([k]) => !(k in zh)).map(([k, f]) => `${k} (${f})`)).toEqual([]);
   });
   it('Chinese has no map key English lacks', () => {
-    expect(Object.keys(zh).filter((k) => /^(map|world)\./.test(k) && !(k in en))).toEqual([]);
+    expect(Object.keys(zh).filter((k) => /^(map|world|atlas)\./.test(k) && !(k in en))).toEqual([]);
   });
 });

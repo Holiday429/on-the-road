@@ -84,8 +84,9 @@ export function worldPalette(): WorldPalette {
     border: token('--ink-faint'),
     graticule: token('--ink-faint'),
     visited: [token('--amber-300'), token('--amber-400'), token('--amber-500'), token('--amber-600')],
-    planned: token('--amber-300'),
-    plannedLine: token('--amber-500'),
+    // Planned countries are GREY (owner): clearly not the amber of a country been to, nor the paper of one never visited.
+    planned: token('--ink-muted'),
+    plannedLine: token('--ink-muted'),
   };
 }
 

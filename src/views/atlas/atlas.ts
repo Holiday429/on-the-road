@@ -28,7 +28,7 @@ import type { FootprintLeg } from '../../data/footprint.ts';
 import { stampSticker, wirePassportOpeners } from '../passport/passport-links.ts';
 import { buildCountryDetail } from './country-model.ts';
 import { buildWorldModel, type ColorMode, type WorldModel, type WorldTripInput } from './world-model.ts';
-import { createWorldView, type WorldView } from './world-view.ts';
+import { createGlobeView, type GlobeView } from './globe-view.ts';
 import { overviewMarkup, countryMarkup, emptyMarkup, replayMarkup, summaryCardsMarkup, hoverCardText, type WorldLayer } from './world-panel.ts';
 import { buildTripLines, buildCityPoints, currentSpot } from './world-geo.ts';
 import './atlas.css';
@@ -88,7 +88,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
   let onlyTripId: string | null = null;
   const layers = new Set<WorldLayer>(['routes', 'cities']);
   let selectedIso: string | null = null;
-  let view: WorldView | null = null;
+  let view: GlobeView | null = null;
   let plotToken = 0;
   let pendingIso: string | null = null;
   let spin = readSpin();
@@ -284,7 +284,7 @@ export function mountAtlas(host: HTMLElement, hooks: AtlasHooks): AtlasControlle
     const hoverEl = host.querySelector<HTMLElement>('#worldHover')!;
     // Hover cards are for a mouse; on touch a tap selects instead.
     const canHover = window.matchMedia?.('(hover: hover)').matches ?? true;
-    view = createWorldView(chartEl, {
+    view = createGlobeView(chartEl, {
       onCountryClick: (iso) => void selectCountry(iso),
       mascotSrc: `${import.meta.env.BASE_URL}art/logo-sm.webp`.replace(/\/{2,}/g, '/'),
       onHover: (iso, x, y) => {
