@@ -144,12 +144,13 @@ describe('albums view', () => {
 });
 
 describe('gallery multi-select', () => {
-  it('toggles into select mode and picks tiles without opening the reader', () => {
+  it('toggles into select mode and picks tiles', () => {
     const { body } = mount([mkEntry('e1'), mkEntry('e2')], [mkAlbum('a1')]);
     gotoView(body, 'gallery');
 
-    // Not in select mode: tiles open the reader.
-    expect(body.querySelector('[data-open-entry="e1"]')).toBeTruthy();
+    // Not in select mode: photos only, no link back to the entry.
+    expect(body.querySelector('.jg-tile')).toBeTruthy();
+    expect(body.querySelector('.jg-tile [data-open-entry], .jg-tile[data-open-entry], .jg-placard')).toBeFalsy();
 
     (body.querySelector('[data-gallery-select]') as HTMLElement).click();
     expect(body.querySelector('[data-open-entry="e1"]'), 'tiles no longer open the reader').toBeFalsy();

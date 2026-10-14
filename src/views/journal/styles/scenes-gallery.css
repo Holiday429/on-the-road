@@ -1,7 +1,8 @@
 /* ==========================================================================
    On the Road · Journal gallery — a wall of photographs that drifts
-   The motion is after the curator's wall in "The Prism of Time"; the look is
-   On the Road's own — the page's paper, amber on hover, no dark room.
+   After the curator's wall in "The Prism of Time": a dark room, square photos,
+   black-and-white until you point at one, amber hairline on hover. Photos only —
+   no captions, no link back to the entry.
    Markup: scenes/gallery.ts · motion: scenes/gallery-flow.ts
    ========================================================================== */
 
@@ -24,42 +25,36 @@
 
 /* ── The wall ────────────────────────────────────────────────────────────── */
 .jg-wall {
-  height: clamp(460px, calc(100vh - 250px), 880px); overflow-y: auto; padding: var(--sp-2) var(--sp-1) var(--sp-10);
-  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--accent) 45%, transparent) transparent; outline: none;
+  height: clamp(460px, calc(100vh - 250px), 880px); overflow-y: auto; padding: var(--sp-6) var(--sp-6) var(--sp-10);
+  background: #050505;
+  scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; outline: none;
 }
-.jg-cols { columns: 4; column-gap: var(--sp-4); }
+.jg-cols { columns: 3; column-gap: var(--sp-8); }
 .jg-tile {
-  position: relative; margin: 0 0 var(--sp-4); break-inside: avoid; cursor: pointer; border-radius: var(--r-md); overflow: hidden;
-  box-shadow: var(--shadow-sm); transition: transform var(--dur-mid) var(--ease-out), box-shadow var(--dur-mid) var(--ease-out);
+  position: relative; margin: 0 0 var(--sp-8); break-inside: avoid; overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .1); transition: border-color 500ms var(--ease-out);
 }
-.jg-tile:hover, .jg-tile:focus-visible { transform: translateY(-4px); box-shadow: var(--shadow-lg); z-index: 2; }
+.jg-tile:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .jg-img {
-  position: relative; display: block; width: 100%; height: auto; background: var(--amber-50);
+  position: relative; display: block; width: 100%; height: auto; background: #0b0b0b;
+  filter: grayscale(1); opacity: .8; transition: filter 500ms var(--ease-out), opacity 500ms var(--ease-out);
   animation: jg-hang 620ms var(--ease-out) both; animation-delay: calc(var(--i) * 55ms);
 }
+.jg-tile:hover .jg-img { filter: grayscale(0); opacity: 1; }
 .jg-img.is-square { aspect-ratio: 1; object-fit: cover; }
 @keyframes jg-hang { from { opacity: 0; transform: translateY(14px); } }
+.jg-tile[data-gallery-pick] { cursor: pointer; }
 .jg-tile.is-picked { outline: 2px solid var(--accent); outline-offset: -2px; }
+.jg-tile.is-picked .jg-img { filter: grayscale(0); opacity: 1; }
 .jg-check {
   position: absolute; top: var(--sp-2); right: var(--sp-2); z-index: 3; width: 24px; height: 24px; display: grid; place-items: center;
-  border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--surface) 85%, transparent);
-  background: color-mix(in srgb, var(--scale-glass) 35%, transparent); color: var(--on-accent); font-size: var(--fs-sm);
+  border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .7);
+  background: rgba(0, 0, 0, .35); color: var(--on-accent); font-size: var(--fs-sm);
 }
 .jg-tile.is-picked .jg-check { background: var(--accent); border-color: var(--accent); }
 
-/* The caption rises over the foot of the photo when you look at it. */
-.jg-placard {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: var(--sp-5) var(--sp-3) var(--sp-2);
-  display: flex; flex-direction: column; gap: 1px; opacity: 0; transition: opacity var(--dur-mid) var(--ease-out);
-  background: linear-gradient(to top, color-mix(in srgb, var(--scale-glass) 78%, transparent), transparent);
-  pointer-events: none;
-}
-.jg-tile:hover .jg-placard, .jg-tile:focus-visible .jg-placard { opacity: 1; }
-.jg-placard-title { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jg-placard-meta { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .08em; color: color-mix(in srgb, white 72%, transparent); }
-
-@media (max-width: 1100px) { .jg-cols { columns: 3; } }
-@media (max-width: 760px)  { .jg-cols { columns: 2; column-gap: var(--sp-3); } .jg-wall { height: clamp(420px, calc(100vh - 230px), 760px); } }
+@media (max-width: 1100px) { .jg-cols { columns: 2; } }
+@media (max-width: 760px)  { .jg-cols { column-gap: var(--sp-4); } .jg-tile { margin-bottom: var(--sp-4); } .jg-wall { height: clamp(420px, calc(100vh - 230px), 760px); } }
 @media (max-width: 420px)  { .jg-cols { columns: 1; } }
-@media (hover: none) { .jg-placard { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .jg-img { animation: none; } .jg-tile { transition: none; } }
+@media (hover: none) { .jg-img { filter: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .jg-img { animation: none; transition: none; } .jg-tile { transition: none; } }

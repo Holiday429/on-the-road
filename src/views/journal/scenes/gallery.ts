@@ -10,7 +10,7 @@
 
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
-import { escHtml, entryImages, prettyDate, titleFor } from '../shared/utils.ts';
+import { escHtml, entryImages, titleFor } from '../shared/utils.ts';
 
 export interface WallPhoto { src: string; entry: StoredJournalEntry; index: number }
 
@@ -51,16 +51,11 @@ export function renderGallery(entries: StoredJournalEntry[], o: GalleryOpts, emp
 
   const tiles = photos.map((p, i) => {
     const picked = selecting && sel.includes(p.entry.id);
-    const action = selecting ? `data-gallery-pick="${escHtml(p.entry.id)}"` : `data-open-entry="${escHtml(p.entry.id)}"`;
-    const where = p.entry.destination.trim();
+    const pick = selecting ? ` data-gallery-pick="${escHtml(p.entry.id)}" role="button" tabindex="0"` : '';
     return `
-      <figure class="jg-tile${picked ? ' is-picked' : ''}" ${action} role="button" tabindex="0" style="--i:${i % 6}">
+      <figure class="jg-tile${picked ? ' is-picked' : ''}"${pick} style="--i:${i % 6}">
         ${selecting ? `<span class="jg-check">${picked ? '✓' : ''}</span>` : ''}
         <img class="jg-img${o.square ? ' is-square' : ''}" src="${escHtml(p.src)}" alt="${escHtml(titleFor(p.entry))}" loading="lazy" draggable="false">
-        <figcaption class="jg-placard">
-          <span class="jg-placard-title">${escHtml(titleFor(p.entry))}</span>
-          <span class="jg-placard-meta">${escHtml(where ? `${where} · ` : '')}${escHtml(prettyDate(p.entry.happenedOn))}</span>
-        </figcaption>
       </figure>`;
   }).join('');
 
