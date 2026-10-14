@@ -1,5 +1,5 @@
 /* ==========================================================================
-   On the Road · Journal places — countries on top, then map beside the entries
+   On the Road · Journal places — the line of countries, then the route map beside the entries
    Markup: scenes/places.ts · map: scenes/places-map.ts (amCharts, shared geodata)
    ========================================================================== */
 
@@ -8,7 +8,7 @@
 /* ── Map ─────────────────────────────────────────────────────────────────── */
 .jp-stage { position: relative; border: 1px solid var(--rule); border-radius: var(--r-xl); overflow: hidden; box-shadow: var(--shadow-sm); background: var(--surface-3); }
 .jp-map { height: clamp(260px, 38vh, 420px); width: 100%; }
-.jp-map[data-failed]::after { content: 'The map needs a connection — your places are still listed above.'; display: grid; place-items: center; height: 100%; padding: var(--sp-6); text-align: center; font-size: var(--fs-sm); color: var(--ink-muted); }
+.jp-map[data-failed]::after { content: 'The map needs a connection — your countries are still on the line above.'; display: grid; place-items: center; height: 100%; padding: var(--sp-6); text-align: center; font-size: var(--fs-sm); color: var(--ink-muted); }
 .jp-hud {
   position: absolute; left: var(--sp-3); bottom: var(--sp-3); right: var(--sp-3); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; pointer-events: none;
 }
@@ -18,26 +18,35 @@
 .jp-link:hover { color: var(--ink); }
 .jp-hud .jp-link { font-size: var(--fs-xs); }
 
-/* ── Countries along the top ─────────────────────────────────────────────── */
-.jp-countries { display: flex; gap: var(--sp-3); overflow-x: auto; padding: var(--sp-1) var(--sp-1) var(--sp-3); scrollbar-width: thin; }
-.jp-country {
-  flex: 0 0 auto; width: clamp(168px, 15vw, 210px); padding: var(--sp-3); border: 1.5px solid var(--rule); border-radius: var(--r-lg);
-  background: var(--paper-grain), var(--surface); box-shadow: var(--shadow-sm); transition: border-color var(--dur-fast), transform var(--dur-fast) var(--ease-out);
+/* ── The line: countries strung in the order you reached them ────────────── */
+.jp-line { overflow-x: auto; padding: var(--sp-3) var(--sp-1) var(--sp-2); scrollbar-width: thin; }
+.jp-track { position: relative; display: flex; gap: 0; margin: 0; padding: 0; list-style: none; min-width: min-content; }
+/* the string the countries hang on */
+.jp-track::before { content: ''; position: absolute; left: 36px; right: 36px; top: 26px; border-top: 2.5px dashed color-mix(in srgb, var(--ink) 22%, transparent); }
+.jp-item { flex: 1 0 112px; max-width: 190px; display: flex; justify-content: center; }
+.jp-stop { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0 var(--sp-2) var(--sp-2); border: 0; background: transparent; cursor: pointer; color: var(--ink-soft); text-align: center; }
+.jp-dot {
+  position: relative; z-index: 1; width: 52px; height: 52px; display: grid; place-items: center; font-size: 24px; border-radius: 50%;
+  background: var(--surface); border: 2px solid var(--rule); box-shadow: var(--shadow-sm);
+  transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1), border-color var(--dur-fast), background var(--dur-fast);
 }
-.jp-country.is-here { border-color: var(--accent); box-shadow: var(--shadow-md); }
-.jp-country-head { display: flex; align-items: center; gap: var(--sp-2); width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; text-align: left; }
-.jp-country-flag { font-size: 26px; line-height: 1; }
-.jp-country-meta { display: flex; flex-direction: column; min-width: 0; }
-.jp-country-name { font-family: var(--font-display); font-size: var(--fs-md); font-weight: var(--fw-semibold); letter-spacing: -.015em; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jp-country-count { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .06em; color: var(--ink-faint); }
-.jp-country-head:focus-visible, .jp-city:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; border-radius: var(--r-sm); }
-.jp-cities { display: flex; flex-wrap: wrap; gap: 5px; margin-top: var(--sp-2); }
+.jp-stop:hover .jp-dot { transform: translateY(-4px); }
+.jp-stop:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; border-radius: var(--r-md); }
+.jp-stop-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
+.jp-stop-meta { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .06em; color: var(--ink-faint); }
+.jp-stop.is-selected .jp-dot { transform: scale(1.18); background: var(--accent); border-color: var(--accent-deep); animation: jp-drop 520ms cubic-bezier(.34, 1.56, .64, 1); }
+.jp-stop.is-selected .jp-stop-meta { color: var(--accent-deep); }
+@keyframes jp-drop { 0% { transform: translateY(-14px) scale(.9); } 60% { transform: translateY(2px) scale(1.22); } 100% { transform: scale(1.18); } }
+
+/* ── The small places inside the chosen country ──────────────────────────── */
+.jp-cities { display: flex; flex-wrap: wrap; gap: 5px; margin: calc(var(--sp-1) * -1) 0 var(--sp-4); }
 .jp-city {
   display: inline-flex; align-items: center; gap: 5px; padding: 3px var(--sp-2); border: 1px solid var(--rule); border-radius: var(--r-full);
-  background: var(--surface-2); color: var(--ink-soft); font-size: var(--fs-xs); cursor: pointer;
+  background: var(--surface); color: var(--ink-soft); font-size: var(--fs-xs); cursor: pointer;
   transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
 }
 .jp-city:hover { background: var(--surface-3); }
+.jp-city:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
 .jp-city.is-selected { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: var(--fw-medium); }
 .jp-city-n { font-family: var(--font-data); font-size: var(--fs-2xs); opacity: .75; }
 
@@ -82,5 +91,5 @@
 @keyframes jp-deal-b { from { opacity: 0; transform: translateY(-26px) rotate(-8deg) scale(.92); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .jp-pile.is-a .jp-card, .jp-pile.is-b .jp-card { animation: none; }
+  .jp-pile.is-a .jp-card, .jp-pile.is-b .jp-card, .jp-stop.is-selected .jp-dot { animation: none; }
 }

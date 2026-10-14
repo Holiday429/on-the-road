@@ -89,7 +89,7 @@ export function renderCapture(model: CaptureRenderModel): string {
 
 function renderActiveView(model: CaptureRenderModel): string {
   if (model.state.view === 'places') {
-    return renderPlaces(model.stops, model.state.placeKey, model.state.placeFlip,
+    return renderPlaces(model.stops, model.legs, model.state.placeKey, model.state.placeFlip,
       renderEmpty('Places', 'No places yet', 'Add destination-aware entries and this view will line them up here.'));
   }
   if (model.state.view === 'albums') return renderAlbumsView(model);

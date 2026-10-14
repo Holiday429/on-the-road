@@ -354,8 +354,8 @@ describe('open album is a book', () => {
   });
 });
 
-describe('places groups cities under their countries', () => {
-    it('lists the countries in order, with their cities, and picks one to show its entries', () => {
+describe('places strings the countries on one line', () => {
+  it('lists the countries in order, with no cards, and picks one to show its entries', () => {
     const { body } = mount([
       mkEntry('e1', { destination: 'Lisbon', happenedOn: '2026-06-01' }),
       mkEntry('e2', { destination: 'Porto', happenedOn: '2026-06-05' }),
@@ -363,17 +363,24 @@ describe('places groups cities under their countries', () => {
     ], []);
     gotoView(body, 'places');
 
-    // Portugal first (reached first), holding both its cities; then France.
-    const names = [...body.querySelectorAll('.jp-country-name')].map((n) => n.textContent);
+    // Portugal first (reached first), then France — a line of countries, not cards.
+    const names = [...body.querySelectorAll('.jp-track .jp-stop-name')].map((n) => n.textContent);
     expect(names).toEqual(['Portugal', 'France']);
-    const cities = [...body.querySelectorAll('.jp-city')].map((c) => c.textContent!.trim().replace(/\d+$/, ''));
-    expect(cities).toEqual(['Lisbon', 'Porto', 'Paris']);
+    expect(body.querySelector('.jp-country')).toBeFalsy();
 
-    // the latest place is showing; picking another re-deals the hand
+    // the latest country is showing; picking another re-deals the hand
     expect(body.querySelector('[data-open-entry="e3"]')).toBeTruthy();
     expect(body.querySelector('[data-open-entry="e1"]')).toBeFalsy();
-    (body.querySelector('[data-place-pick="lisbon"]') as HTMLElement).click();
+    (body.querySelector('[data-place-pick="c:PT"]') as HTMLElement).click();
     expect(body.querySelector('[data-open-entry="e1"]')).toBeTruthy();
+    expect(body.querySelector('[data-open-entry="e2"]')).toBeTruthy();
+    expect(body.querySelector('[data-open-entry="e3"]')).toBeFalsy();
+
+    // its places are chips; picking one narrows to that place
+    const chips = [...body.querySelectorAll('.jp-city')].map((c) => c.textContent!.trim().replace(/\d+$/, ''));
+    expect(chips).toEqual(['All', 'Lisbon', 'Porto']);
+    (body.querySelector('[data-place-pick="lisbon"]') as HTMLElement).click();
+    expect(body.querySelector('[data-open-entry="e2"]')).toBeFalsy();
     expect(body.querySelector('.jp-city.is-selected')!.textContent).toContain('Lisbon');
     expect(body.querySelector('[data-places-map]')).toBeTruthy();
   });

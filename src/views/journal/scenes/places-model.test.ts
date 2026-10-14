@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildStops, byCountry, countryName, flagOf, latestStop, mapPins, NO_PLACE, placeKey } from './places-model.ts';
+import { buildStops, byCountry, countryKey, countryName, flagOf, latestStop, mapPins, NO_PLACE, placeKey, resolveChosen, routeNodes, type LegLike } from './places-model.ts';
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 
 let n = 0;
@@ -63,5 +63,46 @@ describe('places model', () => {
   it('names a country from its code, and leaves an unknown code alone', () => {
     expect(countryName('PT')).toBe('Portugal');
     expect(countryName('ZZ')).toBe('ZZ');
+  });
+
+  const leg = (city: string, country: string, dateFrom: string, dateTo: string): LegLike => ({ city, country, flag: '', dateFrom, dateTo });
+
+  it('files a small place under the country of the leg it was written in, not under elsewhere', () => {
+    const legs = [leg('Rome', 'Italy', '2026-08-01', '2026-08-10'), leg('Lisbon', 'Portugal', '2026-06-01', '2026-06-10')];
+    const stops = buildStops([
+      e('Lisbon', '2026-06-02'),
+      e('Vernazza', '2026-08-04'),            // a village the city table does not know: by the calendar
+      e('Cinque Terre, Italy', '2026-08-05'),  // a country named in the label
+      e('Zzyzx Springs', '2026-12-25'),        // nowhere near any leg
+    ], legs);
+    expect(stops.find((s) => s.label === 'Vernazza')!.iso).toBe('IT');
+    expect(stops.find((s) => s.label === 'Cinque Terre, Italy')!.iso).toBe('IT');
+    const groups = byCountry(stops);
+    expect(groups.map((g) => g.iso)).toEqual(['PT', 'IT', '']);
+    expect(groups[1].stops.map((s) => s.label)).toEqual(['Vernazza', 'Cinque Terre, Italy']);
+    expect(groups[2].stops.map((s) => s.label)).toEqual(['Zzyzx Springs']);
+  });
+
+  it('picks a whole country or one place inside it, falling back to the latest country', () => {
+    const stops = buildStops([e('Lisbon', '2026-06-02'), e('Porto', '2026-06-20'), e('Paris', '2026-07-01')]);
+    const groups = byCountry(stops);
+    expect(resolveChosen(groups, stops, null).group.iso).toBe('FR');
+    const pt = resolveChosen(groups, stops, countryKey('PT'));
+    expect(pt.stop).toBeNull();
+    expect(pt.entries).toHaveLength(2);
+    const porto = resolveChosen(groups, stops, 'porto');
+    expect(porto.group.iso).toBe('PT');
+    expect(porto.stop!.label).toBe('Porto');
+    expect(resolveChosen(groups, stops, 'c:XX').group.iso).toBe('FR');
+  });
+
+  it('marks the legs you have arrived at as reached, in date order', () => {
+    const nodes = routeNodes([
+      leg('Paris', 'France', '2026-07-01', '2026-07-05'),
+      leg('Lisbon', 'Portugal', '2026-06-01', '2026-06-10'),
+      leg('Rome', 'Italy', '2026-08-01', '2026-08-10'),
+    ], '2026-07-03');
+    expect(nodes.map((n) => n.iso)).toEqual(['PT', 'FR', 'IT']);
+    expect(nodes.map((n) => n.reached)).toEqual([true, true, false]);
   });
 });

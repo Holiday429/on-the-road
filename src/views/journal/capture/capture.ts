@@ -94,7 +94,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     const visibleEntries = filteredEntries(allEntries);
     const allTags = collectTags(allEntries);
     const destinations = [...new Set(allEntries.map((entry) => entry.destination.trim()).filter(Boolean))];
-    const stops = buildStops(visibleEntries);
+    const stops = buildStops(visibleEntries, deps.getLegs());
     const tagGroups = buildTagGroups(visibleEntries);
     const calendarCells = buildCalendarCells(state.calendarMonth, filteredEntries(allEntries, false));
 
