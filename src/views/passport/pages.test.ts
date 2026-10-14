@@ -13,6 +13,7 @@ const pages: BookPage[] = bookPages(stampPages(data.stamps, placements), 0);
 const ctx: PageCtx = {
   data, nickname: 'Holi<day>', nationality: 'CN', occupation: 'Pil<ot>', signature: 'M0 0L10 10', photoUrl: '', uid: 'u1', issued: '2026-06-25', fresh: new Set(['country:DK:t1']),
   locale: 'en', visas: [], visaNotes: new Map(), schengen: null, pageNo: (p) => pages.indexOf(p) + 1,
+  cover: { color: '#34465e', material: 'cloth', foil: 'gold', emblem: 'globe', title: '' }, pressed: 2,
 };
 
 describe('pageHtml', () => {

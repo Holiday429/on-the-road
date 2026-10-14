@@ -11,7 +11,7 @@
 import type { PassportStamp } from './passport.ts';
 import type { FootprintLeg } from './footprint.ts';
 import { legIso } from './footprint.ts';
-import { buildCountryExtras, type ExtrasData, type SpendLine } from '../views/atlas/country-extras.ts';
+import { buildCountryExtras, type EntryLine, type ExtrasData, type SpendLine } from '../views/atlas/country-extras.ts';
 import type { PlottedLeg } from '../views/map/map-stats.ts';
 
 export interface CountryMemory {
@@ -22,6 +22,8 @@ export interface CountryMemory {
   total: { nights: number; trips: number; cities: number };
   /** Entries this country's days produced (all trips) and up to three of their newest photos. */
   journalCount: number;
+  /** The newest few of those entries as lines. */
+  entries: EntryLine[];
   covers: string[];
   /** Spend on this trip in this country, in the trip's own currency (never mixed across currencies). */
   spend: SpendLine[];
@@ -55,6 +57,7 @@ export function countryMemory(
     },
     total: { nights: same.reduce((n, s) => n + s.nights, 0), trips: same.length, cities: cities.size },
     journalCount: extras.journalCount,
+    entries: extras.entries,
     covers: extras.covers,
     spend: extras.spend.filter((l) => l.tripId === (stamp.tripId === '_' ? '' : stamp.tripId)),
   };

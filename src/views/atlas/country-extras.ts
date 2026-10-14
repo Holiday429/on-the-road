@@ -15,7 +15,7 @@
 import { isoForCountry } from '../../data/geo-index.ts';
 import type { PlottedLeg } from '../map/map-stats.ts';
 
-export interface JournalRow { destination?: string; happenedOn: string; tripId?: string | null; images?: string[]; coverImage?: string }
+export interface JournalRow { destination?: string; happenedOn: string; tripId?: string | null; images?: string[]; coverImage?: string; title?: string; body?: string }
 export interface ExpenseRow { country?: string; baseAmount?: number; baseCurrency?: string; tripId?: string | null }
 export interface NomadRow { country?: string }
 export interface IntelRow {
@@ -32,8 +32,13 @@ export interface ExtrasData {
 
 export interface SpendLine { tripId: string; currency: string; total: number; count: number }
 
+/** One journal entry as a line: its title (or the start of its text), the day and a short excerpt. */
+export interface EntryLine { title: string; date: string; excerpt: string }
+
 export interface CountryExtras {
   journalCount: number;
+  /** The newest few entries, for a peek without opening the journal. */
+  entries: EntryLine[];
   /** Up to three of the newest photos from this country's entries. */
   covers: string[];
   spend: SpendLine[];
@@ -44,6 +49,15 @@ export interface CountryExtras {
 }
 
 const MAX_COVERS = 3;
+const MAX_ENTRIES = 3;
+
+const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+
+function entryLine(e: JournalRow): EntryLine {
+  const body = (e.body ?? '').replace(/\s+/g, ' ').trim();
+  const title = (e.title ?? '').trim();
+  return { title: title || clip(body, 36), date: e.happenedOn, excerpt: title ? clip(body, 110) : clip(body.slice(36), 110) };
+}
 
 /** Which country a journal entry belongs to ('' = can't tell). */
 export function journalIso(e: JournalRow, legs: PlottedLeg[]): string {
@@ -89,6 +103,7 @@ export function buildCountryExtras(iso: string, legs: PlottedLeg[], data: Extras
   const count = (a?: unknown[]) => a?.length ?? 0;
   return {
     journalCount: entries.length,
+    entries: entries.slice(0, MAX_ENTRIES).map(entryLine),
     covers,
     spend,
     spendTotal,

@@ -48,3 +48,15 @@ export function maskNumber(n: string): string {
   const s = n.replace(/\s+/g, '');
   return s.length <= 4 ? '•'.repeat(s.length) : `${'•'.repeat(Math.min(8, s.length - 4))} ${s.slice(-4)}`;
 }
+
+/** The title the traveller has earned, 1–5, from how many countries they have stamps for. */
+export function travelLevel(countries: number): number {
+  return countries >= 25 ? 5 : countries >= 12 ? 4 : countries >= 6 ? 3 : countries >= 2 ? 2 : 1;
+}
+
+/** Bars of the barcode strip on the back cover — fixed by the account, so it never changes. [width in 1/4 units, opacity %]. */
+export function barcodeBars(uid: string, n = 34): Array<[number, number]> {
+  let h = hashStr(`otr-barcode:${uid}`) || 1;
+  const next = () => { h = (Math.imul(h, 1103515245) + 12345) >>> 0; return h >>> 8; };
+  return Array.from({ length: n }, () => [1 + (next() % 4), 45 + (next() % 5) * 11] as [number, number]);
+}

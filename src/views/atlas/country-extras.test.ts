@@ -75,6 +75,6 @@ describe('buildCountryExtras', () => {
     expect(dk.guideCount).toBe(5);
   });
   it('is all zeros for a country with nothing recorded', () => {
-    expect(buildCountryExtras('JP', legs, empty)).toEqual({ journalCount: 0, covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
+    expect(buildCountryExtras('JP', legs, empty)).toEqual({ journalCount: 0, entries: [], covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
   });
 });

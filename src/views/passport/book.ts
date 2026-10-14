@@ -54,7 +54,9 @@ export interface StampPage {
 /** Visas a page holds. */
 export const VISAS_PER_PAGE = 2;
 
-export type BookPage = { kind: 'cover' } | { kind: 'inside' } | { kind: 'bio' } | { kind: 'visas'; index: number } | StampPage | { kind: 'back' };
+export type BookPage =
+  | { kind: 'cover' } | { kind: 'inside' } | { kind: 'bio' } | { kind: 'visas'; index: number } | StampPage
+  | { kind: 'back' } | { kind: 'notes' } | { kind: 'backcover' };
 
 /** Spots the unpressed stamps settle into (x, y in % of the page, below the page header). Taken in this order, so a half-empty page is spread down the sheet instead of crowding the top. */
 const SPOTS: ReadonlyArray<readonly [number, number]> = [
@@ -133,14 +135,20 @@ export function autoPlacement(stamp: PassportStamp, pages: StampPage[], now = Da
   };
 }
 
-/** The pages of the whole book after the cover, in reading order. */
-export function bookPages(stamps: StampPage[], visaCount = 0): BookPage[] {
+/**
+ * The pages of the whole book after the cover, in reading order, ending on the back cover. On a spread the
+ * back cover must be the back of a sheet (an even position), so a ruled notes page is added when it would not be.
+ */
+export function bookPages(stamps: StampPage[], visaCount = 0, single = false): BookPage[] {
   const visaPages = Math.max(1, Math.ceil(visaCount / VISAS_PER_PAGE));
-  return [
+  const pages: BookPage[] = [
     { kind: 'inside' }, { kind: 'bio' },
     ...Array.from({ length: visaPages }, (_, index): BookPage => ({ kind: 'visas', index })),
     ...stamps, { kind: 'back' },
   ];
+  if (!single && pages.length % 2 === 1) pages.push({ kind: 'notes' });
+  pages.push({ kind: 'backcover' });
+  return pages;
 }
 
 export interface Leaf { front: BookPage; back: BookPage | null }
