@@ -29,9 +29,10 @@ export interface FeedBlock {
   rows: number;
 }
 
-export const GRID_COLS = 6;
-/** A cover story is due after this many blocks without one. */
-export const HERO_EVERY = 8;
+/** A twelve-column page: the smallest block is 3 wide, so four fit across. */
+export const GRID_COLS = 12;
+/** A cover story is due after this many blocks without one — about one per screenful. */
+export const HERO_EVERY = 11;
 /** Text longer than this reads as a pull-quote rather than a ticket. */
 export const QUOTE_MIN_CHARS = 140;
 const PORTRAIT_BELOW = 0.85;
@@ -40,17 +41,24 @@ const LANDSCAPE_ABOVE = 1.25;
 interface Shape { kind: FeedKind; cols: number; rows: number; /** How far this shape is from what the entry naturally wants. */ cost: number }
 const sh = (kind: FeedKind, cols: number, rows: number, cost = 0): Shape => ({ kind, cols, rows, cost });
 
-/** What each entry may become, best first. The layout picks the one that fills the page. */
+/**
+ * What each entry may become, best first.
+ *
+ * Widths are twelfths of the page: an ordinary photo is a quarter of it, so four sit across a
+ * wide screen and a dozen entries are in view at once. Heights are in the same units, and every
+ * block in a band is stretched to the band's height, so a shape's rows are only a preference
+ * for how tall the band should be.
+ */
 function shapesFor(e: StoredJournalEntry, hasPhoto: boolean, hero: boolean): Shape[] {
   if (hasPhoto) {
-    if (hero) return [sh('hero', 4, 3), sh('wide', 4, 2, 3), sh('wide', 3, 2, 5)];
+    if (hero) return [sh('hero', 6, 4), sh('hero', 8, 4, 1), sh('hero', 5, 4, 2), sh('wide', 4, 3, 5)];
     const o = orientation(e.imageRatio);
-    if (o === 'portrait') return [sh('tall', 2, 3), sh('square', 2, 2, 3), sh('wide', 3, 2, 8)];
-    if (o === 'landscape') return [sh('wide', 3, 2), sh('wide', 4, 2, 1), sh('square', 2, 2, 4), sh('tall', 2, 3, 9)];
-    return [sh('square', 2, 2), sh('wide', 3, 2, 3), sh('tall', 2, 3, 4), sh('wide', 4, 2, 5)];
+    if (o === 'portrait') return [sh('tall', 3, 4), sh('tall', 4, 4, 1), sh('square', 3, 3, 3), sh('tall', 5, 4, 4)];
+    if (o === 'landscape') return [sh('wide', 4, 3), sh('wide', 5, 3, 1), sh('wide', 6, 3, 2), sh('wide', 7, 3, 4), sh('square', 3, 3, 7)];
+    return [sh('square', 3, 3), sh('square', 4, 3, 1), sh('square', 5, 3, 3), sh('wide', 6, 3, 4)];
   }
-  if (e.body.trim().length >= QUOTE_MIN_CHARS) return [sh('quote', 3, 2), sh('quote', 4, 2, 2), sh('quote', 2, 2, 3), sh('note', 3, 1, 8)];
-  return [sh('note', 2, 1), sh('note', 3, 1, 1), sh('note', 4, 1, 3), sh('square', 2, 2, 6)];
+  if (e.body.trim().length >= QUOTE_MIN_CHARS) return [sh('quote', 4, 3), sh('quote', 5, 3, 1), sh('quote', 3, 3, 2), sh('quote', 6, 3, 3)];
+  return [sh('note', 3, 2), sh('note', 4, 2, 1), sh('note', 5, 2, 2), sh('note', 6, 2, 3)];
 }
 
 export function hashId(id: string): number {
@@ -71,112 +79,101 @@ export function orientation(ratio: number | undefined): 'portrait' | 'landscape'
   return 'square';
 }
 
-type Cell = boolean[][];
-const free = (g: Cell, r: number, c: number) => !g[r]?.[c];
-function canPlace(g: Cell, r: number, c: number, cols: number, rows: number): boolean {
-  if (c + cols > GRID_COLS) return false;
-  for (let y = r; y < r + rows; y++) for (let x = c; x < c + cols; x++) if (!free(g, y, x)) return false;
-  return true;
-}
-function stamp(g: Cell, r: number, c: number, cols: number, rows: number): void {
-  for (let y = r; y < r + rows; y++) { g[y] ??= Array<boolean>(GRID_COLS).fill(false); for (let x = c; x < c + cols; x++) g[y][x] = true; }
-}
+/* ── Bands ────────────────────────────────────────────────────────────────
+   The page is laid out a row at a time. Each band takes entries in order until
+   their widths add up to exactly twelve, and every block in it is given the
+   band's height. Because a band is only ever emitted when it is full, the grid
+   cannot contain a hole; the one short band is the last, where the feed ends. */
 
-/** The first empty cell reading left to right, top to bottom, and how wide the empty run there is. */
-function firstGap(g: Cell): { r: number; c: number; w: number } {
-  for (let r = 0; ; r++) {
-    for (let c = 0; c < GRID_COLS; c++) {
-      if (!free(g, r, c)) continue;
-      let w = 0;
-      while (c + w < GRID_COLS && free(g, r, c + w)) w++;
-      return { r, c, w };
+const MIN_COLS = 3;
+
+/** Choose widths for `n` entries so they total GRID_COLS, preferring each entry's best shape. */
+function fitBand(choices: Shape[][]): Shape[] | null {
+  const n = choices.length;
+  let best: Shape[] | null = null;
+  let bestCost = Infinity;
+
+  const walk = (i: number, used: number, acc: Shape[], cost: number) => {
+    if (cost >= bestCost) return;                       // already worse than a band we have
+    if (i === n) {
+      if (used === GRID_COLS) { best = [...acc]; bestCost = cost; }
+      return;
     }
-  }
+    const remaining = n - i - 1;
+    for (const [rank, s] of choices[i].entries()) {
+      const after = used + s.cols;
+      // leave at least MIN_COLS for each entry still to come, and never overflow
+      if (after + remaining * MIN_COLS > GRID_COLS) continue;
+      acc.push(s);
+      walk(i + 1, after, acc, cost + s.cost + rank * 0.5);
+      acc.pop();
+    }
+  };
+  walk(0, 0, [], 0);
+  return best;
 }
 
 export function planFeed(entries: StoredJournalEntry[]): FeedBlock[] {
   const out: FeedBlock[] = [];
-  const grid: Cell = [];
   let sinceHero = HERO_EVERY;   // the very first photo entry can lead
 
-  for (const entry of entries) {
-    const hasPhoto = entryImages(entry).length > 0;
-    const shape = orientation(entry.imageRatio);
-    const heroDue = hasPhoto && sinceHero >= HERO_EVERY && (shape === 'landscape' || entry.favorite || out.length === 0);
-    const shapes = shapesFor(entry, hasPhoto, heroDue);
+  /** `mayLead` is false for an entry sitting beside a cover, so a band never holds two of them. */
+  const shapesOf = (e: StoredJournalEntry, mayLead: boolean) => {
+    const hasPhoto = entryImages(e).length > 0;
+    const o = orientation(e.imageRatio);
+    const hero = mayLead && hasPhoto && sinceHero >= HERO_EVERY
+      && (o === 'landscape' || e.favorite || out.length === 0);
+    return { hasPhoto, hero, shapes: shapesFor(e, hasPhoto, hero) };
+  };
 
-    // Fill the first empty slot as exactly as the entry's shapes allow — never leave a one-column sliver.
-    const gap = firstGap(grid);
-    let best: Shape | null = null;
-    let bestScore = Infinity;
-    for (const [i, s] of shapes.entries()) {
-      if (s.cols > gap.w || !canPlace(grid, gap.r, gap.c, s.cols, s.rows)) continue;
-      const left = gap.w - s.cols;
-      const score = s.cost + i * 0.5 + (left === 0 ? 0 : left === 1 ? 100 : left * 1.5);
-      if (score < bestScore) { bestScore = score; best = s; }
-    }
-    // nothing fits the slot (a narrow gap): take the smallest shape and let the page close it later
-    const chosen = best ?? [...shapes].sort((a, b) => a.cols - b.cols)[0];
-    let r = gap.r, c = gap.c;
-    if (!best) {
-      // find the first place the smallest shape does fit
-      outer: for (r = 0; ; r++) for (c = 0; c + chosen.cols <= GRID_COLS; c++) if (canPlace(grid, r, c, chosen.cols, chosen.rows)) break outer;
-    }
-    stamp(grid, r, c, chosen.cols, chosen.rows);
-    sinceHero = chosen.kind === 'hero' ? 0 : sinceHero + 1;
-
-    const kind = chosen.kind;
-    const variant: FeedVariant =
-      kind === 'hero' ? 'cover'
-      : kind === 'wide' ? 'postcard'
-      : kind === 'quote' ? 'quote'
-      : kind === 'note' ? 'ticket'
-      : entry.template === 'place' ? 'postcard' : 'polaroid';
-    out.push({ entry, kind, variant, tilt: kind === 'hero' ? 0 : tiltFor(entry.id), hasPhoto, cols: chosen.cols, rows: chosen.rows });
-  }
-  return closeGaps(out, grid);
-}
-
-const MAX_COLS = GRID_COLS;
-
-/** Last pass: widen a block into a leftover run (or deepen one into a leftover pocket) so the page has no holes. */
-function closeGaps(blocks: FeedBlock[], grid: Cell): FeedBlock[] {
-  // positions are re-derived the way a dense grid places them
-  const g: Cell = [];
-  const placed: { block: FeedBlock; r: number; c: number }[] = [];
-  for (const b of blocks) {
-    let done = false;
-    for (let r = 0; !done; r++) for (let c = 0; c + b.cols <= GRID_COLS; c++) {
-      if (canPlace(g, r, c, b.cols, b.rows)) { stamp(g, r, c, b.cols, b.rows); placed.push({ block: b, r, c }); done = true; break; }
-    }
-  }
-  void grid;
-  const rowsUsed = g.length;
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (let r = 0; r < rowsUsed; r++) {
-      let c = 0;
-      while (c < GRID_COLS) {
-        if (!free(g, r, c)) { c++; continue; }
-        let end = c;
-        while (end < GRID_COLS && free(g, r, end)) end++;
-        const run = end - c;
-        const left = placed.find((p) => p.c + p.block.cols === c && p.r <= r && r < p.r + p.block.rows);
-        const right = placed.find((p) => p.c === end && p.r <= r && r < p.r + p.block.rows);
-        const above = placed.find((p) => p.c === c && p.block.cols === run && p.r + p.block.rows === r);
-        if (left && left.block.cols + run <= MAX_COLS && canPlace(g, left.r, c, run, left.block.rows)) {
-          stamp(g, left.r, c, run, left.block.rows); left.block.cols += run; grew = true;
-        } else if (right && right.block.cols + run <= MAX_COLS && canPlace(g, right.r, c, run, right.block.rows)) {
-          stamp(g, right.r, c, run, right.block.rows); right.block.cols += run; right.c = c; grew = true;
-        } else if (above && above.block.rows < 4) {
-          let h = 0;
-          while (r + h < rowsUsed && canPlace(g, r + h, c, run, 1)) h++;
-          if (h > 0) { stamp(g, r, c, run, h); above.block.rows += h; grew = true; }
-        }
-        c = end;
+  let i = 0;
+  while (i < entries.length) {
+    const left = entries.length - i;
+    // Only the entry that opens a band may be the cover story; the ones beside it never are.
+    const lead = shapesOf(entries[i], true);
+    const companions = (from: number, to: number) => entries.slice(from, to).map((e) => shapesOf(e, false).shapes);
+    let band: { shapes: Shape[]; count: number } | null = null;
+    if (lead.hero && left >= 2) {
+      for (const count of [3, 2]) {
+        if (count > left) continue;
+        const fit = fitBand([lead.shapes.filter((s) => s.kind === 'hero'), ...companions(i + 1, i + count)]);
+        if (fit) { band = { shapes: fit, count }; break; }
       }
     }
+    // Otherwise three across by preference, then two or four — wider blocks first, so the page
+    // keeps a mixed rhythm instead of settling into one column width.
+    if (!band) {
+      for (const count of [3, 2, 4]) {
+        if (count > left) continue;
+        const fit = fitBand(companions(i, i + count));
+        if (fit) { band = { shapes: fit, count }; break; }
+      }
+    }
+
+    const count = band ? band.count : left;
+    const slice = entries.slice(i, i + count);
+    // The last entries may not divide into a full band; they keep their natural widths.
+    const shapes = band ? band.shapes : slice.map((e) => shapesOf(e, false).shapes[0]);
+    // One height for the whole band, taken from the tallest block that wanted one.
+    const rows = Math.max(...shapes.map((s) => s.rows));
+
+    slice.forEach((entry, k) => {
+      const s = shapes[k];
+      const hasPhoto = entryImages(entry).length > 0;
+      const variant: FeedVariant =
+        s.kind === 'hero' ? 'cover'
+        : s.kind === 'wide' ? 'postcard'
+        : s.kind === 'quote' ? 'quote'
+        : s.kind === 'note' ? 'ticket'
+        : entry.template === 'place' ? 'postcard' : 'polaroid';
+      out.push({
+        entry, kind: s.kind, variant, hasPhoto,
+        tilt: s.kind === 'hero' ? 0 : tiltFor(entry.id),
+        cols: s.cols, rows,
+      });
+      sinceHero = s.kind === 'hero' ? 0 : sinceHero + 1;
+    });
+    i += count;
   }
-  return blocks;
+  return out;
 }

@@ -32,7 +32,17 @@ vi.mock('../../data/stores/journal-album-store.ts', () => ({
   },
 }));
 vi.mock('../../data/stores/city-store.ts', () => ({ cityStore: { peek: () => [] } }));
-vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '', cityLocationsFor: () => [] }));
+// Enough of the city table for the Places view to put these cities in a country.
+const CITIES: Record<string, { key: string; name: string; lat: number; lng: number }> = {
+  lisbon: { key: 'lisbon', name: 'Lisbon', lat: 38.72, lng: -9.14 },
+  porto:  { key: 'porto',  name: 'Porto',  lat: 41.15, lng: -8.61 },
+  paris:  { key: 'paris',  name: 'Paris',  lat: 48.86, lng: 2.35 },
+};
+vi.mock('../map/geo.ts', () => ({
+  coordsFor: () => null,
+  primaryCity: (s: string) => s.trim(),
+  cityLocationsFor: (s: string) => { const hit = CITIES[s.trim().toLowerCase()]; return hit ? [hit] : []; },
+}));
 vi.mock('./card/card-preview.ts', () => ({ openCardPreview: vi.fn() }));
 
 import { createCaptureController } from './capture/capture.ts';
@@ -343,21 +353,27 @@ describe('open album is a book', () => {
   });
 });
 
-describe('places is one line of stops', () => {
-  it('strings the places in order and picks one to show its entries', () => {
+describe('places groups cities under their countries', () => {
+    it('lists the countries in order, with their cities, and picks one to show its entries', () => {
     const { body } = mount([
       mkEntry('e1', { destination: 'Lisbon', happenedOn: '2026-06-01' }),
       mkEntry('e2', { destination: 'Porto', happenedOn: '2026-06-05' }),
+      mkEntry('e3', { destination: 'Paris', happenedOn: '2026-06-09' }),
     ], []);
     gotoView(body, 'places');
-    const stops = [...body.querySelectorAll<HTMLElement>('[data-place-pick]')];
-    expect(stops.map((s) => s.querySelector('.jp-stop-name')!.textContent)).toEqual(['Lisbon', 'Porto']);
-    // the latest place is showing; picking the other re-deals the hand
-    expect(body.querySelector('[data-open-entry="e2"]')).toBeTruthy();
+
+    // Portugal first (reached first), holding both its cities; then France.
+    const names = [...body.querySelectorAll('.jp-country-name')].map((n) => n.textContent);
+    expect(names).toEqual(['Portugal', 'France']);
+    const cities = [...body.querySelectorAll('.jp-city')].map((c) => c.textContent!.trim().replace(/\d+$/, ''));
+    expect(cities).toEqual(['Lisbon', 'Porto', 'Paris']);
+
+    // the latest place is showing; picking another re-deals the hand
+    expect(body.querySelector('[data-open-entry="e3"]')).toBeTruthy();
     expect(body.querySelector('[data-open-entry="e1"]')).toBeFalsy();
-    stops[0].click();
+    (body.querySelector('[data-place-pick="lisbon"]') as HTMLElement).click();
     expect(body.querySelector('[data-open-entry="e1"]')).toBeTruthy();
-    expect(body.querySelector('.jp-stop.is-selected .jp-stop-name')!.textContent).toBe('Lisbon');
+    expect(body.querySelector('.jp-city.is-selected')!.textContent).toContain('Lisbon');
     expect(body.querySelector('[data-places-map]')).toBeTruthy();
   });
 

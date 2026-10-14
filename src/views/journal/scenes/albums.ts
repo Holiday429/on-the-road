@@ -3,35 +3,21 @@
    --------------------------------------------------------------------------
    Each album is a small book: a zine when it has a photo for its cover, a
    notebook with an elastic band when it doesn't. Tap one and its cover swings
-   open on a two-page spread — a title page, then one entry to a page, each with
-   its photo held by corners and a hand-written caption — and ‹ › turn the
+   open on a magazine — the book is where the entries are read, not previewed,
+   so a short piece gets a whole spread with its photo run large while a long one
+   is broken over as many spreads as it needs (see album-pages.ts). ‹ › turn the
    pages. All paging state lives in the caller (`spread`, `turn`), so a re-render
    never loses your place.
    ========================================================================== */
 
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
-import { escHtml, entryCover, excerpt, moodEmoji, prettyDate, titleFor } from '../shared/utils.ts';
+import { escHtml, entryCover, moodEmoji, prettyDate, titleFor } from '../shared/utils.ts';
 import { hashId } from './feed-plan.ts';
 import { stampDate } from './feed.ts';
+import { clampSpread, paginate, type Leaf } from './album-pages.ts';
 
-export type BookPage = { kind: 'title' } | { kind: 'entry'; entry: StoredJournalEntry } | null;
-
-/** Pages in pairs: the title page faces the first entry, then entries two to a spread. */
-export function albumSpreads(entries: StoredJournalEntry[]): [BookPage, BookPage][] {
-  const pages: BookPage[] = [{ kind: 'title' }, ...entries.map((entry): BookPage => ({ kind: 'entry', entry }))];
-  const out: [BookPage, BookPage][] = [];
-  for (let i = 0; i < pages.length; i += 2) out.push([pages[i], pages[i + 1] ?? null]);
-  return out;
-}
-
-export function spreadCount(entryCount: number): number {
-  return Math.ceil((entryCount + 1) / 2);
-}
-
-export function clampSpread(spread: number, entryCount: number): number {
-  return Math.max(0, Math.min(spreadCount(entryCount) - 1, Math.floor(spread) || 0));
-}
+export { clampSpread } from './album-pages.ts';
 
 const TONES = 6;
 export function bookTone(id: string): number { return hashId(id) % TONES; }
@@ -69,33 +55,47 @@ export function renderShelf(albums: StoredJournalAlbum[], entriesOf: (a: StoredJ
 
 /* ── The open book ───────────────────────────────────────────────────────── */
 
-function entryPage(e: StoredJournalEntry, albumId: string, side: 'l' | 'r'): string {
-  const cover = entryCover(e);
+/** The photos of a leaf, laid out inside the page rather than cropped to a thumbnail. */
+function plate(photos: string[], title: string, big: boolean): string {
+  if (!photos.length) return '';
+  const shown = photos.slice(0, big ? 1 : 4);
+  return `
+    <div class="jb-plate${big ? ' is-big' : ''} jb-plate--${Math.min(shown.length, 4)}">
+      ${shown.map((src) => `
+        <figure class="jb-shot">
+          <img src="${escHtml(src)}" alt="${escHtml(title)}" loading="lazy" draggable="false">
+        </figure>`).join('')}
+      ${photos.length > shown.length ? `<span class="jb-more">+${photos.length - shown.length}</span>` : ''}
+    </div>`;
+}
+
+function entryLeaf(leaf: Leaf, albumId: string, side: 'l' | 'r'): string {
+  const e = leaf.entry!;
   const where = e.destination.trim();
   const mood = moodEmoji(e.mood);
+  const big = leaf.layout === 'plate';
   return `
-    <section class="jb-page jb-page--${side === 'l' ? 'left' : 'right'}" data-open-entry="${escHtml(e.id)}" role="button" tabindex="0">
+    <section class="jb-page jb-page--${side === 'l' ? 'left' : 'right'} jb-page--${leaf.layout}" data-open-entry="${escHtml(e.id)}" role="button" tabindex="0">
       <button class="jb-page-x journal-icon-btn" data-album-remove-entry="${escHtml(albumId)}:${escHtml(e.id)}" type="button" title="Take out of this album" aria-label="Take out of this album">✕</button>
-      ${cover ? `
-        <div class="jb-photo">
-          <span class="jb-corner jb-corner--tl"></span><span class="jb-corner jb-corner--tr"></span><span class="jb-corner jb-corner--bl"></span><span class="jb-corner jb-corner--br"></span>
-          <img src="${escHtml(cover)}" alt="${escHtml(titleFor(e))}" loading="lazy" draggable="false">
-        </div>` : ''}
-      <div class="jb-notes${cover ? '' : ' is-lined'}">
-        <span class="jb-date">${escHtml(stampDate(e.happenedOn))}${where ? ` · ${escHtml(where)}` : ''}${mood ? ` ${mood}` : ''}</span>
-        <h3 class="jb-hand">${escHtml(titleFor(e))}</h3>
-        ${e.body.trim() ? `<p class="jb-text">${escHtml(excerpt(e.body, cover ? 150 : 420))}</p>` : ''}
-      </div>
+      ${leaf.continued
+        ? '<span class="jb-runon">continued</span>'
+        : `<header class="jb-head">
+            <span class="jb-date">${escHtml(stampDate(e.happenedOn))}${where ? ` · ${escHtml(where)}` : ''}${mood ? ` ${mood}` : ''}</span>
+            <h3 class="jb-hand">${escHtml(titleFor(e))}</h3>
+          </header>`}
+      ${plate(leaf.photos, titleFor(e), big)}
+      ${leaf.text ? `<div class="jb-copy${leaf.continues ? ' is-cut' : ''}"><p>${escHtml(leaf.text)}</p></div>` : ''}
+      ${leaf.continues ? '<span class="jb-turnover">continues ›</span>' : ''}
     </section>`;
 }
 
-function titlePage(album: StoredJournalAlbum, entries: StoredJournalEntry[]): string {
+function titleLeaf(album: StoredJournalAlbum, entries: StoredJournalEntry[]): string {
   const dates = entries.map((e) => e.happenedOn).sort();
   const span = dates.length ? (dates[0] === dates[dates.length - 1] ? prettyDate(dates[0]) : `${prettyDate(dates[0])} → ${prettyDate(dates[dates.length - 1])}`) : '';
   return `
     <section class="jb-page jb-page--left jb-page--title">
       <span class="jb-title-emoji" aria-hidden="true">${escHtml(album.emoji)}</span>
-      <h2 class="jb-book-title">${escHtml(album.emoji)} ${escHtml(album.title)}</h2>
+      <h2 class="jb-book-title">${escHtml(album.title)}</h2>
       <p class="jb-book-meta">${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}${span ? ` · ${escHtml(span)}` : ''}</p>
       <div class="jb-book-actions">
         <button class="jb-chip" data-album-rename="${escHtml(album.id)}" type="button">Rename</button>
@@ -107,11 +107,12 @@ function titlePage(album: StoredJournalAlbum, entries: StoredJournalEntry[]): st
 export interface BookState { spread: number; /** flips each turn so the page-turn animation restarts */ turn: boolean; dir: 'next' | 'prev' | ''; opening: boolean }
 
 export function renderBook(album: StoredJournalAlbum, entries: StoredJournalEntry[], s: BookState): string {
-  const spreads = albumSpreads(entries);
-  const i = clampSpread(s.spread, entries.length);
+  const spreads = paginate(entries);
+  const i = clampSpread(s.spread, spreads.length);
   const [left, right] = spreads[i];
-  const side = (p: BookPage, which: 'l' | 'r') => !p ? `<section class="jb-page jb-page--${which === 'l' ? 'left' : 'right'} is-blank" aria-hidden="true"></section>`
-    : p.kind === 'title' ? titlePage(album, entries) : entryPage(p.entry, album.id, which);
+  const side = (leaf: Leaf | null, which: 'l' | 'r') =>
+    !leaf ? `<section class="jb-page jb-page--${which === 'l' ? 'left' : 'right'} is-blank" aria-hidden="true"></section>`
+    : leaf.layout === 'title' ? titleLeaf(album, entries) : entryLeaf(leaf, album.id, which);
   const turn = s.dir ? ` is-turn-${s.dir}-${s.turn ? 'a' : 'b'}` : '';
   return `
     <div class="jb-desk" tabindex="0" data-book-keys>
@@ -128,4 +129,9 @@ export function renderBook(album: StoredJournalAlbum, entries: StoredJournalEntr
       </div>
       ${entries.length === 0 ? '<p class="jb-empty-note">This album is empty — select photos in the Gallery to put some in.</p>' : ''}
     </div>`;
+}
+
+/** How many spreads this album runs to — the caller clamps its paging against it. */
+export function spreadCount(entries: StoredJournalEntry[]): number {
+  return paginate(entries).length;
 }

@@ -26,8 +26,10 @@ describe('feed plan', () => {
     expect(blocks[0].kind).toBe('hero');
     expect(blocks[0].variant).toBe('cover');
     expect(blocks[0].tilt).toBe(0);
-    // the portrait photo takes the two-column strip beside the cover: a tall polaroid, exactly
-    expect(blocks[1]).toMatchObject({ kind: 'tall', cols: 2, rows: 3 });
+    // the portrait photo takes the strip beside the cover
+    expect(blocks[1].kind).toBe('tall');
+    // and the band's widths fill the page exactly
+    expect(blocks.reduce((n, b) => n + b.cols, 0)).toBe(GRID_COLS);
   });
 
   it('words only: long text becomes a pull-quote, short text a ticket', () => {
@@ -47,8 +49,8 @@ describe('feed plan', () => {
     expect(blocks[0].variant).toBe('cover');
   });
 
-  it('a cover story is never followed straight away by another', () => {
-    const kinds = planFeed(Array.from({ length: 20 }, () => photo(1.6))).map((b) => b.kind);
+  it('a cover story never sits next to another, and they recur down a long feed', () => {
+    const kinds = planFeed(Array.from({ length: 40 }, () => photo(1.6))).map((b) => b.kind);
     for (let i = 1; i < kinds.length; i++) expect(kinds[i - 1] === 'hero' && kinds[i] === 'hero').toBe(false);
     expect(kinds.filter((k) => k === 'hero').length).toBeGreaterThanOrEqual(2);
   });
@@ -60,7 +62,11 @@ describe('feed plan', () => {
 });
 
 describe('feed layout fills the page', () => {
-  /** Re-place the blocks the way a dense grid does and count the empty cells inside the used area. */
+  /**
+   * Re-place the blocks the way a dense grid does, then count the empty cells that have
+   * something below them. A gap at the very foot of the page is where the feed simply ends,
+   * not a hole in it.
+   */
   function holes(list: ReturnType<typeof planFeed>): number {
     const grid: boolean[][] = [];
     for (const b of list) {
@@ -75,7 +81,14 @@ describe('feed layout fills the page', () => {
         }
       }
     }
-    return grid.reduce((n, row) => n + row.filter((v) => !v).length, 0);
+    let n = 0;
+    for (let r = 0; r < grid.length; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        if (grid[r][c]) continue;
+        for (let y = r + 1; y < grid.length; y++) if (grid[y][c]) { n++; break; }
+      }
+    }
+    return n;
   }
 
   it('widens blocks into gaps so no cell is left empty', () => {
@@ -91,7 +104,32 @@ describe('feed layout fills the page', () => {
     expect(holes(planFeed(list))).toBe(0);
   });
 
-  it('blocks never run off the page', () => {
-    for (const b of planFeed([entry({ body: 'one' }), entry({ body: 'two' }), photo(0.7)])) expect(b.cols).toBeLessThanOrEqual(GRID_COLS);
+  it('every block in a row shares its height, so rows never interlock', () => {
+    const list = Array.from({ length: 24 }, (_, i) => i % 3 === 0 ? entry({ body: 'a short note' }) : photo([1.6, 0.7, 1][i % 3]));
+    const blocks = planFeed(list);
+    let width = 0;
+    let rowHeight = -1;
+    for (const b of blocks) {
+      if (width === 0) rowHeight = b.rows;
+      expect(b.rows).toBe(rowHeight);
+      width = (width + b.cols) % GRID_COLS;
+    }
+  });
+
+  it('blocks never run off the page, and none is narrower than a quarter of it', () => {
+    const list = [entry({ body: 'one' }), entry({ body: 'two' }), photo(0.7), photo(1.6), photo(1)];
+    for (const b of planFeed(list)) {
+      expect(b.cols).toBeLessThanOrEqual(GRID_COLS);
+      expect(b.cols).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('three or four blocks share each row, so a screenful holds a dozen', () => {
+    const blocks = planFeed(Array.from({ length: 12 }, () => photo(1)));
+    // no block takes more than half the page except a cover
+    for (const b of blocks) if (b.kind !== 'hero') expect(b.cols).toBeLessThanOrEqual(6);
+    // and the page averages at least three across
+    const bandWidths = blocks.reduce((n, b) => n + b.cols, 0);
+    expect(blocks.length / (bandWidths / GRID_COLS)).toBeGreaterThanOrEqual(2.5);
   });
 });
