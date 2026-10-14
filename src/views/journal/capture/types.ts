@@ -1,7 +1,8 @@
 import type { TemplateId } from '../templates.ts';
 import type { TidySuggestions } from '../ai-classify.ts';
 
-export type CaptureView = 'feed' | 'places' | 'albums' | 'gallery' | 'map' | 'calendar';
+/** Places and Map are one view: the map, the line of places and their entries. */
+export type CaptureView = 'feed' | 'places' | 'albums' | 'gallery' | 'calendar';
 
 export interface CaptureFilter {
   destination: string;
@@ -45,6 +46,18 @@ export interface CaptureState {
   readingId: string | null;
   calendarMonth: string;
   gallerySquare: boolean;
+  /** Whether the gallery wall is drifting by itself. */
+  galleryDrift: boolean;
+  /** The place picked on the Places line / map (a stop key), or null for the latest. */
+  placeKey: string | null;
+  /** Flips on every pick so the cards are dealt again. */
+  placeFlip: boolean;
+  /** Which spread of the open album is showing, and how it was reached. */
+  albumSpread: number;
+  albumTurn: boolean;
+  albumDir: '' | 'next' | 'prev';
+  /** True just after an album is opened, so its cover swings open once. */
+  albumOpening: boolean;
   /** Gallery multi-select: null = off, otherwise the picked entry ids. */
   selection: string[] | null;
   /** Album whose contents are being viewed, or null for the album grid. */

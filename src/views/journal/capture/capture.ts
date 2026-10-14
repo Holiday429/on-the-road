@@ -1,11 +1,13 @@
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { journalStore, type StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { journalAlbumStore, type StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import { cityStore } from '../../../data/stores/city-store.ts';
 import type { GuideCard } from '../../../data/schema.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
-import { coordsFor, primaryCity } from '../../map/geo.ts';
+import { buildStops } from '../scenes/places-model.ts';
+import { syncPlacesMap, disposePlacesMap } from '../scenes/places-map.ts';
+import { syncGalleryFlow, stopGalleryFlow } from '../scenes/gallery-flow.ts';
+import { clampSpread } from '../scenes/albums.ts';
+import { currentTrip } from '../../../data/trip-context.ts';
 import {
   DEFAULT_TEMPLATE,
   normalizeTemplateId,
@@ -16,7 +18,7 @@ import {
 import { inferTemplate } from '../classify.ts';
 import { exportEntries } from '../export.ts';
 import { suggestTidy, type AlbumSuggestion } from '../ai-classify.ts';
-import { renderCapture, type CalendarCell, type MapPoint, type PlaceGroup, type TagGroup } from './render.ts';
+import { renderCapture, type CalendarCell, type TagGroup } from './render.ts';
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import { uploadJournalImage } from '../../../firebase/storage.ts';
@@ -29,7 +31,6 @@ import {
   currentMonthKey,
   monthKeyFromIso,
   parseTags,
-  prettyDate,
   shareUrl,
   shiftMonth,
   slugifyEntry,
@@ -58,6 +59,13 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     readingId: null,
     calendarMonth: currentMonthKey(),
     gallerySquare: false,
+    galleryDrift: true,
+    placeKey: null,
+    placeFlip: false,
+    albumSpread: 0,
+    albumTurn: false,
+    albumDir: '',
+    albumOpening: false,
     selection: null,
     openAlbumId: null,
     tidy: null,
@@ -86,9 +94,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     const visibleEntries = filteredEntries(allEntries);
     const allTags = collectTags(allEntries);
     const destinations = [...new Set(allEntries.map((entry) => entry.destination.trim()).filter(Boolean))];
-    const placeGroups = buildPlaceGroups(visibleEntries);
+    const stops = buildStops(visibleEntries);
     const tagGroups = buildTagGroups(visibleEntries);
-    const points = buildMapData(visibleEntries);
     const calendarCells = buildCalendarCells(state.calendarMonth, filteredEntries(allEntries, false));
 
     return renderCapture({
@@ -97,9 +104,9 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       visibleEntries,
       allTags,
       destinations,
-      placeGroups,
+      stops,
       tagGroups,
-      mapPoints: points,
+      galleryTitle: currentTrip()?.name ?? 'On the Road',
       calendarCells,
       currentMonthLabel: new Date(`${state.calendarMonth}-01T00:00:00`).toLocaleDateString('en-US', {
         month: 'long',
@@ -223,6 +230,10 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       const albumOpenBtn = target.closest<HTMLElement>('[data-open-album]');
       if (albumOpenBtn) {
         state.openAlbumId = albumOpenBtn.dataset.openAlbum ?? null;
+        state.albumSpread = 0;
+        state.albumDir = '';
+        state.albumOpening = true;
+        window.setTimeout(() => { state.albumOpening = false; }, 1400);
         deps.requestRender();
         return;
       }
@@ -230,7 +241,14 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       const albumBackBtn = target.closest<HTMLElement>('[data-album-back]');
       if (albumBackBtn) {
         state.openAlbumId = null;
+        state.albumOpening = false;
         deps.requestRender();
+        return;
+      }
+
+      const albumPageBtn = target.closest<HTMLElement>('[data-album-page]');
+      if (albumPageBtn) {
+        turnAlbumPage(albumPageBtn.dataset.albumPage === 'prev' ? -1 : 1);
         return;
       }
 
@@ -258,6 +276,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       const selectToggle = target.closest<HTMLElement>('[data-gallery-select]');
       if (selectToggle) {
         state.selection = state.selection === null ? [] : null;
+        if (state.selection === null) state.galleryDrift = false;
         deps.requestRender();
         return;
       }
@@ -281,6 +300,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       const viewBtn = target.closest<HTMLElement>('[data-journal-view]');
       if (viewBtn) {
         state.view = viewBtn.dataset.journalView as CaptureState['view'];
+        if (state.view === 'gallery') state.galleryDrift = true;   // the wall starts moving each time you walk in
         deps.requestRender();
         return;
       }
@@ -296,6 +316,12 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       if (favoritesBtn) {
         state.filter.favoritesOnly = !state.filter.favoritesOnly;
         deps.requestRender();
+        return;
+      }
+
+      const pickBtn = target.closest<HTMLElement>('[data-place-pick]');
+      if (pickBtn) {
+        pickPlace(pickBtn.dataset.placePick ?? '');
         return;
       }
 
@@ -317,6 +343,13 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       const openMapBtn = target.closest<HTMLElement>('[data-open-map-view]');
       if (openMapBtn) {
         window.location.hash = 'map';
+        return;
+      }
+
+      const driftBtn = target.closest<HTMLElement>('[data-gallery-drift]');
+      if (driftBtn) {
+        state.galleryDrift = !state.galleryDrift;
+        deps.requestRender();
         return;
       }
 
@@ -425,6 +458,17 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
     root.addEventListener('keydown', (event) => {
       const keyEvent = event as KeyboardEvent;
+      if (state.openAlbumId && state.view === 'albums' && !(keyEvent.target instanceof HTMLInputElement) && !(keyEvent.target instanceof HTMLTextAreaElement)) {
+        if (keyEvent.key === 'ArrowRight') { keyEvent.preventDefault(); turnAlbumPage(1); return; }
+        if (keyEvent.key === 'ArrowLeft') { keyEvent.preventDefault(); turnAlbumPage(-1); return; }
+      }
+      // Enter / Space on a focused card, page or tile opens it (they are buttons in spirit)
+      if ((keyEvent.key === 'Enter' || keyEvent.key === ' ') && keyEvent.target instanceof HTMLElement
+          && keyEvent.target.matches('[data-open-entry][role="button"], [data-gallery-pick][role="button"]')) {
+        keyEvent.preventDefault();
+        keyEvent.target.click();
+        return;
+      }
       if (
         keyEvent.target instanceof HTMLTextAreaElement &&
         keyEvent.target.id === 'journal-body' &&
@@ -467,74 +511,42 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     }
   }
 
-  let _leafletMap: L.Map | null = null;
-  let _leafletMapEl: HTMLElement | null = null;
-
+  /** After every render: keep the places map and the gallery's drift in step with what is on screen. */
   function afterRender(root: HTMLElement) {
-    const mapEl = root.querySelector<HTMLElement>('#journal-leaflet-map');
-    if (!mapEl) {
-      if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; _leafletMapEl = null; }
-      return;
-    }
-
-    const rawPoints = mapEl.dataset.points ?? '[]';
-
-    // Re-use existing map only if it is attached to the exact same DOM element.
-    if (_leafletMap && _leafletMapEl === mapEl) {
-      _leafletMap.invalidateSize();
-      return;
-    }
-
-    if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; _leafletMapEl = null; }
-
-    type RawPoint = { key: string; label: string; lat: number; lng: number; count: number };
-    let points: RawPoint[] = [];
-    try { points = JSON.parse(rawPoints); } catch { /* empty */ }
-
-    const map = L.map(mapEl, { zoomControl: true, attributionControl: false });
-    _leafletMap = map;
-    _leafletMapEl = mapEl;
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-    }).addTo(map);
-
-    L.control.attribution({ prefix: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>' }).addTo(map);
-
-    if (points.length === 0) {
-      map.setView([48, 6], 4);
-      return;
-    }
-
-    const markers: L.Marker[] = [];
-    for (const point of points) {
-      const icon = L.divIcon({
-        className: 'journal-lmap-pin',
-        html: `<span class="journal-lmap-pin-count">${point.count}</span><span class="journal-lmap-pin-label">${point.label}</span>`,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
-      });
-      const marker = L.marker([point.lat, point.lng], { icon })
-        .addTo(map)
-        .on('click', () => {
-          state.filter.destination = point.label;
-          state.view = 'feed';
-          deps.requestRender();
-        });
-      markers.push(marker);
-    }
-
-    const group = L.featureGroup(markers);
-    map.fitBounds(group.getBounds().pad(0.25));
-
-    // Wire sidebar list buttons to fly-to
-    root.querySelectorAll<HTMLElement>('[data-map-focus]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const key = btn.dataset.mapFocus!;
-        const pt = points.find((p) => p.key === key);
-        if (pt) map.flyTo([pt.lat, pt.lng], 11, { duration: 0.8 });
-      });
+    void syncPlacesMap(root, {
+      onPick: (key) => pickPlace(key),
     });
+    syncGalleryFlow(root, {
+      isDrifting: () => state.view === 'gallery' && state.galleryDrift && state.selection === null,
+      onStop: () => { state.galleryDrift = false; deps.requestRender(); },
+    });
+  }
+
+  /** ‹ › in the open album: one spread at a time, clamped, and the animation restarts each turn. */
+  function turnAlbumPage(delta: 1 | -1) {
+    const album = (deps.getAlbums?.() ?? []).find((a) => a.id === state.openAlbumId);
+    if (!album) return;
+    const count = album.entryIds.filter((id) => deps.getEntries().some((e) => e.id === id)).length;
+    const next = clampSpread(state.albumSpread + delta, count);
+    if (next === state.albumSpread) return;
+    state.albumSpread = next;
+    state.albumDir = delta > 0 ? 'next' : 'prev';
+    state.albumTurn = !state.albumTurn;
+    state.albumOpening = false;
+    deps.requestRender();
+  }
+
+  function pickPlace(key: string) {
+    if (state.placeKey === key) return;
+    state.placeKey = key;
+    state.placeFlip = !state.placeFlip;
+    deps.requestRender();
+  }
+
+  /** Leaving the Journal (or switching trip): release the map and the drift loop. */
+  function dispose() {
+    disposePlacesMap();
+    stopGalleryFlow();
   }
 
   return {
@@ -542,6 +554,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     bind,
     handleDataChange,
     afterRender,
+    dispose,
     currentView: () => state.view,
     openComposer: () => {
       openComposer();
@@ -1029,34 +1042,6 @@ function collectTags(entries: StoredJournalEntry[]): string[] {
   return [...new Set(entries.flatMap((entry) => entry.tags))];
 }
 
-function buildPlaceGroups(entries: StoredJournalEntry[]): PlaceGroup[] {
-  const map = new Map<string, PlaceGroup>();
-  for (const entry of entries) {
-    const label = entry.destination.trim() || 'No place yet';
-    const key = label.toLowerCase();
-    const group = map.get(key) ?? { key, label, summary: '', entries: [] };
-    group.entries.push(entry);
-    map.set(key, group);
-  }
-
-  return [...map.values()]
-    .map((group) => {
-      const sorted = sortEntries(group.entries);
-      const oldest = sorted[sorted.length - 1];
-      const newest = sorted[0];
-      return {
-        ...group,
-        entries: sorted,
-        summary: oldest && newest
-          ? oldest.happenedOn === newest.happenedOn
-            ? prettyDate(newest.happenedOn)
-            : `${prettyDate(oldest.happenedOn)} → ${prettyDate(newest.happenedOn)}`
-          : 'No dated entries yet',
-      };
-    })
-    .sort((a, b) => b.entries[0].happenedOn.localeCompare(a.entries[0].happenedOn));
-}
-
 function buildTagGroups(entries: StoredJournalEntry[]): TagGroup[] {
   const map = new Map<string, StoredJournalEntry[]>();
   for (const entry of entries) {
@@ -1071,31 +1056,6 @@ function buildTagGroups(entries: StoredJournalEntry[]): TagGroup[] {
     .map(([tag, groupEntries]) => ({ tag, entries: sortEntries(groupEntries) }))
     .sort((a, b) => b.entries.length - a.entries.length || a.tag.localeCompare(b.tag))
     .slice(0, 8);
-}
-
-function buildMapData(entries: StoredJournalEntry[]): MapPoint[] {
-  const pointMap = new Map<string, { key: string; label: string; lat: number; lng: number; entries: StoredJournalEntry[] }>();
-  for (const entry of entries) {
-    const label = entry.destination.trim();
-    if (!label) continue;
-    const coords = coordsFor(label);
-    if (!coords) continue;
-    const key = primaryCity(label).toLowerCase();
-    const point = pointMap.get(key) ?? { key, label, lat: coords.lat, lng: coords.lng, entries: [] };
-    point.entries.push(entry);
-    pointMap.set(key, point);
-  }
-
-  return [...pointMap.values()]
-    .map((point) => ({
-      key: point.key,
-      label: point.label,
-      count: point.entries.length,
-      lat: point.lat,
-      lng: point.lng,
-      entries: sortEntries(point.entries),
-    }))
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 function buildCalendarCells(monthKey: string, entries: StoredJournalEntry[]): CalendarCell[] {

@@ -34,6 +34,7 @@
 | `occupation` | String | `""` | `""` = 显示「Traveller / 旅行者」 |
 | `signature` | String | `""` | SVG path 数据，坐标在 **300 × 100** 的盒子里，只含 `M m L l Q q 数字 . - 空格 ,`。**渲染前必须校验**：长度 ≤ 4200 且只含这些字符，否则不画 |
 | `placements` | Map<stampId, Placement> | `{}` | 见 §5 |
+| `cover` | Map（可缺省） | 缺省 = 藏青布面 + 金色烫印 | 护照封面。`color` String `#rrggbb`（默认 `#34465e`）· `material` `leather`/`cloth`/`vinyl`（默认 `cloth`）· `foil` `gold`/`silver`/`white`/`blind`（默认 `gold`）· `emblem` `globe`/`compass`/`route`/`sign`（默认 `globe`，**只提供中性图案，不使用任何国徽**）· `title` String ≤ 22 字（`""` = 「PASSPORT / 护照」）。读取时对非法值逐项回退到默认。**封底与封面共用同一份**（同色、同材质、同烫印色），封底另有条码条（由账号 id 决定，固定不变）、素压的 ON THE ROAD · EST. 年份和一行「本册仅记录你去过的地方，不是旅行证件」 |
 
 ### 2.2 `passportDocs/me`（可选的真实证件信息）
 

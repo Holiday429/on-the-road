@@ -2,12 +2,16 @@ import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import type { CaptureState } from './types.ts';
+import { renderFeedGrid } from '../scenes/feed.ts';
+import { renderGallery } from '../scenes/gallery.ts';
+import { renderPlaces } from '../scenes/places.ts';
+import { renderBook, renderShelf } from '../scenes/albums.ts';
+import type { PlaceStop } from '../scenes/places-model.ts';
 import {
   MAX_JOURNAL_IMAGES,
   MOODS,
   OTHER_DESTINATION,
   coverAspect,
-  entryCover,
   entryImages,
   escHtml,
   excerpt,
@@ -19,24 +23,8 @@ import {
   tripCities,
 } from '../shared/utils.ts';
 
-export interface PlaceGroup {
-  key: string;
-  label: string;
-  summary: string;
-  entries: StoredJournalEntry[];
-}
-
 export interface TagGroup {
   tag: string;
-  entries: StoredJournalEntry[];
-}
-
-export interface MapPoint {
-  key: string;
-  label: string;
-  count: number;
-  lat: number;
-  lng: number;
   entries: StoredJournalEntry[];
 }
 
@@ -53,9 +41,10 @@ interface CaptureRenderModel {
   visibleEntries: StoredJournalEntry[];
   allTags: string[];
   destinations: string[];
-  placeGroups: PlaceGroup[];
+  stops: PlaceStop[];
+  /** The trip's name, set on the gallery's plate. */
+  galleryTitle: string;
   tagGroups: TagGroup[];
-  mapPoints: MapPoint[];
   calendarCells: CalendarCell[];
   currentMonthLabel: string;
   legs: StoredLeg[];
@@ -99,10 +88,17 @@ export function renderCapture(model: CaptureRenderModel): string {
 }
 
 function renderActiveView(model: CaptureRenderModel): string {
-  if (model.state.view === 'places') return renderPlacesView(model.placeGroups);
+  if (model.state.view === 'places') {
+    return renderPlaces(model.stops, model.state.placeKey, model.state.placeFlip,
+      renderEmpty('Places', 'No places yet', 'Add destination-aware entries and this view will line them up here.'));
+  }
   if (model.state.view === 'albums') return renderAlbumsView(model);
-  if (model.state.view === 'gallery') return renderGalleryView(model.visibleEntries, model.state, model.albums);
-  if (model.state.view === 'map') return renderMapView(model.mapPoints);
+  if (model.state.view === 'gallery') {
+    return renderGallery(model.visibleEntries, {
+      title: model.galleryTitle, square: model.state.gallerySquare, selection: model.state.selection,
+      drifting: model.state.galleryDrift, albums: model.albums,
+    }, renderEmpty('Gallery', 'No photographs yet', 'Entries with photos hang here as a wall that drifts past you.'));
+  }
   if (model.state.view === 'calendar') return renderCalendarView(model.calendarCells, model.currentMonthLabel);
   return renderFeedWithFilters(model);
 }
@@ -349,70 +345,9 @@ function renderFeedWithFilters(model: CaptureRenderModel): string {
   return filterBar + renderMagazineFeed(model.visibleEntries, model.state.editingId);
 }
 
-/**
- * Magazine feed — a Xiaohongshu-style masonry of cards instead of one full-width
- * strip per entry.
- *
- * Two things drive the look. The grid is column-based (CSS `columns`) so cards
- * of different heights pack without gaps, and each card's hero is sized from its
- * first photo's orientation — portrait shots get a tall 3:4 frame, landscape ones
- * a wide 4:3 — so neither gets cropped into the other's shape. Date headers are
- * dropped from the grid (they'd break the columns) and shown per-card instead.
- */
+/** The feed: planned editorial blocks (scenes/feed-plan.ts), not equal cards. */
 function renderMagazineFeed(entries: StoredJournalEntry[], editingId: string | null): string {
-  const today = new Date().toISOString().slice(0, 10);
-  return `<div class="journal-mag-feed">
-    ${entries.map((entry) => renderMagazineCard(entry, editingId, today)).join('')}
-  </div>`;
-}
-
-function dayLabel(iso: string, today: string): string {
-  if (iso === today) return 'Today';
-  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-  });
-}
-
-function renderMagazineCard(
-  entry: StoredJournalEntry,
-  readingId: string | null,
-  today: string,
-): string {
-  const isOpen = entry.id === readingId;
-  const photos = entryImages(entry);
-  const extra = photos.length - 1;
-  const title = titleFor(entry);
-  const hasTitle = entry.title.trim().length > 0;
-
-  // Feed cards are a preview tile, not a reading surface: cover + title +
-  // meta only. Body text and the extra-photos grid used to render here too,
-  // which made card height depend on how much someone wrote — a 3-line note
-  // sat next to a 40-word paragraph and the masonry lost its rhythm. Both now
-  // live in the reader that opens on tap (renderReaderOverlay).
-  return `
-    <article class="journal-mag-card${photos.length ? ' has-photo' : ' is-text'}${isOpen ? ' is-open' : ''}"
-             data-open-entry="${entry.id}">
-      ${photos.length ? `
-        <div class="journal-mag-cover" style="aspect-ratio:${coverAspect(entry.imageRatio)}">
-          <img src="${escHtml(photos[0])}" alt="${escHtml(title)}" class="journal-mag-cover-img" loading="lazy">
-          ${extra > 0 ? `<span class="journal-mag-count" title="${extra + 1} photos">▦ ${extra + 1}</span>` : ''}
-          ${entry.favorite ? '<span class="journal-mag-pin" title="Pinned">📌</span>' : ''}
-        </div>
-      ` : ''}
-
-      <div class="journal-mag-body">
-        ${hasTitle
-          ? `<h3 class="journal-mag-title">${escHtml(title)}</h3>`
-          : `<p class="journal-mag-text">${escHtml(excerpt(entry.body, 90))}</p>`}
-
-        <footer class="journal-mag-foot">
-          ${entry.destination ? `<span class="journal-mag-where">📍 ${escHtml(entry.destination)}</span>` : ''}
-          <span class="journal-mag-date">${escHtml(dayLabel(entry.happenedOn, today))}</span>
-        </footer>
-      </div>
-    </article>
-  `;
+  return renderFeedGrid(entries, editingId);
 }
 
 /**
@@ -514,42 +449,6 @@ function renderReaderAlbums(entry: StoredJournalEntry, albums: StoredJournalAlbu
   `;
 }
 
-function renderPlacesView(groups: PlaceGroup[]): string {
-  if (groups.length === 0) {
-    return renderEmpty('Places', 'No places yet', 'Add destination-aware entries and this view will group them here.');
-  }
-  return `
-    <div class="journal-places-grid">
-      ${groups.map((group) => {
-        const coverEntry = group.entries.find((e) => entryCover(e));
-        const hasImage = !!coverEntry && !!entryCover(coverEntry);
-        return `
-          <article class="journal-place-tile" data-place-filter="${escHtml(group.label)}">
-            <div class="journal-place-tile-cover">
-              ${hasImage
-                ? `<img src="${escHtml(entryCover(coverEntry!))}" alt="${escHtml(group.label)}" class="journal-place-tile-img">`
-                : `<div class="journal-place-tile-fallback"><span>📍</span></div>`}
-              <div class="journal-place-tile-count">${group.entries.length}</div>
-            </div>
-            <div class="journal-place-tile-info">
-              <span class="journal-place-tile-name">${escHtml(group.label)}</span>
-              <span class="journal-place-tile-meta">${group.entries.length} ${group.entries.length === 1 ? 'entry' : 'entries'}</span>
-            </div>
-          </article>
-        `;
-      }).join('')}
-      <button class="journal-place-tile journal-place-tile-add" data-journal-new type="button">
-        <div class="journal-place-tile-cover journal-place-tile-cover-add">
-          <span>+</span>
-        </div>
-        <div class="journal-place-tile-info">
-          <span class="journal-place-tile-name">记一笔</span>
-        </div>
-      </button>
-    </div>
-  `;
-}
-
 /**
  * Albums: the groupings the user actually made.
  *
@@ -561,9 +460,13 @@ function renderAlbumsView(model: CaptureRenderModel): string {
   const open = model.state.openAlbumId
     ? model.albums.find((a) => a.id === model.state.openAlbumId)
     : undefined;
-  if (open) return model.albumDrawer
-    ? renderAlbumFeed(open, model.allEntries, model.state.readingId)
-    : renderAlbumDetail(open, model.allEntries);
+  if (open) {
+    return model.albumDrawer
+      ? renderAlbumFeed(open, model.allEntries, model.state.readingId)
+      : renderBook(open, albumEntries(open, model.allEntries), {
+        spread: model.state.albumSpread, turn: model.state.albumTurn, dir: model.state.albumDir, opening: model.state.albumOpening,
+      });
+  }
 
   return `
     <div class="journal-album-shell">
@@ -582,35 +485,9 @@ function renderAlbumsView(model: CaptureRenderModel): string {
 
       ${model.albumDrawer ? '' : renderTidySuggestions(model)}
 
-      ${model.albums.length ? `
-        <div class="journal-album-grid">
-          ${model.albums.map((album) => {
-            const entries = albumEntries(album, model.allEntries);
-            const coverEntry =
-              entries.find((e) => e.id === album.coverEntryId && entryCover(e))
-              ?? entries.find((e) => entryCover(e));
-            const cover = coverEntry ? entryCover(coverEntry) : '';
-            return `
-              <article class="journal-album-tile" data-open-album="${escHtml(album.id)}">
-                <div class="journal-album-tile-cover">
-                  ${cover
-                    ? `<img src="${escHtml(cover)}" alt="" class="journal-album-tile-img" loading="lazy">`
-                    : `<div class="journal-album-tile-bg"></div>`}
-                  <div class="journal-album-tile-emoji">${escHtml(album.emoji)}</div>
-                </div>
-                <div class="journal-album-tile-body">
-                  <div class="journal-album-title">${escHtml(album.title)}</div>
-                  <div class="journal-category-meta">${entries.length} entries</div>
-                </div>
-              </article>
-            `;
-          }).join('')}
-        </div>
-      ` : `
-        <div class="journal-album-empty">
-          ${model.albumDrawer ? '还没有 album。' : '还没有 album。到 Gallery 里选几张，或点上面新建一个。'}
-        </div>
-      `}
+      ${model.albums.length
+        ? renderShelf(model.albums, (a) => albumEntries(a, model.allEntries), !model.albumDrawer)
+        : `<div class="journal-album-empty">${model.albumDrawer ? '还没有 album。' : '还没有 album。到 Gallery 里选几张，或点上面新建一个。'}</div>`}
 
       ${model.albumDrawer ? '' : renderAutoGroups(model.tagGroups)}
     </div>
@@ -682,37 +559,6 @@ function renderAlbumFeed(album: StoredJournalAlbum, all: StoredJournalEntry[], r
   `;
 }
 
-function renderAlbumDetail(album: StoredJournalAlbum, all: StoredJournalEntry[]): string {
-  const entries = albumEntries(album, all);
-  return `
-    <div class="journal-album-shell">
-      <div class="journal-album-head">
-        <button class="btn btn-ghost" data-album-back type="button">← Albums</button>
-        <div class="journal-album-detail-actions">
-          <button class="btn btn-ghost" data-album-rename="${escHtml(album.id)}" type="button">重命名</button>
-          <button class="btn btn-ghost is-danger" data-album-delete="${escHtml(album.id)}" type="button">删除 album</button>
-        </div>
-      </div>
-
-      <h3 class="journal-album-detail-title">${escHtml(album.emoji)} ${escHtml(album.title)}</h3>
-      <div class="journal-category-meta">${entries.length} entries</div>
-
-      ${entries.length ? `
-        <div class="journal-album-entries">
-          ${entries.map((entry) => `
-            <div class="journal-album-entry">
-              ${renderMiniEntry(entry)}
-              <button class="journal-icon-btn" data-album-remove-entry="${escHtml(album.id)}:${escHtml(entry.id)}" type="button" title="从 album 移除">✕</button>
-            </div>
-          `).join('')}
-        </div>
-      ` : `
-        <div class="journal-album-empty">这个 album 还是空的。到 Gallery 里选几张加进来。</div>
-      `}
-    </div>
-  `;
-}
-
 /** Tag groupings, below the user's own albums. Type buckets are gone — see classify.ts. */
 function renderAutoGroups(tagGroups: TagGroup[]): string {
   if (!tagGroups.length) return '';
@@ -735,118 +581,6 @@ function renderAutoGroups(tagGroups: TagGroup[]): string {
         </div>
       </div>
     </details>
-  `;
-}
-
-const PRESET_RATIOS: Array<{ label: string; ratio: number }> = [
-  { label: '16:9', ratio: 16 / 9 },
-  { label: '3:2',  ratio: 3 / 2 },
-  { label: '4:3',  ratio: 4 / 3 },
-  { label: '1:1',  ratio: 1 },
-  { label: '3:4',  ratio: 3 / 4 },
-  { label: '2:3',  ratio: 2 / 3 },
-];
-
-function closestPresetRatio(ratio: number): number {
-  return PRESET_RATIOS.reduce((best, preset) =>
-    Math.abs(preset.ratio - ratio) < Math.abs(best.ratio - ratio) ? preset : best
-  ).ratio;
-}
-
-function renderGalleryView(
-  entries: StoredJournalEntry[],
-  state: CaptureState,
-  albums: StoredJournalAlbum[],
-): string {
-  if (entries.length === 0) {
-    return renderEmpty('Gallery', 'No gallery items yet', 'As you capture more moments, they will show up here as a richer wall.');
-  }
-  const square = state.gallerySquare;
-  const selection = state.selection;
-  const selecting = selection !== null;
-  return `
-    <div class="journal-gallery-header">
-      ${selecting ? '' : `
-        <button class="journal-filter-chip ${square ? '' : 'active'}" data-gallery-square type="button">Proportional</button>
-        <button class="journal-filter-chip ${square ? 'active' : ''}" data-gallery-square type="button">1:1</button>
-      `}
-      <button class="journal-filter-chip ${selecting ? 'active' : ''}" data-gallery-select type="button">
-        ${selecting ? `已选 ${selection.length}` : '☑ 选择'}
-      </button>
-    </div>
-
-    ${selecting ? `
-      <div class="journal-select-bar">
-        <span class="journal-select-count">选中 ${selection.length} 条</span>
-        <div class="journal-select-actions">
-          <select class="select input journal-select-album" data-album-target ${selection.length ? '' : 'disabled'}>
-            <option value="">加入 album…</option>
-            ${albums.map((album) => `<option value="${escHtml(album.id)}">${escHtml(album.emoji)} ${escHtml(album.title)}</option>`).join('')}
-            <option value="__new__">+ 新建 album…</option>
-          </select>
-          <button class="btn btn-ghost" data-gallery-select-cancel type="button">取消</button>
-        </div>
-      </div>
-    ` : ''}
-
-    <div class="journal-gallery-grid">
-      ${entries.map((entry) => {
-        const rawRatio = entry.imageRatio;
-        const ratio = square ? 1 : (rawRatio ? closestPresetRatio(rawRatio) : 3 / 4);
-        const paddingTop = `${(1 / ratio) * 100}%`;
-        const picked = selecting && selection.includes(entry.id);
-        // In select mode the tile toggles selection instead of opening the
-        // reader — two different actions can't share one tap.
-        const action = selecting
-          ? `data-gallery-pick="${entry.id}"`
-          : `data-open-entry="${entry.id}"`;
-        return `
-          <article class="journal-gallery-tile${entryCover(entry) ? ' has-image' : ''}${picked ? ' is-picked' : ''}" ${action}>
-            ${selecting ? `<span class="journal-gallery-check">${picked ? '✓' : ''}</span>` : ''}
-            <div class="journal-gallery-media" style="padding-top:${paddingTop}">
-              <div class="journal-gallery-media-inner">
-                ${entryCover(entry)
-                  ? `<img src="${escHtml(entryCover(entry))}" alt="${escHtml(titleFor(entry))}" class="journal-gallery-image">`
-                  : `<div class="journal-gallery-fallback"><span>${moodEmoji(entry.mood) || '📖'}</span><p>${escHtml(excerpt(entry.body, 88))}</p></div>`}
-              </div>
-            </div>
-            <div class="journal-gallery-foot">
-              <span class="journal-gallery-label">${escHtml(titleFor(entry))}</span>
-              <span class="journal-gallery-meta">${escHtml(entry.destination || prettyDate(entry.happenedOn))}</span>
-            </div>
-          </article>
-        `;
-      }).join('')}
-    </div>
-  `;
-}
-
-function renderMapView(points: MapPoint[]): string {
-  if (points.length === 0) {
-    return renderEmpty('Map', 'No mapped entries yet', 'Entries with destinations that match your route will pin themselves here.');
-  }
-  const totalEntries = points.reduce((sum, p) => sum + p.count, 0);
-  return `
-    <div class="journal-map-layout">
-      <div class="journal-map-tile" id="journal-leaflet-map"
-           data-points="${escHtml(JSON.stringify(points.map(p => ({ key: p.key, label: p.label, lat: p.lat, lng: p.lng, count: p.count }))))}"
-      ></div>
-      <aside class="journal-map-panel">
-        <div class="journal-map-panel-stats">
-          <span class="journal-map-panel-count">${totalEntries}</span>
-          <span class="journal-map-panel-label">entries across ${points.length} places</span>
-        </div>
-        <div class="journal-map-list">
-          ${points.map((point) => `
-            <button class="journal-map-list-item" data-place-filter="${escHtml(point.label)}" data-map-focus="${escHtml(point.key)}" type="button">
-              <span class="journal-map-list-name">${escHtml(point.label)}</span>
-              <span class="journal-map-list-meta">${point.count} ${point.count === 1 ? 'entry' : 'entries'}</span>
-            </button>
-          `).join('')}
-        </div>
-        <button class="btn btn-ghost journal-map-open-btn" data-open-map-view type="button">Open full map →</button>
-      </aside>
-    </div>
   `;
 }
 

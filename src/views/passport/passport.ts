@@ -9,16 +9,17 @@
 
    Owns the DOM and the subscriptions; the layout is pure (book.ts), the
    markup is pages.ts, the page turning is flip.ts, the stamping is press.ts,
-   the data-page form is bio-edit.ts.
+   the data-page form is bio-edit.ts, the memory card is stamp-card.ts and the
+   cover customiser is cover-panel.ts. The passport shows only what is in the
+   passport: nothing on these pages leads away to another view.
    ========================================================================== */
 
 import './passport.css';
 import './passport-links.css';
-import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts';
+import { consumeNavIntent, type NavIntent } from '../../core/app.ts';
 import { t, onLocaleChange, getLocale } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { renderStamp } from '../../core/paper/stamp.ts';
-import { miniGlobeSvg } from '../../core/paper/mini-globe.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { onPassport, peekFeedLegs } from '../../data/passport-feed.ts';
 import { passportState, snapOf, type PassportFeed } from '../../data/passport-state.ts';
@@ -26,12 +27,12 @@ import { passportStore } from '../../data/stores/passport-store.ts';
 import { journalStore } from '../../data/stores/journal-store.ts';
 import { expenseStore } from '../../data/stores/expense-store.ts';
 import { countryMemory } from '../../data/country-memory.ts';
-import { currentTripId } from '../../data/trip-context.ts';
 import type { ExtrasData } from '../../views/atlas/country-extras.ts';
 import { safetyProfileStore } from '../../data/stores/safety-profile-store.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import type { PassportStamp } from '../../data/passport.ts';
-import type { PlacementRec } from '../../data/schema.ts';
+import type { PassportCover, PlacementRec } from '../../data/schema.ts';
+import { coverStyle, normalizeCover, sameCover, DEFAULT_COVER } from '../../data/passport-cover.ts';
 import {
   PAGE_CAP, autoPlacement, bookPages, flippedToShow, leavesFor, pageOfStamp, stampPages,
   type BookPage, type Leaf, type StampPage,
@@ -45,7 +46,8 @@ import { openVisaEditor } from './visa-edit.ts';
 import { visaStore, type StoredVisa } from '../../data/stores/visa-store.ts';
 import { regionLabel, schengenUsage, visaUses, visaWarnings } from '../../data/visa.ts';
 import { startPress } from './press.ts';
-import { openStampCard } from './stamp-card.ts';
+import { openMemoryDrawer, type DrawerHandle } from './stamp-card.ts';
+import { openCoverPanel, type PanelHandle } from './cover-panel.ts';
 import { isSoundOn, playCover, playFlip, playThunk, setSoundOn } from './sound.ts';
 
 const view = () => document.getElementById('view-passport');
@@ -71,7 +73,13 @@ const _unsaved = new Set<string>();
 let _pressing: PassportStamp | null = null;
 let _queue: PassportStamp[] = [];
 let _stopPress: (() => void) | null = null;
-let _closeCard: (() => void) | null = null;
+/** The memory card (right) and the cover panel (left): at most one is open, and the book moves over to make room. */
+let _drawer: DrawerHandle | null = null;
+let _drawerStamp = '';
+let _panel: PanelHandle | null = null;
+/** How the traveller dressed the booklet; null = never touched (the theme's own navy). */
+let _cover: PassportCover | null = null;
+let _coverSave = 0;
 /** Journal and spend rows for the back of a stamp — subscribed to the first time a stamp is opened. */
 const _extras: ExtrasData = { journal: [], expenses: [], nomad: [], intel: [] };
 let _extrasOn = false;
@@ -123,6 +131,8 @@ function ctx(): PageCtx {
     fresh: _replaying ? new Set(_feed.stamps.map((x) => x.id).concat(Object.keys(_placements))) : _fresh,
     locale: getLocale(),
     pageNo: (p) => _pages.indexOf(p) + 1,
+    cover: normalizeCover(_cover),
+    pressed: st.pressed.length,
   };
 }
 
@@ -183,7 +193,7 @@ function render(): void {
   if (!root) return;
   const body = root.querySelector<HTMLElement>('.pp-body')!;
   _single = narrow();
-  _pages = bookPages(layout(), _visas.length);
+  _pages = bookPages(layout(), _visas.length, _single);
   _leaves = leavesFor(_pages, _single);
   const c = ctx();
   const turned = Math.min(_turned, _leaves.length);
@@ -192,18 +202,17 @@ function render(): void {
   body.innerHTML = `
     <div class="pp-desk">
       <div class="pp-stage${_single ? ' is-single' : ''}">
-        <div class="pp-book" id="pp-book"><div class="pp-spine"></div>${_leaves.map((_, i) => leafHtml(i, near(i), c)).join('')}</div>
+        <div class="pp-book" id="pp-book" style="${esc(bookStyle())}"><div class="pp-spine"></div><div class="pp-gutter" aria-hidden="true"></div>${_leaves.map((_, i) => leafHtml(i, near(i), c)).join('')}</div>
       </div>
-      <button type="button" class="pp-prop-globe" data-pp-map title="${esc(t('atlas.title'))}" aria-label="${esc(t('atlas.title'))}">${miniGlobeSvg(52)}</button>
     </div>
     <div class="pp-tray-host" data-pp-tray></div>
     <div class="pp-bar">
       <button type="button" class="btn btn-ghost" data-pp-prev aria-label="${esc(t('passport.nav.prev'))}">‹</button>
       <span class="pp-page-label" data-pp-label aria-live="polite"></span>
       <button type="button" class="btn btn-ghost" data-pp-next aria-label="${esc(t('passport.nav.next'))}">›</button>
-      <button type="button" class="btn btn-ghost" data-pp-replay>${esc(t('passport.replay'))}</button>
+      <button type="button" class="btn btn-ghost" data-pp-replay>${esc(t(_replaying ? 'passport.replay.stop' : 'passport.replay'))}</button>
       <button type="button" class="btn btn-ghost" data-pp-sound aria-pressed="${isSoundOn()}" title="${esc(t('passport.sound'))}">${isSoundOn() ? '🔊' : '🔈'}</button>
-      <button type="button" class="btn btn-ghost" data-pp-map>${esc(t('passport.onMap'))}</button>
+      <button type="button" class="btn btn-ghost" data-pp-cover aria-pressed="${!!_panel}">${esc(t('passport.cover.edit'))}</button>
     </div>
     <div class="pp-jumps">${jumpsHtml()}</div>`;
 
@@ -216,6 +225,55 @@ function render(): void {
   });
   _flip.goTo(turned, false);
   afterTurn();
+  // The desk was rebuilt: put an open card or panel back on it.
+  const desk = body.querySelector<HTMLElement>('.pp-desk')!;
+  for (const side of [_drawer, _panel]) if (side) desk.append(side.scrim, side.el);
+  fitStage();
+}
+
+/** The custom properties of the traveller's cover; nothing for the untouched original, so the theme's navy shows. */
+function bookStyle(): string {
+  const c = normalizeCover(_cover);
+  return _cover && !sameCover(c, DEFAULT_COVER) ? coverStyle(c) : '';
+}
+
+/** The cover face and the back cover repainted after the traveller changed them. */
+function applyCover(): void {
+  const book = view()?.querySelector<HTMLElement>('#pp-book');
+  if (!book) return;
+  book.setAttribute('style', bookStyle());
+  const c = ctx();
+  _leaves.forEach((l, i) => {
+    const leaf = book.querySelector<HTMLElement>(`.pp-leaf[data-leaf="${i}"]`);
+    const faces: Array<[string, BookPage | null]> = [['.is-front', l.front], ['.is-back', _single ? null : l.back]];
+    for (const [sel, page] of faces) {
+      if (page?.kind !== 'cover' && page?.kind !== 'backcover') continue;
+      const f = leaf?.querySelector<HTMLElement>(sel);
+      // eslint-disable-next-line no-restricted-syntax -- audited: page markup escapes every interpolation (pages.ts)
+      if (f && f.dataset.filled === '1') f.innerHTML = pageHtml(page, c);
+    }
+  });
+}
+
+function onCoverChange(c: PassportCover): void {
+  _cover = c;
+  applyCover();
+  window.clearTimeout(_coverSave);
+  _coverSave = window.setTimeout(() => { _coverSave = 0; void passportStore.save({ cover: c }); }, 450);
+}
+
+/** Moves the book aside (and shrinks it if it must) so an open card or panel does not cover it. */
+function fitStage(): void {
+  const desk = view()?.querySelector<HTMLElement>('.pp-desk');
+  const stage = desk?.querySelector<HTMLElement>('.pp-stage');
+  if (!desk || !stage) return;
+  const side = _drawer ?? _panel;
+  desk.classList.toggle('has-side', !!side);
+  if (!side || narrow()) { stage.style.transform = ''; return; }
+  const w = side.el.offsetWidth;
+  const room = desk.clientWidth - w - 28;
+  const scale = Math.max(0.5, Math.min(1, room / stage.offsetWidth));
+  stage.style.transform = `translateX(${_drawer ? -w / 2 : w / 2}px) scale(${scale.toFixed(3)})`;
 }
 
 /** Fills the pages now near the one showing, updates the label and tray, and lets new stamps land. */
@@ -259,6 +317,8 @@ function visibleFaces(book: HTMLElement, turned: number): HTMLElement[] {
 
 /** Stamps just pressed that are on a page now showing land one after another, with the thunk. */
 function landVisible(book: HTMLElement, turned: number): void {
+  // A replay presses its own stamps one by one; pages turning under it must not drop them all at once.
+  if (_replaying) return;
   const slots = visibleFaces(book, turned).flatMap((f) => [...f.querySelectorAll<HTMLElement>('.pp-slot[data-fresh]')]);
   slots.forEach((el, i) => {
     const id = el.dataset.stamp ?? '';
@@ -351,27 +411,90 @@ function pressAll(): void {
 function ensureExtras(): void {
   if (_extrasOn) return;
   _extrasOn = true;
-  _unsubs.push(journalStore.subscribeAll((rows) => { _extras.journal = rows; }));
-  _unsubs.push(expenseStore.subscribeAll((rows) => { _extras.expenses = rows; }));
+  _unsubs.push(journalStore.subscribeAll((rows) => { _extras.journal = rows; paintCard(); }));
+  _unsubs.push(expenseStore.subscribeAll((rows) => { _extras.expenses = rows; paintCard(); }));
+}
+
+/** The pressed stamps in the order the book shows them. */
+const pressedInOrder = (): PassportStamp[] => _pages.flatMap((p) => (p.kind === 'stamps' ? p.items.map((i) => i.stamp) : []));
+
+function paintCard(): void {
+  if (!_drawer) return;
+  const list = pressedInOrder();
+  const i = list.findIndex((x) => x.id === _drawerStamp);
+  if (i < 0) { _drawer.close(); return; }
+  _drawer.show(countryMemory(list[i], _feed.stamps, peekFeedLegs(), _extras), getLocale(), { i, n: list.length });
+}
+
+function closeSide(): void {
+  _drawer?.close();
+  _panel?.close();
 }
 
 function openCard(id: string): void {
-  const stamp = state().pressed.find((x) => x.id === id);
   const desk = view()?.querySelector<HTMLElement>('.pp-desk');
-  if (!stamp || !desk) return;
+  if (!desk || !state().pressed.some((x) => x.id === id)) return;
   ensureExtras();
-  _closeCard?.();
-  const memory = countryMemory(stamp, _feed.stamps, peekFeedLegs(), _extras);
-  _closeCard = openStampCard(desk, memory, getLocale(), {
-    onMap: (iso) => { void navigateTo('atlas', { iso }); },
-    onJournal: !stamp.orphan && stamp.tripId === currentTripId() ? () => { void navigateTo('journal'); } : undefined,
-    onClose: () => { _closeCard = null; },
+  _panel?.close();
+  _drawer ??= openMemoryDrawer(desk, {
+    onStep: stepCard,
+    onClose: () => { _drawer = null; _drawerStamp = ''; fitStage(); },
   });
+  _drawerStamp = id;
+  paintCard();
+  fitStage();
+}
+
+/** Previous / next pressed stamp; the book turns to its page too. */
+function stepCard(dir: 1 | -1): void {
+  const list = pressedInOrder();
+  if (list.length < 2) return;
+  const i = list.findIndex((x) => x.id === _drawerStamp);
+  const next = list[(i + dir + list.length) % list.length];
+  _drawerStamp = next.id;
+  paintCard();
+  const at = pageOfStamp(_pages, next.id);
+  if (at >= 0) { _turned = flippedToShow(at, _single); _flip?.goTo(_turned, true); }
+}
+
+function toggleCoverPanel(): void {
+  if (_panel) { _panel.close(); return; }
+  const desk = view()?.querySelector<HTMLElement>('.pp-desk');
+  if (!desk) return;
+  _drawer?.close();
+  _panel = openCoverPanel(desk, normalizeCover(_cover), {
+    onChange: onCoverChange,
+    onClose: () => { _panel = null; fitStage(); view()?.querySelector('[data-pp-cover]')?.setAttribute('aria-pressed', 'false'); },
+  });
+  view()?.querySelector('[data-pp-cover]')?.setAttribute('aria-pressed', 'true');
+  fitStage();
 }
 
 /* ── Replay: the whole passport, pressed again in order ──────────────────── */
 
 const sleep = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms));
+
+/** Shows every stamp that a replay was holding back (those a newly pressed stamp is still waiting to land stay hidden). */
+function revealAll(book: HTMLElement): void {
+  book.querySelectorAll<HTMLElement>('.pp-slot[data-fresh]').forEach((el) => {
+    if (!_fresh.has(el.dataset.stamp ?? '')) el.removeAttribute('data-fresh');
+  });
+}
+
+function setReplayLabel(): void {
+  const b = view()?.querySelector<HTMLElement>('[data-pp-replay]');
+  if (b) b.textContent = t(_replaying ? 'passport.replay.stop' : 'passport.replay');
+}
+
+/** Ends a replay in progress at once; every stamp is back on its page. */
+function stopReplay(): void {
+  _replay++;
+  _running = 0;
+  _replaying = false;
+  const book = view()?.querySelector<HTMLElement>('#pp-book');
+  if (book) revealAll(book);
+  setReplayLabel();
+}
 
 async function replay(): Promise<void> {
   const token = ++_replay;
@@ -380,10 +503,15 @@ async function replay(): Promise<void> {
   const book = root?.querySelector<HTMLElement>('#pp-book');
   const withStamps = _pages.map((p, i) => (p.kind === 'stamps' && p.items.length ? i : -1)).filter((i) => i >= 0);
   if (!root || !book || withStamps.length === 0) return;
-  _closeCard?.();
+  closeSide();
   _running += 1;
   _replaying = true;
-  book.querySelectorAll<HTMLElement>('.pp-slot[data-stamp]').forEach((el) => el.setAttribute('data-fresh', ''));
+  setReplayLabel();
+  // Lift every stamp off the pages first (they are put back one by one, in the order they were earned).
+  book.querySelectorAll<HTMLElement>('.pp-slot[data-stamp]').forEach((el) => {
+    el.setAttribute('data-fresh', '');
+    el.querySelector<HTMLElement>('.pp-stamp')?.classList.remove('is-pressed');
+  });
   const done = new Set<string>();
   _flip?.goTo(0, true);
   await sleep(600);
@@ -407,12 +535,11 @@ async function replay(): Promise<void> {
   }
   if (alive()) await sleep(600);
   // Whatever the way out (finished, interrupted), nothing may stay hidden — unless a newer replay has taken over.
-  _running -= 1;
+  _running = Math.max(0, _running - 1);
   if (_running > 0) return;
   _replaying = false;
-  book.querySelectorAll<HTMLElement>('.pp-slot[data-fresh]').forEach((el) => {
-    if (!_fresh.has(el.dataset.stamp ?? '')) el.removeAttribute('data-fresh');
-  });
+  revealAll(book);
+  setReplayLabel();
 }
 
 /* ── Intent: open the book on a given stamp ──────────────────────────────── */
@@ -440,8 +567,9 @@ function wire(root: HTMLElement): void {
   root.addEventListener('click', (e) => {
     const el = e.target as HTMLElement;
     if (el.closest('.pp-press')) return;
-    if (el.closest('[data-pp-card-close], .pp-card-scrim')) return;
-    if (el.closest('[data-pp-replay]')) { void replay(); return; }
+    if (el.closest('.pp-drawer, .pp-drawer-scrim')) return;
+    if (el.closest('[data-pp-replay]')) { if (_replaying) stopReplay(); else void replay(); return; }
+    if (el.closest('[data-pp-cover]')) { toggleCoverPanel(); return; }
     if (el.closest('[data-pp-prev], [data-pp-next], [data-pp-jump]')) _replay++;     // any turn of the traveller's own ends a replay
     if (el.closest('[data-pp-prev]')) { _flip?.prev(); return; }
     if (el.closest('[data-pp-next]')) { _flip?.next(); return; }
@@ -458,7 +586,6 @@ function wire(root: HTMLElement): void {
       b.setAttribute('aria-pressed', String(isSoundOn()));
       return;
     }
-    if (el.closest('[data-pp-map]')) { void navigateTo('atlas'); return; }
     const jump = el.closest<HTMLElement>('[data-pp-jump]');
     if (jump) { _flip?.goTo(flippedToShow(Number(jump.dataset.ppJump), _single)); return; }
     const slot = el.closest<HTMLElement>('.pp-slot[data-stamp]');
@@ -496,6 +623,7 @@ export function initPassport(): void {
   const root = view();
   if (!root) return;
   _unsubs.forEach((u) => u());
+  closeSide();
   head(root);
   const refresh = (force = false) => {
     const s = signature();
@@ -509,10 +637,13 @@ export function initPassport(): void {
     onPassport((d) => { _feed = d; refresh(); }),
     passportStore.subscribe((p) => {
       _profile = { nickname: p?.nickname ?? '', photoURL: p?.photoURL ?? '', nationality: p?.nationality ?? '', occupation: p?.occupation ?? '', signature: p?.signature ?? '' };
+      // The cover follows the stored copy unless a change of this sitting is still waiting to be saved.
+      const stored = p?.cover ? normalizeCover(p.cover) : null;
+      if (!_coverSave && (stored ? !_cover || !sameCover(stored, _cover) : !!_cover)) { _cover = stored; applyCover(); }
       // Placements written in this sitting stand until the stored copy has caught up with them.
-      const stored = p?.placements ?? {};
-      for (const id of [..._unsaved]) if (stored[id]) _unsaved.delete(id);
-      _placements = { ...stored, ...Object.fromEntries([..._unsaved].map((id) => [id, _placements[id]]).filter(([, v]) => v)) };
+      const storedPlacements = p?.placements ?? {};
+      for (const id of [..._unsaved]) if (storedPlacements[id]) _unsaved.delete(id);
+      _placements = { ...storedPlacements, ...Object.fromEntries([..._unsaved].map((id) => [id, _placements[id]]).filter(([, v]) => v)) };
       refresh();
     }),
     safetyProfileStore.subscribe((p) => { _safetyNationality = p?.nationality ?? ''; refresh(); }),
@@ -523,6 +654,8 @@ export function initPassport(): void {
   const onMq = () => { if (narrow() !== _single) render(); };
   mq?.addEventListener('change', onMq);
   _unsubs.push(() => mq?.removeEventListener('change', onMq));
+  window.addEventListener('resize', fitStage);
+  _unsubs.push(() => window.removeEventListener('resize', fitStage));
   window.addEventListener('otr:nav-intent', onIntent);
   _unsubs.push(() => window.removeEventListener('otr:nav-intent', onIntent));
   wire(root);

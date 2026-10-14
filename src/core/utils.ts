@@ -90,6 +90,9 @@ function morphNode(parent: Element | DocumentFragment, oldNode: ChildNode, newNo
   }
 
   morphAttributes(oldNode, newNode);
+  // `data-morph-keep` marks a node whose children belong to something else (a map library's
+  // canvas, say): its own attributes still follow the markup, its contents are left alone.
+  if (oldNode.hasAttribute('data-morph-keep')) return;
   morphChildren(oldNode, newNode);
 }
 

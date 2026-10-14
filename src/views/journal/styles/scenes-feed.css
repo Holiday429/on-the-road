@@ -1,0 +1,112 @@
+/* ==========================================================================
+   On the Road · Journal feed — an editorial spread of paper objects
+   Planned by scenes/feed-plan.ts, drawn by scenes/feed.ts. Six equal columns and
+   square rows on a wide page, so every block has a clean, whole-number shape;
+   a plain two-column masonry on a phone or in a narrow drawer.
+   ========================================================================== */
+
+.jf-wrap { container-type: inline-size; container-name: jfeed; }
+.jf-grid {
+  --jf-gap: var(--sp-4);
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-auto-rows: calc((100cqw - 5 * var(--jf-gap)) / 6);
+  grid-auto-flow: row dense; gap: var(--jf-gap);
+  padding: var(--sp-3) var(--sp-2) var(--sp-8);
+}
+
+.jf-block {
+  position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; cursor: pointer;
+  background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm); transform: rotate(var(--tilt, 0deg));
+  transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1), box-shadow var(--dur-mid) var(--ease-out);
+}
+.jf-block:hover, .jf-block:focus-visible { transform: rotate(0deg) translateY(-5px) scale(1.015); box-shadow: var(--shadow-lg); z-index: 2; }
+.jf-block:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 3px; }
+.jf-block.is-open { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+
+.jf-photo { position: relative; flex: 1; min-height: 0; overflow: hidden; background: var(--amber-50); }
+.jf-img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 700ms var(--ease-out); animation: jf-develop 600ms var(--ease-out) both; }
+.jf-block:hover .jf-img { transform: scale(1.04); }
+@keyframes jf-develop { from { opacity: 0; filter: grayscale(1) brightness(1.15); } }
+
+.jf-kicker, .jf-meta { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted); }
+.jf-title { margin: 0; font-family: var(--font-display); font-weight: var(--fw-semibold); letter-spacing: -.015em; line-height: 1.2; text-wrap: balance; }
+.jf-excerpt { margin: 0; font-size: var(--fs-sm); line-height: 1.45; color: var(--ink-soft); }
+.jf-where { font-size: var(--fs-xs); color: var(--ink-muted); }
+
+.jf-count, .jf-pin {
+  position: absolute; top: var(--sp-2); z-index: 2; padding: 1px var(--sp-2); border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--surface) 82%, transparent); font-size: var(--fs-xs); box-shadow: var(--shadow-sm);
+}
+.jf-count { right: var(--sp-2); font-family: var(--font-data); color: var(--ink-soft); }
+.jf-pin { left: var(--sp-2); }
+
+/* Cover story: the photo bleeds, the words sit on a shade */
+.jf-v-cover, .jf-v-postcard { --lit: white; }
+.jf-v-cover { border: 0; }
+.jf-v-cover .jf-photo { position: absolute; inset: 0; }
+.jf-v-cover::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(to top, color-mix(in srgb, var(--scale-glass) 82%, transparent) 0%, transparent 62%); }
+.jf-v-cover .jf-cap { position: relative; z-index: 1; margin-top: auto; padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-2); max-width: 36em; color: var(--lit); }
+.jf-v-cover .jf-kicker { color: var(--amber-200); }
+.jf-v-cover .jf-title { font-size: clamp(var(--fs-xl), 2.6cqw, var(--fs-3xl)); }
+.jf-v-cover .jf-excerpt { color: color-mix(in srgb, var(--lit) 88%, transparent); }
+
+/* Postcard: a landscape photo, a postmark, a caption strip */
+.jf-v-postcard .jf-strip { display: flex; align-items: baseline; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-top: 1px dashed var(--paper-perf, var(--rule)); }
+.jf-v-postcard .jf-title { flex: 1; min-width: 0; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jf-postmark {
+  position: absolute; right: var(--sp-3); top: var(--sp-3); z-index: 2; width: 62px; height: 62px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  border: 1.6px solid color-mix(in srgb, var(--lit) 80%, transparent); color: var(--lit);
+  font-family: var(--font-stamp); font-size: 8px; letter-spacing: .08em; line-height: 1.2; transform: rotate(-11deg);
+  background: color-mix(in srgb, var(--scale-glass) 28%, transparent); text-shadow: 0 1px 2px color-mix(in srgb, var(--scale-glass) 60%, transparent);
+}
+.jf-postmark span { max-width: 54px; overflow: hidden; text-overflow: clip; white-space: nowrap; }
+.jf-v-postcard .jf-count { top: auto; bottom: 46px; }
+
+/* Polaroid: thick white border, a hand-written caption, a strip of tape */
+.jf-v-polaroid { padding: var(--sp-2) var(--sp-2) 0; border-radius: 3px; background: var(--paper-grain), var(--surface); }
+.jf-v-polaroid .jf-strip { padding: var(--sp-2) var(--sp-1) var(--sp-3); display: flex; flex-direction: column; gap: 2px; }
+.jf-hand { font-family: var(--font-hand); font-weight: var(--fw-regular, 400); font-size: var(--fs-lg); letter-spacing: 0; line-height: 1.05; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.jf-tape {
+  position: absolute; left: 50%; top: -8px; z-index: 3; width: 64px; height: 17px; transform: translateX(-50%) rotate(-2.5deg);
+  background: color-mix(in srgb, var(--amber-400) 55%, transparent); border-inline: 1px dashed color-mix(in srgb, var(--ink) 14%, transparent);
+}
+.jf-v-polaroid .jf-count { top: calc(var(--sp-2) + var(--sp-2)); }
+.jf-v-polaroid .jf-pin { top: calc(var(--sp-2) + var(--sp-2)); }
+
+/* Pull-quote: words are the picture */
+.jf-v-quote { justify-content: center; gap: var(--sp-2); padding: var(--sp-5); background: var(--paper-grain), var(--amber-50); border-color: var(--amber-200); }
+.jf-quote-mark { font-family: var(--font-display); font-size: 54px; line-height: .6; color: var(--amber-300); }
+.jf-quote-text { margin: 0; font-family: var(--font-display); font-size: clamp(var(--fs-md), 2cqw, var(--fs-xl)); font-weight: var(--fw-medium); line-height: 1.3; letter-spacing: -.015em; text-wrap: pretty; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Ticket stub */
+.jf-v-ticket { flex-direction: row; min-height: 0; border-radius: var(--r-sm); background: var(--paper-grain), var(--surface-2); border-color: var(--rule); }
+.jf-ticket-main { flex: 1; min-width: 0; padding: var(--sp-3) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
+.jf-ticket-text { margin: 0; font-size: var(--fs-sm); line-height: 1.4; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.jf-mood { margin-top: auto; font-size: var(--fs-md); }
+.jf-ticket-stub { flex: none; width: 30px; display: grid; place-items: center; border-left: 2px dashed var(--paper-perf, var(--rule)); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.jf-ticket-stub span { writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--font-stamp); font-size: var(--fs-2xs); letter-spacing: .22em; color: var(--accent-deep); }
+.jf-v-quote .jf-meta { margin-top: var(--sp-1); }
+
+/* ── Narrow pages and drawers: two-column masonry (spans are ignored) ────── */
+@container jfeed (max-width: 600px) {
+  .jf-grid { display: block; columns: 2; column-gap: var(--jf-gap); padding-inline: 0; }
+  .jf-block { break-inside: avoid; margin-bottom: var(--jf-gap); }
+  .jf-block--hero { column-span: all; aspect-ratio: 4 / 3; }
+  .jf-block--wide { aspect-ratio: 3 / 2; }
+  .jf-block--tall { aspect-ratio: 2 / 3; }
+  .jf-block--square { aspect-ratio: 1; }
+  .jf-block--quote, .jf-block--note { aspect-ratio: auto; min-height: 120px; }
+  .jf-v-cover .jf-title { font-size: var(--fs-xl); }
+}
+@container jfeed (max-width: 380px) {
+  .jf-grid { columns: 1; }
+  .jf-block--hero { column-span: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jf-img { animation: none; }
+  .jf-block, .jf-img { transition: none; }
+}

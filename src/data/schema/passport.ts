@@ -34,6 +34,16 @@ export const PlacementSchema = z.object({
 });
 export type PlacementRec = z.infer<typeof PlacementSchema>;
 
+/** How the traveller dressed the booklet. Absent = the navy cloth cover with gold foil. */
+export const PassportCoverSchema = z.object({
+  color: z.string().default('#34465e'),     // #rrggbb
+  material: z.enum(['leather', 'cloth', 'vinyl']).default('cloth'),
+  foil: z.enum(['gold', 'silver', 'white', 'blind']).default('gold'),
+  emblem: z.enum(['globe', 'compass', 'route', 'sign']).default('globe'),   // neutral marks only — never a national emblem
+  title: z.string().default(''),            // '' = "PASSPORT" in the reader's language; ≤ 22 characters
+});
+export type PassportCover = z.infer<typeof PassportCoverSchema>;
+
 export const PassportSchema = doc({
   nickname: z.string().default(''),        // '' = the account's first name
   photoURL: z.string().default(''),        // '' = the account photo
@@ -41,6 +51,7 @@ export const PassportSchema = doc({
   occupation: z.string().default(''),      // '' = "Traveller"
   signature: z.string().default(''),       // SVG path data in a 300 × 100 box ('' = unsigned)
   placements: z.record(z.string(), PlacementSchema).default({}),
+  cover: PassportCoverSchema.optional(),
 });
 export type PassportDoc = z.infer<typeof PassportSchema>;
 

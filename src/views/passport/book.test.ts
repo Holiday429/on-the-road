@@ -82,11 +82,11 @@ describe('stampPages', () => {
 });
 
 describe('leaves', () => {
-  const pages = bookPages(stampPages(EURO, pressAll(EURO))); // inside, bio, visas, stamps×2, back  → 6 pages
+  const pages = bookPages(stampPages(EURO, pressAll(EURO))); // inside, bio, visas, stamps×2, back, back cover  → 7 pages
   it('spread: the cover backs onto the inside page; each sheet pairs a right page with the next left one', () => {
     const l = leavesFor(pages, false);
     expect(l.map((x) => [x.front.kind, x.back?.kind ?? null])).toEqual([
-      ['cover', 'inside'], ['bio', 'visas'], ['stamps', 'stamps'], ['back', null],
+      ['cover', 'inside'], ['bio', 'visas'], ['stamps', 'stamps'], ['back', 'backcover'],
     ]);
   });
 
@@ -95,11 +95,22 @@ describe('leaves', () => {
     expect([0, 1, 2, 3, 5].map(kinds)).toEqual([1, 1, 1, 2, 3]);
   });
 
-  it('single: one page per sheet, blank backs', () => {
-    const l = leavesFor(pages, true);
-    expect(l).toHaveLength(pages.length + 1);
+  it('the back cover is the back of the last sheet; a ruled page makes room when the count would put it on a front', () => {
+    const odd = bookPages(stampPages(EURO.slice(0, 1), pressAll(EURO.slice(0, 1))));   // inside, bio, visas, stamps, back → 5 + notes
+    expect(odd.map((p) => p.kind).slice(-3)).toEqual(['back', 'notes', 'backcover']);
+    const l = leavesFor(odd, false);
+    expect(l[l.length - 1].back?.kind).toBe('backcover');
+    expect(pages[pages.length - 1].kind).toBe('backcover');
+  });
+
+  it('single: one page per sheet, blank backs, the back cover last, no filler page', () => {
+    const one = bookPages(stampPages(EURO.slice(0, 1), pressAll(EURO.slice(0, 1))), 0, true);
+    expect(one.some((p) => p.kind === 'notes')).toBe(false);
+    const l = leavesFor(one, true);
+    expect(l).toHaveLength(one.length + 1);
     expect(l.every((x) => x.back === null)).toBe(true);
     expect(l[1].front.kind).toBe('inside');
+    expect(l[l.length - 1].front.kind).toBe('backcover');
   });
 
   it('flippedToShow says how many sheets to turn', () => {

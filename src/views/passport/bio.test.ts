@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { maskNumber, mrz, passportNumber } from './bio.ts';
+import { barcodeBars, maskNumber, mrz, passportNumber, travelLevel } from './bio.ts';
 
 describe('passportNumber', () => {
   it('is seven digits and fixed by the account', () => {
@@ -32,5 +32,19 @@ describe('maskNumber', () => {
     expect(maskNumber('')).toBe('');
     expect(maskNumber('AB 12 CD 34 56 78')).toContain('5678');
     expect(maskNumber('AB 12 CD 34 56 78')).not.toContain('AB');
+  });
+});
+
+describe('travelLevel', () => {
+  it('rises with the countries visited, from 1 to 5', () => {
+    expect([0, 1, 2, 5, 6, 11, 12, 24, 25, 90].map(travelLevel)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5]);
+  });
+});
+
+describe('barcodeBars', () => {
+  it('is fixed by the account and always the same length', () => {
+    expect(barcodeBars('u1')).toEqual(barcodeBars('u1'));
+    expect(barcodeBars('u1')).not.toEqual(barcodeBars('u2'));
+    expect(barcodeBars('u1', 20)).toHaveLength(20);
   });
 });

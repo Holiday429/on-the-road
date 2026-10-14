@@ -69,10 +69,8 @@ vi.mock('../../data/trip-context.ts', async (importOriginal) => ({
   currentTripId: () => 't1',
   onTripChange: () => () => {},
 }));
-vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '' }));
+vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '', cityLocationsFor: () => [] }));
 vi.mock('./card/card-preview.ts', () => ({ openCardPreview: vi.fn() }));
-vi.mock('leaflet', () => ({ default: {} }));
-vi.mock('leaflet/dist/leaflet.css', () => ({}));
 
 import { initJournal } from './index.ts';
 

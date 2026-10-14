@@ -128,7 +128,7 @@ function renderJournal() {
         <div class="journal-topbar-right">
           ${mode === 'capture' ? `
             <div class="journal-layout-bar">
-              ${(['feed','places','albums','gallery','map','calendar'] as const).map((id) => `
+              ${(['feed','places','albums','gallery','calendar'] as const).map((id) => `
                 <button class="journal-layout-tab ${capture.currentView() === id ? 'active' : ''}" data-journal-view="${id}" type="button">${id.charAt(0).toUpperCase() + id.slice(1)}</button>
               `).join('')}
             </div>
@@ -151,10 +151,10 @@ function renderJournal() {
   if (mode === 'capture') {
     capture.bind(root);
     capture.afterRender(root);
-  } else if (mode === 'recap') {
-    recap.bind(root);
   } else {
-    story.bind(root);
+    capture.dispose();   // the places map and the gallery drift belong to the capture views only
+    if (mode === 'recap') recap.bind(root);
+    else story.bind(root);
   }
   updateSubtitle();
 }

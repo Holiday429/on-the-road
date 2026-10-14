@@ -28,8 +28,8 @@ function count(files: string[], re: RegExp, skip: (f: string) => boolean = () =>
 }
 const notBase = (f: string) => rel(f) === 'core/base.css';
 const isI18n = (f: string) => rel(f).startsWith('core/i18n');
-/** Files whose whole job is a colour table (one stamp-pad ink per country). */
-const isColourTable = (f: string) => rel(f) === 'data/country-ink.ts';
+/** Files whose whole job is a colour table (one stamp-pad ink per country; the colours a passport cover is offered in). */
+const isColourTable = (f: string) => rel(f) === 'data/country-ink.ts' || rel(f) === 'data/passport-cover.ts';
 
 describe('hard rules', () => {
   it('font-weight uses the --fw-* steps, never a number', () => {

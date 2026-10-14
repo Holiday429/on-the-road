@@ -104,14 +104,14 @@ describe('country extras', () => {
   const render = (extras: Parameters<typeof countryMarkup>[0]['extras']) => countryMarkup({ detail, pending: false, extras, locale: 'en-US', stampHtml: () => '' });
 
   it('shows nothing extra until there is something to show', () => {
-    const html = render({ journalCount: 0, covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
+    const html = render({ journalCount: 0, entries: [], covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
     expect(html).not.toContain('world-covers');
     expect(html).not.toContain('world-spend');
     expect(html).not.toContain('world-saved');
   });
   it('shows journal count with photos, per-trip spend, and saved places', () => {
     const html = render({
-      journalCount: 3, covers: ['https://x.test/a.jpg', 'javascript:alert(1)'],
+      journalCount: 3, entries: [], covers: ['https://x.test/a.jpg', 'javascript:alert(1)'],
       spend: [{ tripId: 'a', currency: 'EUR', total: 150, count: 2 }, { tripId: 'b', currency: 'CNY', total: 900, count: 1 }],
       spendTotal: null, nomadCount: 2, guideCount: 1,
     });
@@ -126,7 +126,7 @@ describe('country extras', () => {
   });
   it('adds a total line only when several trips share one currency', () => {
     const html = render({
-      journalCount: 0, covers: [],
+      journalCount: 0, entries: [], covers: [],
       spend: [{ tripId: 'a', currency: 'EUR', total: 100, count: 1 }, { tripId: 'b', currency: 'EUR', total: 50, count: 1 }],
       spendTotal: { currency: 'EUR', total: 150 }, nomadCount: 0, guideCount: 0,
     });
