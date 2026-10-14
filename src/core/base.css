@@ -468,12 +468,26 @@ img, svg { display: block; }
 .input:focus { border-color: var(--accent); }
 .input::placeholder { color: var(--ink-faint); }
 
-.select {
+/* One height for every single-line field, so controls sharing a row line up: it follows the
+   viewport (smaller on a phone) and is never below a comfortable touch target on touch devices.
+   `:where` keeps this a default — a compact table cell can still set its own height. */
+:root { --ctl-h: clamp(38px, 2vw + 24px, 44px); --ctl-chevron-gap: 14px; }
+@media (pointer: coarse) { :root { --ctl-h: 44px; } }
+:where(.input:not(textarea), select.select) { height: var(--ctl-h); box-sizing: border-box; }
+
+/* Every bordered dropdown — whether or not it also carries `.select` — gets the same chevron,
+   held clear of the right-hand border instead of the browser's arrow pressed against it. The
+   :not() pair raises the specificity so a field's own `background:` shorthand can't wipe it. */
+.select,
+select:where(.input, .select, .pack-kit-cell-input):not([multiple]):not([size]) {
   appearance: none;
+  -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2378716c' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 36px;
+  background-size: 12px 12px;
+  background-position: right var(--ctl-chevron-gap) center;
+  padding-right: calc(var(--ctl-chevron-gap) + 12px + 12px);
+  text-overflow: ellipsis;
 }
 
 label.field-label {

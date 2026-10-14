@@ -4,7 +4,13 @@
    The views' own title lines are hidden; the bar mirrors them.
    ========================================================================== */
 
-:root { --topbar-h: 56px; }
+:root {
+  --topbar-h: 56px;
+  /* The sidebar header's vertical padding (layout.css / mobile-nav.css), so the bar can
+     centre its row on the avatar: header height = 2 × pad + 44px avatar + 1px rule. */
+  --sb-head-pad: clamp(10px, 2vh, 20px);
+}
+@media (max-width: 1180px) { :root { --sb-head-pad: clamp(8px, 1.6vh, 16px); } }
 
 .tb-inner {
   max-width: var(--content-max);
@@ -34,8 +40,17 @@
 .tb-tab.is-active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-sm); }
 .tb-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* The views' own title lines — the bar shows them now. */
-.view > .view-header > .view-title { display: none; }
+/* With the sidebar beside it the bar is exactly as tall as the sidebar header, so the title and
+   the controls sit level with the avatar. (On phones there is no sidebar: the 56px bar stands.) */
+@media (min-width: 769px) {
+  .tb-inner { min-height: calc(var(--sb-head-pad) * 2 + 45px); }
+}
+
+/* The views' own title lines — the bar shows them now. The one-line page descriptions are gone. */
+.view > .view-header > .view-title,
+.view .view-subtitle { display: none; }
+/* A header that held only the title and description has nothing left to space out. */
+.view > .view-header:not(:has(> :not(.view-title):not(.view-subtitle))) { padding: 0; margin-bottom: var(--sp-2); }
 #view-today .td-greeting-row { display: none; }
 
 @media (max-width: 560px) {
