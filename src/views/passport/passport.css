@@ -94,8 +94,6 @@
 .pp-cover-title { font-family: var(--font-display); font-weight: var(--fw-semibold); font-size: 7.5cqw; letter-spacing: .28em; padding-left: .28em; text-transform: uppercase; overflow-wrap: anywhere; max-width: 100%; }
 .pp-cover-rule { width: 22cqw; height: 1px; background: var(--pp-gold); opacity: .6; }
 .pp-cover-name { font-family: var(--font-display); font-size: 5.4cqw; color: color-mix(in srgb, var(--pp-gold) 80%, #fff); overflow-wrap: anywhere; max-width: 80%; }
-.pp-cover-count { font-family: var(--font-data); font-size: 3.1cqw; letter-spacing: .08em; opacity: .85; }
-.pp-cover-hint { position: absolute; bottom: 5cqw; left: 0; right: 0; font-size: 3cqw; letter-spacing: .14em; text-transform: uppercase; opacity: .55; }
 
 /* The back cover: the same cloth and foil, a barcode strip and a blind-embossed mark. */
 .pp-cover-face.is-back-cover { display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 13cqw 12cqw; }
@@ -128,7 +126,6 @@
 
 /* Record page (left of the first spread). */
 .pp-inside { justify-content: flex-start; align-items: stretch; text-align: left; gap: 3.2cqw; }
-.pp-inside-title { font-family: var(--font-display); font-size: 8.4cqw; font-weight: var(--fw-semibold); line-height: 1.05; overflow-wrap: anywhere; }
 .pp-record { display: flex; align-items: center; gap: 5cqw; }
 .pp-ring { position: relative; flex: 0 0 27cqw; aspect-ratio: 1; }
 .pp-ring svg { width: 100%; height: 100%; fill: none; }
@@ -160,17 +157,21 @@
 .pp-record-empty .pp-dotmap { opacity: .85; }
 .pp-record-empty-title { font-family: var(--font-display); font-size: 6.2cqw; font-weight: var(--fw-semibold); line-height: 1.2; }
 .pp-record-empty-body { margin: 0 auto; max-width: 78%; font-size: 3.5cqw; line-height: 1.5; color: var(--ink-muted); }
-.pp-latest { display: grid; gap: .6cqw; border-top: 1.5px solid var(--ink); padding-top: 2.4cqw; }
+.pp-inside, .pp-bio { --pp-foot: 19cqw; --pp-head: 10cqw; }
+/* The rule under the heading is level across the spread too. */
+.pp-inside .pp-page-head { height: var(--pp-head); box-sizing: border-box; align-items: flex-end; }
+/* The foot of both pages of the first spread is the same height and runs to the bottom edge, so the rule across the top of it sits level on the two pages. */
+.pp-latest { flex: none; display: grid; align-content: center; gap: .6cqw; height: var(--pp-foot); box-sizing: border-box; margin: 0 -7cqw -8cqw; padding: 0 7cqw; border-top: 1.5px solid var(--ink); }
 .pp-latest-v { font-size: 3.7cqw; font-weight: var(--fw-semibold); }
 .pp-latest-trip { font-family: var(--font-data); font-size: 2.6cqw; letter-spacing: .06em; color: var(--ink-muted); }
 
 /* Bio page (right of the first spread): the data page. */
-.pp-bio { gap: 3.4cqw; overflow: hidden; }
+.pp-bio { --pp-gap: 3cqw; gap: var(--pp-gap); overflow: hidden; }
 .pp-guilloche { position: absolute; right: -16%; top: -7%; width: 78%; fill: none; stroke: var(--ink); stroke-width: .5; opacity: .1; pointer-events: none; }
-.pp-bio-head { position: relative; display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 2cqw; border-bottom: 1.5px solid var(--ink); font-family: var(--font-data); font-size: 3cqw; letter-spacing: .16em; color: var(--ink-soft); }
+.pp-bio-head { position: relative; display: flex; justify-content: space-between; align-items: flex-end; height: var(--pp-head); box-sizing: border-box; padding-bottom: 2cqw; border-bottom: 1.5px solid var(--ink); font-family: var(--font-data); font-size: 3cqw; letter-spacing: .16em; color: var(--ink-soft); }
 .pp-bio-title { font-family: var(--font-display); font-size: 5cqw; font-weight: var(--fw-semibold); letter-spacing: .28em; color: var(--ink); }
 .pp-bio-no { color: var(--ink); font-weight: var(--fw-semibold); }
-.pp-bio-main { position: relative; display: grid; grid-template-columns: 38cqw 1fr; gap: 5cqw; margin-top: 1.6cqw; }
+.pp-bio-main { position: relative; display: grid; grid-template-columns: 34cqw 1fr; gap: 4cqw; }
 .pp-bio-side { display: grid; gap: 2.2cqw; align-content: start; }
 .pp-photo {
   position: relative; aspect-ratio: 3 / 4; border-radius: 1.6cqw; overflow: hidden; display: grid; place-items: center;
@@ -181,21 +182,39 @@
 .pp-photo img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.7) contrast(1.05); }
 .pp-photo-fallback { font-family: var(--font-display); font-size: 14cqw; color: color-mix(in srgb, var(--ink) 55%, transparent); }
 .pp-photo.is-ghost .pp-photo-fallback { font-size: 6cqw; }
-.pp-fields { display: grid; align-content: start; gap: 3.6cqw; min-width: 0; }
+.pp-fields { display: grid; align-content: start; gap: 3cqw; min-width: 0; }
 .pp-field-v { font-family: var(--font-data); font-size: 3.7cqw; font-weight: var(--fw-semibold); text-transform: uppercase; overflow-wrap: anywhere; }
-.pp-field.is-name .pp-field-v { font-family: var(--font-display); font-size: 7.4cqw; line-height: 1.05; text-transform: none; letter-spacing: -.01em; }
-.pp-field-pair { display: grid; grid-template-columns: 1.25fr 1fr; gap: 3cqw; }
-.pp-field-pair .pp-field-v { font-size: 3.2cqw; white-space: nowrap; }
-.pp-field-pair.is-trio { grid-template-columns: .5fr .7fr 1.5fr; }
-.pp-field-pair.is-trio .pp-field-v { font-size: 3cqw; }
+.pp-field.is-name .pp-field-v { font-family: var(--font-display); font-size: 7cqw; line-height: 1.05; text-transform: none; letter-spacing: -.01em; }
+.pp-field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 3cqw; }
+.pp-field-pair.is-sex { grid-template-columns: .5fr 1.5fr; }
+.pp-field-pair .pp-field-v { font-size: 2.8cqw; white-space: nowrap; }
+.pp-field-pair .pp-field-l { font-size: 2.2cqw; letter-spacing: .06em; white-space: nowrap; }
+.pp-field.is-hidden .pp-field-v, .pp-bio-no.is-hidden { letter-spacing: .1em; color: var(--ink-muted); }
 .pp-sign { display: grid; gap: .6cqw; margin-top: auto; position: relative; flex: none; }
 .pp-sign-top { display: flex; justify-content: space-between; align-items: center; }
-.pp-sign-line { height: 12cqw; border-bottom: 1px solid var(--ink); }
+.pp-sign-line { height: 10cqw; }
 .pp-mrz {
-  flex: none; padding: 2.6cqw 7cqw 5cqw; margin: 0 -7cqw -8cqw; font-family: var(--font-data); font-size: 2.9cqw; letter-spacing: .02em; line-height: 1.55;
+  flex: none; display: grid; align-content: center; height: var(--pp-foot); box-sizing: border-box; margin: calc(-1 * var(--pp-gap)) -7cqw -8cqw; padding: 0 7cqw;
+  font-family: var(--font-data); font-size: 2.9cqw; letter-spacing: .02em; line-height: 1.55;
   color: var(--ink-soft); overflow: hidden; white-space: nowrap;
-  background: color-mix(in srgb, var(--sky-400) 22%, transparent); border-top: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--sky-400) 22%, transparent); border-top: 1.5px solid var(--ink);
 }
+
+/* The map's magnifier: a glass that follows the pointer over the dotted map and shows it five times larger, with the visited countries outlined. */
+.pp-dotmap-host { position: relative; touch-action: none; cursor: zoom-in; }
+.pp-lens-hint { position: absolute; right: 0; bottom: -3.4cqw; display: inline-flex; align-items: center; gap: 1cqw; font-family: var(--font-data); font-size: 2.2cqw; letter-spacing: .08em; color: var(--ink-faint); pointer-events: none; transition: opacity .2s; }
+.pp-dotmap-host.is-magnifying .pp-lens-hint { opacity: 0; }
+.pp-lens { position: absolute; left: 0; top: 0; width: 34cqw; aspect-ratio: 1; pointer-events: none; opacity: 0; transition: opacity .12s; z-index: 5; will-change: transform; }
+.pp-lens.is-on { opacity: 1; }
+.pp-lens-view {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: color-mix(in srgb, var(--pp-paper) 94%, white);
+  box-shadow: 0 0 0 .9cqw color-mix(in srgb, var(--ink) 82%, var(--pp-paper)), 0 0 0 1.1cqw color-mix(in srgb, var(--pp-paper) 70%, transparent), 0 2cqw 4cqw -1cqw color-mix(in srgb, black 45%, transparent);
+}
+.pp-lens-view::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(120% 90% at 28% 18%, rgba(255, 255, 255, .34), transparent 46%); box-shadow: inset 0 0 3cqw color-mix(in srgb, black 18%, transparent); }
+.pp-lens::after { content: ''; position: absolute; left: 83%; top: 83%; width: 3.6cqw; height: 13cqw; transform-origin: 50% 0; transform: rotate(-45deg) translateY(.6cqw); border-radius: 2cqw; background: linear-gradient(90deg, color-mix(in srgb, var(--ink) 70%, var(--pp-paper)), var(--ink)); box-shadow: 0 1cqw 2cqw -.6cqw color-mix(in srgb, black 40%, transparent); }
+.pp-lens-map { position: absolute; left: 0; top: 0; max-width: none; display: block; }
+.pp-lens-land path { fill: none; stroke: color-mix(in srgb, var(--ink) 26%, transparent); stroke-width: .7px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.pp-lens-lit path { fill: color-mix(in srgb, var(--pp-accent) 18%, transparent); stroke: var(--pp-accent); stroke-width: 1.8px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 
 /* Stamp pages: the stamps sit on the whole page, the header over the top. */
 .pp-stamps { padding: 0; }
@@ -204,19 +223,6 @@
 .pp-slot { position: absolute; width: 38%; transform: translate(-50%, -50%); }
 .pp-slot .pp-stamp { display: block; width: 100%; }
 .pp-slot .pp-stamp svg { width: 100%; height: auto; }
-/* "First entry": a note in the stamp's own ink, tucked at its top-right corner. It appears with the stamp. */
-.pp-first {
-  position: absolute; top: 4%; right: -4%; display: inline-flex; align-items: center; gap: .6cqw; padding: .5cqw 1.8cqw;
-  transform: rotate(7deg); border: 1.5px solid var(--ink-c); border-radius: 1cqw; color: var(--ink-c); pointer-events: none;
-  background: color-mix(in srgb, var(--pp-paper) 86%, transparent);
-  font-family: var(--font-stamp); font-size: 2.3cqw; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
-  animation: pp-first-in .4s .3s cubic-bezier(.3, 1.4, .5, 1) both;
-}
-.pp-first i { font-style: normal; font-size: 2.4cqw; line-height: 1; }
-.pp-slot[data-fresh] .pp-first { display: none; }
-@keyframes pp-first-in { from { opacity: 0; transform: rotate(7deg) scale(.6); } to { opacity: 1; transform: rotate(7deg); } }
-@media (prefers-reduced-motion: reduce) { .pp-first { animation: none; } }
-
 .pp-backpage { justify-content: center; align-items: center; text-align: center; gap: 4cqw; }
 .pp-backpage-sub { font-family: var(--font-data); font-size: 3cqw; color: var(--ink-muted); }
 
@@ -303,6 +309,9 @@
 .pp-edit-row { display: flex; align-items: center; gap: var(--sp-2); justify-content: space-between; }
 .pp-edit-row input { flex: 1; min-width: 0; }
 .pp-edit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+.pp-edit-grid.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pp-show { display: inline-flex; align-items: center; gap: 6px; flex: none; font-size: var(--fs-xs); color: var(--ink-soft); cursor: pointer; white-space: nowrap; }
+.pp-edit-field .pp-show input { width: auto; padding: 0; flex: none; }
 @media (max-width: 520px) { .pp-edit-grid { grid-template-columns: 1fr; } }
 .pp-edit-photo { display: flex; align-items: center; gap: var(--sp-4); }
 .pp-edit-photo-img { width: 72px; height: 96px; border-radius: var(--r-md); overflow: hidden; display: grid; place-items: center; background: var(--surface-3); font-size: 28px; }
@@ -333,6 +342,27 @@
   border-bottom: 1px solid var(--rule); background: linear-gradient(180deg, color-mix(in srgb, var(--ink-c, var(--select-bg)) 10%, transparent), transparent);
 }
 .pp-drawer-titles { min-width: 0; }
+/* The memory card's head is a picture of the place, like the itinerary's cards. */
+.pp-drawer-head.pp-hero {
+  position: relative; display: flex; align-items: flex-end; min-height: 200px; padding: var(--sp-4) var(--sp-5); overflow: hidden; border-bottom: 0; background: none; color: #fff;
+}
+.pp-hero-img, .pp-hero-fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pp-hero-img { object-fit: cover; }
+.pp-hero-fallback {
+  display: flex; align-items: center; justify-content: flex-end; padding-right: 9%; font-size: 76px;
+  background:
+    radial-gradient(120% 90% at 85% 10%, color-mix(in srgb, var(--ink-c, var(--select-bg)) 60%, #fff 8%), transparent 60%),
+    linear-gradient(135deg, color-mix(in srgb, var(--ink-c, var(--select-bg)) 72%, #1c1a17), color-mix(in srgb, var(--ink-c, var(--select-bg)) 46%, #1c1a17));
+}
+.pp-hero-fallback span { opacity: .4; filter: saturate(.8); }
+.pp-hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .3) 0, transparent 36%, rgba(0, 0, 0, .66) 100%); }
+.pp-hero .pp-drawer-titles { position: relative; z-index: 1; text-shadow: 0 1px 8px rgba(0, 0, 0, .35); }
+.pp-hero .pp-drawer-kicker, .pp-hero .pp-drawer-sub { color: rgba(255, 255, 255, .84); }
+.pp-hero .pp-drawer-btns { position: absolute; top: var(--sp-3); right: var(--sp-4); z-index: 2; }
+.pp-hero .pp-round { background: rgba(255, 255, 255, .2); border-color: rgba(255, 255, 255, .5); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.pp-hero .pp-round:hover:not(:disabled) { background: rgba(255, 255, 255, .36); }
+.pp-hero .pp-round.is-close { background: #fff; border-color: #fff; color: #222; }
+.pp-hero .pp-drawer-first { color: #fff; border-color: rgba(255, 255, 255, .75); background: rgba(255, 255, 255, .16); text-shadow: none; }
 .pp-drawer-kicker { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-muted); }
 .pp-drawer-title { margin: 2px 0 0; font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: 1.1; overflow-wrap: anywhere; }
 .pp-drawer-sub { margin-top: 4px; font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .06em; color: var(--ink-muted); }
@@ -358,24 +388,23 @@
 .pp-card-receipt .pp-row-wrap .paper-row-lead { display: none; }
 .pp-card-receipt .pp-row-wrap .paper-row-value { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
 
-/* Photos: one per city, three to a row like a Moments post. */
-.pp-shots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
-/* One or two photos are shown larger, the way Moments does — a lone 1/3-width tile looks like a mistake. */
-.pp-shots[data-n="1"] { grid-template-columns: minmax(0, 62%); }
-.pp-shots[data-n="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.pp-shot { margin: 0; display: grid; gap: 4px; min-width: 0; }
-.pp-shot-pic {
-  position: relative; aspect-ratio: 1; overflow: hidden; border-radius: var(--r-sm);
-  background: linear-gradient(160deg, color-mix(in srgb, var(--ink-c, var(--select-bg)) 30%, var(--surface-3)), color-mix(in srgb, var(--ink-c, var(--select-bg)) 10%, var(--surface-3)));
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent);
+/* Photos: the journal's pictures taped down as polaroids. */
+.pp-polaroids { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--sp-5) var(--sp-4); padding-top: 8px; }
+.pp-polaroid {
+  position: relative; margin: 0; padding: 7px 7px 0; border-radius: 2px; transform: rotate(var(--tilt, 0deg));
+  background: color-mix(in srgb, white 90%, var(--pp-paper)); box-shadow: 0 10px 20px -10px color-mix(in srgb, black 50%, transparent), 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent);
 }
-.pp-shot-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.pp-shot figcaption {
-  font-size: var(--fs-2xs); color: var(--ink-soft); text-align: center;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.pp-polaroid-pic {
+  position: relative; aspect-ratio: 1; overflow: hidden;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--ink-c, var(--select-bg)) 38%, #e8dcc6), color-mix(in srgb, var(--ink-c, var(--select-bg)) 12%, #f4ead6));
 }
-.pp-shot.is-empty .pp-shot-pic { display: grid; place-items: center; background: color-mix(in srgb, var(--ink) 4%, transparent); border: 1px dashed var(--ink-faint); box-shadow: none; }
-.pp-shot-none { font-size: var(--fs-2xs); color: var(--ink-faint); text-align: center; padding: 0 4px; line-height: 1.3; }
+.pp-polaroid-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(.9); }
+.pp-polaroid figcaption { padding: 6px 2px 8px; text-align: center; font-family: var(--font-hand); font-size: 19px; line-height: 1.1; color: #3a322a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-tape {
+  position: absolute; top: -9px; left: 50%; width: 46px; height: 16px; transform: translateX(-50%) rotate(-3deg); z-index: 1;
+  background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--select-bg) 42%, transparent) 0 5px, color-mix(in srgb, var(--select-bg) 24%, transparent) 5px 10px);
+  box-shadow: 0 1px 3px color-mix(in srgb, black 18%, transparent);
+}
 
 .pp-entries { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
 .pp-entry {

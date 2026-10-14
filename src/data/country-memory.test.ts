@@ -46,4 +46,30 @@ describe('countryMemory', () => {
   it('spend: this trip only, in its own currency', () => {
     expect(m.spend).toEqual([{ tripId: 't1', currency: 'EUR', total: 140, count: 2 }]);
   });
+
+  describe('the picture at the head of the card and the polaroids', () => {
+    it('is the itinerary cover of the first stop of the stay that has one, with its crop focus', () => {
+      const legs = LEGS.map((l) => (l.id === 'b' ? { ...l, coverImageUrl: 'https://x/odense.jpg', coverFocalY: 0.3 } : l.id === 'a' ? { ...l, coverImageUrl: 'https://x/cph.jpg' } : l));
+      expect(countryMemory(dk1, stamps, legs, data).hero).toEqual({ url: 'https://x/cph.jpg', focalY: undefined, city: 'Copenhagen' });
+      const only = LEGS.map((l) => (l.id === 'b' ? { ...l, coverImageUrl: 'https://x/odense.jpg', coverFocalY: 0.3 } : l));
+      expect(countryMemory(dk1, stamps, only, data).hero).toEqual({ url: 'https://x/odense.jpg', focalY: 0.3, city: 'Odense' });
+    });
+
+    it('without a cover, the newest journal photo heads the card and is not taped in again', () => {
+      const m2 = countryMemory(dk1, stamps, LEGS, data);
+      expect(m2.hero?.url).toBe('https://x/1.jpg');
+      expect(m2.photos.map((p) => p.url)).toEqual(['https://x/2.jpg']);
+    });
+
+    it('with a cover, every journal photo of the country is a polaroid', () => {
+      const legs = LEGS.map((l) => (l.id === 'a' ? { ...l, coverImageUrl: 'https://x/cph.jpg' } : l));
+      expect(countryMemory(dk1, stamps, legs, data).photos.map((p) => p.url)).toEqual(['https://x/1.jpg', 'https://x/2.jpg']);
+    });
+
+    it('no cover and no photo: no picture, no polaroids', () => {
+      const none = countryMemory(dk1, stamps, LEGS, { ...data, journal: [] });
+      expect(none.hero).toBeNull();
+      expect(none.photos).toEqual([]);
+    });
+  });
 });

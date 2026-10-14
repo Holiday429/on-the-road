@@ -142,7 +142,7 @@ export function autoPlacement(stamp: PassportStamp, pages: StampPage[], now = Da
 export function bookPages(stamps: StampPage[], visaCount = 0, single = false): BookPage[] {
   const visaPages = Math.max(1, Math.ceil(visaCount / VISAS_PER_PAGE));
   const pages: BookPage[] = [
-    { kind: 'inside' }, { kind: 'bio' },
+    { kind: 'bio' }, { kind: 'inside' },
     ...Array.from({ length: visaPages }, (_, index): BookPage => ({ kind: 'visas', index })),
     ...stamps, { kind: 'back' },
   ];

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { pageHtml, type PageCtx } from './pages.ts';
 import { bookPages, stampPages, type BookPage } from './book.ts';
 import { passportFor } from '../../data/passport.ts';
+import { NO_DOC } from './bio.ts';
 
 const LEGS = [
   { id: 'a', city: 'Copenhagen', country: 'Denmark', dateFrom: '2026-06-25', dateTo: '2026-07-05', tripId: 't1' },
@@ -13,7 +14,7 @@ const pages: BookPage[] = bookPages(stampPages(data.stamps, placements), 0);
 const ctx: PageCtx = {
   data, nickname: 'Holi<day>', nationality: 'CN', occupation: 'Pil<ot>', signature: 'M0 0L10 10', photoUrl: '', uid: 'u1', issued: '2026-06-25', fresh: new Set(['country:DK:t1']),
   locale: 'en', visas: [], visaNotes: new Map(), schengen: null, pageNo: (p) => pages.indexOf(p) + 1,
-  cover: { color: '#34465e', material: 'cloth', foil: 'gold', emblem: 'globe', title: '' }, pressed: 2,
+  cover: { color: '#34465e', material: 'cloth', foil: 'gold', emblem: 'globe', title: '' }, pressed: 2, doc: NO_DOC,
 };
 
 describe('pageHtml', () => {
@@ -83,14 +84,11 @@ describe('pageHtml', () => {
     expect(pageHtml(orphan as BookPage, ctx)).toContain(' · ');
   });
 
-  it('only a country\'s first-ever stamp carries the "first entry" note; the stamp itself is unchanged', () => {
-    const stamps = data.stamps.map((x) => ({ ...x, firstEver: x.iso === 'DK' }));
-    const pg = stampPages(stamps, placements)[0];
-    const html = pageHtml(pg, ctx);
-    expect(html.match(/class="pp-first"/g)).toHaveLength(1);
-    expect(html.indexOf('class="pp-first"')).toBeGreaterThan(html.indexOf('data-stamp="country:DK:t1"'));
-    const none = pageHtml(stampPages(data.stamps.map((x) => ({ ...x, firstEver: false })), placements)[0], ctx);
-    expect(none).not.toContain('pp-first');
+  it('a stamp on the page carries no "first entry" label, even for a country\'s first-ever stamp', () => {
+    const stamps = data.stamps.map((x) => ({ ...x, firstEver: true }));
+    const html = pageHtml(stampPages(stamps, placements)[0], ctx);
+    expect(html).not.toContain('pp-first');
+    expect(html).not.toMatch(/first entry/i);
   });
 
   it('a stamp just pressed is marked to land later; an older one is not', () => {
@@ -98,5 +96,65 @@ describe('pageHtml', () => {
     const html = pageHtml(stamps, ctx);
     expect(html).toMatch(/data-stamp="country:DK:t1" data-fresh/);
     expect(html).not.toMatch(/data-stamp="country:DE:t1" data-fresh/);
+  });
+
+  it('the cover is just the emblem, title and name — no stamp count, no "tap to open"', () => {
+    const cover = pageHtml({ kind: 'cover' }, ctx);
+    expect(cover).not.toContain('pp-cover-count');
+    expect(cover).not.toContain('pp-cover-hint');
+    expect(cover).not.toMatch(/stamps/i);
+  });
+
+  it('the first spread opens on the data page, with the record on its right and no "belongs to" line or name on it', () => {
+    expect(pages[0].kind).toBe('bio');
+    expect(pages[1].kind).toBe('inside');
+    const rec = pageHtml({ kind: 'inside' }, ctx);
+    expect(rec).not.toContain('pp-inside-title');
+    expect(rec).not.toMatch(/belongs/i);
+    expect(rec).not.toContain('Holi&lt;day&gt;');
+  });
+
+  it('the record page\'s map carries the magnifier hook with the visited countries', () => {
+    const rec = pageHtml({ kind: 'inside' }, ctx);
+    expect(rec).toMatch(/data-pp-lens="[A-Z ]*DK[A-Z ]*"/);
+    expect(rec).toContain('data-no-turn');
+    expect(pageHtml({ kind: 'inside' }, { ...ctx, data: { ...data, stamps: [], countries: 0, cities: 0, nights: 0, trips: 0 }, pressed: 0 })).not.toContain('data-pp-lens');
+  });
+
+  describe('the data page\'s details', () => {
+    const doc = { fullName: 'Holi Day <X>', number: 'E12345678', birthDate: '1992-04-17', gender: 'F' as const, issued: '2026-06-25', expires: '2036-06-24', showNumber: true, showFullName: false, showBirth: false };
+    const bio = (d: Partial<typeof doc>) => pageHtml({ kind: 'bio' }, { ...ctx, doc: { ...doc, ...d } });
+
+    it('shows what the traveller chose to show, as dots what they did not, and always sex, issue and expiry', () => {
+      const html = bio({});
+      expect(html).toContain('N° E12345678');             // number: shown
+      expect(html).not.toContain('Holi Day');             // name: hidden
+      expect(html).not.toContain('17 APR');               // birth: hidden
+      expect(html).toContain('is-hidden');
+      expect(html).toContain('•');
+      expect(html).toContain('25 JUN 2026');
+      expect(html).toContain('24 JUN 2036');
+      expect(html).toMatch(/>F</);
+    });
+
+    it('shows name and birth date when chosen, escaped', () => {
+      const html = bio({ showFullName: true, showBirth: true });
+      expect(html).toContain('Holi Day &lt;X&gt;');
+      expect(html).toContain('17 APR 1992');
+    });
+
+    it('a hidden number never reaches the page or the machine-readable lines', () => {
+      const html = bio({ showNumber: false });
+      expect(html).not.toContain('E12345678');
+      expect(html).not.toContain('5678');
+    });
+
+    it('with nothing entered: the made-up number, a dash for the personal items, the booklet\'s own ten years', () => {
+      const html = pageHtml({ kind: 'bio' }, ctx);
+      expect(html).toMatch(/N° \d{7}/);
+      expect(html).toContain('25 JUN 2026');
+      expect(html).toContain('24 JUN 2036');
+      expect(html).not.toContain('is-hidden');
+    });
   });
 });

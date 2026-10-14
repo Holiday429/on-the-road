@@ -25,6 +25,9 @@ export interface FootprintLeg {
   order?: number;
   tripId?: string | null;
   arrivalTransport?: { type?: string } | null;
+  /** The photo the itinerary card shows for this stop, and where in it the crop is centred (0 top – 1 bottom). */
+  coverImageUrl?: string;
+  coverFocalY?: number;
 }
 
 export interface TripVisit {

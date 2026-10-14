@@ -75,7 +75,7 @@ describe('buildCountryExtras', () => {
     expect(dk.guideCount).toBe(5);
   });
   it('is all zeros for a country with nothing recorded', () => {
-    expect(buildCountryExtras('JP', legs, empty)).toEqual({ journalCount: 0, entries: [], cityPhotos: [], covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
+    expect(buildCountryExtras('JP', legs, empty)).toEqual({ journalCount: 0, entries: [], cityPhotos: [], photos: [], covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
   });
 });
 
@@ -110,5 +110,18 @@ describe('cityPhotos', () => {
 
   it('a country with no photos at all gets no tiles', () => {
     expect(buildCountryExtras('DK', legs, empty).cityPhotos).toEqual([]);
+  });
+});
+
+describe('photos', () => {
+  it('lists every photo of the country, newest entry first, with where and when', () => {
+    const data2: ExtrasData = { ...empty, journal: [
+      { destination: 'Copenhagen', happenedOn: '2026-07-01', images: ['https://x/a.jpg'], title: 'Day one' },
+      { destination: 'Copenhagen', happenedOn: '2026-07-03', images: ['https://x/b.jpg', 'https://x/c.jpg'] },
+    ] };
+    const shots = buildCountryExtras('DK', legs, data2).photos;
+    expect(shots.map((p) => p.url)).toEqual(['https://x/b.jpg', 'https://x/c.jpg', 'https://x/a.jpg']);
+    expect(shots[0].date).toBe('2026-07-03');
+    expect(shots[2].title).toBe('Day one');
   });
 });

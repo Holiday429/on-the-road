@@ -82,11 +82,11 @@ describe('stampPages', () => {
 });
 
 describe('leaves', () => {
-  const pages = bookPages(stampPages(EURO, pressAll(EURO))); // inside, bio, visas, stamps×2, back, back cover  → 7 pages
+  const pages = bookPages(stampPages(EURO, pressAll(EURO))); // bio, inside, visas, stamps×2, back, back cover  → 7 pages
   it('spread: the cover backs onto the inside page; each sheet pairs a right page with the next left one', () => {
     const l = leavesFor(pages, false);
     expect(l.map((x) => [x.front.kind, x.back?.kind ?? null])).toEqual([
-      ['cover', 'inside'], ['bio', 'visas'], ['stamps', 'stamps'], ['back', 'backcover'],
+      ['cover', 'bio'], ['inside', 'visas'], ['stamps', 'stamps'], ['back', 'backcover'],
     ]);
   });
 
@@ -96,7 +96,7 @@ describe('leaves', () => {
   });
 
   it('the back cover is the back of the last sheet; a ruled page makes room when the count would put it on a front', () => {
-    const odd = bookPages(stampPages(EURO.slice(0, 1), pressAll(EURO.slice(0, 1))));   // inside, bio, visas, stamps, back → 5 + notes
+    const odd = bookPages(stampPages(EURO.slice(0, 1), pressAll(EURO.slice(0, 1))));   // bio, inside, visas, stamps, back → 5 + notes
     expect(odd.map((p) => p.kind).slice(-3)).toEqual(['back', 'notes', 'backcover']);
     const l = leavesFor(odd, false);
     expect(l[l.length - 1].back?.kind).toBe('backcover');
@@ -109,7 +109,7 @@ describe('leaves', () => {
     const l = leavesFor(one, true);
     expect(l).toHaveLength(one.length + 1);
     expect(l.every((x) => x.back === null)).toBe(true);
-    expect(l[1].front.kind).toBe('inside');
+    expect(l[1].front.kind).toBe('bio');
     expect(l[l.length - 1].front.kind).toBe('backcover');
   });
 

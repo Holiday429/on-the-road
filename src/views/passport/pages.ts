@@ -12,7 +12,7 @@ import { renderStamp } from '../../core/paper/stamp.ts';
 import { stampDate } from '../../core/paper/stamp-base.ts';
 import { nationalityFlag, nationalityLabel } from '../../data/nationalities.ts';
 import type { PassportData } from '../../data/passport.ts';
-import { barcodeBars, mrz, passportNumber, travelLevel } from './bio.ts';
+import { barcodeBars, defaultExpiry, headerNumber, mrz, passportNumber, personalItem, travelLevel, type DocInput } from './bio.ts';
 import { isSafePath } from './signature.ts';
 import { VISAS_PER_PAGE, type BookPage, type StampPage } from './book.ts';
 import { countryInk } from '../../data/country-ink.ts';
@@ -20,6 +20,7 @@ import { SCHENGEN_REGION, regionFlag, regionLabel, type SchengenUsage } from '..
 import type { Visa } from '../../data/schema/visa.ts';
 import { maskNumber } from './bio.ts';
 import { dotMapSvg } from '../../data/dot-map.ts';
+import { MAGNIFIER_ICON } from './lens.ts';
 import type { PassportCover } from '../../data/schema.ts';
 
 export interface PageCtx {
@@ -47,6 +48,8 @@ export interface PageCtx {
   cover: PassportCover;
   /** Stamps pressed onto pages so far (of `data.stamps.length` earned). */
   pressed: number;
+  /** The traveller's own document details; the data page shows the ones marked as shown. */
+  doc: DocInput;
 }
 
 function stat(n: number, label: string): string {
@@ -72,9 +75,7 @@ function cover(c: PageCtx): string {
       <div class="pp-cover-title">${esc(c.cover.title || t('passport.cover.title'))}</div>
       <div class="pp-cover-rule"></div>
       <div class="pp-cover-name">${esc(c.nickname)}</div>
-      <div class="pp-cover-count">${esc(t('passport.summary', { n: c.data.stamps.length, c: c.data.countries }))}</div>
     </div>
-    <div class="pp-cover-hint">${esc(t('passport.cover.hint'))}</div>
   </div>`;
 }
 
@@ -89,10 +90,9 @@ function backCover(c: PageCtx): string {
 }
 
 /** The record page of a passport with nothing in it yet: the whole map blank, and what will fill it. */
-function emptyRecord(c: PageCtx): string {
+function emptyRecord(): string {
   return `<div class="pp-sheet pp-inside">
-    <div class="pp-page-head"><span>${esc(t('passport.record.title'))}</span><span class="pp-page-range">${esc(t('passport.inside.kicker'))}</span></div>
-    <div class="pp-inside-title">${esc(c.nickname)}</div>
+    <div class="pp-page-head"><span>${esc(t('passport.record.title'))}</span></div>
     <div class="pp-record-empty">
       ${dotMapSvg([])}
       <div class="pp-record-empty-title">${esc(t('passport.record.emptyTitle'))}</div>
@@ -104,7 +104,7 @@ function emptyRecord(c: PageCtx): string {
 /** Left page of the first spread: whose book this is, and what it adds up to. */
 function inside(c: PageCtx): string {
   const d = c.data;
-  if (d.stamps.length === 0) return emptyRecord(c);
+  if (d.stamps.length === 0) return emptyRecord();
   const total = d.stamps.length;
   const pct = total ? Math.min(1, c.pressed / total) : 0;
   const R = 46;
@@ -113,8 +113,7 @@ function inside(c: PageCtx): string {
   const last = d.stamps[d.stamps.length - 1];
   const isos = d.stamps.map((s) => s.iso);
   return `<div class="pp-sheet pp-inside">
-    <div class="pp-page-head"><span>${esc(t('passport.record.title'))}</span><span class="pp-page-range">${esc(t('passport.inside.kicker'))}</span></div>
-    <div class="pp-inside-title">${esc(c.nickname)}</div>
+    <div class="pp-page-head"><span>${esc(t('passport.record.title'))}</span></div>
     <div class="pp-record">
       <div class="pp-ring" role="img" aria-label="${c.pressed} / ${total}">
         <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="pp-ring-track" cx="60" cy="60" r="${R}"/><circle class="pp-ring-fill" cx="60" cy="60" r="${R}" stroke-dasharray="${(circ * pct).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 60 60)"/><circle class="pp-ring-dash" cx="60" cy="60" r="36"/></svg>
@@ -132,7 +131,10 @@ function inside(c: PageCtx): string {
     </div>
     <div class="pp-dotmap-box">
       <div class="pp-dotmap-head"><span class="pp-field-l">${esc(t('passport.record.visited'))}</span><span class="pp-dotmap-n">${d.countries}</span></div>
-      ${dotMapSvg(isos)}
+      <div class="pp-dotmap-host" data-no-turn data-pp-lens="${esc([...new Set(isos)].join(' '))}">
+        ${dotMapSvg(isos)}
+        <span class="pp-lens-hint" aria-hidden="true">${MAGNIFIER_ICON}<span>${esc(t('passport.lens.hint'))}</span></span>
+      </div>
     </div>
     ${last ? `<div class="pp-latest"><span class="pp-field-l">${esc(t('passport.record.latest'))}</span>
       <span class="pp-latest-v">${esc(last.country)} · ${esc(fullDate(last.date))}</span>
@@ -140,7 +142,7 @@ function inside(c: PageCtx): string {
   </div>`;
 }
 
-/** Right page of the first spread: the data page — portrait, details, signature, machine-readable lines. */
+/** Left page of the first spread: the data page — portrait, details, signature, machine-readable lines. */
 function bio(c: PageCtx): string {
   const [l1, l2] = mrz({ nickname: c.nickname, nationality: c.nationality, uid: c.uid }, c.issued);
   const nat = c.nationality
@@ -152,9 +154,15 @@ function bio(c: PageCtx): string {
     : `<span class="pp-photo-fallback" aria-hidden="true">${initial}</span>`;
   const row = (label: string, value: string, cls = '') =>
     `<div class="pp-field ${cls}"><div class="pp-field-l">${esc(label)}</div><div class="pp-field-v">${value}</div></div>`;
+  // The three personal items show their value or hidden dots, as the traveller chose; the rest is always shown.
+  const personal = (label: string, v: { text: string; hidden: boolean }, cls = '') =>
+    row(label, esc(v.text), `${cls}${v.hidden ? ' is-hidden' : ''}`);
+  const num = headerNumber(c.uid, c.doc);
+  const issued = c.doc.issued || c.issued;
+  const expires = c.doc.expires || defaultExpiry(issued);
   return `<div class="pp-sheet pp-bio">
     <svg class="pp-guilloche" viewBox="0 0 220 220" aria-hidden="true" focusable="false">${guilloche(220, 22)}</svg>
-    <div class="pp-bio-head"><span class="pp-bio-title">${esc(t('passport.cover.title'))}</span><span class="pp-bio-no">N° ${esc(passportNumber(c.uid))}</span></div>
+    <div class="pp-bio-head"><span class="pp-bio-title">${esc(t('passport.cover.title'))}</span><span class="pp-bio-no${num.hidden ? ' is-hidden' : ''}">N° ${esc(num.text)}</span></div>
     <div class="pp-bio-main">
       <div class="pp-bio-side">
         <div class="pp-photo">${photo}</div>
@@ -162,15 +170,17 @@ function bio(c: PageCtx): string {
       </div>
       <div class="pp-fields">
         ${row(t('passport.bio.nickname'), esc(c.nickname), 'is-name')}
+        ${personal(t('passport.bio.fullName'), personalItem(c.doc.fullName, c.doc.showFullName))}
         ${row(t('passport.bio.nationality'), nat)}
-        ${row(t('passport.bio.occupation'), esc(c.occupation || t('passport.bio.traveller')))}
+        <div class="pp-field-pair is-sex">
+          ${row(t('passport.bio.sex'), esc(c.doc.gender || '—'))}
+          ${personal(t('passport.bio.birth'), c.doc.birthDate ? personalItem(fullDate(c.doc.birthDate), c.doc.showBirth) : { text: '—', hidden: false })}
+        </div>
         <div class="pp-field-pair">
-          ${row(t('passport.bio.issued'), esc(c.issued))}
-          ${row(t('passport.bio.number'), esc(passportNumber(c.uid)))}
+          ${row(t('passport.bio.issued'), esc(fullDate(issued)))}
+          ${row(t('passport.bio.expires'), esc(fullDate(expires)))}
         </div>
-        <div class="pp-field-pair is-trio">
-          ${row(t('passport.bio.type'), 'P')}${row(t('passport.bio.code'), 'OTR')}${row(t('passport.bio.authority'), 'ON THE ROAD')}
-        </div>
+        ${row(t('passport.bio.occupation'), esc(c.occupation || t('passport.bio.traveller')))}
       </div>
     </div>
     <div class="pp-sign"><div class="pp-sign-top"><span class="pp-sign-l">${esc(t('passport.bio.signature'))}</span>
@@ -229,18 +239,10 @@ function visas(p: { index: number }, c: PageCtx): string {
   </div>`;
 }
 
-/**
- * A small ink-pad annotation beside a stamp that is the first ever for its country — "the first time you
- * set foot here". The stamp itself is left exactly as it is; this is a note next to it, in its ink.
- */
-function firstMark(ink: string): string {
-  return `<span class="pp-first" style="--ink-c:${esc(ink)}" aria-hidden="true"><i>★</i>${esc(t('passport.first'))}</span>`;
-}
-
 function stampsPage(p: StampPage, c: PageCtx): string {
   const items = p.items.map((i) => {
     const st = { ...i.stamp, rotation: i.rot, pressure: i.pressure };
-    return `<span class="pp-slot" data-stamp="${esc(i.stamp.id)}"${c.fresh.has(i.stamp.id) ? ' data-fresh' : ''} style="left:${i.x.toFixed(1)}%;top:${i.y.toFixed(1)}%">${renderStamp(st, { size: 160 })}${i.stamp.firstEver ? firstMark(i.stamp.ink) : ''}</span>`;
+    return `<span class="pp-slot" data-stamp="${esc(i.stamp.id)}"${c.fresh.has(i.stamp.id) ? ' data-fresh' : ''} style="left:${i.x.toFixed(1)}%;top:${i.y.toFixed(1)}%">${renderStamp(st, { size: 160 })}</span>`;
   }).join('');
   const range = p.items.length ? `${stampDate(p.items[0].stamp.date)} – ${stampDate(p.items[p.items.length - 1].stamp.date)}` : '';
   const deleted = p.items.length > 0 && p.items.every((i) => i.stamp.orphan);

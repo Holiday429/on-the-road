@@ -3,10 +3,12 @@
    --------------------------------------------------------------------------
    A drawer over the book. Everything is optional and nothing has to be real:
    a nickname, a nationality, an occupation, a photo, a hand-drawn signature.
-   Below, a folded section for real document details (name, number, dates) the
+   Below, the document details (name, number, birth date, sex, dates) the
    traveller can use to look things up while filling forms; they live in their
    own document, stay masked until asked, and are checked against upcoming
-   trips for expiry. They are never exported, shared or sent anywhere.
+   trips for expiry. Name, number and birth date each carry a switch: shown on
+   the data page, or kept off it (the page then shows dots). Nothing here is
+   exported, shared or sent anywhere.
    ========================================================================== */
 
 import { openDrawer, closeDrawer } from '../../core/drawer.ts';
@@ -23,6 +25,10 @@ import { isSafePath, signaturePath, SIG_H, SIG_W, type Pt } from './signature.ts
 
 const input = (name: string, label: string, value: string, extra = '') =>
   `<label class="pp-edit-field"><span>${esc(label)}</span><input name="${name}" value="${esc(value)}" autocomplete="off" ${extra}></label>`;
+
+/** A text field with the switch that puts its value on the data page (or leaves it as dots). */
+const showSwitch = (name: string, on: boolean) =>
+  `<label class="pp-show"><input type="checkbox" name="${name}"${on ? ' checked' : ''}><span>${esc(t('passport.edit.showOnPage'))}</span></label>`;
 
 export interface BioDefaults {
   nickname: string;
@@ -61,10 +67,13 @@ export function openBioEditor(def: BioDefaults, onSaved: () => void): void {
         <div class="pp-edit-row"><small>${esc(t('passport.edit.sigHint'))}</small><button type="button" class="btn btn-ghost" data-sig-clear>${esc(t('passport.edit.sigClear'))}</button></div>
       </div>
 
-      <details class="pp-doc">
+      <details class="pp-doc" open>
         <summary>${esc(t('passport.doc.title'))}</summary>
         <p class="pp-doc-hint">${esc(t('passport.doc.hint'))}</p>
-        ${input('fullName', t('passport.doc.fullName'), d?.fullName ?? '')}
+        <div class="pp-edit-field">
+          <span>${esc(t('passport.doc.fullName'))}</span>
+          <div class="pp-edit-row"><input name="fullName" value="${esc(d?.fullName ?? '')}" autocomplete="off">${showSwitch('showFullName', !!d?.showFullName)}</div>
+        </div>
         <div class="pp-edit-field pp-doc-number">
           <span>${esc(t('passport.doc.number'))}</span>
           <div class="pp-edit-row">
@@ -72,13 +81,20 @@ export function openBioEditor(def: BioDefaults, onSaved: () => void): void {
             <button type="button" class="btn btn-ghost" data-doc-show>${esc(t(d?.number ? 'passport.doc.show' : 'passport.doc.hide'))}</button>
             <button type="button" class="btn btn-ghost" data-doc-copy>${esc(t('passport.doc.copy'))}</button>
           </div>
+          ${showSwitch('showNumber', !!d?.showNumber)}
         </div>
-        ${input('issuingCountry', t('passport.doc.issuingCountry'), d?.issuingCountry ?? '')}
-        <div class="pp-edit-grid">
+        <div class="pp-edit-field">
+          <span>${esc(t('passport.doc.birth'))}</span>
+          <div class="pp-edit-row"><input name="birthDate" type="date" value="${esc(d?.birthDate ?? '')}">${showSwitch('showBirth', !!d?.showBirth)}</div>
+        </div>
+        <label class="pp-edit-field"><span>${esc(t('passport.bio.sex'))}</span>
+          <select name="gender">${(['', 'F', 'M', 'X'] as const).map((g) => `<option value="${g}"${g === (d?.gender ?? '') ? ' selected' : ''}>${esc(g ? t(`passport.doc.sex.${g}`) : '—')}</option>`).join('')}</select>
+        </label>
+        <div class="pp-edit-grid is-two">
           ${input('issued', t('passport.doc.issued'), d?.issued ?? '', 'type="date"')}
           ${input('expires', t('passport.doc.expires'), d?.expires ?? '', 'type="date"')}
-          ${input('birthDate', t('passport.doc.birth'), d?.birthDate ?? '', 'type="date"')}
         </div>
+        ${input('issuingCountry', t('passport.doc.issuingCountry'), d?.issuingCountry ?? '')}
         <div class="pp-doc-warn" data-doc-warn></div>
       </details>
     </form>`;
@@ -179,11 +195,15 @@ export function openBioEditor(def: BioDefaults, onSaved: () => void): void {
         nickname: val('nickname'), nationality: val('nationality'), occupation: val('occupation'), photoURL: photo,
         signature: sigChanged ? signaturePath(strokes) : signature,
       });
-      const hasDoc = ['fullName', 'issuingCountry', 'issued', 'expires', 'birthDate'].some((n) => val(n)) || !!num.dataset.real;
+      const hasDoc = ['fullName', 'issuingCountry', 'issued', 'expires', 'birthDate', 'gender'].some((n) => val(n)) || !!num.dataset.real;
       if (hasDoc || passportDocStore.peek()) {
+        const on = (n: string) => (field(n) as HTMLInputElement).checked;
+        const gender = val('gender');
         await passportDocStore.save({
           fullName: val('fullName'), number: (num.dataset.real ?? '').trim(), issuingCountry: val('issuingCountry'),
           issued: val('issued'), expires: val('expires'), birthDate: val('birthDate'),
+          gender: gender === 'F' || gender === 'M' || gender === 'X' ? gender : '',
+          showFullName: on('showFullName'), showNumber: on('showNumber'), showBirth: on('showBirth'),
         });
       }
       closeDrawer();
