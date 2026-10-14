@@ -215,10 +215,18 @@ function visas(p: { index: number }, c: PageCtx): string {
   </div>`;
 }
 
+/**
+ * A small ink-pad annotation beside a stamp that is the first ever for its country — "the first time you
+ * set foot here". The stamp itself is left exactly as it is; this is a note next to it, in its ink.
+ */
+function firstMark(ink: string): string {
+  return `<span class="pp-first" style="--ink-c:${esc(ink)}" aria-hidden="true"><i>★</i>${esc(t('passport.first'))}</span>`;
+}
+
 function stampsPage(p: StampPage, c: PageCtx): string {
   const items = p.items.map((i) => {
     const st = { ...i.stamp, rotation: i.rot, pressure: i.pressure };
-    return `<span class="pp-slot" data-stamp="${esc(i.stamp.id)}"${c.fresh.has(i.stamp.id) ? ' data-fresh' : ''} style="left:${i.x.toFixed(1)}%;top:${i.y.toFixed(1)}%">${renderStamp(st, { size: 160 })}</span>`;
+    return `<span class="pp-slot" data-stamp="${esc(i.stamp.id)}"${c.fresh.has(i.stamp.id) ? ' data-fresh' : ''} style="left:${i.x.toFixed(1)}%;top:${i.y.toFixed(1)}%">${renderStamp(st, { size: 160 })}${i.stamp.firstEver ? firstMark(i.stamp.ink) : ''}</span>`;
   }).join('');
   const range = p.items.length ? `${stampDate(p.items[0].stamp.date)} – ${stampDate(p.items[p.items.length - 1].stamp.date)}` : '';
   const deleted = p.items.length > 0 && p.items.every((i) => i.stamp.orphan);

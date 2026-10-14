@@ -74,6 +74,16 @@ describe('pageHtml', () => {
     expect(pageHtml(orphan as BookPage, ctx)).toContain(' · ');
   });
 
+  it('only a country\'s first-ever stamp carries the "first entry" note; the stamp itself is unchanged', () => {
+    const stamps = data.stamps.map((x) => ({ ...x, firstEver: x.iso === 'DK' }));
+    const pg = stampPages(stamps, placements)[0];
+    const html = pageHtml(pg, ctx);
+    expect(html.match(/class="pp-first"/g)).toHaveLength(1);
+    expect(html.indexOf('class="pp-first"')).toBeGreaterThan(html.indexOf('data-stamp="country:DK:t1"'));
+    const none = pageHtml(stampPages(data.stamps.map((x) => ({ ...x, firstEver: false })), placements)[0], ctx);
+    expect(none).not.toContain('pp-first');
+  });
+
   it('a stamp just pressed is marked to land later; an older one is not', () => {
     const stamps = pages.find((p) => p.kind === 'stamps')!;
     const html = pageHtml(stamps, ctx);

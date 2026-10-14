@@ -104,6 +104,7 @@ export function drawerHtml(m: CountryMemory, locale: string, pos: { i: number; n
         <div class="pp-drawer-kicker">${esc(t('passport.card.kicker'))} · ${pos.i + 1} / ${pos.n}</div>
         <h2 class="pp-drawer-title">${esc(s.country)}</h2>
         <div class="pp-drawer-sub">${esc(sub)}${s.orphan ? ` · ${esc(t('passport.deletedTrip'))}` : ''}</div>
+        ${s.firstEver ? `<div class="pp-drawer-first"><i>★</i> ${esc(t('passport.card.first', { c: s.country, y: year(s.date) }))}</div>` : ''}
       </div>
       <div class="pp-drawer-btns">
         <button type="button" class="pp-round" data-pp-card-step="-1" aria-label="${esc(t('passport.card.prev'))}"${pos.n < 2 ? ' disabled' : ''}>←</button>

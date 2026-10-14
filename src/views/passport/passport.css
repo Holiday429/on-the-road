@@ -199,6 +199,18 @@
 .pp-slot { position: absolute; width: 38%; transform: translate(-50%, -50%); }
 .pp-slot .pp-stamp { display: block; width: 100%; }
 .pp-slot .pp-stamp svg { width: 100%; height: auto; }
+/* "First entry": a note in the stamp's own ink, tucked at its top-right corner. It appears with the stamp. */
+.pp-first {
+  position: absolute; top: 4%; right: -4%; display: inline-flex; align-items: center; gap: .6cqw; padding: .5cqw 1.8cqw;
+  transform: rotate(7deg); border: 1.5px solid var(--ink-c); border-radius: 1cqw; color: var(--ink-c); pointer-events: none;
+  background: color-mix(in srgb, var(--pp-paper) 86%, transparent);
+  font-family: var(--font-stamp); font-size: 2.3cqw; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
+  animation: pp-first-in .4s .3s cubic-bezier(.3, 1.4, .5, 1) both;
+}
+.pp-first i { font-style: normal; font-size: 2.4cqw; line-height: 1; }
+.pp-slot[data-fresh] .pp-first { display: none; }
+@keyframes pp-first-in { from { opacity: 0; transform: rotate(7deg) scale(.6); } to { opacity: 1; transform: rotate(7deg); } }
+@media (prefers-reduced-motion: reduce) { .pp-first { animation: none; } }
 
 .pp-backpage { justify-content: center; align-items: center; text-align: center; gap: 4cqw; }
 .pp-backpage-sub { font-family: var(--font-data); font-size: 3cqw; color: var(--ink-muted); }
@@ -319,6 +331,8 @@
 .pp-drawer-kicker { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-muted); }
 .pp-drawer-title { margin: 2px 0 0; font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: 1.1; overflow-wrap: anywhere; }
 .pp-drawer-sub { margin-top: 4px; font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .06em; color: var(--ink-muted); }
+.pp-drawer-first { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; padding: 3px 10px; border-radius: var(--r-full); font-size: var(--fs-xs); color: var(--ink-c, var(--ink)); border: 1px solid color-mix(in srgb, var(--ink-c, var(--ink)) 55%, transparent); background: color-mix(in srgb, var(--ink-c, var(--ink)) 8%, transparent); }
+.pp-drawer-first i { font-style: normal; }
 .pp-drawer-btns { display: flex; gap: 6px; flex: none; }
 .pp-round { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--rule); background: transparent; color: var(--ink); cursor: pointer; font: inherit; }
 .pp-round:hover:not(:disabled) { background: var(--surface-3); }

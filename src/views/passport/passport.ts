@@ -214,6 +214,7 @@ function render(): void {
       <button type="button" class="btn btn-ghost" data-pp-next aria-label="${esc(t('passport.nav.next'))}">›</button>
       <button type="button" class="btn btn-ghost" data-pp-replay>${esc(t(_replaying ? 'passport.replay.stop' : 'passport.replay'))}</button>
       <button type="button" class="btn btn-ghost" data-pp-sound aria-pressed="${isSoundOn()}" title="${esc(t('passport.sound'))}">${isSoundOn() ? '🔊' : '🔈'}</button>
+      <button type="button" class="btn btn-ghost" data-pp-share${state().pressed.length === 0 ? ' disabled' : ''}>${esc(t('passport.share'))}</button>
       <button type="button" class="btn btn-ghost" data-pp-cover aria-pressed="${!!_panel}">${esc(t('passport.cover.edit'))}</button>
     </div>
     <div class="pp-jumps">${jumpsHtml()}</div>`;
@@ -479,6 +480,27 @@ function stepCard(dir: 1 | -1): void {
   if (at >= 0) { _turned = flippedToShow(at, _single); _flip?.goTo(_turned, true); }
 }
 
+/** Turns the passport into a picture and hands it to the share sheet (or downloads it). */
+async function shareNow(btn: HTMLButtonElement): Promise<void> {
+  if (btn.disabled) return;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = t('passport.share.making');
+  try {
+    // Loaded on demand: the picture code and the QR library are not needed to read the book.
+    const { sharePassport } = await import('./share.ts');
+    const c = ctx();
+    await sharePassport({ nickname: c.nickname, uid: c.uid, issued: c.issued, data: _feed, pressed: state().pressed });
+  } catch (err) {
+    console.error('Passport share failed:', err);
+    const { toast } = await import('../journal/recap/export/ui.ts');
+    toast(t('passport.share.failed'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
 function toggleCoverPanel(): void {
   if (_panel) { _panel.close(); return; }
   const desk = view()?.querySelector<HTMLElement>('.pp-desk');
@@ -592,6 +614,8 @@ function wire(root: HTMLElement): void {
     if (el.closest('.pp-drawer, .pp-drawer-scrim')) return;
     if (el.closest('[data-pp-replay]')) { if (_replaying) stopReplay(); else void replay(); return; }
     if (el.closest('[data-pp-cover]')) { toggleCoverPanel(); return; }
+    const share = el.closest<HTMLButtonElement>('[data-pp-share]');
+    if (share) { void shareNow(share); return; }
     if (el.closest('[data-pp-prev], [data-pp-next], [data-pp-jump]')) _replay++;     // any turn of the traveller's own ends a replay
     if (el.closest('[data-pp-prev]')) { _flip?.prev(); return; }
     if (el.closest('[data-pp-next]')) { _flip?.next(); return; }

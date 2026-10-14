@@ -9,6 +9,8 @@
 
 import { DOT_COLS, DOT_ISOS, DOT_LAT_TOP, DOT_LONE, DOT_ROWS, DOT_ROWS_DATA, DOT_STEP } from './dot-world.ts';
 
+export { DOT_COLS, DOT_ROWS };
+
 interface Cell { x: number; y: number; iso: string }
 
 /** Every land cell with its country, built once. */
@@ -46,17 +48,22 @@ export function litCells(isos: Iterable<string>): Set<Cell> {
   return lit;
 }
 
+/** Every land cell of the dotted world, flagged when it is one of the countries in `isos`. Grid coordinates, not pixels. */
+export function dotMapCells(isos: Iterable<string>): Array<{ x: number; y: number; lit: boolean }> {
+  const lit = litCells(isos);
+  return LAND.map((c) => ({ x: c.x, y: c.y, lit: lit.has(c) }));
+}
+
 /** The dotted world as an inline SVG, the countries in `isos` lit. `cell` = px per grid cell in the viewBox. */
 export function dotMapSvg(isos: Iterable<string>, cell = 4): string {
-  const lit = litCells(isos);
   const w = DOT_COLS * cell;
   const h = DOT_ROWS * cell;
   const dim: string[] = [];
   const hot: string[] = [];
-  for (const c of LAND) {
+  for (const c of dotMapCells(isos)) {
     const cx = c.x * cell + cell / 2;
     const cy = c.y * cell + cell / 2;
-    (lit.has(c) ? hot : dim).push(`<circle cx="${cx}" cy="${cy}" r="${lit.has(c) ? cell * 0.46 : cell * 0.26}"/>`);
+    (c.lit ? hot : dim).push(`<circle cx="${cx}" cy="${cy}" r="${c.lit ? cell * 0.46 : cell * 0.26}"/>`);
   }
   return `<svg class="pp-dotmap" viewBox="0 0 ${w} ${h}" role="img" aria-hidden="true" focusable="false">`
     + `<g class="pp-dot">${dim.join('')}</g><g class="pp-dot is-lit">${hot.join('')}</g></svg>`;
