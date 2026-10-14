@@ -62,7 +62,7 @@
 .jb-new-label { font-size: var(--fs-sm); }
 
 /* ── The open book ───────────────────────────────────────────────────────── */
-.jb-desk { max-width: 1020px; margin: 0 auto; padding-bottom: var(--sp-8); outline: none; }
+.jb-desk { max-width: 1160px; margin: 0 auto; padding-bottom: var(--sp-8); outline: none; }
 .jb-bar { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); }
 .jb-bar-title { flex: 1; min-width: 0; font-family: var(--font-display); font-size: var(--fs-md); font-weight: var(--fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jb-bar-pos { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); }
@@ -73,11 +73,11 @@
 .jb-open { position: relative; perspective: 1900px; animation: jb-rise 520ms var(--ease-out) both; }
 @keyframes jb-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } }
 .jb-spread {
-  position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: 480px; perspective: 1600px;
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: clamp(460px, 62vh, 620px); perspective: 1600px;
   border-radius: 6px 14px 14px 6px; background: var(--surface); box-shadow: var(--shadow-lg); border: 1px solid var(--rule);
 }
 .jb-spread::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 56px; transform: translateX(-50%); pointer-events: none; z-index: 2; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 12%, transparent) 50%, transparent); }
-.jb-page { position: relative; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-6) var(--sp-6) var(--sp-6); background: var(--paper-grain), var(--surface); min-width: 0; cursor: pointer; }
+.jb-page { position: relative; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-5) var(--sp-5); background: var(--paper-grain), var(--surface); min-width: 0; min-height: 0; overflow: hidden; cursor: pointer; }
 .jb-page--left { border-radius: 6px 0 0 6px; padding-right: var(--sp-8); }
 .jb-page--right { border-radius: 0 14px 14px 0; padding-left: var(--sp-8); transform-origin: left center; }
 .jb-page--left { transform-origin: right center; }
@@ -88,19 +88,46 @@
 .jb-page:hover .jb-page-x, .jb-page:focus-within .jb-page-x { opacity: 1; }
 @media (hover: none) { .jb-page-x { opacity: .7; } }
 
-.jb-photo { position: relative; padding: var(--sp-2); background: var(--surface-2); box-shadow: var(--shadow-sm); transform: rotate(-.6deg); }
-.jb-page--right .jb-photo { transform: rotate(.7deg); }
-.jb-photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
-.jb-corner { position: absolute; width: 20px; height: 20px; z-index: 1; background: color-mix(in srgb, var(--amber-600) 70%, var(--surface-4)); }
-.jb-corner--tl { left: 0; top: 0; clip-path: polygon(0 0, 100% 0, 0 100%); }
-.jb-corner--tr { right: 0; top: 0; clip-path: polygon(0 0, 100% 0, 100% 100%); }
-.jb-corner--bl { left: 0; bottom: 0; clip-path: polygon(0 0, 100% 100%, 0 100%); }
-.jb-corner--br { right: 0; bottom: 0; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
-.jb-notes { display: flex; flex-direction: column; gap: var(--sp-1); }
-.jb-notes.is-lined { flex: 1; padding-top: var(--sp-2); background-image: repeating-linear-gradient(180deg, transparent 0 27px, var(--rule) 27px 28px); }
+/* ── A magazine page ─────────────────────────────────────────────────────── */
+.jb-head { display: flex; flex-direction: column; gap: 2px; }
 .jb-date { font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); }
 .jb-hand { margin: 0; font-family: var(--font-hand); font-size: var(--fs-2xl); font-weight: var(--fw-regular, 400); line-height: 1.05; }
-.jb-text { margin: 0; font-size: var(--fs-sm); line-height: 1.6; color: var(--ink-soft); text-wrap: pretty; }
+/* A page that carries on from the one before says so instead of repeating the title. */
+.jb-runon, .jb-turnover { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); }
+.jb-turnover { margin-top: auto; align-self: flex-end; }
+
+/* Photos sit inside the page: one run large, or several in a block. A page holds one entry,
+   so the pictures take whatever room the words leave rather than sitting at a fixed size. */
+.jb-plate { display: grid; gap: var(--sp-2); min-height: 0; flex: 1; }
+.jb-plate--1 { grid-template-columns: 1fr; }
+.jb-plate--2 { grid-template-columns: 1fr 1fr; }
+.jb-plate--3 { grid-template-columns: 1fr 1fr; }
+.jb-plate--3 .jb-shot:first-child { grid-column: 1 / -1; }
+.jb-plate--4 { grid-template-columns: 1fr 1fr; }
+.jb-plate.is-big { flex: 1; }
+.jb-shot { position: relative; margin: 0; min-height: 0; overflow: hidden; background: var(--surface-2); box-shadow: var(--shadow-sm); }
+.jb-shot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* The plate layout: one picture given the room of the page. */
+.jb-plate.is-big .jb-shot { height: 100%; }
+.jb-plate.is-big .jb-shot img { min-height: 220px; }
+.jb-more {
+  position: absolute; right: var(--sp-2); bottom: var(--sp-2); padding: 1px var(--sp-2); border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--surface) 85%, transparent); font-family: var(--font-data); font-size: var(--fs-2xs); color: var(--ink-soft);
+}
+
+/* The words, set as a reading column. */
+.jb-copy { min-height: 0; overflow: hidden; }
+.jb-copy p { margin: 0; font-size: var(--fs-sm); line-height: 1.65; color: var(--ink-soft); text-wrap: pretty; white-space: pre-wrap; }
+/* A page of nothing but text reads in two columns, like a magazine's run-on. */
+.jb-page--column .jb-copy { flex: 1; columns: 2; column-gap: var(--sp-5); column-rule: 1px solid var(--rule); }
+.jb-page--column .jb-copy p { font-size: var(--fs-sm); }
+/* A page broken mid-sentence fades out rather than stopping flat. */
+.jb-copy.is-cut { -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent 100%); mask-image: linear-gradient(180deg, #000 82%, transparent 100%); }
+.jb-page--plate .jb-copy { flex: none; }
+.jb-page--feature .jb-plate { flex: 1 1 55%; }
+/* A page of only words gives the column the whole page. */
+.jb-page--column .jb-copy { flex: 1; }
+.jb-page--feature .jb-copy { flex: 1; }
 
 .jb-page--title { align-items: center; justify-content: center; text-align: center; gap: var(--sp-3); }
 .jb-title-emoji { font-size: 56px; line-height: 1; }

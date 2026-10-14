@@ -1,11 +1,11 @@
 /* ==========================================================================
    On the Road · Journal gallery — markup
    --------------------------------------------------------------------------
-   A dark room with a slowly drifting wall of photographs (see gallery-flow.ts):
-   every photo of every entry, three columns wide, grey until you look at it.
-   Beside it, a plate in the manner of a gallery's wall text: the trip's name in
-   letter-spaced type, and the numbers of what hangs here. Select mode and the
-   Original / Square switch from the old gallery are kept.
+   Just the photographs: every photo of every entry in a wall of columns that
+   drifts slowly upward on its own (see gallery-flow.ts) until you touch it.
+   The controls — drift, Original / Square, select — sit in one small bar above
+   the wall; there is no side plate and no room around it, so nothing competes
+   with the pictures.
    ========================================================================== */
 
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
@@ -42,18 +42,12 @@ export interface GalleryOpts {
   albums: StoredJournalAlbum[];
 }
 
-function range(s: WallStats): string {
-  if (!s.from) return '';
-  return s.from === s.to ? prettyDate(s.from) : `${prettyDate(s.from)} — ${prettyDate(s.to)}`;
-}
-
 export function renderGallery(entries: StoredJournalEntry[], o: GalleryOpts, empty: string): string {
   const photos = wallPhotos(entries);
   if (!photos.length) return empty;
   const stats = wallStats(entries);
   const sel = o.selection;
   const selecting = sel !== null;
-  const lead = photos[0];
 
   const tiles = photos.map((p, i) => {
     const picked = selecting && sel.includes(p.entry.id);
@@ -61,7 +55,6 @@ export function renderGallery(entries: StoredJournalEntry[], o: GalleryOpts, emp
     const where = p.entry.destination.trim();
     return `
       <figure class="jg-tile${picked ? ' is-picked' : ''}" ${action} role="button" tabindex="0" style="--i:${i % 6}">
-        <span class="jg-frame" aria-hidden="true"></span>
         ${selecting ? `<span class="jg-check">${picked ? '✓' : ''}</span>` : ''}
         <img class="jg-img${o.square ? ' is-square' : ''}" src="${escHtml(p.src)}" alt="${escHtml(titleFor(p.entry))}" loading="lazy" draggable="false">
         <figcaption class="jg-placard">
@@ -72,35 +65,23 @@ export function renderGallery(entries: StoredJournalEntry[], o: GalleryOpts, emp
   }).join('');
 
   return `
-    <div class="jg-room">
-      <aside class="jg-plate">
-        <div class="jg-lead">
-          <span class="jg-lead-frame" aria-hidden="true"></span>
-          <img class="jg-lead-img" src="${escHtml(lead.src)}" alt="" draggable="false">
-        </div>
-        <h2 class="jg-name">${escHtml(o.title)}</h2>
-        <p class="jg-stats">
-          <span><b>${stats.photos}</b> ${stats.photos === 1 ? 'photograph' : 'photographs'}</span>
-          ${stats.places ? `<span><b>${stats.places}</b> ${stats.places === 1 ? 'place' : 'places'}</span>` : ''}
-          ${range(stats) ? `<span class="jg-range">${escHtml(range(stats))}</span>` : ''}
-        </p>
-        <div class="jg-controls">
-          ${selecting ? '' : `
-            <button class="jg-chip ${o.square ? '' : 'is-on'}" data-gallery-square type="button">Original</button>
-            <button class="jg-chip ${o.square ? 'is-on' : ''}" data-gallery-square type="button">Square</button>
-            <button class="jg-chip" data-gallery-drift type="button" aria-pressed="${o.drifting}">${o.drifting ? '⏸ Drifting' : '▶ Drift'}</button>`}
-          <button class="jg-chip ${selecting ? 'is-on' : ''}" data-gallery-select type="button">${selecting ? `Selected ${sel.length}` : '☑ Select'}</button>
-        </div>
+    <div class="jg">
+      <div class="jg-bar">
+        <span class="jg-count"><b>${stats.photos}</b> ${stats.photos === 1 ? 'photo' : 'photos'}${stats.places ? ` · <b>${stats.places}</b> ${stats.places === 1 ? 'place' : 'places'}` : ''}</span>
+        <span class="jg-sp"></span>
+        ${selecting ? '' : `
+          <button class="jg-chip" data-gallery-drift type="button" aria-pressed="${o.drifting}">${o.drifting ? '⏸ Drifting' : '▶ Drift'}</button>
+          <button class="jg-chip ${o.square ? '' : 'is-on'}" data-gallery-square type="button">Original</button>
+          <button class="jg-chip ${o.square ? 'is-on' : ''}" data-gallery-square type="button">Square</button>`}
         ${selecting ? `
-          <div class="jg-select">
-            <select class="select input journal-select-album" data-album-target ${sel.length ? '' : 'disabled'} aria-label="Add to album">
-              <option value="">Add to album…</option>
-              ${o.albums.map((a) => `<option value="${escHtml(a.id)}">${escHtml(a.emoji)} ${escHtml(a.title)}</option>`).join('')}
-              <option value="__new__">+ New album…</option>
-            </select>
-            <button class="jg-chip" data-gallery-select-cancel type="button">Cancel</button>
-          </div>` : ''}
-      </aside>
+          <select class="select input journal-select-album jg-album" data-album-target ${sel.length ? '' : 'disabled'} aria-label="Add to album">
+            <option value="">Add to album…</option>
+            ${o.albums.map((a) => `<option value="${escHtml(a.id)}">${escHtml(a.emoji)} ${escHtml(a.title)}</option>`).join('')}
+            <option value="__new__">+ New album…</option>
+          </select>
+          <button class="jg-chip" data-gallery-select-cancel type="button">Cancel</button>` : ''}
+        <button class="jg-chip ${selecting ? 'is-on' : ''}" data-gallery-select type="button">${selecting ? `Selected ${sel.length}` : '☑ Select'}</button>
+      </div>
       <div class="jg-wall" data-gallery-wall tabindex="0" aria-label="Photo wall">
         <div class="jg-cols">${tiles}</div>
       </div>

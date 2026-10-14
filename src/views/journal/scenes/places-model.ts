@@ -10,6 +10,7 @@
    ========================================================================== */
 
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
+import { COUNTRIES } from '../../../data/destinations.ts';
 import { cityLocationsFor, primaryCity } from '../../map/geo.ts';
 import { WORLD_CITIES } from '../../map/world-cities.ts';
 import { sortEntries } from '../shared/utils.ts';
@@ -27,6 +28,13 @@ export interface PlaceStop {
   iso: string | null;
   lat: number | null;
   lng: number | null;
+}
+
+const COUNTRY_NAME: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.country, c.label]));
+
+/** "Portugal" from "PT"; the code itself if it is not one we know. */
+export function countryName(iso: string): string {
+  return COUNTRY_NAME[iso.toUpperCase()] ?? iso;
 }
 
 /** 🇵🇹 from "PT" — regional-indicator letters, no lookup table. */
@@ -84,4 +92,31 @@ export function mapPins(stops: PlaceStop[]): { pins: MapPin[]; countries: string
     pins.push({ key: s.key, label: s.label, count: s.entries.length, lat: s.lat, lng: s.lng, iso: s.iso });
   }
   return { pins, countries: [...new Set(pins.map((p) => p.iso).filter((x): x is string => !!x))] };
+}
+
+export interface CountryGroup {
+  /** The ISO code, or '' for the stops no country could be found for. */
+  iso: string;
+  stops: PlaceStop[];
+  entries: number;
+  /** Earliest day written about anywhere in this country. */
+  from: string;
+}
+
+/**
+ * The stops gathered by country, countries in the order they were first reached. The ones
+ * with no country of their own come last, under a single unplaced heading.
+ */
+export function byCountry(stops: PlaceStop[]): CountryGroup[] {
+  const groups = new Map<string, CountryGroup>();
+  for (const s of stops) {
+    const iso = s.iso ?? '';
+    const g = groups.get(iso) ?? { iso, stops: [], entries: 0, from: s.from };
+    g.stops.push(s);
+    g.entries += s.entries.length;
+    if (s.from < g.from) g.from = s.from;
+    groups.set(iso, g);
+  }
+  return [...groups.values()].sort((a, b) =>
+    (a.iso ? 0 : 1) - (b.iso ? 0 : 1) || a.from.localeCompare(b.from) || a.iso.localeCompare(b.iso));
 }

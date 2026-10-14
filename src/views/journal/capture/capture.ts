@@ -6,7 +6,7 @@ import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import { buildStops } from '../scenes/places-model.ts';
 import { syncPlacesMap, disposePlacesMap } from '../scenes/places-map.ts';
 import { syncGalleryFlow, stopGalleryFlow } from '../scenes/gallery-flow.ts';
-import { clampSpread } from '../scenes/albums.ts';
+import { clampSpread, spreadCount } from '../scenes/albums.ts';
 import { currentTrip } from '../../../data/trip-context.ts';
 import {
   DEFAULT_TEMPLATE,
@@ -526,8 +526,10 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   function turnAlbumPage(delta: 1 | -1) {
     const album = (deps.getAlbums?.() ?? []).find((a) => a.id === state.openAlbumId);
     if (!album) return;
-    const count = album.entryIds.filter((id) => deps.getEntries().some((e) => e.id === id)).length;
-    const next = clampSpread(state.albumSpread + delta, count);
+    // A long entry runs over several spreads, so the end of the book is not the entry count.
+    const all = deps.getEntries();
+    const inAlbum = album.entryIds.map((id) => all.find((e) => e.id === id)).filter((e) => !!e);
+    const next = clampSpread(state.albumSpread + delta, spreadCount(inAlbum));
     if (next === state.albumSpread) return;
     state.albumSpread = next;
     state.albumDir = delta > 0 ? 'next' : 'prev';

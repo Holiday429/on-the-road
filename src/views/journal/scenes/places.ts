@@ -1,16 +1,15 @@
 /* ==========================================================================
    On the Road · Journal places — markup
    --------------------------------------------------------------------------
-   One view for where you have been: a country map on top (drawn by
-   places-map.ts), the places strung along a single line beneath it in the
-   order you reached them, and under the line the entries of whichever stop you
-   touch, fanned out like a hand of cards. Picking from the map, the line or a
-   country is the same action.
+   Where you have been, read top to bottom: the countries along the top as a row
+   of flags, each holding its cities; below that the page splits — the country
+   map on the left (drawn by places-map.ts), the chosen place's entries on the
+   right. Picking a country, a city or a pin is the same action.
    ========================================================================== */
 
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { escHtml, entryCover, excerpt, prettyDate, titleFor, moodEmoji } from '../shared/utils.ts';
-import { flagOf, mapPins, NO_PLACE, type PlaceStop } from './places-model.ts';
+import { byCountry, countryName, flagOf, mapPins, NO_PLACE, type PlaceStop } from './places-model.ts';
 import { stampDate } from './feed.ts';
 
 function span(s: PlaceStop): string {
@@ -29,48 +28,61 @@ function card(e: StoredJournalEntry, i: number): string {
     </article>`;
 }
 
+/** One country: its flag, its cities underneath as small buttons. */
+function countryCard(iso: string, stops: PlaceStop[], entries: number, chosenKey: string): string {
+  const here = stops.some((s) => s.key === chosenKey);
+  const name = iso ? countryName(iso) : NO_PLACE;
+  return `
+    <article class="jp-country${here ? ' is-here' : ''}" data-country="${escHtml(iso)}">
+      <button class="jp-country-head" data-place-pick="${escHtml(stops[0].key)}" type="button">
+        <span class="jp-country-flag" aria-hidden="true">${flagOf(iso || null)}</span>
+        <span class="jp-country-meta">
+          <span class="jp-country-name">${escHtml(iso ? name : 'Elsewhere')}</span>
+          <span class="jp-country-count">${stops.length} ${stops.length === 1 ? 'place' : 'places'} · ${entries} ${entries === 1 ? 'entry' : 'entries'}</span>
+        </span>
+      </button>
+      <div class="jp-cities">
+        ${stops.map((s) => `
+          <button class="jp-city${s.key === chosenKey ? ' is-selected' : ''}" data-place-pick="${escHtml(s.key)}" aria-pressed="${s.key === chosenKey}" type="button">
+            ${escHtml(s.label)}<span class="jp-city-n">${s.entries.length}</span>
+          </button>`).join('')}
+      </div>
+    </article>`;
+}
+
 export function renderPlaces(stops: PlaceStop[], selectedKey: string | null, flip: boolean, empty: string): string {
   if (!stops.length) return empty;
   const chosen = stops.find((s) => s.key === selectedKey) ?? stops[stops.length - 1];
   const { pins, countries } = mapPins(stops);
+  const groups = byCountry(stops);
   const total = stops.reduce((n, s) => n + s.entries.length, 0);
-
-  const line = stops.map((s) => {
-    const on = s.key === chosen.key;
-    return `
-      <li class="jp-item">
-        <button class="jp-stop${on ? ' is-selected' : ''}" data-place-pick="${escHtml(s.key)}" aria-pressed="${on}" type="button">
-          <span class="jp-dot" aria-hidden="true">${flagOf(s.iso)}</span>
-          <span class="jp-stop-name">${escHtml(s.label)}</span>
-          <span class="jp-stop-meta">${s.entries.length} ${s.entries.length === 1 ? 'entry' : 'entries'}</span>
-        </button>
-      </li>`;
-  }).join('');
 
   return `
     <div class="jp">
-      <section class="jp-stage" aria-label="Map of your places">
-        <div class="jp-map" data-places-map data-morph-keep data-pins="${escHtml(JSON.stringify(pins))}" data-selected="${escHtml(chosen.key)}"></div>
-        <div class="jp-hud">
-          <span><b>${stops.length}</b> ${stops.length === 1 ? 'place' : 'places'}${countries.length ? ` · <b>${countries.length}</b> ${countries.length === 1 ? 'country' : 'countries'}` : ''} · <b>${total}</b> ${total === 1 ? 'entry' : 'entries'}</span>
-          <button class="jp-link" data-open-map-view type="button">Open the route map →</button>
-        </div>
-      </section>
-
-      <nav class="jp-line" aria-label="Places, in the order you reached them">
-        <ol class="jp-track">${line}</ol>
+      <nav class="jp-countries" aria-label="Countries, in the order you reached them">
+        ${groups.map((g) => countryCard(g.iso, g.stops, g.entries, chosen.key)).join('')}
       </nav>
 
-      <section class="jp-pile ${flip ? 'is-a' : 'is-b'}" aria-live="polite">
-        <header class="jp-pile-head">
-          <span class="jp-pile-flag" aria-hidden="true">${flagOf(chosen.iso)}</span>
-          <div class="jp-pile-title">
-            <h3>${escHtml(chosen.label === NO_PLACE ? NO_PLACE : chosen.label)}</h3>
-            <span>${escHtml(span(chosen))} · ${chosen.entries.length} ${chosen.entries.length === 1 ? 'entry' : 'entries'}</span>
+      <div class="jp-split">
+        <section class="jp-stage" aria-label="Map of your places">
+          <div class="jp-map" data-places-map data-morph-keep data-pins="${escHtml(JSON.stringify(pins))}" data-selected="${escHtml(chosen.key)}"></div>
+          <div class="jp-hud">
+            <span><b>${countries.length || groups.length}</b> ${(countries.length || groups.length) === 1 ? 'country' : 'countries'} · <b>${stops.length}</b> ${stops.length === 1 ? 'place' : 'places'} · <b>${total}</b> ${total === 1 ? 'entry' : 'entries'}</span>
+            <button class="jp-link" data-open-map-view type="button">Open the route map →</button>
           </div>
-          ${chosen.label === NO_PLACE ? '' : `<button class="jp-link" data-place-filter="${escHtml(chosen.label)}" type="button">Read them in the feed →</button>`}
-        </header>
-        <div class="jp-cards">${chosen.entries.map(card).join('')}</div>
-      </section>
+        </section>
+
+        <section class="jp-pile ${flip ? 'is-a' : 'is-b'}" aria-live="polite">
+          <header class="jp-pile-head">
+            <span class="jp-pile-flag" aria-hidden="true">${flagOf(chosen.iso)}</span>
+            <div class="jp-pile-title">
+              <h3>${escHtml(chosen.label === NO_PLACE ? NO_PLACE : chosen.label)}</h3>
+              <span>${escHtml(span(chosen))} · ${chosen.entries.length} ${chosen.entries.length === 1 ? 'entry' : 'entries'}</span>
+            </div>
+            ${chosen.label === NO_PLACE ? '' : `<button class="jp-link" data-place-filter="${escHtml(chosen.label)}" type="button">Read them in the feed →</button>`}
+          </header>
+          <div class="jp-cards">${chosen.entries.map(card).join('')}</div>
+        </section>
+      </div>
     </div>`;
 }

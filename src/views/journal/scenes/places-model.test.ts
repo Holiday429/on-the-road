@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildStops, flagOf, latestStop, mapPins, NO_PLACE, placeKey } from './places-model.ts';
+import { buildStops, byCountry, countryName, flagOf, latestStop, mapPins, NO_PLACE, placeKey } from './places-model.ts';
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 
 let n = 0;
@@ -46,5 +46,22 @@ describe('places model', () => {
     expect(flagOf('PT')).toBe('🇵🇹');
     expect(flagOf(null)).toBe('📍');
     expect(flagOf('xx1')).toBe('📍');
+  });
+
+  it('gathers the stops by country, in the order the countries were reached', () => {
+    const stops = buildStops([
+      e('Paris', '2026-07-01'), e('Lisbon', '2026-06-02'), e('Porto', '2026-06-20'), e('Zzyzx Springs', '2026-06-03'),
+    ]);
+    const groups = byCountry(stops);
+    expect(groups.map((g) => g.iso)).toEqual(['PT', 'FR', '']);
+    expect(groups[0].stops.map((s) => s.label)).toEqual(['Lisbon', 'Porto']);
+    expect(groups[0].entries).toBe(2);
+    // the stops with no country of their own come last, under one heading
+    expect(groups[2].stops[0].label).toBe('Zzyzx Springs');
+  });
+
+  it('names a country from its code, and leaves an unknown code alone', () => {
+    expect(countryName('PT')).toBe('Portugal');
+    expect(countryName('ZZ')).toBe('ZZ');
   });
 });
