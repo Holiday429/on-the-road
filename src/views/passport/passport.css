@@ -32,6 +32,8 @@
     drop-shadow(0 26px 34px color-mix(in srgb, black 26%, transparent));
 }
 .pp-book.is-closed { transform: translateX(-25%); }
+/* While the booklet is edge-on and being put back together, nothing may animate. */
+.pp-book.is-snap, .pp-book.is-snap .pp-leaf { transition: none !important; }
 .pp-book.is-shut { transform: translateX(25%); }
 .pp-spine { position: absolute; left: 50%; top: 0; bottom: 0; width: 0; }
 
@@ -204,7 +206,7 @@
 .pp-dotmap-host { position: relative; touch-action: none; cursor: zoom-in; }
 .pp-lens-hint { position: absolute; right: 0; bottom: -3.4cqw; display: inline-flex; align-items: center; gap: 1cqw; font-family: var(--font-data); font-size: 2.2cqw; letter-spacing: .08em; color: var(--ink-faint); pointer-events: none; transition: opacity .2s; }
 .pp-dotmap-host.is-magnifying .pp-lens-hint { opacity: 0; }
-.pp-lens { position: absolute; left: 0; top: 0; width: 34cqw; aspect-ratio: 1; pointer-events: none; opacity: 0; transition: opacity .12s; z-index: 5; will-change: transform; }
+.pp-lens { position: absolute; left: 0; top: 0; width: 38cqw; aspect-ratio: 1; pointer-events: none; opacity: 0; transition: opacity .12s; z-index: 5; will-change: transform; }
 .pp-lens.is-on { opacity: 1; }
 .pp-lens-view {
   position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: color-mix(in srgb, var(--pp-paper) 94%, white);
@@ -212,9 +214,22 @@
 }
 .pp-lens-view::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(120% 90% at 28% 18%, rgba(255, 255, 255, .34), transparent 46%); box-shadow: inset 0 0 3cqw color-mix(in srgb, black 18%, transparent); }
 .pp-lens::after { content: ''; position: absolute; left: 83%; top: 83%; width: 3.6cqw; height: 13cqw; transform-origin: 50% 0; transform: rotate(-45deg) translateY(.6cqw); border-radius: 2cqw; background: linear-gradient(90deg, color-mix(in srgb, var(--ink) 70%, var(--pp-paper)), var(--ink)); box-shadow: 0 1cqw 2cqw -.6cqw color-mix(in srgb, black 40%, transparent); }
-.pp-lens-map { position: absolute; left: 0; top: 0; max-width: none; display: block; }
+.pp-lens-world { position: absolute; left: 0; top: 0; will-change: transform; }
+.pp-lens-map { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; display: block; }
+.pp-lens-name {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap;
+  font-family: var(--font-data); font-size: 11px; font-weight: var(--fw-semibold); letter-spacing: .04em; color: color-mix(in srgb, var(--pp-accent) 80%, var(--ink));
+  text-shadow: 0 0 3px var(--pp-paper), 0 0 3px var(--pp-paper), 0 0 6px var(--pp-paper);
+}
+/* Cross-hairs, and the name of whichever country is in the middle of the glass. */
+.pp-lens-view::before { content: ''; position: absolute; z-index: 2; left: 50%; top: 50%; width: 2.2cqw; height: 2.2cqw; margin: -1.1cqw 0 0 -1.1cqw; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--ink) 70%, transparent); background: color-mix(in srgb, var(--pp-paper) 40%, transparent); pointer-events: none; }
+.pp-lens-chip {
+  position: absolute; z-index: 3; left: 50%; bottom: 7%; transform: translateX(-50%); max-width: 86%; padding: .5cqw 2.4cqw; border-radius: 99px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-data); font-size: 2.6cqw; letter-spacing: .06em; color: var(--ink-soft); background: color-mix(in srgb, var(--pp-paper) 92%, white); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.pp-lens-chip.is-visited { color: #fff; background: var(--pp-accent); box-shadow: none; }
 .pp-lens-land path { fill: none; stroke: color-mix(in srgb, var(--ink) 26%, transparent); stroke-width: .7px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
-.pp-lens-lit path { fill: color-mix(in srgb, var(--pp-accent) 18%, transparent); stroke: var(--pp-accent); stroke-width: 1.8px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.pp-lens-lit path { fill: color-mix(in srgb, var(--pp-accent) 24%, transparent); stroke: var(--pp-accent); stroke-width: 2px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 
 /* Stamp pages: the stamps sit on the whole page, the header over the top. */
 .pp-stamps { padding: 0; }
@@ -344,7 +359,7 @@
 .pp-drawer-titles { min-width: 0; }
 /* The memory card's head is a picture of the place, like the itinerary's cards. */
 .pp-drawer-head.pp-hero {
-  position: relative; display: flex; align-items: flex-end; min-height: 200px; padding: var(--sp-4) var(--sp-5); overflow: hidden; border-bottom: 0; background: none; color: #fff;
+  position: relative; display: flex; align-items: flex-end; min-height: 156px; padding: var(--sp-3) var(--sp-5) var(--sp-3); overflow: hidden; border-bottom: 0; background: none; color: #fff;
 }
 .pp-hero-img, .pp-hero-fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pp-hero-img { object-fit: cover; }
@@ -374,11 +389,11 @@
 .pp-round:disabled { opacity: .4; cursor: default; }
 .pp-round.is-close { background: var(--surface); }
 .pp-round:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
-.pp-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-4) var(--sp-5) var(--sp-6); display: grid; gap: var(--sp-5); align-content: start; }
+.pp-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-4) var(--sp-5) var(--sp-5); display: grid; gap: var(--sp-4); align-content: start; }
 .pp-drawer-h { margin: 0 0 var(--sp-2); font-family: var(--font-data); font-size: var(--fs-2xs); font-weight: var(--fw-regular, 400); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-muted); }
 .pp-drawer-none { margin: 0; font-size: var(--fs-sm); color: var(--ink-muted); }
 
-.pp-drawer-top { display: grid; grid-template-columns: minmax(0, 42%) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+.pp-drawer-top { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr); gap: var(--sp-4); align-items: center; }
 .pp-card-stamp { transform: rotate(-5deg); filter: drop-shadow(0 4px 8px color-mix(in srgb, black 16%, transparent)); animation: pp-lift .7s cubic-bezier(.3, 1.2, .5, 1) both; }
 .pp-card-stamp .pp-stamp { display: block; }
 .pp-card-stamp .pp-stamp svg { width: 100%; height: auto; }
@@ -389,7 +404,7 @@
 .pp-card-receipt .pp-row-wrap .paper-row-value { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
 
 /* Photos: the journal's pictures taped down as polaroids. */
-.pp-polaroids { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--sp-5) var(--sp-4); padding-top: 8px; }
+.pp-polaroids { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4) var(--sp-3); padding-top: 8px; }
 .pp-polaroid {
   position: relative; margin: 0; padding: 7px 7px 0; border-radius: 2px; transform: rotate(var(--tilt, 0deg));
   background: color-mix(in srgb, white 90%, var(--pp-paper)); box-shadow: 0 10px 20px -10px color-mix(in srgb, black 50%, transparent), 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent);
@@ -399,22 +414,12 @@
   background: linear-gradient(160deg, color-mix(in srgb, var(--ink-c, var(--select-bg)) 38%, #e8dcc6), color-mix(in srgb, var(--ink-c, var(--select-bg)) 12%, #f4ead6));
 }
 .pp-polaroid-pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(.9); }
-.pp-polaroid figcaption { padding: 6px 2px 8px; text-align: center; font-family: var(--font-hand); font-size: 19px; line-height: 1.1; color: #3a322a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-polaroid figcaption { padding: 4px 2px 6px; text-align: center; font-family: var(--font-hand); font-size: 19px; line-height: 1.1; color: #3a322a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pp-tape {
   position: absolute; top: -9px; left: 50%; width: 46px; height: 16px; transform: translateX(-50%) rotate(-3deg); z-index: 1;
   background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--select-bg) 42%, transparent) 0 5px, color-mix(in srgb, var(--select-bg) 24%, transparent) 5px 10px);
   box-shadow: 0 1px 3px color-mix(in srgb, black 18%, transparent);
 }
-
-.pp-entries { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
-.pp-entry {
-  padding: var(--sp-3); border-radius: var(--r-md); border: 1px solid var(--rule); border-left: 3px solid var(--ink-c, var(--select-bg));
-  background: color-mix(in srgb, var(--surface) 72%, transparent); box-shadow: 0 2px 6px -4px color-mix(in srgb, black 30%, transparent);
-}
-.pp-entry-top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-3); }
-.pp-entry-top strong { font-size: var(--fs-sm); overflow-wrap: anywhere; }
-.pp-entry-top time { flex: none; font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .1em; color: var(--ink-muted); }
-.pp-entry p { margin: 4px 0 0; font-size: var(--fs-xs); line-height: 1.5; color: var(--ink-soft); }
 
 /* The cover panel. */
 .pp-opt { display: grid; }

@@ -41,7 +41,7 @@ import { createFlip, type FlipBook } from './flip.ts';
 import { pageHtml, type PageCtx } from './pages.ts';
 import { openBioEditor } from './bio-edit.ts';
 import { NO_DOC, type DocInput } from './bio.ts';
-import { attachLens } from './lens.ts';
+import { attachLens, regionName } from './lens.ts';
 // The name the traveller goes by is one thing, shown in two places (see profile-me.ts).
 import { defaultNickname } from '../profile/profile-me.ts';
 import { openVisaEditor } from './visa-edit.ts';
@@ -313,8 +313,8 @@ function afterTurn(): void {
 }
 
 /**
- * Read to the end: the back cover is held for a moment, then the book closes itself and comes to rest on
- * its front cover — the way you would shut a book you have finished. Turning back, or anything else that
+ * Read to the end: the back cover is held for a moment, then the booklet is turned over in the hand and comes to
+ * rest on its front cover — the way you would shut a book you have finished. Turning back, or anything else that
  * moves the book, calls this again and cancels the close.
  */
 function watchForEnd(turned: number): void {
@@ -325,10 +325,57 @@ function watchForEnd(turned: number): void {
     _shutTimer = 0;
     // Still on the back cover (the traveller did not turn back in the meantime)?
     if (!_flip || !reachedBackCover(_flip.turned(), _leaves.length)) return;
-    _turned = 0;
-    _flip.goTo(0, true);
-    playCover();
+    void turnOver();
   }, SHUT_PAUSE_MS);
+}
+
+/** Time for each half of the booklet turning over, ms. */
+const OVER_MS = 440;
+let _turningOver = false;
+
+/**
+ * Turns the whole closed booklet over, back cover to front cover, as one object. The pages inside never move: the
+ * booklet swings edge-on (nothing of it can be seen), the leaves are put back under the cover while it is thin as a
+ * line, and it swings on to show the front. The same spin carries on in the same direction throughout.
+ */
+async function turnOver(): Promise<void> {
+  const book = view()?.querySelector<HTMLElement>('#pp-book');
+  if (!book || !_flip || _turningOver) return;
+  _turningOver = true;
+  const shut = book.classList.contains('is-shut');
+  // Each side of a closed book is one page: the axis runs through the middle of the page that shows.
+  // (Shut, the book sits shifted right so its left page is centred; closed, shifted left so its right page is.)
+  const lean = (x: number) => (_single ? '' : `translateX(${x}%) `);
+  const set = (transform: string, originX: number, ms: number, ease: string) => {
+    book.style.transition = ms ? `transform ${ms}ms ${ease}` : 'none';
+    book.style.transformOrigin = _single ? '50% 50%' : `${originX}% 50%`;
+    book.style.transform = transform;
+  };
+  const frame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+  try {
+    playCover();
+    // 1. The back cover swings away, edge-on.
+    set(`${lean(shut ? 25 : 0)}rotateY(-90deg)`, shut ? 25 : 50, OVER_MS, 'cubic-bezier(.5, 0, .9, .6)');
+    await sleep(OVER_MS);
+    if (!_flip) return;
+    // 2. Unseen: the pages go back under the cover and the booklet is set up on the far side of its spin.
+    book.classList.add('is-snap');
+    _turned = 0;
+    _flip.goTo(0, false);
+    set(`${lean(-25)}rotateY(90deg)`, 75, 0, '');
+    void book.offsetWidth;
+    await frame();
+    book.classList.remove('is-snap');
+    // 3. The front cover swings round and settles.
+    set(`${lean(-25)}rotateY(0deg)`, 75, OVER_MS + 80, 'cubic-bezier(.1, .5, .3, 1)');
+    await sleep(OVER_MS + 80);
+  } finally {
+    book.classList.remove('is-snap');
+    book.style.transition = '';
+    book.style.transformOrigin = '';
+    book.style.transform = '';
+    _turningOver = false;
+  }
 }
 
 /** The faces showing at this turned-count. */
@@ -717,7 +764,8 @@ export function initPassport(): void {
   window.addEventListener('otr:nav-intent', onIntent);
   _unsubs.push(() => window.removeEventListener('otr:nav-intent', onIntent));
   wire(root);
-  _unsubs.push(attachLens(root));
+  // The magnifier names a country the way the passport does (its stamps), else in the reader's language.
+  _unsubs.push(attachLens(root, (iso) => _feed.stamps.find((s) => s.iso === iso)?.country || regionName(iso, getLocale())));
   _sig = signature();
   render();
   applyIntent(consumeNavIntent('passport'));

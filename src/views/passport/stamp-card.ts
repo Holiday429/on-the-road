@@ -5,8 +5,8 @@
    over to make room: a picture of the place across the top (the itinerary's cover
    for the stop, else a journal photo, else the country's colour and flag), the
    stamp large, a receipt for the stay (cities, nights, what was spent), the
-   journal's photos taped down as polaroids, and the journal entries of that
-   country. It holds only what the passport knows — nothing here leads
+   journal's photos taped down as polaroids. Nothing more: it is a card to glance
+   at, not a page to scroll. It holds only what the passport knows — nothing here leads
    away from the book. Previous / next walk through the pressed stamps without
    closing it. All numbers come from data/country-memory.ts.
    ========================================================================== */
@@ -73,31 +73,21 @@ function heroArt(m: CountryMemory): string {
 }
 
 function receipt(m: CountryMemory, locale: string): string {
-  const s = m.stamp;
   const rows: PaperRow[] = [];
   // A long list of cities wraps onto its own lines; a price never does, so only this row is let loose.
   if (m.trip.cities.length) rows.push({ label: t('passport.card.cities'), value: m.trip.cities.join(' · '), className: 'pp-row-wrap' });
   rows.push({ label: t('passport.card.nights'), value: String(m.trip.nights) });
   if (m.total.trips > 1) rows.push({ label: t('passport.card.total'), value: t('passport.card.totalValue', { n: m.total.nights, k: m.total.trips }) });
-  rows.push({ label: t('passport.card.journal'), value: String(m.journalCount) });
   // One currency reads as the receipt's total; several are never added together.
   const one = m.spend.length === 1 ? m.spend[0] : null;
   if (!one) for (const l of m.spend) rows.push({ label: t('passport.card.spent'), value: money(l.currency, l.total, locale) });
   return paperReceipt({
     title: t('passport.card.stub'),
-    meta: [s.tripName, dateRange(m.trip.dateFrom, m.trip.dateTo)].filter(Boolean).join(' · '),
     rows,
     total: one ? { label: t('passport.card.spent'), value: money(one.currency, one.total, locale) } : undefined,
     zigzag: true,
     className: 'pp-card-receipt',
   });
-}
-
-function entries(m: CountryMemory): string {
-  if (m.entries.length === 0) return `<p class="pp-drawer-none">${esc(t('passport.card.noEntries'))}</p>`;
-  return `<ul class="pp-entries">${m.entries.map((e) => `<li class="pp-entry">
-      <div class="pp-entry-top"><strong>${esc(e.title || t('passport.card.untitled'))}</strong><time>${esc(day(e.date))}</time></div>
-      ${e.excerpt ? `<p>${esc(e.excerpt)}</p>` : ''}</li>`).join('')}</ul>`;
 }
 
 /** The inside of the drawer for one stamp. */
@@ -125,7 +115,6 @@ export function drawerHtml(m: CountryMemory, locale: string, pos: { i: number; n
         ${receipt(m, locale)}
       </div>
       ${polaroids(m)}
-      <section><h3 class="pp-drawer-h">${esc(t('passport.card.journal'))}${m.journalCount ? ` · ${m.journalCount}` : ''}</h3>${entries(m)}</section>
     </div>`;
 }
 
