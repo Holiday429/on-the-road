@@ -605,6 +605,8 @@ export const zh: StringTable = {
   'passport.record.collected': '已盖印章',
   'passport.record.visited': '去过的地方',
   'passport.record.latest': '最近一枚',
+  'passport.record.emptyTitle': '整张地图还是空白的',
+  'passport.record.emptyBody': '给行程加上一站，你的第一枚印章就会在那道边境等你。',
   'passport.level': '旅行等级',
   'passport.level.1': '启程者',
   'passport.level.2': '探索者',

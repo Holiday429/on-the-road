@@ -88,9 +88,23 @@ function backCover(c: PageCtx): string {
   </div>`;
 }
 
+/** The record page of a passport with nothing in it yet: the whole map blank, and what will fill it. */
+function emptyRecord(c: PageCtx): string {
+  return `<div class="pp-sheet pp-inside">
+    <div class="pp-page-head"><span>${esc(t('passport.record.title'))}</span><span class="pp-page-range">${esc(t('passport.inside.kicker'))}</span></div>
+    <div class="pp-inside-title">${esc(c.nickname)}</div>
+    <div class="pp-record-empty">
+      ${dotMapSvg([])}
+      <div class="pp-record-empty-title">${esc(t('passport.record.emptyTitle'))}</div>
+      <p class="pp-record-empty-body">${esc(t('passport.record.emptyBody'))}</p>
+    </div>
+  </div>`;
+}
+
 /** Left page of the first spread: whose book this is, and what it adds up to. */
 function inside(c: PageCtx): string {
   const d = c.data;
+  if (d.stamps.length === 0) return emptyRecord(c);
   const total = d.stamps.length;
   const pct = total ? Math.min(1, c.pressed / total) : 0;
   const R = 46;

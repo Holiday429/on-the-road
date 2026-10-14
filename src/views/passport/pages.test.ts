@@ -29,6 +29,15 @@ describe('pageHtml', () => {
     expect(all).toContain('Holi&lt;day&gt;');
   });
 
+  it('a passport with no stamps shows the blank map and an invitation, not a ring of 0/0', () => {
+    const empty = pageHtml({ kind: 'inside' }, { ...ctx, data: { ...data, stamps: [], countries: 0, cities: 0, nights: 0, trips: 0 }, pressed: 0 });
+    expect(empty).toContain('pp-record-empty');
+    expect(empty).toContain('pp-dotmap');
+    expect(empty).not.toContain('pp-ring');
+    expect(empty).not.toContain('is-lit"><circle');
+    expect(pageHtml({ kind: 'inside' }, ctx)).not.toContain('pp-record-empty');
+  });
+
   it('the data page carries the made-up number and two machine lines', () => {
     const bio = pageHtml({ kind: 'bio' }, ctx);
     expect(bio).toMatch(/N° \d{7}/);

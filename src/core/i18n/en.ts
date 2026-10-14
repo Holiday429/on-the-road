@@ -612,6 +612,8 @@ export const en: StringTable = {
   'passport.record.collected': 'Stamps pressed',
   'passport.record.visited': 'Places you have been',
   'passport.record.latest': 'Latest stamp',
+  'passport.record.emptyTitle': 'The whole map is still blank',
+  'passport.record.emptyBody': 'Add a stop to a trip, and your first stamp will be waiting for you at that border.',
   'passport.level': 'Travel level',
   'passport.level.1': 'Newcomer',
   'passport.level.2': 'Explorer',

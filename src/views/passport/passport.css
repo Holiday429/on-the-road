@@ -155,6 +155,11 @@
 .pp-dotmap { width: 100%; height: auto; display: block; }
 .pp-dot circle { fill: color-mix(in srgb, var(--ink) 36%, transparent); }
 .pp-dot.is-lit circle { fill: var(--pp-accent); }
+/* A passport with nothing in it yet: the whole map blank, and a line about what will fill it. */
+.pp-record-empty { flex: 1; display: grid; align-content: center; gap: 3cqw; text-align: center; padding-bottom: 6cqw; }
+.pp-record-empty .pp-dotmap { opacity: .85; }
+.pp-record-empty-title { font-family: var(--font-display); font-size: 6.2cqw; font-weight: var(--fw-semibold); line-height: 1.2; }
+.pp-record-empty-body { margin: 0 auto; max-width: 78%; font-size: 3.5cqw; line-height: 1.5; color: var(--ink-muted); }
 .pp-latest { display: grid; gap: .6cqw; border-top: 1.5px solid var(--ink); padding-top: 2.4cqw; }
 .pp-latest-v { font-size: 3.7cqw; font-weight: var(--fw-semibold); }
 .pp-latest-trip { font-family: var(--font-data); font-size: 2.6cqw; letter-spacing: .06em; color: var(--ink-muted); }
