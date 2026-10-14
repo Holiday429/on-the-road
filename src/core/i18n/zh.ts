@@ -893,7 +893,6 @@ export const zh: StringTable = {
   'prep.statChecklistEmpty':   '还没有待办条目',
   'prep.statPack':             '已装',
   'prep.statPackMeta':         '共 {bags} 个袋子',
-  'prep.statPackOver':         '有袋子超重',
   'prep.statPackEmpty':        '还没有装箱',
 
   // ── Prepare · rails ──────────────────────────────────────────────────────────

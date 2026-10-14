@@ -41,7 +41,7 @@
 
 /* ── Checklist: a clipboard ──────────────────────────────────────────────── */
 .prep-scene--cl { display: grid; place-items: center; padding: var(--sp-6) var(--sp-5); background: var(--surface-3); }
-.prep-clip-stack { position: relative; width: min(100%, 330px); padding-top: 14px; }
+.prep-clip-stack { position: relative; width: min(100%, 390px); padding-top: 14px; }
 .prep-clip-back {
   position: absolute; left: 8px; right: 8px; top: 18px; bottom: -4px; border: 1px solid var(--rule); border-radius: var(--r-md);
   background: var(--surface-4); transform: rotate(-1.4deg);
@@ -116,11 +116,11 @@
 .prep-scene--cl.is-complete .prep-clip-row { opacity: .6; }
 .prep-scene--cl.is-complete .prep-clip-bar span { background: var(--success); }
 .prep-scene--cl.is-complete .prep-clip-count { color: var(--success); }
-.prep-clip-row { min-height: 31px; box-sizing: border-box; }
+.prep-clip-row { min-height: 38px; box-sizing: border-box; }
 
 /* Luggage tag: "+N more bags". */
 .prep-bag-tag {
-  align-self: center; position: relative; flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px 8px 22px;
+  align-self: flex-end; margin-bottom: 42px; position: relative; flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px 8px 22px;
   border: 1px solid var(--rule); border-radius: 4px 10px 10px 4px; background: var(--paper-grain), var(--amber-50);
   box-shadow: var(--shadow-sm); transform: rotate(-4deg); font-family: var(--font-data); font-weight: var(--fw-semibold); color: var(--ink-soft);
 }

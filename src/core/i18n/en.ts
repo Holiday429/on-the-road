@@ -903,7 +903,6 @@ export const en: StringTable = {
   'prep.statChecklistEmpty':   'Nothing to check off yet',
   'prep.statPack':             'Packed',
   'prep.statPackMeta':         'across {bags} bags',
-  'prep.statPackOver':         'A bag is over its limit',
   'prep.statPackEmpty':        'No bags packed yet',
 
   // ── Prepare · rails ──────────────────────────────────────────────────────────

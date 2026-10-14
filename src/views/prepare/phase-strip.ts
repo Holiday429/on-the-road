@@ -135,7 +135,7 @@ export function renderHero(focus: PhaseFocus, daysToGo: number | null, stats: He
 
   const pkStat = pk.bags > 0
     ? statCell(ring(pk.pct ?? 0, '🎒', pk.over ? 'warn' : 'accent'), t('prep.statPack'), pk.weightLabel,
-      pk.over ? t('prep.statPackOver') : pk.bags === 1 ? t('prep.statPackMeta1') : t('prep.statPackMeta', { bags: pk.bags }), pk.over)
+      pk.bags === 1 ? t('prep.statPackMeta1') : t('prep.statPackMeta', { bags: pk.bags }), pk.over)
     : statCell(ring(0, '🎒', 'muted'), t('prep.statPack'), t('prep.statNone'), t('prep.statPackEmpty'));
 
   const alertHtml = alert ? `
