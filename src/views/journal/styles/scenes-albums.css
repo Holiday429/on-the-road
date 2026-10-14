@@ -1,0 +1,160 @@
+/* ==========================================================================
+   On the Road · Journal albums — booklets and an open book
+   Markup: scenes/albums.ts. Covers are matte mixes of the app's tints with a
+   constant dark, so white lettering reads in both themes.
+   ========================================================================== */
+
+/* ── The shelf ───────────────────────────────────────────────────────────── */
+.jb-rack {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-8) var(--sp-6); padding: var(--sp-8) var(--sp-6) var(--sp-5);
+  border-radius: var(--r-xl); border: 1px solid var(--rule);
+  background: linear-gradient(180deg, var(--surface-3) 0 84%, var(--surface-4) 84% 100%);
+}
+.jb-book {
+  --jb-c: color-mix(in srgb, var(--amber-500) 78%, var(--scale-glass));
+  --lit: white;
+  position: relative; width: 168px; height: 216px; padding: 0; border: 0; background: none; cursor: pointer; perspective: 900px;
+  transform: rotate(var(--lean, 0deg)); transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1);
+}
+.jb-book[data-tone='1'] { --jb-c: color-mix(in srgb, var(--sky-500) 72%, var(--scale-glass)); }
+.jb-book[data-tone='2'] { --jb-c: color-mix(in srgb, var(--sage-500) 72%, var(--scale-glass)); }
+.jb-book[data-tone='3'] { --jb-c: color-mix(in srgb, var(--coral-500) 70%, var(--scale-glass)); }
+.jb-book[data-tone='4'] { --jb-c: color-mix(in srgb, var(--ink-muted) 60%, var(--scale-glass)); }
+.jb-book[data-tone='5'] { --jb-c: color-mix(in srgb, var(--amber-700) 62%, var(--scale-glass)); }
+.jb-book:hover, .jb-book:focus-visible { transform: translateY(-10px) rotate(0deg); }
+.jb-book:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 6px; border-radius: var(--r-md); }
+
+/* the stack of paper that shows when the cover lifts */
+.jb-pages {
+  position: absolute; inset: 4px 0 4px 8px; border-radius: 2px 6px 6px 2px; background: var(--surface);
+  background-image: repeating-linear-gradient(180deg, transparent 0 6px, var(--rule) 6px 7px); box-shadow: var(--shadow-sm);
+}
+.jb-cover {
+  position: absolute; inset: 0; overflow: hidden; border-radius: 3px 9px 9px 3px; background: var(--jb-c); color: var(--lit);
+  box-shadow: var(--shadow-md); transform-origin: left center; transition: transform 480ms var(--ease-out), box-shadow 480ms;
+}
+.jb-book:hover .jb-cover, .jb-book:focus-visible .jb-cover { transform: rotateY(-24deg); box-shadow: var(--shadow-lg); }
+.jb-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 14px; background: linear-gradient(90deg, color-mix(in srgb, var(--scale-glass) 38%, transparent), transparent); border-right: 1px solid color-mix(in srgb, var(--lit) 14%, transparent); }
+.jb-count {
+  position: absolute; right: var(--sp-3); bottom: var(--sp-3); font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .14em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--lit) 82%, transparent);
+}
+.jb-ribbon { position: absolute; left: 34px; bottom: -3px; width: 12px; height: 44px; background: var(--coral-400); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%); box-shadow: var(--shadow-sm); }
+
+/* zine: the photo is the cover */
+.jb-cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.jb-book--zine .jb-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, color-mix(in srgb, var(--scale-glass) 80%, transparent) 0%, transparent 58%); pointer-events: none; }
+.jb-book--zine .jb-label { position: absolute; left: var(--sp-5); right: var(--sp-3); bottom: calc(var(--sp-3) + 22px); z-index: 1; display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.jb-book--zine .jb-count { z-index: 1; }
+
+/* notebook: coloured board, elastic band, a paper label */
+.jb-band { position: absolute; right: 22px; top: 0; bottom: 0; width: 10px; background: color-mix(in srgb, var(--scale-glass) 42%, transparent); }
+.jb-book--notebook .jb-label {
+  position: absolute; left: 26px; right: 38px; top: 34px; padding: var(--sp-2) var(--sp-3); display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center;
+  background: var(--paper-grain), var(--surface); color: var(--ink); border-radius: 2px; box-shadow: var(--shadow-sm); transform: rotate(-1.5deg);
+}
+.jb-emoji { font-size: 22px; line-height: 1; }
+.jb-title { font-family: var(--font-display); font-size: var(--fs-md); font-weight: var(--fw-semibold); letter-spacing: -.015em; line-height: 1.15; text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+.jb-book--new { background: transparent; border: 2px dashed var(--rule-2, var(--rule)); border-radius: 3px 9px 9px 3px; color: var(--ink-faint); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-2); }
+.jb-book--new:hover { border-color: var(--accent); color: var(--accent-deep); }
+.jb-new-plus { font-size: 28px; line-height: 1; }
+.jb-new-label { font-size: var(--fs-sm); }
+
+/* ── The open book ───────────────────────────────────────────────────────── */
+.jb-desk { max-width: 1020px; margin: 0 auto; padding-bottom: var(--sp-8); outline: none; }
+.jb-bar { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.jb-bar-title { flex: 1; min-width: 0; font-family: var(--font-display); font-size: var(--fs-md); font-weight: var(--fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jb-bar-pos { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); }
+.jb-chip { height: 32px; padding: 0 var(--sp-4); border: 1px solid var(--rule); border-radius: var(--r-full); background: var(--surface); color: var(--ink-soft); font-size: var(--fs-sm); cursor: pointer; }
+.jb-chip:hover { background: var(--surface-3); }
+.jb-chip.is-danger { color: var(--danger); }
+
+.jb-open { position: relative; perspective: 1900px; animation: jb-rise 520ms var(--ease-out) both; }
+@keyframes jb-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+.jb-spread {
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: 480px; perspective: 1600px;
+  border-radius: 6px 14px 14px 6px; background: var(--surface); box-shadow: var(--shadow-lg); border: 1px solid var(--rule);
+}
+.jb-spread::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 56px; transform: translateX(-50%); pointer-events: none; z-index: 2; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 12%, transparent) 50%, transparent); }
+.jb-page { position: relative; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-6) var(--sp-6) var(--sp-6); background: var(--paper-grain), var(--surface); min-width: 0; cursor: pointer; }
+.jb-page--left { border-radius: 6px 0 0 6px; padding-right: var(--sp-8); }
+.jb-page--right { border-radius: 0 14px 14px 0; padding-left: var(--sp-8); transform-origin: left center; }
+.jb-page--left { transform-origin: right center; }
+.jb-page--title, .jb-page.is-blank { cursor: default; }
+.jb-page.is-blank { background: var(--surface-2); }
+.jb-page:focus-visible { outline: 2px solid var(--select-bg); outline-offset: -4px; }
+.jb-page-x { position: absolute; top: var(--sp-3); right: var(--sp-3); opacity: 0; z-index: 3; }
+.jb-page:hover .jb-page-x, .jb-page:focus-within .jb-page-x { opacity: 1; }
+@media (hover: none) { .jb-page-x { opacity: .7; } }
+
+.jb-photo { position: relative; padding: var(--sp-2); background: var(--surface-2); box-shadow: var(--shadow-sm); transform: rotate(-.6deg); }
+.jb-page--right .jb-photo { transform: rotate(.7deg); }
+.jb-photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.jb-corner { position: absolute; width: 20px; height: 20px; z-index: 1; background: color-mix(in srgb, var(--amber-600) 70%, var(--surface-4)); }
+.jb-corner--tl { left: 0; top: 0; clip-path: polygon(0 0, 100% 0, 0 100%); }
+.jb-corner--tr { right: 0; top: 0; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.jb-corner--bl { left: 0; bottom: 0; clip-path: polygon(0 0, 100% 100%, 0 100%); }
+.jb-corner--br { right: 0; bottom: 0; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.jb-notes { display: flex; flex-direction: column; gap: var(--sp-1); }
+.jb-notes.is-lined { flex: 1; padding-top: var(--sp-2); background-image: repeating-linear-gradient(180deg, transparent 0 27px, var(--rule) 27px 28px); }
+.jb-date { font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); }
+.jb-hand { margin: 0; font-family: var(--font-hand); font-size: var(--fs-2xl); font-weight: var(--fw-regular, 400); line-height: 1.05; }
+.jb-text { margin: 0; font-size: var(--fs-sm); line-height: 1.6; color: var(--ink-soft); text-wrap: pretty; }
+
+.jb-page--title { align-items: center; justify-content: center; text-align: center; gap: var(--sp-3); }
+.jb-title-emoji { font-size: 56px; line-height: 1; }
+.jb-book-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); letter-spacing: -.02em; text-wrap: balance; }
+.jb-book-meta { margin: 0; font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .08em; color: var(--ink-muted); }
+.jb-book-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); }
+.jb-empty-note { margin: var(--sp-4) 0 0; text-align: center; font-size: var(--fs-sm); color: var(--ink-muted); }
+
+.jb-turn {
+  position: absolute; top: 50%; z-index: 4; width: 40px; height: 40px; margin-top: -20px; display: grid; place-items: center; border: 1px solid var(--rule); border-radius: 50%;
+  background: var(--surface); color: var(--ink); font-size: var(--fs-lg); cursor: pointer; box-shadow: var(--shadow-md); transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast);
+}
+.jb-turn:hover:not(:disabled) { transform: scale(1.1); }
+.jb-turn:disabled { opacity: .3; cursor: default; }
+.jb-turn--prev { left: -18px; }
+.jb-turn--next { right: -18px; }
+.jb-turn:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+
+/* turning a page: the incoming page swings in from the spine. a/b are twins so each turn restarts it. */
+.jb-spread.is-turn-next-a .jb-page--right { animation: jb-next-a 520ms var(--ease-out) both; }
+.jb-spread.is-turn-next-b .jb-page--right { animation: jb-next-b 520ms var(--ease-out) both; }
+.jb-spread.is-turn-prev-a .jb-page--left  { animation: jb-prev-a 520ms var(--ease-out) both; }
+.jb-spread.is-turn-prev-b .jb-page--left  { animation: jb-prev-b 520ms var(--ease-out) both; }
+@keyframes jb-next-a { from { transform: rotateY(-100deg); filter: brightness(.8); } }
+@keyframes jb-next-b { from { transform: rotateY(-100deg); filter: brightness(.8); } }
+@keyframes jb-prev-a { from { transform: rotateY(100deg); filter: brightness(.8); } }
+@keyframes jb-prev-b { from { transform: rotateY(100deg); filter: brightness(.8); } }
+
+/* the cover swinging open on first view */
+.jb-flap {
+  --lit: white;
+  position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; border-radius: 6px 14px 14px 6px; color: var(--lit);
+  background: color-mix(in srgb, var(--amber-500) 78%, var(--scale-glass)); box-shadow: var(--shadow-lg);
+  transform-origin: left center; backface-visibility: hidden; pointer-events: none; animation: jb-flap 1000ms var(--ease-out) 120ms both;
+}
+.jb-open[data-tone='1'] .jb-flap { background: color-mix(in srgb, var(--sky-500) 72%, var(--scale-glass)); }
+.jb-open[data-tone='2'] .jb-flap { background: color-mix(in srgb, var(--sage-500) 72%, var(--scale-glass)); }
+.jb-open[data-tone='3'] .jb-flap { background: color-mix(in srgb, var(--coral-500) 70%, var(--scale-glass)); }
+.jb-open[data-tone='4'] .jb-flap { background: color-mix(in srgb, var(--ink-muted) 60%, var(--scale-glass)); }
+.jb-open[data-tone='5'] .jb-flap { background: color-mix(in srgb, var(--amber-700) 62%, var(--scale-glass)); }
+.jb-flap-title { font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); text-align: center; padding: var(--sp-6); text-wrap: balance; }
+@keyframes jb-flap { 0% { transform: rotateY(0); opacity: 1; } 98% { opacity: 1; } 100% { transform: rotateY(-178deg); opacity: 0; visibility: hidden; } }
+
+@media (max-width: 760px) {
+  .jb-spread { grid-template-columns: 1fr; min-height: 0; }
+  .jb-spread::before { display: none; }
+  .jb-page--left, .jb-page--right { border-radius: 0; padding: var(--sp-5); }
+  .jb-page--left { border-radius: 6px 6px 0 0; }
+  .jb-page--right { border-radius: 0 0 14px 6px; border-top: 1px dashed var(--paper-perf, var(--rule)); }
+  .jb-page.is-blank { display: none; }
+  .jb-turn--prev { left: -6px; } .jb-turn--next { right: -6px; }
+  .jb-rack { gap: var(--sp-6); justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jb-open, .jb-spread .jb-page, .jb-flap { animation: none; }
+  .jb-flap { display: none; }
+}

@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { buildStops, flagOf, latestStop, mapPins, NO_PLACE, placeKey } from './places-model.ts';
+import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
+
+let n = 0;
+const e = (destination: string, happenedOn: string): StoredJournalEntry => ({
+  id: `p${++n}`, createdAt: 1, updatedAt: 1, schemaVersion: 1, tripId: null, title: '', body: 'x', template: 'moment',
+  destination, tags: [], happenedOn, favorite: false, visibility: 'private', slug: '', images: [],
+} as StoredJournalEntry);
+
+describe('places model', () => {
+  it('sets the stops out in the order they were reached, entries inside newest first', () => {
+    const stops = buildStops([e('Paris', '2026-07-01'), e('Lisbon', '2026-06-02'), e('Lisbon', '2026-06-09'), e('Berlin', '2026-08-01')]);
+    expect(stops.map((s) => s.label)).toEqual(['Lisbon', 'Paris', 'Berlin']);
+    const lisbon = stops[0];
+    expect(lisbon.entries).toHaveLength(2);
+    expect(lisbon.entries[0].happenedOn).toBe('2026-06-09');
+    expect([lisbon.from, lisbon.to]).toEqual(['2026-06-02', '2026-06-09']);
+  });
+
+  it('places a known city with its coordinates and country; an unknown one keeps its stop without a pin', () => {
+    const [lisbon, nowhere] = buildStops([e('Lisbon', '2026-06-02'), e('Zzyzx Springs', '2026-06-03')]);
+    expect(lisbon.iso).toBe('PT');
+    expect(lisbon.lat).not.toBeNull();
+    expect(nowhere.lat).toBeNull();
+    expect(nowhere.iso).toBeNull();
+    const { pins, countries } = mapPins([lisbon, nowhere]);
+    expect(pins.map((p) => p.label)).toEqual(['Lisbon']);
+    expect(countries).toEqual(['PT']);
+  });
+
+  it('entries with no place share one stop; compound labels use their first city', () => {
+    const stops = buildStops([e('', '2026-06-02'), e('', '2026-06-03'), e('Lisbon / Sintra', '2026-06-04'), e('Lisbon', '2026-06-05')]);
+    expect(stops.find((s) => s.label === NO_PLACE)!.entries).toHaveLength(2);
+    expect(stops.filter((s) => s.key === 'lisbon')).toHaveLength(1);
+    expect(placeKey('Lisbon / Sintra')).toBe('lisbon');
+  });
+
+  it('the latest stop is the one written about most recently', () => {
+    const stops = buildStops([e('Lisbon', '2026-06-02'), e('Paris', '2026-07-01'), e('Lisbon', '2026-09-09')]);
+    expect(latestStop(stops)!.label).toBe('Lisbon');
+    expect(latestStop([])).toBeNull();
+  });
+
+  it('flag emoji from an ISO code', () => {
+    expect(flagOf('PT')).toBe('🇵🇹');
+    expect(flagOf(null)).toBe('📍');
+    expect(flagOf('xx1')).toBe('📍');
+  });
+});

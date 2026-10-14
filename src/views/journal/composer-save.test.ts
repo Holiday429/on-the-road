@@ -29,10 +29,8 @@ vi.mock('../../data/stores/journal-album-store.ts', () => ({
   },
 }));
 vi.mock('../../data/stores/city-store.ts', () => ({ cityStore: { peek: () => [] } }));
-vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '' }));
+vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '', cityLocationsFor: () => [] }));
 vi.mock('./card/card-preview.ts', () => ({ openCardPreview: vi.fn() }));
-vi.mock('leaflet', () => ({ default: {} }));
-vi.mock('leaflet/dist/leaflet.css', () => ({}));
 vi.mock('../../firebase/storage.ts', () => ({
   uploadJournalImage: vi.fn(() => Promise.resolve('https://example.test/photo.jpg')),
 }));

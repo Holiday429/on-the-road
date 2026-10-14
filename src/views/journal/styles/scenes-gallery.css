@@ -1,0 +1,89 @@
+/* ==========================================================================
+   On the Road · Journal gallery — a dark room, a wall that drifts
+   After the curator's wall in "The Prism of Time": near-black room, photographs
+   in wide columns, grey and dim until looked at, a thin frame stepping out when
+   you do. In On the Road's terms the frame is amber, the plate is set in the
+   app's own type, and the room stays dark in both themes on purpose.
+   Markup: scenes/gallery.ts · motion: scenes/gallery-flow.ts
+   ========================================================================== */
+
+.jg-room {
+  --jg-room: var(--scale-glass);
+  --lit: white;
+  --jg-plate: color-mix(in srgb, var(--scale-glass) 92%, var(--lit));
+  --jg-ink: color-mix(in srgb, var(--lit) 88%, transparent);
+  --jg-dim: color-mix(in srgb, var(--lit) 52%, transparent);
+  display: grid; grid-template-columns: minmax(230px, 32%) minmax(0, 1fr);
+  height: clamp(480px, calc(100vh - 230px), 860px); overflow: hidden;
+  border-radius: var(--r-xl); background: var(--jg-room); color: var(--jg-ink);
+  box-shadow: var(--shadow-lg); animation: jg-lights 600ms var(--ease-out) both;
+}
+@keyframes jg-lights { from { opacity: 0; filter: brightness(2.2); } }
+
+/* ── The plate ───────────────────────────────────────────────────────────── */
+.jg-plate {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-4);
+  padding: var(--sp-8) var(--sp-6); text-align: center; background: var(--jg-plate);
+  border-right: 1px solid color-mix(in srgb, var(--lit) 8%, transparent); overflow-y: auto; z-index: 2;
+}
+.jg-lead { position: relative; width: min(100%, 210px); aspect-ratio: 3 / 4; margin-bottom: var(--sp-3); }
+.jg-lead-frame { position: absolute; inset: 0; border: 1px solid color-mix(in srgb, var(--amber-400) 40%, transparent); transform: translate(12px, 12px); transition: transform 500ms var(--ease-out); }
+.jg-lead:hover .jg-lead-frame { transform: translate(8px, 8px); }
+.jg-lead-img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; display: block; filter: grayscale(1) sepia(.18); transition: filter 700ms var(--ease-out); }
+.jg-lead:hover .jg-lead-img { filter: none; }
+.jg-name { margin: 0; font-family: var(--font-display); font-size: var(--fs-lg); font-weight: var(--fw-medium); letter-spacing: .28em; text-transform: uppercase; color: var(--amber-300); text-wrap: balance; }
+.jg-stats { margin: 0; display: flex; flex-direction: column; gap: var(--sp-1); font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .14em; text-transform: uppercase; color: var(--jg-dim); }
+.jg-stats b { font-weight: var(--fw-semibold); color: var(--jg-ink); }
+.jg-range { letter-spacing: .06em; }
+.jg-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
+.jg-chip {
+  height: 30px; padding: 0 var(--sp-3); border: 1px solid color-mix(in srgb, var(--lit) 22%, transparent); border-radius: var(--r-full);
+  background: transparent; color: var(--jg-ink); font-size: var(--fs-xs); cursor: pointer; transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.jg-chip:hover { background: color-mix(in srgb, var(--lit) 10%, transparent); }
+.jg-chip.is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.jg-chip:focus-visible, .jg-tile:focus-visible, .jg-wall:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.jg-select { display: flex; flex-direction: column; gap: var(--sp-2); align-items: stretch; width: 100%; background: transparent; border: 0; padding: 0; }
+.jg-select .select { color: var(--ink); }
+
+/* ── The wall ────────────────────────────────────────────────────────────── */
+.jg-wall { overflow-y: auto; padding: var(--sp-10) var(--sp-8) var(--sp-12); scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--amber-400) 35%, transparent) transparent; outline: none; }
+.jg-cols { columns: 3; column-gap: var(--sp-10); }
+.jg-tile { position: relative; margin: 0 0 var(--sp-10); break-inside: avoid; cursor: pointer; }
+.jg-frame { position: absolute; inset: -9px; border: 1px solid transparent; pointer-events: none; transition: border-color 350ms ease, inset 350ms ease; }
+.jg-img {
+  position: relative; display: block; width: 100%; height: auto; filter: grayscale(1) sepia(.15); opacity: .78;
+  transition: filter 500ms ease, opacity 500ms ease; animation: jg-hang 700ms var(--ease-out) both; animation-delay: calc(var(--i) * 60ms);
+}
+.jg-img.is-square { aspect-ratio: 1; object-fit: cover; }
+@keyframes jg-hang { from { opacity: 0; transform: translateY(14px); } }
+.jg-tile:hover .jg-img, .jg-tile:focus-visible .jg-img, .jg-tile.is-picked .jg-img { filter: none; opacity: 1; }
+.jg-tile:hover .jg-frame, .jg-tile:focus-visible .jg-frame { border-color: color-mix(in srgb, var(--amber-400) 60%, transparent); inset: -12px; }
+.jg-tile.is-picked .jg-frame { border-color: var(--accent); inset: -12px; }
+.jg-check { position: absolute; top: var(--sp-2); right: var(--sp-2); z-index: 3; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--jg-ink); color: var(--on-accent); font-size: var(--fs-sm); }
+.jg-tile.is-picked .jg-check { background: var(--accent); border-color: var(--accent); }
+
+/* a museum placard that appears under the photograph you're looking at */
+.jg-placard { position: absolute; left: 0; right: 0; top: 100%; padding-top: var(--sp-3); display: flex; flex-direction: column; gap: 2px; opacity: 0; transform: translateY(-4px); transition: opacity 300ms ease, transform 300ms ease; pointer-events: none; }
+.jg-tile:hover .jg-placard, .jg-tile:focus-visible .jg-placard { opacity: 1; transform: none; }
+.jg-placard-title { font-family: var(--font-stamp); font-size: var(--fs-xs); letter-spacing: .2em; text-transform: uppercase; color: var(--jg-ink); }
+.jg-placard-meta { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .1em; color: var(--jg-dim); }
+
+@media (max-width: 1100px) { .jg-cols { columns: 2; column-gap: var(--sp-8); } }
+@media (max-width: 800px) {
+  .jg-room { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); height: clamp(520px, calc(100vh - 200px), 860px); }
+  .jg-plate { flex-direction: row; flex-wrap: wrap; justify-content: space-between; padding: var(--sp-4); gap: var(--sp-3); text-align: left; border-right: 0; border-bottom: 1px solid color-mix(in srgb, var(--lit) 8%, transparent); }
+  .jg-lead { display: none; }
+  .jg-name { font-size: var(--fs-md); letter-spacing: .2em; }
+  .jg-stats { flex-direction: row; flex-wrap: wrap; gap: var(--sp-3); }
+  .jg-wall { padding: var(--sp-6) var(--sp-5) var(--sp-12); }
+  .jg-cols { column-gap: var(--sp-5); }
+  .jg-tile { margin-bottom: var(--sp-6); }
+}
+@media (hover: none) {
+  .jg-img { filter: none; opacity: 1; }
+  .jg-placard { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jg-room, .jg-img { animation: none; }
+}

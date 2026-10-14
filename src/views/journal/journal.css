@@ -1,10 +1,11 @@
 @import './styles/base.css';
 @import './styles/feed.css';
-@import './styles/places.css';
 @import './styles/categories.css';
 @import './styles/albums.css';
-@import './styles/gallery.css';
-@import './styles/map.css';
 @import './styles/calendar.css';
+@import './styles/scenes-feed.css';
+@import './styles/scenes-gallery.css';
+@import './styles/scenes-places.css';
+@import './styles/scenes-albums.css';
 @import './styles/story.css';
 @import './styles/recap.css';

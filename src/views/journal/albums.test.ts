@@ -32,10 +32,8 @@ vi.mock('../../data/stores/journal-album-store.ts', () => ({
   },
 }));
 vi.mock('../../data/stores/city-store.ts', () => ({ cityStore: { peek: () => [] } }));
-vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '' }));
+vi.mock('../map/geo.ts', () => ({ coordsFor: () => null, primaryCity: () => '', cityLocationsFor: () => [] }));
 vi.mock('./card/card-preview.ts', () => ({ openCardPreview: vi.fn() }));
-vi.mock('leaflet', () => ({ default: {} }));
-vi.mock('leaflet/dist/leaflet.css', () => ({}));
 
 import { createCaptureController } from './capture/capture.ts';
 
@@ -94,20 +92,20 @@ beforeEach(() => {
 });
 
 describe('albums view', () => {
-  it('lists the user albums with their entry counts', () => {
+  it('lists the user albums as booklets with their page counts', () => {
     const { body } = mount([mkEntry('e1'), mkEntry('e2')], [mkAlbum('a1', ['e1', 'e2'])]);
     gotoView(body, 'albums');
 
     expect(body.querySelector('[data-open-album="a1"]'), 'album tile rendered').toBeTruthy();
     expect(body.textContent).toContain('Album a1');
-    expect(body.textContent).toContain('2 entries');
+    expect(body.textContent).toContain('2 pages');
   });
 
   it('ignores entry ids whose entry was deleted', () => {
     // a1 references e2, which no longer exists.
     const { body } = mount([mkEntry('e1')], [mkAlbum('a1', ['e1', 'e2'])]);
     gotoView(body, 'albums');
-    expect(body.textContent).toContain('1 entries');
+    expect(body.textContent).toContain('1 page');
   });
 
   it('opens an album and can drop an entry from it', async () => {
@@ -147,8 +145,8 @@ describe('gallery multi-select', () => {
     expect(body.querySelector('[data-open-entry="e1"]'), 'tiles no longer open the reader').toBeFalsy();
 
     (body.querySelector('[data-gallery-pick="e1"]') as HTMLElement).click();
-    expect(body.querySelector('.journal-gallery-tile.is-picked'), 'tile marked picked').toBeTruthy();
-    expect(body.textContent).toContain('选中 1 条');
+    expect(body.querySelector('.jg-tile.is-picked'), 'tile marked picked').toBeTruthy();
+    expect(body.textContent).toContain('Selected 1');
   });
 
   it('adds the whole selection to an album in one write, then exits select mode', async () => {
@@ -310,5 +308,61 @@ describe('album create / rename / delete modals', () => {
     expect(albumSave).toHaveBeenCalledWith(
       expect.objectContaining({ title: 'From gallery', entryIds: ['e1', 'e2'] }),
     );
+  });
+});
+
+describe('open album is a book', () => {
+  it('opens on the title page facing the first entry; ‹ › turn the spread and clamp at the ends', () => {
+    const { body } = mount([mkEntry('e1'), mkEntry('e2'), mkEntry('e3')], [mkAlbum('a1', ['e1', 'e2', 'e3'])]);
+    gotoView(body, 'albums');
+    (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
+
+    expect(body.querySelector('.jb-page--title')).toBeTruthy();
+    expect(body.querySelector('[data-open-entry="e1"]')).toBeTruthy();
+    expect(body.querySelector('[data-open-entry="e2"]')).toBeFalsy();
+    expect((body.querySelector('[data-album-page="prev"]') as HTMLButtonElement).disabled).toBe(true);
+
+    (body.querySelector('[data-album-page="next"]') as HTMLElement).click();
+    expect(body.querySelector('[data-open-entry="e2"]')).toBeTruthy();
+    expect(body.querySelector('[data-open-entry="e3"]')).toBeTruthy();
+    expect(body.querySelector('.jb-page--title')).toBeFalsy();
+    expect(body.querySelector('.jb-spread')!.className).toMatch(/is-turn-next-[ab]/);
+    expect((body.querySelector('[data-album-page="next"]') as HTMLButtonElement).disabled).toBe(true);
+
+    (body.querySelector('[data-album-page="prev"]') as HTMLElement).click();
+    expect(body.querySelector('.jb-page--title')).toBeTruthy();
+  });
+
+  it('closing the book returns to the shelf', () => {
+    const { body } = mount([mkEntry('e1')], [mkAlbum('a1', ['e1'])]);
+    gotoView(body, 'albums');
+    (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
+    (body.querySelector('[data-album-back]') as HTMLElement).click();
+    expect(body.querySelector('.jb-rack')).toBeTruthy();
+    expect(body.querySelector('.jb-open')).toBeFalsy();
+  });
+});
+
+describe('places is one line of stops', () => {
+  it('strings the places in order and picks one to show its entries', () => {
+    const { body } = mount([
+      mkEntry('e1', { destination: 'Lisbon', happenedOn: '2026-06-01' }),
+      mkEntry('e2', { destination: 'Porto', happenedOn: '2026-06-05' }),
+    ], []);
+    gotoView(body, 'places');
+    const stops = [...body.querySelectorAll<HTMLElement>('[data-place-pick]')];
+    expect(stops.map((s) => s.querySelector('.jp-stop-name')!.textContent)).toEqual(['Lisbon', 'Porto']);
+    // the latest place is showing; picking the other re-deals the hand
+    expect(body.querySelector('[data-open-entry="e2"]')).toBeTruthy();
+    expect(body.querySelector('[data-open-entry="e1"]')).toBeFalsy();
+    stops[0].click();
+    expect(body.querySelector('[data-open-entry="e1"]')).toBeTruthy();
+    expect(body.querySelector('.jp-stop.is-selected .jp-stop-name')!.textContent).toBe('Lisbon');
+    expect(body.querySelector('[data-places-map]')).toBeTruthy();
+  });
+
+  it('there is no separate Map view any more', () => {
+    const { ctrl } = mount([mkEntry('e1')], []);
+    expect(['feed', 'places', 'albums', 'gallery', 'calendar']).toContain(ctrl.currentView());
   });
 });
