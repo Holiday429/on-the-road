@@ -23,7 +23,7 @@ import { renderStamp } from '../../core/paper/stamp.ts';
 import { currentUser } from '../../firebase/auth.ts';
 import { onPassport, peekFeedLegs } from '../../data/passport-feed.ts';
 import { passportState, snapOf, type PassportFeed } from '../../data/passport-state.ts';
-import { passportStore } from '../../data/stores/passport-store.ts';
+import { passportDocStore, passportStore } from '../../data/stores/passport-store.ts';
 import { journalStore } from '../../data/stores/journal-store.ts';
 import { expenseStore } from '../../data/stores/expense-store.ts';
 import { countryMemory } from '../../data/country-memory.ts';
@@ -40,6 +40,8 @@ import {
 import { createFlip, type FlipBook } from './flip.ts';
 import { pageHtml, type PageCtx } from './pages.ts';
 import { openBioEditor } from './bio-edit.ts';
+import { NO_DOC, type DocInput } from './bio.ts';
+import { attachLens } from './lens.ts';
 // The name the traveller goes by is one thing, shown in two places (see profile-me.ts).
 import { defaultNickname } from '../profile/profile-me.ts';
 import { openVisaEditor } from './visa-edit.ts';
@@ -56,6 +58,7 @@ let _feed: PassportFeed = { stamps: [], countries: 0, cities: 0, nights: 0, trip
 let _placements: Record<string, PlacementRec> = {};
 let _profile = { nickname: '', photoURL: '', nationality: '', occupation: '', signature: '' };
 let _safetyNationality = '';
+let _doc: DocInput = NO_DOC;
 let _visas: StoredVisa[] = [];
 let _unsubs: Array<() => void> = [];
 let _flip: FlipBook | null = null;
@@ -135,6 +138,7 @@ function ctx(): PageCtx {
     pageNo: (p) => _pages.indexOf(p) + 1,
     cover: normalizeCover(_cover),
     pressed: st.pressed.length,
+    doc: _doc,
   };
 }
 
@@ -660,7 +664,7 @@ const signature = (): string =>
   [
     _feed.stamps.map((s) => `${s.id}:${s.nights}:${s.date}`).join('|'),
     Object.entries(_placements).map(([k, p]) => `${k}@${p.page}:${p.x}:${p.y}`).join('|'),
-    Object.values(_profile).join('~'), peekFeedLegs().map((l) => `${l.id}${l.dateFrom}${l.dateTo}${l.country}`).join(''), _visas.map((v) => `${v.id}:${v.updatedAt}`).join('|'), _safetyNationality, getLocale(), _feed.cities, _feed.nights,
+    Object.values(_profile).join('~'), peekFeedLegs().map((l) => `${l.id}${l.dateFrom}${l.dateTo}${l.country}`).join(''), _visas.map((v) => `${v.id}:${v.updatedAt}`).join('|'), _safetyNationality, JSON.stringify(_doc), getLocale(), _feed.cities, _feed.nights,
   ].join('#');
 
 /* ── Mount ───────────────────────────────────────────────────────────────── */
@@ -695,6 +699,12 @@ export function initPassport(): void {
       refresh();
     }),
     safetyProfileStore.subscribe((p) => { _safetyNationality = p?.nationality ?? ''; refresh(); }),
+    passportDocStore.subscribe((d) => {
+      _doc = d
+        ? { fullName: d.fullName, number: d.number, birthDate: d.birthDate, gender: d.gender, issued: d.issued, expires: d.expires, showNumber: d.showNumber, showFullName: d.showFullName, showBirth: d.showBirth }
+        : NO_DOC;
+      refresh();
+    }),
     visaStore.subscribe((rows) => { _visas = rows.slice().sort((a, b) => (a.validFrom || '9').localeCompare(b.validFrom || '9')); refresh(); }),
     onLocaleChange(() => { head(root); refresh(true); }),
   ];
@@ -707,6 +717,7 @@ export function initPassport(): void {
   window.addEventListener('otr:nav-intent', onIntent);
   _unsubs.push(() => window.removeEventListener('otr:nav-intent', onIntent));
   wire(root);
+  _unsubs.push(attachLens(root));
   _sig = signature();
   render();
   applyIntent(consumeNavIntent('passport'));

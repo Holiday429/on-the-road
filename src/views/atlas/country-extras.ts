@@ -38,12 +38,17 @@ export interface EntryLine { title: string; date: string; excerpt: string }
 /** A photo with the place it was taken, for the stamp's memory card. */
 export interface CityPhoto { url: string; city: string; date: string }
 
+/** Any one photo of the country's journal entries, with where and when it was taken. */
+export interface JournalPhoto extends CityPhoto { title: string }
+
 export interface CountryExtras {
   journalCount: number;
   /** The newest few entries, for a peek without opening the journal. */
   entries: EntryLine[];
   /** One photo per city of this country, newest first — the memory card's grid. */
   cityPhotos: CityPhoto[];
+  /** Every photo of this country's entries (up to nine), newest first — the memory card's polaroids. */
+  photos: JournalPhoto[];
   /** Up to three of the newest photos from this country's entries. */
   covers: string[];
   spend: SpendLine[];
@@ -57,6 +62,8 @@ const MAX_COVERS = 3;
 const MAX_ENTRIES = 3;
 /** Photos on a stamp's memory card: one per city, three to a row. */
 const MAX_CITY_PHOTOS = 9;
+/** Polaroids on a stamp's memory card. */
+const MAX_PHOTOS = 9;
 
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
@@ -123,6 +130,19 @@ export function buildCountryExtras(iso: string, legs: PlottedLeg[], data: Extras
   }
   const cityPhotos = [...byCity.values()].slice(0, MAX_CITY_PHOTOS);
 
+  // Every photo, not one per city: the polaroid wall is the country's own pictures, newest entry first.
+  const all: JournalPhoto[] = [];
+  const seen = new Set<string>();
+  for (const e of entries) {
+    const city = journalCity(e, legs);
+    for (const url of photos(e)) {
+      if (all.length >= MAX_PHOTOS) break;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      all.push({ url, city, date: e.happenedOn, title: (e.title ?? '').trim() });
+    }
+  }
+
   const lines = new Map<string, SpendLine>();
   for (const x of data.expenses) {
     if (!x.country || isoForCountry(x.country) !== iso) continue;
@@ -145,6 +165,7 @@ export function buildCountryExtras(iso: string, legs: PlottedLeg[], data: Extras
     journalCount: entries.length,
     entries: entries.slice(0, MAX_ENTRIES).map(entryLine),
     cityPhotos,
+    photos: all,
     covers,
     spend,
     spendTotal,

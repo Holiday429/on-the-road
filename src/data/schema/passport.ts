@@ -55,7 +55,7 @@ export const PassportSchema = doc({
 });
 export type PassportDoc = z.infer<typeof PassportSchema>;
 
-/** Optional real details — the traveller can use the passport page to look them up. Never required, never shared. */
+/** Optional real details — the traveller can use the passport page to look them up. Never required, never exported or sent anywhere; the data page shows only the items the traveller marked as shown. */
 export const PassportDocSchema = doc({
   fullName: z.string().default(''),
   number: z.string().default(''),
@@ -63,5 +63,10 @@ export const PassportDocSchema = doc({
   issued: z.string().default(''),          // ISO date
   expires: z.string().default(''),         // ISO date
   birthDate: z.string().default(''),       // ISO date
+  gender: z.enum(['', 'F', 'M', 'X']).default(''),   // shown on the data page as the passport's "Sex"
+  // Which of the three personal items the data page shows; false = it shows as hidden dots. Everything else on the page is always shown.
+  showNumber: z.boolean().default(false),
+  showFullName: z.boolean().default(false),
+  showBirth: z.boolean().default(false),
 });
 export type PassportDetails = z.infer<typeof PassportDocSchema>;

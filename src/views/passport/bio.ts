@@ -60,3 +60,46 @@ export function barcodeBars(uid: string, n = 34): Array<[number, number]> {
   const next = () => { h = (Math.imul(h, 1103515245) + 12345) >>> 0; return h >>> 8; };
   return Array.from({ length: n }, () => [1 + (next() % 4), 45 + (next() % 5) * 11] as [number, number]);
 }
+
+/** The real details of the data page, as the traveller keeps them (data/schema/passport.ts). */
+export interface DocInput {
+  fullName: string;
+  number: string;
+  birthDate: string;
+  gender: '' | 'F' | 'M' | 'X';
+  issued: string;
+  expires: string;
+  showNumber: boolean;
+  showFullName: boolean;
+  showBirth: boolean;
+}
+
+export const NO_DOC: DocInput = { fullName: '', number: '', birthDate: '', gender: '', issued: '', expires: '', showNumber: false, showFullName: false, showBirth: false };
+
+/** What a hidden item shows in place of its value: dots as long as the value, so the line keeps its shape. `—` when there is nothing to hide. */
+export function hiddenDots(value: string, max = 14): string {
+  const n = [...value.trim()].length;
+  return n === 0 ? '—' : '•'.repeat(Math.min(max, Math.max(4, n)));
+}
+
+/** One of the three personal items for the page: its value when shown, dots when hidden, a dash when empty. */
+export function personalItem(value: string, shown: boolean): { text: string; hidden: boolean } {
+  const v = value.trim();
+  if (!v) return { text: '—', hidden: false };
+  return shown ? { text: v, hidden: false } : { text: hiddenDots(v), hidden: true };
+}
+
+/** The booklet's own ten-year validity from its issue date, minus a day — the way a real one runs. '' for no date. */
+export function defaultExpiry(issued: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(issued);
+  if (!m) return '';
+  const d = new Date(Date.UTC(Number(m[1]) + 10, Number(m[2]) - 1, Number(m[3]) - 1));
+  return d.toISOString().slice(0, 10);
+}
+
+/** The number shown in the page header: the real one when shown, dots when hidden, else the booklet's own made-up serial. */
+export function headerNumber(uid: string, d: Pick<DocInput, 'number' | 'showNumber'>): { text: string; hidden: boolean } {
+  const real = d.number.trim();
+  if (!real) return { text: passportNumber(uid), hidden: false };
+  return personalItem(real, d.showNumber);
+}
