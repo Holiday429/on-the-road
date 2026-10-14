@@ -165,25 +165,14 @@ export function peekChecklistRows(): { id: string; name: string; done: number; t
   return _checklists.map(cl => ({ id: cl.id, name: cl.name, ...progress(cl.groups) }));
 }
 
-/** The next few unticked items across every list, oldest list first — the landing's
- *  "Next up" strip, tickable in place. */
-export interface NextUpItem { clId: string; groupId: string; itemId: string; text: string; icon: string; listName: string }
-export function peekNextUp(limit = 3): NextUpItem[] {
-  const out: NextUpItem[] = [];
-  for (const cl of _checklists) {
-    for (const g of [...cl.groups].sort((a, b) => a.order - b.order)) {
-      for (const it of [...g.items].sort((a, b) => a.order - b.order)) {
-        if (it.done) continue;
-        out.push({ clId: cl.id, groupId: g.id, itemId: it.id, text: it.text, icon: g.icon, listName: cl.name });
-        if (out.length >= limit) return out;
-      }
-    }
-  }
-  return out;
-}
-
-export function tickNextUp(it: Pick<NextUpItem, 'clId' | 'groupId' | 'itemId'>): Promise<boolean> {
-  return checklistStore.toggleItem(it.clId, it.groupId, it.itemId);
+/** The first few items of one checklist for the landing's clipboard — open ones first, topped up with ticked ones. */
+export function peekChecklistPreview(id: string, limit = 4): { text: string; done: boolean }[] {
+  const cl = _checklists.find(c => c.id === id);
+  if (!cl) return [];
+  const all = [...cl.groups].sort((a, b) => a.order - b.order)
+    .flatMap(g => [...g.items].sort((a, b) => a.order - b.order));
+  return [...all.filter(i => !i.done), ...all.filter(i => i.done)].slice(0, limit)
+    .map(i => ({ text: i.text, done: i.done }));
 }
 
 /** Aggregate checklist progress across every list — the hero's readout. */
@@ -448,6 +437,8 @@ function renderDetailScreen(container: HTMLElement) {
         ${allDone ? '<button class="btn btn-primary celebrate-btn" id="celebrate-btn">🎉 View completion</button>' : ''}
       </div>
 
+      ${renderNextUp(cl)}
+
       <!-- Groups -->
       <div class="groups-list" id="groups-list">
         ${cl.groups.sort((a, b) => a.order - b.order).map((g, i) => renderGroup(cl.id, g, i)).join('')}
@@ -469,6 +460,35 @@ function renderDetailScreen(container: HTMLElement) {
   `;
 
   bindDetailScreen(container, cl);
+}
+
+/** The first few unticked items of this list, across its groups — what to do next. */
+function nextUpFor(cl: StoredChecklist, limit = 3) {
+  const out: { groupId: string; itemId: string; text: string; src: string }[] = [];
+  for (const g of [...cl.groups].sort((a, b) => a.order - b.order)) {
+    for (const it of [...g.items].sort((a, b) => a.order - b.order)) {
+      if (it.done) continue;
+      out.push({ groupId: g.id, itemId: it.id, text: it.text, src: `${g.icon} ${g.name}` });
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+
+function renderNextUp(cl: StoredChecklist): string {
+  if (progress(cl.groups).total === 0) return '';
+  const items = nextUpFor(cl);
+  if (!items.length) return `<div class="prep-next prep-next--clear">${escHtml(t('prep.nextUpClear'))}</div>`;
+  return `
+    <div class="prep-next">
+      <div class="prep-next-head">${escHtml(t('prep.nextUp'))}</div>
+      ${items.map(it => `
+        <button type="button" class="prep-next-item" data-nu-group="${escHtml(it.groupId)}" data-nu-item="${escHtml(it.itemId)}">
+          <span class="prep-next-box"><svg viewBox="0 0 16 16"><path d="M3 8.5 l3.2 3.4 l6.6 -8" pathLength="24"/></svg></span>
+          <span class="prep-next-text">${escHtml(it.text)}</span>
+          <span class="prep-next-src">${escHtml(it.src)}</span>
+        </button>`).join('')}
+    </div>`;
 }
 
 // Stable tilt per group id — deterministic so it doesn't change on re-render
@@ -612,6 +632,18 @@ function bindDetailScreen(container: HTMLElement, cl: StoredChecklist) {
   });
   container.querySelector<HTMLInputElement>('#add-group-input')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') container.querySelector<HTMLButtonElement>('#add-group-btn')?.click();
+  });
+
+  // Next up: tick an item from the strip (let the tick draw before the repaint)
+  container.querySelectorAll<HTMLElement>('.prep-next-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('is-ticking')) return;
+      btn.classList.add('is-ticking');
+      window.setTimeout(async () => {
+        const allDone = await checklistStore.toggleItem(cl.id, btn.dataset.nuGroup!, btn.dataset.nuItem!);
+        if (allDone) { screen = 'celebrate'; render(); }
+      }, 480);
+    });
   });
 
   // Toggle item

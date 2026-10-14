@@ -1,0 +1,57 @@
+/* ==========================================================================
+   On the Road · Pack · scale stage — the bench the scale stands on.
+   The deck/LED/bag artwork is the paper kit's luggage.css; this is layout and
+   the few states of the stage itself (idle · weighing · done · drop-active).
+   ========================================================================== */
+
+.wst {
+  position: relative; display: flex; flex-direction: column; align-items: center;
+  min-height: 292px; padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border: 1.5px solid var(--rule-soft); border-radius: var(--r-xl); overflow: hidden;
+  /* a wall above, a bench below */
+  background: linear-gradient(180deg, var(--surface-3) 0 58%, var(--surface-4) 58% 100%);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.wst.is-drop-active { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+
+.wst-head { align-self: stretch; display: flex; align-items: center; gap: var(--sp-2); position: relative; z-index: 3; }
+.wst-eyebrow { flex: 1; font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted); }
+.wst-sound {
+  height: 26px; padding: 0 var(--sp-3); border: 1px solid var(--rule); border-radius: var(--r-full);
+  background: var(--surface); color: var(--ink-soft); font-size: var(--fs-xs); cursor: pointer;
+}
+.wst-sound:hover { background: var(--surface-3); }
+
+/* A nudge that floats until the first weigh-in this visit. */
+.wst-hint {
+  position: absolute; left: 50%; top: 50px; z-index: 3; transform: translateX(-50%);
+  padding: 7px var(--sp-3); border: 1px solid var(--rule); border-radius: var(--r-md);
+  background: var(--surface); box-shadow: var(--shadow-md);
+  font-size: var(--fs-xs); color: var(--ink-soft); white-space: nowrap;
+  animation: wst-float 2.6s ease-in-out infinite;
+}
+.wst:not([data-state='idle']) .wst-hint, .wst.is-seen .wst-hint { display: none; }
+@keyframes wst-float { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(-6px); } }
+
+.wst-floor { position: relative; width: min(280px, 100%); height: 196px; margin-top: auto; }
+.wst-scale { position: absolute; left: 0; right: 0; bottom: 0; transform-origin: 50% 100%; }
+.wst-bag { position: absolute; left: 50%; bottom: 84px; z-index: 2; margin-left: 0; opacity: 0; translate: -50% 0; transform-origin: 50% 100%; }
+.wst-tag { position: absolute; right: -6px; bottom: 98px; z-index: 4; width: 112px; min-width: 0; transform-origin: 14px 9px; }
+.wst-flash {
+  position: absolute; right: 8px; bottom: 112px; z-index: 3; width: 74px; height: 74px; border-radius: 50%; opacity: 0; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--surface) 90%, transparent), transparent 70%);
+}
+.wst-name { margin-top: var(--sp-2); font-weight: var(--fw-medium); font-size: var(--fs-sm); color: var(--ink); min-height: 1.4em; text-align: center; }
+.wst-advice { min-height: 0; margin-top: 2px; font-size: var(--fs-xs); color: var(--coral-500); text-align: center; text-wrap: balance; }
+.wst-advice[hidden] { display: none; }
+.wst-skip { margin-top: var(--sp-2); }
+
+@media (max-width: 420px) {
+  .wst-floor { width: min(240px, 100%); height: 170px; }
+  .wst-bag { bottom: 72px; }
+  .wst-tag { bottom: 84px; width: 98px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wst-hint { animation: none; }
+  .wst-bag { opacity: 1; }
+}

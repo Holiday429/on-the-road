@@ -530,3 +530,71 @@ describe('Prepare landing — Core Kit screen', () => {
     expect(landing().classList.contains('is-hidden')).toBe(false);
   });
 });
+
+describe('Prepare landing — the scenes are the way in', () => {
+  const twoGroups = [{ id: 'g1', name: 'Docs', icon: '📋', order: 0, items: [
+    { id: 'i1', text: 'Passport', done: false, order: 0 },
+    { id: 'i2', text: 'Visa', done: false, order: 1 },
+  ] }];
+
+  it('shows the first list as a clipboard with its items, and a click opens it', async () => {
+    initPrepare();
+    const id = await checklistStore.create({ name: 'Paris Prep', groups: twoGroups });
+
+    const clip = document.querySelector<HTMLElement>('.prep-clip')!;
+    expect(clip.dataset.openCl).toBe(id);
+    expect(clip.textContent).toContain('Paris Prep');
+    expect(clip.textContent).toContain('Passport');
+    // No "Next up" strip on the landing any more — it lives in the editor.
+    expect(document.querySelector('#prepare-landing .prep-next')).toBeNull();
+
+    clip.click();
+    expect(landing().classList.contains('is-hidden')).toBe(true);
+    expect(clZone().querySelector('.prep-next')).not.toBeNull();
+  });
+
+  it('hovering another list brings it to the front of the clipboard scene', async () => {
+    initPrepare();
+    await checklistStore.create({ name: 'First', groups: twoGroups });
+    const second = await checklistStore.create({ name: 'Second', groups: twoGroups });
+    expect(document.querySelector('.prep-clip-name')!.textContent).toBe('First');
+
+    document.querySelector<HTMLElement>(`[data-cl="${second}"]`)!.dispatchEvent(new Event('mouseenter'));
+
+    expect(document.querySelector('.prep-clip-name')!.textContent).toBe('Second');
+    expect(document.querySelector<HTMLElement>('.prep-clip')!.dataset.openCl).toBe(second);
+  });
+
+  it('draws the bags as a floor with a scale, and the Weigh card says nothing has been weighed', async () => {
+    initPrepare();
+    const id = await packStore.create({
+      name: 'Main luggage',
+      containers: [
+        { id: 'c1', label: 'Carry-on', kind: 'backpack', limitG: 1000, selfWeightG: 0 },
+        { id: 'c2', label: 'Check-in', kind: 'suitcase', limitG: 20000, selfWeightG: 0 },
+      ],
+      items: [packItem({ id: 'p1', name: 'Boots', unitWeightG: 900, containerId: 'c1', order: 0 })],
+    });
+
+    expect(document.querySelectorAll('.prep-bag').length).toBe(2);
+    expect(document.querySelector('.lg-bag--backpack')).not.toBeNull();
+    expect(document.querySelector('.lg-bag--suitcase')).not.toBeNull();
+    expect(document.querySelector('.prep-scale-obj')).not.toBeNull();
+    const card = document.querySelector<HTMLElement>('.prep-status--weigh')!;
+    expect(card.classList.contains('is-none')).toBe(true);
+    expect(card.textContent).toContain('2 bags not weighed yet');
+
+    document.querySelector<HTMLElement>('.prep-floor')!.click();
+    expect(pkZone().classList.contains('is-hidden')).toBe(false);
+    expect(pkZone().querySelectorAll('.pkd-bag').length).toBe(2);
+    expect(pkZone().querySelector(`#pk-weigh`)).not.toBeNull();
+    expect(id).toBeTruthy();
+  });
+
+  it('a list with no bags offers to add one instead of a Weigh button', async () => {
+    initPrepare();
+    await packStore.create({ name: 'Empty', containers: [], items: [] });
+    expect(document.querySelector('.prep-status--weigh')!.textContent).toContain('Add your first bag');
+    expect(document.querySelector('[data-weigh-pk]')).toBeNull();
+  });
+});

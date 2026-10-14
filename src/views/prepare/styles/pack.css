@@ -180,35 +180,7 @@
 .pack-detail-actions { display: flex; gap: var(--sp-4); }
 .pk-toggle { font-size: var(--fs-sm); color: var(--ink-soft); display: flex; align-items: center; gap: 6px; cursor: pointer; }
 
-/* ── Detail layout: bags grid left + unassigned right ───────────────────── */
-/*
-   The whole detail view tries to fill the viewport without the page scrolling.
-   Approximate fixed chrome heights:
-     nav header  ~56px
-     view-header ~100px  (title + subtitle + spacing)
-     detail-bar  ~52px
-     add-panel   ~52px
-     gaps        ~24px
-   Total reserved: ~284px → containers get calc(100vh - 284px)
-*/
-.pack-detail-layout {
-  display: grid;
-  grid-template-columns: 1fr 240px;
-  gap: var(--sp-3);
-  align-items: stretch;
-  height: calc(100vh - 284px);
-  min-height: 320px;
-}
-
 /* ── Container cards ──────────────────────────────────────────────────────── */
-.pack-containers-grid {
-  display: grid;
-  /* 3 columns on wide screens, auto-fill to shrink on narrow */
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-3);
-  overflow-y: auto;
-  align-content: start;
-}
 .pack-container-card {
   background: var(--surface); border: 1.5px solid var(--rule-soft); border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm); display: flex; flex-direction: column;
@@ -393,7 +365,17 @@
 .pack-add-cat { width: 130px; flex-shrink: 0; }
 .pack-add-weight { width: 70px; flex-shrink: 0; }
 .pack-add-pri { width: 116px; flex-shrink: 0; }
-.pack-add-btn { flex-shrink: 0; white-space: nowrap; min-width: 80px; }
+.pack-add-btn { flex-shrink: 0; white-space: nowrap; min-width: 80px; justify-content: center; }
+/* Every control in the row is exactly as tall as the next, whatever the screen. */
+.pack-add-panel > :is(input, select, .btn, button) { height: var(--ctl-h); box-sizing: border-box; padding-block: 0; }
+.pack-add-panel > .btn { padding-inline: var(--sp-4); }
+@media (max-width: 760px) {
+  .pack-add-panel { flex-wrap: wrap; }
+  .pack-add-label { flex-basis: 100%; }
+  .pack-add-name { flex: 1 1 100%; }
+  .pack-add-cat, .pack-add-pri { flex: 1 1 120px; width: auto; }
+  .pack-add-weight { flex: 0 1 84px; width: auto; }
+}
 
 /* Hide spinner arrows on number inputs in the add panel */
 .pack-add-weight::-webkit-outer-spin-button,

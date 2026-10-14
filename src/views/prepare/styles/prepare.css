@@ -117,7 +117,7 @@
 .prep-hero-stat {
   min-width: 116px;
   display: grid;
-  grid-template-rows: auto auto 4px auto;
+  grid-template-rows: auto auto 8px auto;
   row-gap: 4px;
   align-content: start;
 }
@@ -138,7 +138,7 @@
 }
 .prep-hero-stat.is-warn .prep-hero-stat-value { color: var(--danger); }
 .prep-hero-bar {
-  height: 4px;
+  height: 8px;
   border-radius: var(--r-full);
   background: var(--surface-4);
   overflow: hidden;
@@ -202,7 +202,8 @@
   stroke-dasharray: 24; stroke-dashoffset: 24;
 }
 .prep-next-box svg { width: 14px; height: 14px; }
-.prep-next-item.is-ticking .prep-next-box path { animation: st-tick 320ms ease-out both; }
+.prep-next-item.is-ticking .prep-next-box path { animation: prep-tick 320ms ease-out both; }
+@keyframes prep-tick { from { stroke-dashoffset: 24; } to { stroke-dashoffset: 0; } }
 .prep-next-item.is-ticking .prep-next-text { text-decoration: line-through; color: var(--ink-muted); }
 .prep-next-text { flex: 1; min-width: 0; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .prep-next-src { flex-shrink: 0; max-width: 40%; font-size: var(--fs-xs); color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

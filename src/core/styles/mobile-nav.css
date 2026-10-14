@@ -91,7 +91,7 @@
 
   .sidebar-header {
     justify-content: center;
-    padding: var(--sp-4) var(--sp-2);
+    padding: clamp(8px, 1.6vh, 16px) var(--sp-2);
   }
 
   .sidebar-header-profile {
@@ -108,7 +108,7 @@
     padding: var(--sp-2) 0 var(--sp-2);
     border-radius: 0;
     align-self: stretch;
-    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    display: flex; flex-direction: column; align-items: center; gap: clamp(2px, 0.8vh, 8px);
   }
   .nav-me .nav-item.has-pending::after { top: 2px; right: 6px; transform: none; }
 
@@ -132,18 +132,22 @@
   .trip-pill-date[data-len="3"] { font-size: 18px; }
   .trip-pill-date[data-len="4"] { font-size: var(--fs-base); }
 
+  /* One screen, as expanded: spacing and icon size follow the window's height, so the
+     icons never need scrolling. (Scrolls as a last resort, with the bar hidden.) */
   .sidebar-nav {
-    padding: var(--sp-3) var(--sp-2);
+    padding: clamp(4px, 1vh, 12px) var(--sp-2);
     align-items: center;
-    gap: 10px;
+    gap: clamp(2px, 0.8vh, 8px);
+    scrollbar-width: none;
   }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
 
   /* Section labels become hairline dividers between icon groups. */
   .nav-section-label {
     display: block;
     align-self: stretch;
     height: 1px;
-    margin: 6px 12px;
+    margin: clamp(2px, 0.6vh, 6px) 12px;
     padding: 0;
     overflow: hidden;
     font-size: 0;
@@ -155,17 +159,14 @@
   .nav-item {
     justify-content: center;
     width: 100%;
-    padding: 14px 0;
+    padding: clamp(4px, 0.9vh, 10px) 0;
   }
 
-  .nav-item .nav-icon {
-    width: 36px;
-    height: 36px;
-  }
-
+  .nav-item .nav-icon,
   .nav-icon-image {
-    width: 36px;
-    height: 36px;
+    width: clamp(22px, 3.6vh, 34px);
+    height: clamp(22px, 3.6vh, 34px);
   }
+  .nav-icon-emoji { font-size: clamp(18px, 3vh, 26px); }
 }
 
