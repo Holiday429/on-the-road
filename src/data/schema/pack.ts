@@ -24,9 +24,14 @@ export type CoreKitItem = z.infer<typeof CoreKitItemSchema>;
 export const PackContainerSchema = z.object({
   id: z.string(),
   label: z.string(),
-  kind: z.enum(['suitcase', 'backpack', 'personal']).default('backpack'),
+  kind: z.enum(['suitcase', 'backpack', 'personal', 'duffel']).default('backpack'),
   limitG: z.number().default(0),
   selfWeightG: z.number().default(0),
+  // How the bag is drawn. Both optional: when absent the picture is derived (colour from
+  // the id, size from the weight limit), so older documents need no migration. null = back to
+  // automatic (Firestore can't store undefined).
+  tone: z.number().int().min(0).max(5).nullable().optional(),   // matte shell colour, 0–5
+  size: z.enum(['S', 'M', 'L']).nullable().optional(),
 });
 export type PackContainer = z.infer<typeof PackContainerSchema>;
 

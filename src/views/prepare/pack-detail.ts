@@ -9,7 +9,8 @@
    ========================================================================== */
 
 import type { PackList, PackContainer, PackItem } from '../../data/schema.ts';
-import { renderBag, bagTone, bagWidth } from '../../core/paper/luggage.ts';
+import { renderBag, bagLook, bagWidth } from '../../core/paper/luggage.ts';
+import { renderCrumb, renderMenu } from './prepare-ui.ts';
 import { paperReceipt } from '../../core/paper/paper.ts';
 import { escHtml } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
@@ -123,18 +124,20 @@ export function renderBagCard(ctx: DetailCtx, c: PackContainer): string {
     }
   }
   const tip = over ? ctx.suggest(c.id) : null;
-  const w = bagWidth(c.kind, true);
+  const look = bagLook(c);
+  const w = bagWidth(c.kind, true, look.size);
   return `
     <article class="pkd-bag${over ? ' is-over' : ''}" data-id="${escHtml(c.id)}" data-cid="${escHtml(c.id)}">
       <div class="pkd-bag-art" data-bag-art="${escHtml(c.id)}" role="button" tabindex="0"
            aria-label="${escHtml(t('pack.bag.openAria', { name: c.label }))}" style="width:${w}px">
-        ${renderBag(c.kind, { loadPct: pct, over, uid: c.id, tone: bagTone(c.id) })}
+        ${renderBag(c.kind, { loadPct: pct, over, uid: c.id, tone: look.tone })}
       </div>
       <div class="pkd-bag-info">
         <div class="pkd-bag-head">
           <span class="pack-c-name">${escHtml(c.label)}</span>
           <span class="pkd-chip">${escHtml(kindLabel(c.kind))}</span>
           ${sealed ? `<span class="paper-stamp paper-stamp--good pkd-sealed">${escHtml(t('pack.bag.sealed'))}</span>` : ''}
+          <button type="button" class="pkd-bag-edit" data-edit-bag="${escHtml(c.id)}" title="${escHtml(t('pack.bag.edit'))}" aria-label="${escHtml(t('pack.bag.edit'))}">✎</button>
           <button class="pk-del-c pkd-bag-del" data-id="${escHtml(c.id)}" title="${escHtml(t('pack.bag.remove'))}">✕</button>
         </div>
         <div class="pkd-bag-meter">
@@ -251,13 +254,14 @@ export function renderDetailMarkup(ctx: DetailCtx, savedSlipIds: Set<string>): s
   return `
     <div class="pack-detail pkd">
       <div class="pack-detail-bar pkd-bar">
-        <button class="btn btn-ghost pk-sm" id="pk-back">${escHtml(t('pack.btnBackAllLists'))}</button>
+        ${renderCrumb('🎒', 'pk-back')}
         <div class="pack-detail-title">${escHtml(l.name)}</div>
         <div class="pack-detail-actions pkd-actions">
           ${ctx.hasLegs ? `<button class="btn btn-ghost pk-sm" id="pk-record-change">${escHtml(t('pack.btnRecordChange'))}</button>` : ''}
           <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">${escHtml(t('pack.btnAddBag'))}</button>
           <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${ctx.packCheck ? 'checked' : ''}> ${escHtml(t('pack.packCheck'))}</label>
           ${hasBags ? `<button type="button" class="pkd-weigh is-${ctx.status.state}" id="pk-weigh">${weighBtnInner(ctx.status)}</button>` : ''}
+          ${renderMenu('⋯', [{ act: 'delete-pk', label: t('pack.deleteList'), icon: '🗑️', danger: true }], { variant: 'icon', title: t('prep.moreActions') })}
         </div>
       </div>
       ${hasBags ? `<div class="pkd-status is-${ctx.status.state}" id="pk-weigh-status" role="status">${escHtml(weighSentence(ctx.status))}</div>` : ''}
@@ -269,7 +273,7 @@ export function renderDetailMarkup(ctx: DetailCtx, savedSlipIds: Set<string>): s
         <div class="pkd-main">
           ${hasBags
             ? l.containers.map((c) => renderBagCard(ctx, c)).join('')
-            : `<div class="pkd-nobags"><div class="pkd-nobags-art">${renderBag('suitcase', { loadPct: 0, uid: 'empty', tone: 0 })}</div><p>${escHtml(t('pack.noBagsYet'))}</p></div>`}
+            : `<div class="pkd-nobags"><div class="pkd-nobags-art">${renderBag('suitcase', { loadPct: 0, uid: 'empty', tone: 0, ghost: true })}</div><p>${escHtml(t('pack.noBagsYet'))}</p></div>`}
         </div>
         <div class="pkd-side">
           <div data-stage-slot></div>

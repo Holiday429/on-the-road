@@ -20,6 +20,7 @@ import { handleAiError } from '../../core/paywall.ts';
 import { openModal } from '../../core/modal.ts';
 import { addToUnassigned, hasPackList } from './pack-section.ts';
 import { categoryForGroupName } from '../pack/pack-helpers.ts';
+import { renderCrumb, renderMenu, wireMenus } from './prepare-ui.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -28,6 +29,23 @@ type Screen = 'list' | 'detail' | 'celebrate';
 let screen: Screen = 'list';
 let activeChecklistId: string | null = null;
 let editingGroupId: string | null = null;
+// The "+ New note" combobox survives the repaint a store push causes mid-typing.
+let _newNote = { open: false, icon: '📋', text: '' };
+
+/** Quick-start note names offered by the "+ New note" box (stored as written — they become the note's title). */
+const GROUP_PRESETS = [
+  { icon: '📄', name: 'Documents' },
+  { icon: '💳', name: 'Money & Cards' },
+  { icon: '🛡️', name: 'Insurance' },
+  { icon: '💊', name: 'Health' },
+  { icon: '📱', name: 'Tech & Comms' },
+  { icon: '✈️', name: 'Logistics' },
+  { icon: '🎒', name: 'Packing' },
+  { icon: '🛍️', name: 'Shopping' },
+  { icon: '🏨', name: 'Accommodation' },
+  { icon: '⏰', name: 'Last-minute' },
+] as const;
+const EMOJI_CHOICES = ['📋','📄','💳','🛡️','💊','📱','✈️','🎒','🛍️','✅','⏰','🌍','📌','🏨','🚂','🚌','⛴️','🎫','💰','🔑','📸','🌞','❄️','🌧️','👔','👗','🧴','💡','📝','🔐','🏥','🚑','🦺','🧳'];
 
 // Live cache — kept fresh by subscriptions
 let _checklists: StoredChecklist[] = [];
@@ -161,18 +179,18 @@ export function openChecklistDetail(id: string): void {
 export { openNewChecklistModal, openTemplatePickerModal };
 
 /** Live checklists for the Prepare landing's rail, with progress folded in. */
-export function peekChecklistRows(): { id: string; name: string; done: number; total: number; pct: number }[] {
-  return _checklists.map(cl => ({ id: cl.id, name: cl.name, ...progress(cl.groups) }));
+export function peekChecklistRows(): { id: string; name: string; done: number; total: number; pct: number; left: number }[] {
+  return _checklists.map(cl => { const p = progress(cl.groups); return { id: cl.id, name: cl.name, ...p, left: p.total - p.done }; });
 }
 
-/** The first few items of one checklist for the landing's clipboard — open ones first, topped up with ticked ones. */
+/** What the landing's clipboard lists: the open items, or — once everything is ticked — a few of the done ones. */
 export function peekChecklistPreview(id: string, limit = 4): { text: string; done: boolean }[] {
   const cl = _checklists.find(c => c.id === id);
   if (!cl) return [];
   const all = [...cl.groups].sort((a, b) => a.order - b.order)
     .flatMap(g => [...g.items].sort((a, b) => a.order - b.order));
-  return [...all.filter(i => !i.done), ...all.filter(i => i.done)].slice(0, limit)
-    .map(i => ({ text: i.text, done: i.done }));
+  const open = all.filter(i => !i.done);
+  return (open.length ? open : all).slice(0, limit).map(i => ({ text: i.text, done: i.done }));
 }
 
 /** Aggregate checklist progress across every list — the hero's readout. */
@@ -380,68 +398,38 @@ function renderDetailScreen(container: HTMLElement) {
   const { done, total, pct } = progress(cl.groups);
   const allDone = total > 0 && done === total;
 
+  const menu = renderMenu('⋯', [
+    { act: 'save-tpl', label: t('prep.saveAsTemplate'), icon: '🗂️' },
+    { act: 'delete-cl', label: t('prep.deleteChecklist'), icon: '🗑️', danger: true },
+  ], { variant: 'icon', title: t('prep.moreActions') });
+
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   container.innerHTML = `
     <div class="prep-detail-screen">
-      <!-- Add group (presets + custom) — placed above the title -->
-      <div class="add-group-section">
-        <div class="add-group-presets">
-          ${[
-            { icon: '📄', name: 'Documents' },
-            { icon: '💳', name: 'Money & Cards' },
-            { icon: '🛡️', name: 'Insurance' },
-            { icon: '💊', name: 'Health' },
-            { icon: '📱', name: 'Tech & Comms' },
-            { icon: '✈️', name: 'Logistics' },
-            { icon: '🎒', name: 'Packing' },
-            { icon: '🛍️', name: 'Shopping' },
-            { icon: '🏨', name: 'Accommodation' },
-            { icon: '⏰', name: 'Last-minute' },
-          ].map(p => `
-            <button class="group-preset-chip" data-icon="${p.icon}" data-name="${p.name}">
-              <span>${p.icon}</span>${p.name}
-            </button>
-          `).join('')}
-        </div>
-        <div class="add-group-custom-row">
-          <button class="add-group-emoji-btn" id="add-group-emoji-btn" title="Pick icon">📋</button>
-          <input class="input add-group-input" id="add-group-input" placeholder="Custom group name…" style="flex:1;min-width:0">
-          <button class="btn btn-primary" id="add-group-btn">+ Add</button>
-        </div>
-        <!-- Emoji picker popover -->
-        <div class="emoji-picker-popover" id="emoji-picker-popover" hidden>
-          ${['📋','📄','💳','🛡️','💊','📱','✈️','🎒','🛍️','✅','⏰','🌍','📌','🏨','🚂','🚌','⛴️','🎫','💰','🔑','📸','🌞','❄️','🌧️','🎒','👔','👗','🧴','💡','📝','🔐','🏥','🚑','🦺','🧳'].map(e =>
-            `<button class="emoji-option" data-emoji="${e}">${e}</button>`
-          ).join('')}
-        </div>
-      </div>
-
-      <!-- Back + title -->
+      <!-- Breadcrumb back + title + actions -->
       <div class="detail-topbar">
-        <button class="btn btn-ghost back-btn" id="back-to-list">← Back</button>
+        ${renderCrumb('📋', 'back-to-list')}
         <div class="detail-title-wrap">
-          <input class="detail-title-input" id="detail-title-input" value="${escHtml(cl.name)}">
+          <input class="detail-title-input" id="detail-title-input" value="${escHtml(cl.name)}" aria-label="${escHtml(t('prep.renameChecklist'))}">
         </div>
         <div class="detail-actions">
-          <button class="btn btn-ghost ai-check-btn" id="ai-check-btn" title="AI Review">✨ AI Check</button>
-          <button class="btn btn-ghost save-as-template-btn" id="save-as-template-btn" title="Save as template">📋 Save as Template</button>
+          <button class="btn btn-ghost ai-check-btn" id="ai-check-btn" title="${escHtml(t('prep.aiCheckTitle'))}">✨ ${escHtml(t('prep.aiCheckBtn'))}</button>
+          ${menu}
         </div>
       </div>
 
-      <!-- Progress bar -->
-      <div class="detail-progress">
-        <div class="detail-progress-track">
-          <div class="detail-progress-fill ${allDone ? 'complete' : ''}" style="width:${pct}%"></div>
-        </div>
-        <span class="detail-progress-label">${done} / ${total} done</span>
-        ${allDone ? '<button class="btn btn-primary celebrate-btn" id="celebrate-btn">🎉 View completion</button>' : ''}
+      <!-- Slim progress + what is left (jumps to the note) -->
+      <div class="detail-subbar">
+        <div class="detail-progress-track"><div class="detail-progress-fill ${allDone ? 'complete' : ''}" style="width:${pct}%"></div></div>
+        <span class="detail-progress-label">${t('prep.doneOfTotal', { done, total })}</span>
+        ${renderNextPill(cl)}
+        ${allDone ? `<button class="btn btn-primary celebrate-btn" id="celebrate-btn">🎉 ${escHtml(t('prep.viewCompletion'))}</button>` : ''}
       </div>
 
-      ${renderNextUp(cl)}
-
-      <!-- Groups -->
+      <!-- Notes (+ the dashed "new note" tile at the end) -->
       <div class="groups-list" id="groups-list">
-        ${cl.groups.sort((a, b) => a.order - b.order).map((g, i) => renderGroup(cl.id, g, i)).join('')}
+        ${[...cl.groups].sort((a, b) => a.order - b.order).map((g, i) => renderGroup(cl.id, g, i)).join('')}
+        ${renderNewNote(cl)}
       </div>
 
       <!-- AI panel -->
@@ -462,32 +450,56 @@ function renderDetailScreen(container: HTMLElement) {
   bindDetailScreen(container, cl);
 }
 
-/** The first few unticked items of this list, across its groups — what to do next. */
-function nextUpFor(cl: StoredChecklist, limit = 3) {
-  const out: { groupId: string; itemId: string; text: string; src: string }[] = [];
-  for (const g of [...cl.groups].sort((a, b) => a.order - b.order)) {
-    for (const it of [...g.items].sort((a, b) => a.order - b.order)) {
-      if (it.done) continue;
-      out.push({ groupId: g.id, itemId: it.id, text: it.text, src: `${g.icon} ${g.name}` });
-      if (out.length >= limit) return out;
-    }
-  }
-  return out;
+/** Notes that still have unticked items, in board order — what the "left" pill points at. */
+export function remainingByGroup(cl: Pick<StoredChecklist, 'groups'>): { groupId: string; icon: string; name: string; left: number }[] {
+  return [...cl.groups].sort((a, b) => a.order - b.order)
+    .map(g => ({ groupId: g.id, icon: g.icon, name: g.name, left: g.items.filter(i => !i.done).length }))
+    .filter(g => g.left > 0);
 }
 
-function renderNextUp(cl: StoredChecklist): string {
-  if (progress(cl.groups).total === 0) return '';
-  const items = nextUpFor(cl);
-  if (!items.length) return `<div class="prep-next prep-next--clear">${escHtml(t('prep.nextUpClear'))}</div>`;
+const NEXT_CHIPS = 3;
+
+/** "3 left · 💊 3 · 📄 1" — each chip scrolls to its note; nothing when the list is empty, a tick when done. */
+function renderNextPill(cl: StoredChecklist): string {
+  const { done, total } = progress(cl.groups);
+  if (total === 0) return '';
+  const rest = remainingByGroup(cl);
+  if (!rest.length) return `<span class="prep-next-pill is-clear">✓ ${escHtml(t('prep.nextUpClear'))}</span>`;
+  const shown = rest.slice(0, NEXT_CHIPS);
+  const more = rest.length - shown.length;
   return `
-    <div class="prep-next">
-      <div class="prep-next-head">${escHtml(t('prep.nextUp'))}</div>
-      ${items.map(it => `
-        <button type="button" class="prep-next-item" data-nu-group="${escHtml(it.groupId)}" data-nu-item="${escHtml(it.itemId)}">
-          <span class="prep-next-box"><svg viewBox="0 0 16 16"><path d="M3 8.5 l3.2 3.4 l6.6 -8" pathLength="24"/></svg></span>
-          <span class="prep-next-text">${escHtml(it.text)}</span>
-          <span class="prep-next-src">${escHtml(it.src)}</span>
-        </button>`).join('')}
+    <div class="prep-next-pill" role="group" aria-label="${escHtml(t('prep.nextUp'))}">
+      <span class="prep-next-label">${escHtml(t('prep.nextLeft', { n: total - done }))}</span>
+      ${shown.map(g => `<button type="button" class="prep-next-chip" data-nu-group="${escHtml(g.groupId)}" title="${escHtml(g.name)}"><span aria-hidden="true">${escHtml(g.icon)}</span><span class="prep-next-chip-n">${g.left}</span></button>`).join('')}
+      ${more > 0 ? `<button type="button" class="prep-next-chip is-more" data-nu-group="${escHtml(rest[NEXT_CHIPS].groupId)}">+${more}</button>` : ''}
+    </div>`;
+}
+
+/** The dashed tile at the end of the board: a name box whose drop-down is the preset list. */
+function renderNewNote(cl: StoredChecklist): string {
+  const used = new Set(cl.groups.map(g => g.name.trim().toLowerCase()));
+  return `
+    <div class="prep-newnote${_newNote.open ? ' is-open' : ''}" id="prep-newnote">
+      <button type="button" class="prep-newnote-open" id="newnote-open"><span aria-hidden="true">+</span> ${escHtml(t('prep.newNote'))}</button>
+      <div class="prep-newnote-form">
+        <div class="prep-newnote-row">
+          <button type="button" class="add-group-emoji-btn" id="add-group-emoji-btn" title="${escHtml(t('prep.pickIcon'))}" aria-label="${escHtml(t('prep.pickIcon'))}">${escHtml(_newNote.icon)}</button>
+          <input class="input add-group-input" id="add-group-input" role="combobox" aria-expanded="false" aria-controls="newnote-list"
+                 aria-autocomplete="list" autocomplete="off" placeholder="${escHtml(t('prep.newNotePh'))}" value="${escHtml(_newNote.text)}">
+          <button type="button" class="btn btn-primary" id="add-group-btn">${escHtml(t('prep.newNoteAdd'))}</button>
+        </div>
+        <ul class="prep-newnote-list" id="newnote-list" role="listbox" hidden>
+          ${GROUP_PRESETS.map((p, i) => {
+            const isUsed = used.has(p.name.toLowerCase());
+            return `<li role="option" id="newnote-opt-${i}" class="prep-newnote-opt${isUsed ? ' is-used' : ''}" aria-disabled="${isUsed}" data-name="${escHtml(p.name)}" data-icon="${p.icon}">
+              <span aria-hidden="true">${p.icon}</span><span class="prep-newnote-opt-name">${escHtml(p.name)}</span>${isUsed ? `<span class="prep-newnote-opt-used">✓ ${escHtml(t('prep.newNoteUsed'))}</span>` : ''}
+            </li>`;
+          }).join('')}
+        </ul>
+        <div class="emoji-picker-popover" id="emoji-picker-popover" hidden>
+          ${EMOJI_CHOICES.map(e => `<button type="button" class="emoji-option" data-emoji="${e}">${e}</button>`).join('')}
+        </div>
+      </div>
     </div>`;
 }
 
@@ -592,57 +604,20 @@ function bindDetailScreen(container: HTMLElement, cl: StoredChecklist) {
     render();
   });
 
-  // Preset group chips
-  container.querySelectorAll<HTMLButtonElement>('.group-preset-chip').forEach(chip => {
-    chip.addEventListener('click', async () => {
-      const icon = chip.dataset.icon!;
-      const name = chip.dataset.name!;
-      await checklistStore.addGroup(cl.id, name, icon);
-    });
-  });
+  bindNewNote(container, cl);
+  wireEscBack();
 
-  // Emoji picker
-  const emojiBtn = container.querySelector<HTMLButtonElement>('#add-group-emoji-btn');
-  const emojiPicker = container.querySelector<HTMLElement>('#emoji-picker-popover');
-  emojiBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    emojiPicker?.toggleAttribute('hidden');
-  });
-  container.querySelectorAll<HTMLButtonElement>('.emoji-option').forEach(opt => {
-    opt.addEventListener('click', () => {
-      if (emojiBtn) emojiBtn.textContent = opt.dataset.emoji!;
-      emojiPicker?.setAttribute('hidden', '');
-    });
-  });
-  document.addEventListener('click', (e) => {
-    if (!emojiPicker?.hasAttribute('hidden') && !emojiPicker?.contains(e.target as Node) && e.target !== emojiBtn) {
-      emojiPicker?.setAttribute('hidden', '');
-    }
-  }, { once: false, capture: true });
-
-  // Add group
-  container.querySelector('#add-group-btn')?.addEventListener('click', async () => {
-    const input = container.querySelector<HTMLInputElement>('#add-group-input');
-    const icon = container.querySelector<HTMLButtonElement>('#add-group-emoji-btn')?.textContent?.trim() ?? '📋';
-    const name = input?.value.trim();
-    if (!name) return;
-    await checklistStore.addGroup(cl.id, name, icon);
-    if (input) input.value = '';
-    if (emojiBtn) emojiBtn.textContent = '📋';
-  });
-  container.querySelector<HTMLInputElement>('#add-group-input')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') container.querySelector<HTMLButtonElement>('#add-group-btn')?.click();
-  });
-
-  // Next up: tick an item from the strip (let the tick draw before the repaint)
-  container.querySelectorAll<HTMLElement>('.prep-next-item').forEach(btn => {
+  // Left pill: scroll to the note and give it a nudge
+  container.querySelectorAll<HTMLElement>('.prep-next-chip').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (btn.classList.contains('is-ticking')) return;
-      btn.classList.add('is-ticking');
-      window.setTimeout(async () => {
-        const allDone = await checklistStore.toggleItem(cl.id, btn.dataset.nuGroup!, btn.dataset.nuItem!);
-        if (allDone) { screen = 'celebrate'; render(); }
-      }, 480);
+      const note = container.querySelector<HTMLElement>(`.prep-group[data-group-id="${btn.dataset.nuGroup}"]`);
+      if (!note) return;
+      const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      note.scrollIntoView?.({ behavior: reduced ? 'auto' : 'smooth', block: 'center' });
+      note.classList.remove('is-nudge');
+      void note.offsetWidth; // restart the animation if it is already running
+      note.classList.add('is-nudge');
+      window.setTimeout(() => note.classList.remove('is-nudge'), 1400);
     });
   });
 
@@ -753,8 +728,12 @@ function bindDetailScreen(container: HTMLElement, cl: StoredChecklist) {
   // Group drag-to-reorder
   bindGroupDrag(container, cl.id);
 
-  // Save as template
-  container.querySelector('#save-as-template-btn')?.addEventListener('click', () => openSaveTemplateModal(cl.id, cl.name));
+  // ⋯ menu
+  wireMenus();
+  container.querySelector('[data-act="save-tpl"]')?.addEventListener('click', () => openSaveTemplateModal(cl.id, cl.name));
+  container.querySelector('[data-act="delete-cl"]')?.addEventListener('click', async () => {
+    if (confirm(t('prep.confirmDelete'))) await deleteChecklist(cl.id); // the repaint sends us back to the landing
+  });
 
   // AI check
   container.querySelector('#ai-check-btn')?.addEventListener('click', () => {
@@ -765,6 +744,143 @@ function bindDetailScreen(container: HTMLElement, cl: StoredChecklist) {
   container.querySelector('#close-ai-panel')?.addEventListener('click', () => {
     container.querySelector('#ai-panel')?.setAttribute('hidden', '');
   });
+}
+
+/** Esc goes back to Prepare from a checklist — unless it was already spent on a menu, a dialog or a text box. */
+let _escWired = false;
+function wireEscBack() {
+  if (_escWired) return;
+  _escWired = true;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || screen !== 'detail') return;
+    const el = e.target as HTMLElement | null;
+    if (el instanceof HTMLElement && (el.matches('input, textarea, select') || el.isContentEditable)) return;
+    if (document.querySelector('[role="dialog"]')) return;
+    document.querySelector<HTMLElement>('#prepare-checklist-zone #back-to-list')?.click();
+  });
+}
+
+/* ── "+ New note" combobox ───────────────────────────────────────────────── */
+
+let _nnWired = false;
+
+/** One document-level listener: outside a open tile, the list/picker close and an empty tile folds away. */
+function wireNewNoteDismiss() {
+  if (_nnWired) return;
+  _nnWired = true;
+  document.addEventListener('click', (e) => {
+    const wrap = document.querySelector<HTMLElement>('#prep-newnote');
+    if (!wrap) return;
+    const target = e.target as Node;
+    const picker = wrap.querySelector<HTMLElement>('#emoji-picker-popover');
+    const emojiBtn = wrap.querySelector('#add-group-emoji-btn');
+    if (picker && !picker.hidden && !picker.contains(target) && !emojiBtn?.contains(target)) picker.hidden = true;
+    if (wrap.contains(target)) return;
+    wrap.querySelector<HTMLElement>('#newnote-list')?.setAttribute('hidden', '');
+    wrap.querySelector('#add-group-input')?.setAttribute('aria-expanded', 'false');
+    if (!wrap.querySelector<HTMLInputElement>('#add-group-input')?.value.trim()) {
+      wrap.classList.remove('is-open');
+      _newNote.open = false;
+    }
+  });
+}
+
+function bindNewNote(container: HTMLElement, cl: StoredChecklist) {
+  const wrap = container.querySelector<HTMLElement>('#prep-newnote');
+  const input = wrap?.querySelector<HTMLInputElement>('#add-group-input');
+  const list = wrap?.querySelector<HTMLElement>('#newnote-list');
+  const emojiBtn = wrap?.querySelector<HTMLButtonElement>('#add-group-emoji-btn');
+  const picker = wrap?.querySelector<HTMLElement>('#emoji-picker-popover');
+  if (!wrap || !input || !list || !emojiBtn || !picker) return;
+  wireNewNoteDismiss();
+
+  const options = () => [...list.querySelectorAll<HTMLElement>('.prep-newnote-opt')];
+  const choosable = () => options().filter(o => !o.hidden && !o.classList.contains('is-used'));
+  let active = -1;
+  const setActive = (i: number) => {
+    const rows = choosable();
+    options().forEach(o => o.classList.remove('is-active'));
+    active = rows.length && i >= 0 ? i % rows.length : -1;
+    if (active >= 0) {
+      rows[active].classList.add('is-active');
+      rows[active].scrollIntoView?.({ block: 'nearest' });
+      input.setAttribute('aria-activedescendant', rows[active].id);
+    } else input.removeAttribute('aria-activedescendant');
+  };
+  const showList = (on: boolean) => {
+    list.hidden = !on;
+    input.setAttribute('aria-expanded', String(on));
+    if (!on) setActive(-1);
+  };
+  const filter = () => {
+    const q = input.value.trim().toLowerCase();
+    options().forEach(o => { o.hidden = !!q && !o.dataset.name!.toLowerCase().includes(q); });
+    _newNote.text = input.value;
+    setActive(-1);
+  };
+  const fold = () => {
+    _newNote = { open: false, icon: '📋', text: '' };
+    wrap.classList.remove('is-open');
+    input.value = '';
+    emojiBtn.textContent = '📋';
+    showList(false);
+  };
+  const addPreset = async (o: HTMLElement) => {
+    const name = o.dataset.name!, icon = o.dataset.icon!;
+    fold();
+    await checklistStore.addGroup(cl.id, name, icon);
+  };
+  const addCustom = async () => {
+    const name = input.value.trim();
+    if (!name) return;
+    const icon = emojiBtn.textContent?.trim() || '📋';
+    fold();
+    await checklistStore.addGroup(cl.id, name, icon);
+  };
+
+  wrap.querySelector('#newnote-open')?.addEventListener('click', () => {
+    wrap.classList.add('is-open');
+    _newNote.open = true;
+    input.focus();
+    showList(true);
+  });
+  input.addEventListener('focus', () => showList(true));
+  input.addEventListener('click', () => showList(true));
+  input.addEventListener('input', () => { showList(true); filter(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      showList(true);
+      const n = choosable().length;
+      if (n) setActive(e.key === 'ArrowDown' ? active + 1 : (active <= 0 ? n - 1 : active - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const rows = choosable();
+      if (active >= 0 && rows[active]) void addPreset(rows[active]);
+      else void addCustom();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!list.hidden) showList(false); else fold();
+    }
+  });
+  // mousedown (not click) so the box keeps focus until the choice lands
+  list.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const o = (e.target as HTMLElement).closest<HTMLElement>('.prep-newnote-opt');
+    if (o && !o.classList.contains('is-used')) void addPreset(o);
+  });
+  wrap.querySelector('#add-group-btn')?.addEventListener('click', () => void addCustom());
+
+  emojiBtn.addEventListener('click', (e) => { e.stopPropagation(); picker.hidden = !picker.hidden; });
+  picker.querySelectorAll<HTMLButtonElement>('.emoji-option').forEach(opt => opt.addEventListener('click', () => {
+    emojiBtn.textContent = opt.dataset.emoji!;
+    _newNote.icon = opt.dataset.emoji!;
+    picker.hidden = true;
+    input.focus();
+  }));
+
+  if (_newNote.open && _newNote.text) filter();
 }
 
 /* ── Drag-to-reorder (groups) ────────────────────────────────────────────── */

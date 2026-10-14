@@ -73,7 +73,8 @@ export function displayWeight(g: number, unit: WeightUnit): string {
 export const KINDS: { value: PackContainer['kind']; label: string }[] = [
   { value: 'backpack', label: 'Backpack' },
   { value: 'suitcase', label: 'Suitcase' },
-  { value: 'personal', label: 'Personal' },
+  { value: 'duffel', label: 'Duffel' },
+  { value: 'personal', label: 'Handbag' },
 ];
 
 export const PRIORITIES: { value: PackPriority; label: string }[] = [

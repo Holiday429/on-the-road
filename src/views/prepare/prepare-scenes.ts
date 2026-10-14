@@ -2,18 +2,23 @@
    On the Road · Prepare — the two scenes
    --------------------------------------------------------------------------
    The Prepare landing's Checklist and Pack panels are the same size and carry
-   the same pieces: a status card, then a scene that is itself the way in — a
-   clipboard (with the list's first items on it) and a floor with the list's
-   bags and a scale. Markup only: prepare.ts owns state and events, and the bag
-   and scale artwork is the paper kit's (core/paper/luggage.ts).
+   the same pieces: a header, then one scene that is itself the way in — a
+   clipboard (the open items on it) and a floor with the list's bags and a
+   scale. Both scenes have a FIXED number of slots (4 clipboard lines, at most 3
+   bags + a luggage tag), so neither panel grows with the data and the two stay
+   level. Every state is drawn here: nothing yet, an empty list, in progress,
+   all done. Markup only — prepare.ts owns state and events; the bag and scale
+   artwork is the paper kit's (core/paper/luggage.ts).
    ========================================================================== */
 
-import { renderBag, renderScale, bagTone, bagWidth } from '../../core/paper/luggage.ts';
+import { renderBag, renderScale, bagWidth } from '../../core/paper/luggage.ts';
 import { escHtml } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 import type { PackSceneBag } from './pack-section.ts';
-import { weighBtnLabel, weighSentence } from './pack-detail.ts';
-import type { WeighStatus } from '../pack/weigh-status.ts';
+
+/** Lines on the clipboard, and bags on the floor, whatever the data holds. */
+export const CLIP_SLOTS = 4;
+export const FLOOR_BAGS = 3;
 
 export interface ClipScene {
   id: string;
@@ -21,9 +26,32 @@ export interface ClipScene {
   done: number;
   total: number;
   pct: number;
+  /** Items not yet ticked. */
+  left: number;
+  /** The open items to show (the done ones once nothing is left). */
   preview: { text: string; done: boolean }[];
   /** How many other lists wait behind this one (drawn as sheets sticking out). */
   behind: number;
+}
+
+export interface PackScene {
+  id: string;
+  name: string;
+  bags: PackSceneBag[];
+  /** Total weight, already formatted in the user's unit. */
+  totalLabel: string;
+}
+
+/** "‹ Europe 2026 · 2/3 ›" — how a panel moves between its lists (nothing when there is one). */
+export function renderSwitcher(kind: 'cl' | 'pk', name: string, index: number, count: number): string {
+  if (count < 2) return '';
+  return `
+    <div class="prep-switch" data-switch="${kind}">
+      <button type="button" class="prep-switch-btn" data-switch-step="-1" aria-label="${escHtml(t('prep.switchPrev'))}">‹</button>
+      <span class="prep-switch-name">${escHtml(name)}</span>
+      <span class="prep-switch-n">${index + 1}/${count}</span>
+      <button type="button" class="prep-switch-btn" data-switch-step="1" aria-label="${escHtml(t('prep.switchNext'))}">›</button>
+    </div>`;
 }
 
 const CLIP_SVG = `
@@ -35,101 +63,124 @@ const CLIP_SVG = `
     <rect x="30" y="15" width="30" height="3" rx="1.5" class="m5"/>
   </svg>`;
 
-/** The featured checklist as a clipboard; click opens it. */
-export function renderClipboardScene(s: ClipScene): string {
-  const rows = s.preview.length
-    ? s.preview.map((p) => `
-        <div class="prep-clip-row${p.done ? ' is-done' : ''}">
-          <span class="prep-clip-box" aria-hidden="true">${p.done ? '✓' : ''}</span>
-          <span class="prep-clip-text">${escHtml(p.text)}</span>
-        </div>`).join('')
-    : `<div class="prep-clip-blank">${escHtml(t('prep.clipEmptyList'))}</div>`;
-  const backs = Math.min(2, s.behind);
+const clipRow = (p: { text: string; done: boolean }) => `
+  <div class="prep-clip-row${p.done ? ' is-done' : ''}">
+    <span class="prep-clip-box" aria-hidden="true">${p.done ? '✓' : ''}</span>
+    <span class="prep-clip-text">${escHtml(p.text)}</span>
+  </div>`;
+const clipBlank = () => '<div class="prep-clip-row is-blank" aria-hidden="true"><span class="prep-clip-box"></span><span class="prep-clip-text"></span></div>';
+const clipMore = (n: number) => `<div class="prep-clip-row is-more"><span class="prep-clip-text">${escHtml(t('prep.clMore', { n }))}</span></div>`;
+
+/** The clipboard's lines: exactly CLIP_SLOTS of them, however many items there are. */
+export function clipLines(preview: { text: string; done: boolean }[], left: number): string {
+  const lines: string[] = [];
+  if (left > CLIP_SLOTS) {
+    preview.slice(0, CLIP_SLOTS - 1).forEach((p) => lines.push(clipRow(p)));
+    lines.push(clipMore(left - (CLIP_SLOTS - 1)));
+  } else {
+    preview.slice(0, CLIP_SLOTS).forEach((p) => lines.push(clipRow(p)));
+  }
+  while (lines.length < CLIP_SLOTS) lines.push(clipBlank());
+  return lines.join('');
+}
+
+function clipboard(opts: {
+  attrs: string; aria: string; head: string; lines: string; bar: number; stamp?: boolean; backs?: number; hint?: string; cta: string; ghost?: boolean;
+}): string {
+  const backs = Math.min(2, opts.backs ?? 0);
   return `
-    <div class="prep-scene prep-scene--cl" data-scene="cl">
       <div class="prep-clip-stack">
         ${backs >= 2 ? '<div class="prep-clip-back prep-clip-back--2" aria-hidden="true"></div>' : ''}
         ${backs >= 1 ? '<div class="prep-clip-back prep-clip-back--1" aria-hidden="true"></div>' : ''}
-        <div class="prep-clip" role="button" tabindex="0" data-open-cl="${escHtml(s.id)}"
-             aria-label="${escHtml(`${t('prep.sceneOpenChecklist')} ${s.name}`)}">
+        <div class="prep-clip${opts.ghost ? ' is-ghost' : ''}" role="button" tabindex="0" ${opts.attrs} aria-label="${escHtml(opts.aria)}">
           ${CLIP_SVG}
           <div class="prep-clip-paper">
-            <div class="prep-clip-head">
-              <span class="prep-clip-name">${escHtml(s.name)}</span>
-              <span class="prep-clip-count">${s.done}/${s.total}</span>
-            </div>
-            ${rows}
-            <div class="prep-clip-bar"><span style="width:${s.pct}%"></span></div>
+            ${opts.head}
+            ${opts.lines}
+            ${opts.hint ? `<div class="prep-scene-hint">${escHtml(opts.hint)}</div>` : ''}
+            ${opts.stamp ? `<span class="paper-stamp paper-stamp--good prep-clip-stamp">${escHtml(t('prep.allDone'))}</span>` : ''}
+            <div class="prep-clip-bar"><span style="width:${opts.bar}%"></span></div>
           </div>
-          <span class="prep-scene-cta">${escHtml(t('prep.sceneOpenChecklist'))}</span>
+          <span class="prep-scene-cta">${escHtml(opts.cta)}</span>
         </div>
-      </div>
+      </div>`;
+}
+
+/** The checklist panel's scene. `s` is null while the user has no checklist at all. */
+export function renderClipboardScene(s: ClipScene | null, switcher = ''): string {
+  if (!s) {
+    return `
+    <div class="prep-scene prep-scene--cl is-empty" data-scene="cl">
+      ${clipboard({
+        attrs: 'data-act="new-cl"', aria: t('prep.clEmptyTitle'), ghost: true, bar: 0,
+        head: `<div class="prep-clip-head"><span class="prep-clip-name">${escHtml(t('prep.clEmptyTitle'))}</span></div>`,
+        lines: clipLines([], 0), hint: t('prep.clEmptyHint'), cta: t('prep.clEmptyCta'),
+      })}
+    </div>`;
+  }
+  const complete = s.total > 0 && s.left === 0;
+  return `
+    <div class="prep-scene prep-scene--cl${complete ? ' is-complete' : ''}" data-scene="cl">
+      ${switcher}
+      ${clipboard({
+        attrs: `data-open-cl="${escHtml(s.id)}"`, aria: `${t('prep.sceneOpenChecklist')} ${s.name}`,
+        head: `<div class="prep-clip-head"><span class="prep-clip-name">${escHtml(s.name)}</span><span class="prep-clip-count">${s.done}/${s.total}</span></div>`,
+        lines: clipLines(s.preview, s.left), bar: s.pct, stamp: complete, backs: s.behind,
+        hint: s.total === 0 ? t('prep.clipEmptyList') : undefined,
+        cta: t('prep.sceneOpenChecklist'),
+      })}
     </div>`;
 }
 
-const MAX_SCENE_BAGS = 5;
+/** The bags shown on the floor: the heaviest few, kept in list order, plus how many are left out. */
+export function floorBags(bags: PackSceneBag[]): { shown: PackSceneBag[]; hidden: number } {
+  if (bags.length <= FLOOR_BAGS) return { shown: bags, hidden: 0 };
+  const keep = new Set([...bags].sort((a, b) => b.weightG - a.weightG).slice(0, FLOOR_BAGS).map((b) => b.id));
+  return { shown: bags.filter((b) => keep.has(b.id)), hidden: bags.length - FLOOR_BAGS };
+}
 
-/** The featured pack list as a floor: its bags standing up, a scale beside them. */
-export function renderPackScene(listId: string, bags: PackSceneBag[], totalLabel: string, fmt: (g: number) => string): string {
-  const shown = bags.slice(0, MAX_SCENE_BAGS);
-  const hidden = bags.length - shown.length;
+const scaleObj = (listId: string | null, reading: string) => listId
+  ? `<button type="button" class="prep-scale-obj" data-weigh-pk="${escHtml(listId)}" aria-label="${escHtml(t('pack.weigh.btnNone'))}">
+        <span class="prep-scale-art">${renderScale({ reading })}</span>
+        <span class="prep-scale-label">${escHtml(t('prep.sceneWeighHere'))}</span>
+      </button>`
+  : `<div class="prep-scale-obj is-idle" aria-hidden="true"><span class="prep-scale-art">${renderScale({ reading })}</span></div>`;
+
+/** The pack panel's scene. `p` is null while the user has no pack list at all. */
+export function renderPackScene(p: PackScene | null, fmt: (g: number) => string, switcher = ''): string {
+  if (!p || !p.bags.length) {
+    const noList = !p;
+    const attrs = noList ? 'data-act="new-pk"' : `data-open-pk="${escHtml(p.id)}"`;
+    return `
+    <div class="prep-scene prep-scene--pk is-empty" data-scene="pk">
+      ${switcher || (p ? `<div class="prep-scene-label">${escHtml(p.name)}</div>` : '')}
+      <div class="prep-floor" role="button" tabindex="0" ${attrs}
+           aria-label="${escHtml(noList ? t('prep.pkEmptyTitle') : t('prep.packNoBagsTitle'))}">
+        <div class="prep-bag prep-bag--ghost" style="flex-basis:${bagWidth('suitcase', false) * 1.5}px">
+          <div class="prep-bag-art">${renderBag('suitcase', { loadPct: 0, uid: `ghost-${p?.id ?? 'none'}`, tone: 0, ghost: true })}</div>
+        </div>
+        <div class="prep-scene-hint">${escHtml(noList ? t('prep.pkEmptyHint') : t('pack.noBagsYet'))}</div>
+        <span class="prep-scene-cta">${escHtml(noList ? t('prep.pkEmptyCta') : t('prep.sceneOpenPack'))}</span>
+      </div>
+      ${scaleObj(null, fmt(0))}
+    </div>`;
+  }
+  const label = switcher || `<div class="prep-scene-label">${escHtml(p.name)}</div>`;
+  const { shown, hidden } = floorBags(p.bags);
   const bagHtml = shown.map((b) => `
-    <div class="prep-bag" data-over="${b.over}" style="flex-basis:${Math.round(bagWidth(b.kind) * (shown.length > 3 ? 1.2 : 1.5))}px">
-      <div class="prep-bag-art">${renderBag(b.kind, { loadPct: b.loadPct, over: b.over, uid: `ln-${b.id}`, tone: bagTone(b.id) })}</div>
+    <div class="prep-bag" data-over="${b.over}" style="flex-basis:${Math.round(bagWidth(b.kind, false, b.size) * 1.4)}px">
+      <div class="prep-bag-art">${renderBag(b.kind, { loadPct: b.loadPct, over: b.over, uid: `ln-${b.id}`, tone: b.tone })}</div>
       <div class="prep-bag-kg${b.over ? ' is-over' : ''}">${escHtml(fmt(b.weightG))}</div>
     </div>`).join('');
   return `
     <div class="prep-scene prep-scene--pk" data-scene="pk">
-      <div class="prep-floor" role="button" tabindex="0" data-open-pk="${escHtml(listId)}"
-           aria-label="${escHtml(t('prep.sceneOpenPack'))}">
-        ${bags.length ? bagHtml : `<div class="prep-bag prep-bag--ghost" aria-hidden="true"><div class="prep-bag-art">${renderBag('suitcase', { loadPct: 0, uid: `ghost-${listId}`, tone: 0 })}</div></div>`}
-        ${hidden > 0 ? `<div class="prep-bag-more">${escHtml(t('prep.sceneMore', { n: hidden }))}</div>` : ''}
+      ${label}
+      <div class="prep-floor" role="button" tabindex="0" data-open-pk="${escHtml(p.id)}"
+           aria-label="${escHtml(`${t('prep.sceneOpenPack')} ${p.name}`)}">
+        ${bagHtml}
+        ${hidden > 0 ? `<div class="prep-bag-tag" title="${escHtml(t('prep.sceneMore', { n: hidden }))}"><span class="prep-bag-tag-hole" aria-hidden="true"></span><span>+${hidden}</span></div>` : ''}
         <span class="prep-scene-cta">${escHtml(t('prep.sceneOpenPack'))}</span>
       </div>
-      ${bags.length
-        ? `<button type="button" class="prep-scale-obj" data-weigh-pk="${escHtml(listId)}" aria-label="${escHtml(t('pack.weigh.btnNone'))}">
-        <span class="prep-scale-art">${renderScale({ reading: totalLabel })}</span>
-        <span class="prep-scale-label">${escHtml(t('prep.sceneWeighHere'))}</span>
-      </button>`
-        : `<div class="prep-scale-obj is-idle" aria-hidden="true"><span class="prep-scale-art">${renderScale({ reading: totalLabel })}</span></div>`}
-    </div>`;
-}
-
-/** The Pack panel's status card: it is the Weigh button, and it says where the weigh-in stands. */
-export function renderWeighCard(listId: string, status: WeighStatus): string {
-  return `
-    <button type="button" class="prep-status prep-status--weigh is-${status.state}" data-weigh-pk="${escHtml(listId)}">
-      <span class="prep-status-dot" aria-hidden="true"></span>
-      <span class="prep-status-text">
-        <span class="prep-status-title">${escHtml(weighBtnLabel(status))}</span>
-        <span class="prep-status-sub">${escHtml(weighSentence(status))}</span>
-      </span>
-      <span class="prep-status-go" aria-hidden="true">→</span>
-    </button>`;
-}
-
-/** The Checklist panel's matching card (same size, same place). */
-export function renderChecklistCard(listId: string, done: number, total: number, name: string): string {
-  const left = total - done;
-  const complete = total > 0 && left === 0;
-  return `
-    <button type="button" class="prep-status prep-status--cl${complete ? ' is-ok' : ' is-none'}" data-open-cl="${escHtml(listId)}">
-      <span class="prep-status-dot" aria-hidden="true"></span>
-      <span class="prep-status-text">
-        <span class="prep-status-title">${escHtml(t('prep.clStatusTitle', { done, total }))}</span>
-        <span class="prep-status-sub">${escHtml(complete ? t('prep.clStatusAll') : t('prep.clStatusSub', { left, name }))}</span>
-      </span>
-      <span class="prep-status-go" aria-hidden="true">→</span>
-    </button>`;
-}
-
-/** "Weigh before you fly" — a paper strip at the top of the page in the last two weeks before departure. */
-export function renderWeighNotice(listId: string, days: number, status: WeighStatus): string {
-  return `
-    <div class="prep-notice" role="status" data-notice="weigh">
-      <span class="prep-notice-icon" aria-hidden="true">⚖️</span>
-      <div class="prep-notice-body"><strong>${escHtml(t('prep.weighNotice'))}</strong> <span>${escHtml(t('prep.weighNoticeBody', { days, status: weighSentence(status) }))}</span></div>
-      <button type="button" class="prep-notice-go" data-weigh-pk="${escHtml(listId)}">${escHtml(t('prep.weighNow'))}</button>
-      <button type="button" class="prep-notice-x" data-dismiss-notice aria-label="${escHtml(t('prep.dismiss'))}">✕</button>
+      ${scaleObj(p.id, p.totalLabel)}
     </div>`;
 }

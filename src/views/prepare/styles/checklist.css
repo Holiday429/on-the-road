@@ -257,14 +257,13 @@
 .detail-topbar {
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-5);
-  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
 }
 
 .detail-title-wrap {
   flex: 1;
-  min-width: 200px;
+  min-width: 0;
 }
 
 .detail-title-input {
@@ -285,28 +284,25 @@
 
 .detail-actions {
   display: flex;
+  align-items: center;
   gap: var(--sp-2);
-  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
-/* ── Progress bar (detail) ───────────────────────────────────────────────── */
-.detail-progress {
+/* ── Slim progress + "what is left" (detail) ─────────────────────────────── */
+.detail-subbar {
   display: flex;
   align-items: center;
   gap: var(--sp-4);
   margin-bottom: var(--sp-6);
-  background: var(--surface);
-  border-radius: var(--r-lg);
-  padding: var(--sp-4) var(--sp-5);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--rule-soft);
+  padding: 0 var(--sp-2);
   flex-wrap: wrap;
 }
 
 .detail-progress-track {
   flex: 1;
-  min-width: 120px;
-  height: 8px;
+  min-width: 140px;
+  height: 6px;
   background: var(--surface-3);
   border-radius: var(--r-full);
   overflow: hidden;
@@ -321,12 +317,41 @@
 .detail-progress-fill.complete { background: var(--sage-500); }
 
 .detail-progress-label {
-  font-family: var(--font-ui);
+  font-family: var(--font-data);
   font-size: var(--fs-sm);
   font-weight: var(--fw-medium);
   color: var(--ink-muted);
   white-space: nowrap;
 }
+
+/* "3 left · 💊 3 · 📄 1" — a reminder; each chip jumps to its note */
+.prep-next-pill {
+  display: inline-flex; align-items: center; gap: var(--sp-1); padding: 3px 4px 3px var(--sp-3);
+  border: 1px solid var(--amber-200); border-radius: var(--r-full); background: var(--amber-50);
+}
+.prep-next-pill.is-clear {
+  padding: 5px var(--sp-3); border-color: var(--sage-400); background: var(--success-bg-soft);
+  color: var(--success); font-size: var(--fs-sm); font-weight: var(--fw-medium);
+}
+.prep-next-label { margin-right: var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--amber-700); white-space: nowrap; }
+.prep-next-chip {
+  display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px; border: 0; border-radius: var(--r-full);
+  background: var(--surface); color: var(--ink-soft); font: inherit; font-size: var(--fs-sm); cursor: pointer;
+  box-shadow: 0 0 0 1px var(--rule-soft); transition: background var(--dur-fast), box-shadow var(--dur-fast);
+}
+.prep-next-chip:hover { background: var(--amber-100, var(--amber-50)); box-shadow: 0 0 0 1px var(--amber-300); }
+.prep-next-chip:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 1px; }
+.prep-next-chip-n { font-family: var(--font-data); font-weight: var(--fw-semibold); }
+/* The note a chip jumped to: a short shake + glow, so the eye lands on it. */
+.prep-group.is-nudge { animation: prep-nudge 1.2s var(--ease-out) both; }
+@keyframes prep-nudge {
+  0%, 100% { box-shadow: var(--shadow-md); }
+  15% { transform: rotate(calc(var(--tilt, 0deg) - 1.6deg)) translateY(-3px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent), var(--shadow-lg); }
+  30% { transform: rotate(calc(var(--tilt, 0deg) + 1.4deg)) translateY(-3px); }
+  45% { transform: rotate(calc(var(--tilt, 0deg) - .8deg)) translateY(-2px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent), var(--shadow-lg); }
+  70% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent), var(--shadow-md); }
+}
+@media (prefers-reduced-motion: reduce) { .prep-group.is-nudge { animation: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent); } }
 
 /* ── Groups — sticky-note grid ───────────────────────────────────────────── */
 .groups-list {
@@ -594,51 +619,38 @@
   flex-shrink: 0;
 }
 
-.add-group-section {
-  padding: var(--sp-2) 0 var(--sp-5);
-  margin-bottom: var(--sp-4);
-  border-bottom: 1px solid var(--surface-3);
+/* ── "New note" tile: a dashed slot at the end of the board; opens into a combobox ── */
+.prep-newnote {
+  position: relative; min-height: 132px; display: flex; flex-direction: column; justify-content: center;
+  border: 2px dashed var(--rule); border-radius: var(--r-lg); background: transparent;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
 }
+.prep-newnote:hover, .prep-newnote.is-open { border-color: var(--amber-300); background: color-mix(in srgb, var(--amber-50) 60%, transparent); }
+.prep-newnote-open {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: var(--sp-2); border: 0; background: transparent;
+  color: var(--ink-muted); font: inherit; font-size: var(--fs-md); font-weight: var(--fw-medium); cursor: pointer; border-radius: inherit;
+}
+.prep-newnote-open:hover { color: var(--ink); }
+.prep-newnote-open:focus-visible { outline: 2px solid var(--select-bg); outline-offset: -4px; }
+.prep-newnote-form { display: none; padding: var(--sp-4); }
+.prep-newnote.is-open .prep-newnote-open { display: none; }
+.prep-newnote.is-open .prep-newnote-form { display: block; }
+.prep-newnote-row { display: flex; gap: var(--sp-2); align-items: center; }
+.add-group-input { flex: 1; min-width: 0; }
 
-.add-group-presets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
+.prep-newnote-list {
+  position: absolute; left: var(--sp-4); right: var(--sp-4); top: calc(100% - var(--sp-3)); z-index: 15;
+  max-height: 260px; overflow-y: auto; margin: 0; padding: var(--sp-1); list-style: none;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
 }
-
-.group-preset-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--r-full);
-  border: 1.5px solid var(--surface-4);
-  background: var(--surface);
-  font-family: var(--font-ui);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-medium);
-  color: var(--ink-soft);
-  cursor: pointer;
-  transition: border-color var(--dur-fast), background var(--dur-fast), color var(--dur-fast);
-}
-.group-preset-chip:hover {
-  border-color: var(--amber-300);
-  background: var(--amber-50);
-  color: var(--ink);
-}
-
-.add-group-row {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: center;
-}
-
-.add-group-custom-row {
-  display: flex;
-  gap: var(--sp-2);
-  align-items: center;
-}
+.prep-newnote-list[hidden] { display: none; }
+.prep-newnote-opt { display: flex; align-items: center; gap: var(--sp-2); padding: 8px var(--sp-3); border-radius: var(--r-md); font-size: var(--fs-sm); cursor: pointer; }
+.prep-newnote-opt[hidden] { display: none; }
+.prep-newnote-opt:hover, .prep-newnote-opt.is-active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.prep-newnote-opt-name { flex: 1; min-width: 0; }
+.prep-newnote-opt.is-used { color: var(--ink-faint); cursor: default; }
+.prep-newnote-opt.is-used:hover { background: transparent; }
+.prep-newnote-opt-used { font-size: var(--fs-xs); color: var(--success); }
 
 /* ── Emoji picker ────────────────────────────────────────────────────────── */
 .add-group-emoji-btn {
@@ -910,9 +922,9 @@
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
-  .detail-topbar { flex-direction: column; align-items: flex-start; }
+  .detail-topbar { flex-wrap: wrap; }
+  .detail-title-wrap { order: 3; flex-basis: 100%; }
+  .detail-actions { margin-left: auto; }
   .detail-title-input { font-size: var(--fs-xl); }
-  .detail-actions { width: 100%; }
-  .add-group-row { flex-direction: column; }
   .checklist-grid, .templates-grid { grid-template-columns: 1fr; }
 }

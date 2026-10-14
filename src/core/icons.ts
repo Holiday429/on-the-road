@@ -45,7 +45,7 @@ export function transportIcon(type: string | undefined | null): string {
 export const STAY_ICON = '🏨';
 
 /** Pack containers, by kind. */
-export const BAG_ICON: Record<string, string> = { suitcase: '🧳', backpack: '🎒', personal: '👜' };
+export const BAG_ICON: Record<string, string> = { suitcase: '🧳', backpack: '🎒', personal: '👜', duffel: '💼' };
 export const BAG_FALLBACK_ICON = '🎒';
 
 export function bagIcon(kind: string | undefined | null): string {

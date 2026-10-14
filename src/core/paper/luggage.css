@@ -5,16 +5,20 @@
    ========================================================================== */
 
 /* ── Bags ───────────────────────────────────────────────────────────────── */
-.lg-bag {
+.lg-bag, .lg-swatch {
   --lg-shell: color-mix(in srgb, var(--amber-300) 42%, var(--surface-4));
   --lg-edge:  color-mix(in srgb, var(--ink) 38%, transparent);
   --lg-metal: color-mix(in srgb, var(--ink) 44%, var(--surface-4));
+}
+.lg-bag {
   display: block; overflow: visible;
   filter: drop-shadow(0 6px 5px color-mix(in srgb, var(--ink) 16%, transparent));
 }
-.lg-bag[data-tone='1'] { --lg-shell: color-mix(in srgb, var(--sky-400) 58%, var(--surface-4)); }
-.lg-bag[data-tone='2'] { --lg-shell: color-mix(in srgb, var(--sage-400) 58%, var(--surface-4)); }
-.lg-bag[data-tone='3'] { --lg-shell: color-mix(in srgb, var(--coral-400) 52%, var(--surface-4)); }
+.lg-bag[data-tone='1'], .lg-swatch[data-tone='1'] { --lg-shell: color-mix(in srgb, var(--sky-400) 58%, var(--surface-4)); }
+.lg-bag[data-tone='2'], .lg-swatch[data-tone='2'] { --lg-shell: color-mix(in srgb, var(--sage-400) 58%, var(--surface-4)); }
+.lg-bag[data-tone='3'], .lg-swatch[data-tone='3'] { --lg-shell: color-mix(in srgb, var(--coral-400) 52%, var(--surface-4)); }
+.lg-bag[data-tone='4'], .lg-swatch[data-tone='4'] { --lg-shell: color-mix(in srgb, var(--ink) 46%, var(--surface-4)); }
+.lg-bag[data-tone='5'], .lg-swatch[data-tone='5'] { --lg-shell: color-mix(in srgb, color-mix(in srgb, var(--coral-400) 38%, var(--sky-500)) 62%, var(--surface-4)); }
 .lg-bag.is-over        { --lg-shell: color-mix(in srgb, var(--coral-500) 70%, var(--surface-4)); }
 
 .lg-bag .lg-body   { fill: var(--lg-shell); stroke: var(--lg-edge); stroke-width: 1.2; stroke-linejoin: round; }
@@ -26,9 +30,24 @@
 .lg-bag .lg-hi     { fill: color-mix(in srgb, var(--surface) 20%, transparent); }
 .lg-bag .lg-metal  { fill: var(--lg-metal); }
 .lg-bag .lg-pull   { fill: color-mix(in srgb, var(--lg-metal) 78%, var(--surface)); stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-width: 1; }
+.lg-bag .lg-flap   { fill: color-mix(in srgb, var(--lg-shell) 86%, var(--ink)); stroke: var(--lg-edge); stroke-width: 1.1; stroke-linejoin: round; }
+.lg-bag .lg-side   { fill: color-mix(in srgb, var(--lg-shell) 84%, var(--ink)); }
+.lg-bag .lg-shade  { fill: color-mix(in srgb, var(--ink) 11%, transparent); }
+.lg-bag .lg-band   { fill: none; stroke: color-mix(in srgb, var(--ink) 26%, transparent); stroke-width: 4; stroke-linecap: round; }
+.lg-bag .lg-hi-line { fill: none; stroke: color-mix(in srgb, var(--surface) 34%, transparent); stroke-width: 2.4; stroke-linecap: round; }
 .lg-bag .lg-wheel  { fill: color-mix(in srgb, var(--ink) 70%, var(--surface-4)); }
 .lg-bag .lg-strap--stroke { fill: none; stroke: var(--lg-metal); stroke-width: 7; stroke-linecap: round; }
 .lg-bag--personal .lg-strap--stroke { stroke-width: 5; }
+.lg-bag--duffel .lg-strap--stroke { stroke-width: 5; }
+
+/* "A bag goes here": the outline only, no shell, no shadow. */
+.lg-bag.is-ghost { filter: none; }
+.lg-bag.is-ghost .lg-body { fill: color-mix(in srgb, var(--ink) 5%, transparent); stroke-dasharray: 5 4; stroke: color-mix(in srgb, var(--ink) 40%, transparent); }
+.lg-bag.is-ghost .lg-fill, .lg-bag.is-ghost .lg-shade, .lg-bag.is-ghost .lg-hi, .lg-bag.is-ghost .lg-hi-line,
+.lg-bag.is-ghost .lg-flap, .lg-bag.is-ghost .lg-side, .lg-bag.is-ghost .lg-pocket, .lg-bag.is-ghost .lg-band,
+.lg-bag.is-ghost .lg-seam, .lg-bag.is-ghost .lg-seam-bar, .lg-bag.is-ghost .lg-rib, .lg-bag.is-ghost .lg-wheel,
+.lg-bag.is-ghost .lg-pull { display: none; }
+.lg-bag.is-ghost .lg-metal, .lg-bag.is-ghost .lg-strap--stroke { opacity: .35; }
 
 /* ── Platform scale ─────────────────────────────────────────────────────── */
 .lg-scale { display: block; overflow: visible; }
@@ -49,3 +68,8 @@
 .lg-scale.is-over .lg-led-num { fill: var(--scale-led-over); }
 .lg-scale.is-pass .lg-led-num { filter: drop-shadow(0 0 3px var(--scale-led-ok)); }
 .lg-scale.is-over .lg-led-num { filter: drop-shadow(0 0 3px var(--scale-led-over)); }
+
+/* Colour chips in the bag form: same shells as the bags, so the picker is the paint. */
+.lg-swatch { display: inline-block; width: 30px; height: 30px; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--lg-shell); box-shadow: inset 0 0 0 1px var(--lg-edge, color-mix(in srgb, var(--ink) 30%, transparent)); cursor: pointer; }
+.lg-swatch[aria-checked='true'] { border-color: var(--surface); box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 1px var(--lg-edge, transparent); }
+.lg-swatch:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 3px; }

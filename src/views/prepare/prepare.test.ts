@@ -113,35 +113,39 @@ beforeEach(() => {
   mountShell();
 });
 
-describe('Prepare landing — rails read live store data', () => {
-  it('starts with both empty cards, then shows a row per created list', async () => {
+const GROUP = (items: { id: string; text: string; done?: boolean }[], over: Partial<{ id: string; name: string; icon: string; order: number }> = {}) => ({
+  id: 'g1', name: 'Docs', icon: '📋', order: 0, ...over,
+  items: items.map((i, n) => ({ id: i.id, text: i.text, done: false, order: n })),
+});
+const clipNames = () => rows('.prep-clip-name').map(el => el.textContent);
+const clickScene = (sel: string) => document.querySelector<HTMLElement>(sel)!.click();
+
+describe('Prepare landing — scenes read live store data', () => {
+  it('starts with two empty scenes that are themselves the "new" buttons, then draws the clipboard', async () => {
     initPrepare();
 
-    expect(rows('.prep-empty').length).toBe(2);
-    expect(rows('[data-cl]').length).toBe(0);
-    expect(rows('[data-pk]').length).toBe(0);
+    expect(document.querySelector('.prep-scene--cl.is-empty .prep-clip[data-act="new-cl"]')).not.toBeNull();
+    expect(document.querySelector('.prep-scene--pk.is-empty .prep-floor[data-act="new-pk"]')).not.toBeNull();
+    expect(document.querySelector('[data-open-cl]')).toBeNull();
 
     const id = await checklistStore.create({
       name: 'Paris Prep',
-      groups: [{ id: 'g1', name: 'Docs', icon: '📋', order: 0, items: [
-        { id: 'i1', text: 'Passport', done: false, order: 0 },
-        { id: 'i2', text: 'Visa', done: false, order: 1 },
-      ] }],
+      groups: [GROUP([{ id: 'i1', text: 'Passport' }, { id: 'i2', text: 'Visa' }])],
     });
     // create() always stores items unticked, so tick one the way the UI does.
     await checklistStore.toggleItem(id, 'g1', 'i1');
 
-    const clRows = rows('[data-cl]');
-    expect(clRows.length).toBe(1);
-    expect(clRows[0].querySelector('.prep-row-name')!.textContent).toBe('Paris Prep');
+    expect(document.querySelector('.prep-scene--cl.is-empty')).toBeNull();
+    expect(clipNames()).toEqual(['Paris Prep']);
     // Progress is computed from the stored items, not a placeholder.
-    expect(clRows[0].querySelector('.prep-row-meta')!.textContent).toContain('1/2');
-    // That rail is no longer empty, so its actions move back to the header.
-    expect(document.querySelector('#prep-rail-checklist .prep-empty')).toBeNull();
-    expect(document.querySelector('#prep-rail-checklist .prep-rail-actions')).not.toBeNull();
+    expect(document.querySelector('.prep-clip-count')!.textContent).toBe('1/2');
+    // Only what is still to do is on the clipboard.
+    const clip = document.querySelector('.prep-clip')!.textContent!;
+    expect(clip).toContain('Visa');
+    expect(clip).not.toContain('Passport');
   });
 
-  it('shows pack rows with bag/item counts and flags an over-limit list', async () => {
+  it('draws bags on the floor, flags an over-limit bag, and raises the banner alert', async () => {
     initPrepare();
 
     await packStore.create({
@@ -153,25 +157,19 @@ describe('Prepare landing — rails read live store data', () => {
       ],
     });
 
-    const pkRows = rows('[data-pk]');
-    expect(pkRows.length).toBe(1);
-    expect(pkRows[0].querySelector('.prep-row-name')!.textContent).toBe('Main luggage');
-    expect(pkRows[0].querySelector('.prep-row-sub')!.textContent).toContain('1');
-    // 1300g in a 1000g bag → over limit, surfaced on the row and the hero.
-    expect(pkRows[0].classList.contains('is-over')).toBe(true);
-    expect(document.querySelector('.prep-row-badge.is-warn')).not.toBeNull();
+    // 1300g in a 1000g bag → over limit: the bag, the banner stat and the alert all say so.
+    expect(document.querySelector('.prep-bag[data-over="true"]')).not.toBeNull();
     expect(document.querySelector('.prep-hero-stat.is-warn')).not.toBeNull();
+    expect(document.querySelector('#prep-hero-alert.is-over')).not.toBeNull();
+    // The old status card, list rows and delete buttons are gone — the scene is the only way in.
+    expect(document.querySelector('.prep-status, .prep-row, [data-del-pk]')).toBeNull();
   });
 
-  it('aggregates both sections into the hero', async () => {
+  it('aggregates both sections into the banner', async () => {
     initPrepare();
     const clId = await checklistStore.create({
       name: 'A',
-      groups: [{ id: 'g1', name: 'G', icon: '📋', order: 0, items: [
-        { id: 'i1', text: 'x', done: false, order: 0 },
-        { id: 'i2', text: 'y', done: false, order: 1 },
-        { id: 'i3', text: 'z', done: false, order: 2 },
-      ] }],
+      groups: [GROUP([{ id: 'i1', text: 'x' }, { id: 'i2', text: 'y' }, { id: 'i3', text: 'z' }])],
     });
     await checklistStore.toggleItem(clId, 'g1', 'i1');
     await checklistStore.toggleItem(clId, 'g1', 'i2');
@@ -184,24 +182,102 @@ describe('Prepare landing — rails read live store data', () => {
     const values = rows('.prep-hero-stat-value').map(el => el.textContent!.trim());
     expect(values[0]).toBe('2/3');       // checklist total across lists
     expect(values[1]).toContain('2');    // packed weight, not an em-dash
-    expect(document.querySelector('.prep-hero--bare')).toBeNull();
+    expect(document.querySelector('.prep-hero-stat-meta')!.textContent).toBe('1 list');   // singular
+  });
+
+  it('a clipboard is always four lines, and says what is not shown', async () => {
+    initPrepare();
+    const six = ['a', 'b', 'c', 'd', 'e', 'f'].map(x => ({ id: `i${x}`, text: `item-${x}` }));
+    await checklistStore.create({ name: 'Long', groups: [GROUP(six)] });
+
+    expect(rows('.prep-clip-row').length).toBe(4);
+    expect(document.querySelector('.prep-clip-row.is-more')!.textContent).toContain('+3');
+    expect(document.querySelector('.prep-clip')!.textContent).toContain('item-c');
+    expect(document.querySelector('.prep-clip')!.textContent).not.toContain('item-d');
+  });
+
+  it('a list with nothing ticked off the end shows the stamp, not an empty page', async () => {
+    initPrepare();
+    const id = await checklistStore.create({ name: 'Done', groups: [GROUP([{ id: 'i1', text: 'Passport' }])] });
+    await checklistStore.toggleItem(id, 'g1', 'i1');
+
+    expect(document.querySelector('.prep-scene--cl.is-complete .prep-clip-stamp')).not.toBeNull();
+    expect(rows('.prep-clip-row').length).toBe(4);
+    expect(document.querySelector('.prep-clip')!.textContent).toContain('Passport');   // the done item, struck
+  });
+
+  it('an empty list says so on the clipboard', async () => {
+    initPrepare();
+    await checklistStore.create({ name: 'Blank', groups: [] });
+    expect(document.querySelector('.prep-clip .prep-scene-hint')).not.toBeNull();
+    expect(rows('.prep-clip-row').length).toBe(4);
+  });
+
+  it('the list with the most left to do is the one in front, and the chip steps between lists', async () => {
+    initPrepare();
+    await checklistStore.create({ name: 'Nearly', groups: [GROUP([{ id: 'i1', text: 'one' }])] });
+    await checklistStore.create({ name: 'Lots', groups: [GROUP([{ id: 'i1', text: 'one' }, { id: 'i2', text: 'two' }, { id: 'i3', text: 'three' }])] });
+
+    expect(clipNames()).toEqual(['Lots']);
+    expect(document.querySelector('.prep-switch-n')!.textContent).toBe('2/2');
+
+    document.querySelector<HTMLElement>('[data-switch="cl"] [data-switch-step="1"]')!.click();
+    expect(clipNames()).toEqual(['Nearly']);
+    expect(document.querySelector<HTMLElement>('.prep-clip')!.dataset.openCl).toBeTruthy();
+  });
+
+  it('more than three bags: the heaviest three stand on the floor, a tag counts the rest', async () => {
+    initPrepare();
+    const bag = (n: number) => ({ id: `c${n}`, label: `Bag ${n}`, kind: 'suitcase' as const, limitG: 0, selfWeightG: n * 100 });
+    await packStore.create({ name: 'Big trip', containers: [1, 2, 3, 4, 5].map(bag), items: [] });
+
+    expect(rows('.prep-bag').length).toBe(3);
+    expect(document.querySelector('.prep-bag-tag')!.textContent).toContain('+2');
+  });
+
+  it('a pack list with no bags shows the empty suitcase outline and opens the list', async () => {
+    initPrepare();
+    const id = await packStore.create({ name: 'Empty', containers: [], items: [] });
+
+    expect(document.querySelector('.prep-scene--pk.is-empty .lg-bag.is-ghost')).not.toBeNull();
+    expect(document.querySelector<HTMLElement>('.prep-floor')!.dataset.openPk).toBe(id);
+    expect(document.querySelector('.prep-scene--pk [data-weigh-pk]')).toBeNull();   // nothing to weigh
+    expect(document.querySelector('#prep-hero-alert')).toBeNull();
+  });
+
+  it('bags that were never weighed raise the banner alert, and it leads to the weigh-in', async () => {
+    initPrepare();
+    const id = await packStore.create({
+      name: 'Main luggage',
+      containers: [
+        { id: 'c1', label: 'Carry-on', kind: 'backpack', limitG: 8000, selfWeightG: 0 },
+        { id: 'c2', label: 'Check-in', kind: 'suitcase', limitG: 20000, selfWeightG: 0 },
+      ],
+      items: [packItem({ id: 'p1', name: 'Boots', unitWeightG: 900, containerId: 'c1', order: 0 })],
+    });
+
+    const alert = document.querySelector<HTMLElement>('#prep-hero-alert')!;
+    expect(alert.dataset.alert).toBe('weigh');
+    expect(alert.dataset.alertList).toBe(id);
+    expect(alert.textContent).toContain('2 not weighed');
+
+    alert.click();
+    expect(pkZone().classList.contains('is-hidden')).toBe(false);
+    expect(pkZone().querySelectorAll('.pkd-bag').length).toBe(2);
   });
 });
 
-describe('Prepare landing — row tap hands the page to an editor', () => {
+describe('Prepare landing — a scene hands the page to an editor', () => {
   it('opens the checklist editor full-page and returns on Back', async () => {
     initPrepare();
-    const id = await checklistStore.create({
-      name: 'Paris Prep',
-      groups: [{ id: 'g1', name: 'Docs', icon: '📋', order: 0, items: [] }],
-    });
+    const id = await checklistStore.create({ name: 'Paris Prep', groups: [GROUP([])] });
 
-    document.querySelector<HTMLElement>(`[data-cl="${id}"]`)!.click();
+    clickScene(`[data-open-cl="${id}"]`);
 
     expect(landing().classList.contains('is-hidden')).toBe(true);
     expect(clZone().classList.contains('is-hidden')).toBe(false);
     expect(pkZone().classList.contains('is-hidden')).toBe(true);
-    expect(clZone().querySelector('#back-to-list')).not.toBeNull();
+    expect(clZone().querySelector('.prep-crumb #back-to-list')).not.toBeNull();
 
     clZone().querySelector<HTMLElement>('#back-to-list')!.click();
 
@@ -214,11 +290,11 @@ describe('Prepare landing — row tap hands the page to an editor', () => {
     initPrepare();
     const id = await packStore.create({ name: 'Main luggage', containers: [], items: [] });
 
-    document.querySelector<HTMLElement>(`[data-pk="${id}"]`)!.click();
+    clickScene(`[data-open-pk="${id}"]`);
 
     expect(landing().classList.contains('is-hidden')).toBe(true);
     expect(pkZone().classList.contains('is-hidden')).toBe(false);
-    expect(pkZone().querySelector('#pk-back')).not.toBeNull();
+    expect(pkZone().querySelector('.prep-crumb #pk-back')).not.toBeNull();
 
     pkZone().querySelector<HTMLElement>('#pk-back')!.click();
 
@@ -226,71 +302,94 @@ describe('Prepare landing — row tap hands the page to an editor', () => {
     expect(pkZone().classList.contains('is-hidden')).toBe(true);
   });
 
+  it('Escape goes back from a checklist, but is spent on an open menu first', async () => {
+    initPrepare();
+    const id = await checklistStore.create({ name: 'Paris Prep', groups: [GROUP([])] });
+    clickScene(`[data-open-cl="${id}"]`);
+
+    clZone().querySelector<HTMLElement>('[data-menu-btn]')!.click();
+    expect(clZone().querySelector('.prep-menu.is-open')).not.toBeNull();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(clZone().querySelector('.prep-menu.is-open')).toBeNull();
+    expect(landing().classList.contains('is-hidden')).toBe(true);   // still inside
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    expect(landing().classList.contains('is-hidden')).toBe(false);
+  });
+
   it('reflects edits made inside an editor once back on the landing', async () => {
     initPrepare();
-    const id = await checklistStore.create({
-      name: 'Paris Prep',
-      groups: [{ id: 'g1', name: 'Docs', icon: '📋', order: 0, items: [
-        { id: 'i1', text: 'Passport', done: false, order: 0 },
-      ] }],
-    });
-    expect(document.querySelector('[data-cl] .prep-row-meta')!.textContent).toContain('0/1');
+    const id = await checklistStore.create({ name: 'Paris Prep', groups: [GROUP([{ id: 'i1', text: 'Passport' }])] });
+    expect(document.querySelector('.prep-clip-count')!.textContent).toBe('0/1');
 
-    document.querySelector<HTMLElement>(`[data-cl="${id}"]`)!.click();
+    clickScene(`[data-open-cl="${id}"]`);
     await checklistStore.toggleItem(id, 'g1', 'i1');   // tick it off in the editor
-    clZone().querySelector<HTMLElement>('#back-to-list')!.click();
+    // Completing the last item shows the celebration; leave through its back link.
+    (clZone().querySelector<HTMLElement>('#back-to-list') ?? clZone().querySelector<HTMLElement>('.celebrate-back'))?.click();
 
-    expect(document.querySelector('[data-cl] .prep-row-meta')!.textContent).toContain('1/1');
-    expect(document.querySelector('[data-cl]')!.classList.contains('is-complete')).toBe(true);
+    expect(document.querySelector('.prep-clip-count')!.textContent).toBe('1/1');
+    expect(document.querySelector('.prep-scene--cl.is-complete')).not.toBeNull();
   });
 
   it('falls back to the landing if the open list is deleted elsewhere', async () => {
     initPrepare();
     const id = await packStore.create({ name: 'Main luggage', containers: [], items: [] });
-    document.querySelector<HTMLElement>(`[data-pk="${id}"]`)!.click();
+    clickScene(`[data-open-pk="${id}"]`);
     expect(landing().classList.contains('is-hidden')).toBe(true);
 
     await packStore.remove(id);   // e.g. removed on another device
 
     expect(landing().classList.contains('is-hidden')).toBe(false);
-    expect(rows('[data-pk]').length).toBe(0);
-    expect(document.querySelector('#prep-rail-pack .prep-empty')).not.toBeNull();
+    expect(document.querySelector('.prep-scene--pk.is-empty')).not.toBeNull();
   });
 });
 
-describe('Prepare landing — deleting from a row', () => {
-  it('removes the checklist and restores the empty card', async () => {
+describe('Prepare editors — deleting lives in the ⋯ menu', () => {
+  it('deletes the checklist from its editor and lands back on an empty Prepare', async () => {
     vi.stubGlobal('confirm', () => true);
     initPrepare();
     const id = await checklistStore.create({ name: 'Temp', groups: [] });
-    expect(rows('[data-cl]').length).toBe(1);
+    clickScene(`[data-open-cl="${id}"]`);
 
-    document.querySelector<HTMLElement>(`[data-del-cl="${id}"]`)!.click();
-    await vi.waitFor(() => expect(rows('[data-cl]').length).toBe(0));
+    clZone().querySelector<HTMLElement>('[data-act="delete-cl"]')!.click();
+    await vi.waitFor(() => expect(landing().classList.contains('is-hidden')).toBe(false));
 
-    expect(document.querySelector('#prep-rail-checklist .prep-empty')).not.toBeNull();
-    expect(landing().classList.contains('is-hidden')).toBe(false);
+    expect(document.querySelector('.prep-scene--cl.is-empty')).not.toBeNull();
   });
 
-  it('does not open the editor when the delete button is clicked', async () => {
+  it('keeps the checklist when the confirmation is declined', async () => {
     vi.stubGlobal('confirm', () => false);
     initPrepare();
     const id = await checklistStore.create({ name: 'Temp', groups: [] });
+    clickScene(`[data-open-cl="${id}"]`);
 
-    document.querySelector<HTMLElement>(`[data-del-cl="${id}"]`)!.click();
+    clZone().querySelector<HTMLElement>('[data-act="delete-cl"]')!.click();
+    await Promise.resolve();
 
-    expect(landing().classList.contains('is-hidden')).toBe(false);
-    expect(clZone().classList.contains('is-hidden')).toBe(true);
+    expect(clZone().classList.contains('is-hidden')).toBe(false);
+    expect(docs.get(`trips/t1/checklists/${id}`)).toBeDefined();
+  });
+
+  it('deletes a pack list from its editor', async () => {
+    vi.stubGlobal('confirm', () => true);
+    initPrepare();
+    const id = await packStore.create({ name: 'Main luggage', containers: [], items: [] });
+    clickScene(`[data-open-pk="${id}"]`);
+
+    pkZone().querySelector<HTMLElement>('[data-act="delete-pk"]')!.click();
+    await vi.waitFor(() => expect(landing().classList.contains('is-hidden')).toBe(false));
+
+    expect(document.querySelector('.prep-scene--pk.is-empty')).not.toBeNull();
   });
 });
 
 describe('Prepare landing — create flows via the shared modal', () => {
   const modal = () => document.querySelector<HTMLElement>('.otr-modal')!;
 
-  it('creates a checklist from the empty card and lands in its editor', async () => {
+  it('creates a checklist from the empty clipboard and lands in its editor', async () => {
     initPrepare();
-    // Empty state: the CTA lives inside the empty card, not a rail header.
-    document.querySelector<HTMLElement>('.prep-empty [data-act="new-cl"]')!.click();
+    // The empty scene is the call to action.
+    clickScene('.prep-scene--cl.is-empty .prep-clip');
 
     // The dialog is attached to document.body, so a store push can't wipe it.
     expect(modal().closest('body')).toBe(document.body);
@@ -302,30 +401,39 @@ describe('Prepare landing — create flows via the shared modal', () => {
     expect(landing().classList.contains('is-hidden')).toBe(true);
 
     clZone().querySelector<HTMLElement>('#back-to-list')!.click();
-    const names = rows('[data-cl] .prep-row-name').map(el => el.textContent);
-    expect(names).toEqual(['Iceland Prep']);
+    expect(clipNames()).toEqual(['Iceland Prep']);
+  });
+
+  it('the "+ New" menu offers the same actions, bound once', async () => {
+    initPrepare();
+    const items = rows('#prep-rail-checklist .prep-menu-item').map(el => el.dataset.act);
+    expect(items).toEqual(['new-cl', 'tpl']);
+
+    document.querySelector<HTMLElement>('#prep-rail-checklist [data-menu-btn]')!.click();
+    expect(document.querySelector('#prep-rail-checklist .prep-menu.is-open')).not.toBeNull();
+    document.querySelector<HTMLElement>('#prep-rail-checklist [data-act="new-cl"]')!.click();
+    expect(document.querySelectorAll('.otr-modal').length).toBe(1);   // not opened twice
+    expect(document.querySelector('.prep-menu.is-open')).toBeNull();
   });
 
   it('creates a pack list and lands in its editor', async () => {
     initPrepare();
-    document.querySelector<HTMLElement>('.prep-empty [data-act="new-pk"]')!.click();
+    clickScene('.prep-scene--pk.is-empty .prep-floor');
 
     modal().querySelector<HTMLInputElement>('#pk-new-name')!.value = 'Cabin bag';
     modal().querySelector<HTMLElement>('[data-act="confirm"]')!.click();
 
     await vi.waitFor(() => expect(pkZone().classList.contains('is-hidden')).toBe(false));
     pkZone().querySelector<HTMLElement>('#pk-back')!.click();
-    expect(rows('[data-pk] .prep-row-name').map(el => el.textContent)).toEqual(['Cabin bag']);
+    expect(document.querySelector<HTMLElement>('.prep-floor')!.dataset.openPk).toBeTruthy();
+    expect(document.querySelector('.prep-scene--pk')!.textContent).toContain('Cabin bag');   // its name on the switcher-less scene's label
   });
 
   it('survives a store refresh while "Save as Template" is open', async () => {
     initPrepare();
-    const id = await checklistStore.create({
-      name: 'Paris Prep',
-      groups: [{ id: 'g1', name: 'Docs', icon: '📋', order: 0, items: [] }],
-    });
-    document.querySelector<HTMLElement>(`[data-cl="${id}"]`)!.click();
-    clZone().querySelector<HTMLElement>('#save-as-template-btn')!.click();
+    const id = await checklistStore.create({ name: 'Paris Prep', groups: [GROUP([])] });
+    clickScene(`[data-open-cl="${id}"]`);
+    clZone().querySelector<HTMLElement>('[data-act="save-tpl"]')!.click();
 
     const input = modal().querySelector<HTMLInputElement>('#save-tpl-name')!;
     input.value = 'Weekend template';
@@ -341,17 +449,18 @@ describe('Prepare landing — create flows via the shared modal', () => {
       expect([...docs.keys()].some(k => k.startsWith('users/alice/checklistTemplates/'))).toBe(true));
   });
 
-  it('keeps a standalone checklist in the rail alongside trip-scoped ones', async () => {
+  it('keeps a standalone checklist on the landing alongside trip-scoped ones', async () => {
     initPrepare();
-    document.querySelector<HTMLElement>('.prep-empty [data-act="new-cl"]')!.click();
+    clickScene('.prep-scene--cl.is-empty .prep-clip');
     modal().querySelector<HTMLInputElement>('#new-checklist-name')!.value = 'Not tied to a trip';
     modal().querySelector<HTMLInputElement>('input[name="cl-scope"][value="standalone"]')!.checked = true;
     modal().querySelector<HTMLElement>('[data-act="confirm"]')!.click();
 
-    await vi.waitFor(() => expect(rows('[data-cl]').length).toBe(1));
+    await vi.waitFor(() => expect(clZone().classList.contains('is-hidden')).toBe(false));
+    clZone().querySelector<HTMLElement>('#back-to-list')!.click();
     // Stored under the standalone trip, still surfaced on this trip's landing.
     expect([...docs.keys()].some(k => k.startsWith('trips/standalone/checklists/'))).toBe(true);
-    expect(document.querySelector('[data-cl] .prep-row-name')!.textContent).toBe('Not tied to a trip');
+    expect(clipNames()).toEqual(['Not tied to a trip']);
   });
 });
 
@@ -386,7 +495,7 @@ describe('Prepare landing — deep links and re-init', () => {
   it('returns to the landing after a trip switch re-init while an editor was open', async () => {
     initPrepare();
     const id = await checklistStore.create({ name: 'Paris Prep', groups: [] });
-    document.querySelector<HTMLElement>(`[data-cl="${id}"]`)!.click();
+    clickScene(`[data-open-cl="${id}"]`);
     expect(landing().classList.contains('is-hidden')).toBe(true);
 
     // reinitForTripChange() re-runs the view init against the existing DOM.
@@ -415,7 +524,7 @@ describe('Prepare landing — deep links and re-init', () => {
     expect(listeners.length).toBe(afterFirst);
 
     await checklistStore.create({ name: 'Two', groups: [] });
-    expect(rows('[data-cl]').length).toBe(1);
+    expect(rows('.prep-clip[data-open-cl]').length).toBe(1);
   });
 });
 
@@ -423,10 +532,7 @@ describe('Checklist → Pack linkage', () => {
   async function seedBoth() {
     const clId = await checklistStore.create({
       name: 'Paris Prep',
-      groups: [{ id: 'g1', name: 'Tech & Comms', icon: '📱', order: 0, items: [
-        { id: 'i1', text: 'Charger', done: false, order: 0 },
-        { id: 'i2', text: 'Adapter', done: false, order: 1 },
-      ] }],
+      groups: [GROUP([{ id: 'i1', text: 'Charger' }, { id: 'i2', text: 'Adapter' }], { name: 'Tech & Comms', icon: '📱' })],
     });
     const pkId = await packStore.create({
       name: 'Main luggage',
@@ -439,7 +545,7 @@ describe('Checklist → Pack linkage', () => {
   it('sends an item to Unassigned, categorised from its group, and ticks it off', async () => {
     initPrepare();
     const { clId, pkId } = await seedBoth();
-    document.querySelector<HTMLElement>(`[data-cl="${clId}"]`)!.click();
+    clickScene(`[data-open-cl="${clId}"]`);
 
     clZone().querySelector<HTMLElement>('.send-to-pack-btn')!.click();
 
@@ -460,28 +566,25 @@ describe('Checklist → Pack linkage', () => {
     expect(cl.groups[0].items.find(i => i.id === 'i2')!.done).toBe(false);
   });
 
-  it('surfaces the new pack item on the landing rail', async () => {
+  it('shows the ticked item on the landing clipboard afterwards', async () => {
     initPrepare();
     const { clId } = await seedBoth();
-    document.querySelector<HTMLElement>(`[data-cl="${clId}"]`)!.click();
+    clickScene(`[data-open-cl="${clId}"]`);
     clZone().querySelector<HTMLElement>('.send-to-pack-btn')!.click();
     await vi.waitFor(() => expect(clZone().querySelectorAll('.send-to-pack-btn').length).toBe(1));
 
     clZone().querySelector<HTMLElement>('#back-to-list')!.click();
 
-    expect(document.querySelector('[data-pk] .prep-row-sub')!.textContent).toContain('1');
-    expect(document.querySelector('[data-cl] .prep-row-meta')!.textContent).toContain('1/2');
+    expect(document.querySelector('.prep-clip-count')!.textContent).toBe('1/2');
   });
 
   it('offers no pack action when there is no pack list to receive the item', async () => {
     initPrepare();
     const clId = await checklistStore.create({
       name: 'Solo',
-      groups: [{ id: 'g1', name: 'Documents', icon: '📄', order: 0, items: [
-        { id: 'i1', text: 'Passport', done: false, order: 0 },
-      ] }],
+      groups: [GROUP([{ id: 'i1', text: 'Passport' }], { name: 'Documents', icon: '📄' })],
     });
-    document.querySelector<HTMLElement>(`[data-cl="${clId}"]`)!.click();
+    clickScene(`[data-open-cl="${clId}"]`);
 
     expect(clZone().querySelector('.send-to-pack-btn')).toBeNull();
   });
@@ -490,7 +593,7 @@ describe('Checklist → Pack linkage', () => {
     initPrepare();
     const { clId } = await seedBoth();
     await checklistStore.toggleItem(clId, 'g1', 'i1');
-    document.querySelector<HTMLElement>(`[data-cl="${clId}"]`)!.click();
+    clickScene(`[data-open-cl="${clId}"]`);
 
     const buttons = clZone().querySelectorAll('.send-to-pack-btn');
     expect(buttons.length).toBe(1);   // only the outstanding item keeps it
@@ -500,12 +603,10 @@ describe('Checklist → Pack linkage', () => {
     initPrepare();
     const clId = await checklistStore.create({
       name: 'Nearly done',
-      groups: [{ id: 'g1', name: 'Tech', icon: '📱', order: 0, items: [
-        { id: 'i1', text: 'Charger', done: false, order: 0 },
-      ] }],
+      groups: [GROUP([{ id: 'i1', text: 'Charger' }], { name: 'Tech', icon: '📱' })],
     });
     await packStore.create({ name: 'Bag', containers: [], items: [] });
-    document.querySelector<HTMLElement>(`[data-cl="${clId}"]`)!.click();
+    clickScene(`[data-open-cl="${clId}"]`);
 
     clZone().querySelector<HTMLElement>('.send-to-pack-btn')!.click();
 
@@ -531,70 +632,153 @@ describe('Prepare landing — Core Kit screen', () => {
   });
 });
 
-describe('Prepare landing — the scenes are the way in', () => {
-  const twoGroups = [{ id: 'g1', name: 'Docs', icon: '📋', order: 0, items: [
-    { id: 'i1', text: 'Passport', done: false, order: 0 },
-    { id: 'i2', text: 'Visa', done: false, order: 1 },
-  ] }];
-
-  it('shows the first list as a clipboard with its items, and a click opens it', async () => {
+describe('Checklist editor — one board, a left-pill, a combobox for new notes', () => {
+  const two = () => ([
+    GROUP([{ id: 'i1', text: 'Cold medicine' }, { id: 'i2', text: 'Painkillers' }], { id: 'gh', name: 'Health', icon: '💊', order: 0 }),
+    GROUP([{ id: 'i3', text: 'Passport copy' }], { id: 'gd', name: 'Documents', icon: '📄', order: 1 }),
+  ]);
+  const open = async () => {
     initPrepare();
-    const id = await checklistStore.create({ name: 'Paris Prep', groups: twoGroups });
+    const id = await checklistStore.create({ name: 'Europe', groups: two() });
+    clickScene(`[data-open-cl="${id}"]`);
+    return id;
+  };
 
-    const clip = document.querySelector<HTMLElement>('.prep-clip')!;
-    expect(clip.dataset.openCl).toBe(id);
-    expect(clip.textContent).toContain('Paris Prep');
-    expect(clip.textContent).toContain('Passport');
-    // No "Next up" strip on the landing any more — it lives in the editor.
-    expect(document.querySelector('#prepare-landing .prep-next')).toBeNull();
-
-    clip.click();
-    expect(landing().classList.contains('is-hidden')).toBe(true);
-    expect(clZone().querySelector('.prep-next')).not.toBeNull();
+  it('has no filter chips any more, and no Next-up block in the middle of the page', async () => {
+    await open();
+    expect(clZone().querySelector('.group-preset-chip, .add-group-presets, .prep-next')).toBeNull();
+    expect(clZone().querySelector('.prep-newnote')).not.toBeNull();
+    expect(clZone().querySelector('.back-btn')).toBeNull();
   });
 
-  it('hovering another list brings it to the front of the clipboard scene', async () => {
-    initPrepare();
-    await checklistStore.create({ name: 'First', groups: twoGroups });
-    const second = await checklistStore.create({ name: 'Second', groups: twoGroups });
-    expect(document.querySelector('.prep-clip-name')!.textContent).toBe('First');
+  it('the left-pill counts what is left and each chip jumps to its note', async () => {
+    await open();
+    const pill = clZone().querySelector('.prep-next-pill')!;
+    expect(pill.textContent).toContain('3 left');
+    const chips = [...pill.querySelectorAll<HTMLElement>('.prep-next-chip')];
+    expect(chips.map(c => c.dataset.nuGroup)).toEqual(['gh', 'gd']);
 
-    document.querySelector<HTMLElement>(`[data-cl="${second}"]`)!.dispatchEvent(new Event('mouseenter'));
-
-    expect(document.querySelector('.prep-clip-name')!.textContent).toBe('Second');
-    expect(document.querySelector<HTMLElement>('.prep-clip')!.dataset.openCl).toBe(second);
+    chips[1].click();
+    expect(clZone().querySelector('.prep-group[data-group-id="gd"]')!.classList.contains('is-nudge')).toBe(true);
   });
 
-  it('draws the bags as a floor with a scale, and the Weigh card says nothing has been weighed', async () => {
+  it('turns into a tick once everything is done', async () => {
+    const id = await open();
+    for (const [g, i] of [['gh', 'i1'], ['gh', 'i2'], ['gd', 'i3']]) await checklistStore.toggleItem(id, g, i);
+    // all done → the celebration screen; go back to the editor-less landing is not needed: check the pill logic directly
+    const { remainingByGroup } = await import('./checklist-section.ts');
+    const cl = docs.get(`trips/t1/checklists/${id}`) as { groups: { id: string; name: string; icon: string; order: number; items: { done: boolean }[] }[] };
+    expect(remainingByGroup(cl as never)).toEqual([]);
+  });
+
+  it('typing filters the presets, the ones already on the board are marked, Enter adds the highlighted one', async () => {
+    const id = await open();
+    const z = clZone();
+    z.querySelector<HTMLElement>('#newnote-open')!.click();
+    expect(z.querySelector('.prep-newnote')!.classList.contains('is-open')).toBe(true);
+
+    const used = [...z.querySelectorAll<HTMLElement>('.prep-newnote-opt.is-used')].map(o => o.dataset.name);
+    expect(used.sort()).toEqual(['Documents', 'Health']);
+
+    const input = z.querySelector<HTMLInputElement>('#add-group-input')!;
+    input.value = 'ins';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    const visible = [...z.querySelectorAll<HTMLElement>('.prep-newnote-opt')].filter(o => !o.hidden).map(o => o.dataset.name);
+    expect(visible).toEqual(['Insurance']);
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    await vi.waitFor(() => {
+      const cl = docs.get(`trips/t1/checklists/${id}`) as { groups: { name: string; icon: string }[] };
+      expect(cl.groups.map(g => g.name)).toContain('Insurance');
+    });
+    const cl = docs.get(`trips/t1/checklists/${id}`) as { groups: { name: string; icon: string }[] };
+    expect(cl.groups.find(g => g.name === 'Insurance')!.icon).toBe('🛡️');
+  });
+
+  it('Enter with no highlighted preset adds the typed name as a custom note', async () => {
+    const id = await open();
+    const z = clZone();
+    z.querySelector<HTMLElement>('#newnote-open')!.click();
+    const input = z.querySelector<HTMLInputElement>('#add-group-input')!;
+    input.value = 'Snacks';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    await vi.waitFor(() => {
+      const cl = docs.get(`trips/t1/checklists/${id}`) as { groups: { name: string }[] };
+      expect(cl.groups.map(g => g.name)).toContain('Snacks');
+    });
+    // the tile folds away again after adding
+    expect(clZone().querySelector('.prep-newnote')!.classList.contains('is-open')).toBe(false);
+  });
+});
+
+describe('Pack editor — bags are drawn from their data', () => {
+  const modal = () => document.querySelector<HTMLElement>('.otr-modal')!;
+
+  it('adds a bag with the chosen kind, colour and size', async () => {
+    initPrepare();
+    const id = await packStore.create({ name: 'Main luggage', containers: [], items: [] });
+    clickScene(`[data-open-pk="${id}"]`);
+
+    pkZone().querySelector<HTMLElement>('#pk-open-add-bag')!.click();
+    modal().querySelector<HTMLInputElement>('#pk-c-label')!.value = 'Weekender';
+    modal().querySelector<HTMLElement>('.bagf-kind[data-kind="duffel"]')!.click();
+    modal().querySelector<HTMLElement>('.bagf-swatch[data-tone="4"]')!.click();
+    modal().querySelector<HTMLElement>('.bagf-size[data-size="L"]')!.click();
+    // the live picture follows the choices
+    expect(modal().querySelector('[data-preview] .lg-bag--duffel')!.getAttribute('data-tone')).toBe('4');
+    modal().querySelector<HTMLElement>('[data-act="confirm"]')!.click();
+
+    await vi.waitFor(() => {
+      const l = docs.get(`trips/t1/packLists/${id}`) as { containers: Record<string, unknown>[] };
+      expect(l.containers).toHaveLength(1);
+    });
+    const l = docs.get(`trips/t1/packLists/${id}`) as { containers: Record<string, unknown>[] };
+    expect(l.containers[0]).toMatchObject({ label: 'Weekender', kind: 'duffel', tone: 4, size: 'L' });
+  });
+
+  it('a new bag starts on the next colour, so neighbours differ; size left on Auto is not stored as a choice', async () => {
     initPrepare();
     const id = await packStore.create({
       name: 'Main luggage',
-      containers: [
-        { id: 'c1', label: 'Carry-on', kind: 'backpack', limitG: 1000, selfWeightG: 0 },
-        { id: 'c2', label: 'Check-in', kind: 'suitcase', limitG: 20000, selfWeightG: 0 },
-      ],
-      items: [packItem({ id: 'p1', name: 'Boots', unitWeightG: 900, containerId: 'c1', order: 0 })],
+      containers: [{ id: 'c1', label: 'One', kind: 'backpack', limitG: 0, selfWeightG: 0 }],
+      items: [],
     });
+    clickScene(`[data-open-pk="${id}"]`);
+    pkZone().querySelector<HTMLElement>('#pk-open-add-bag')!.click();
+    modal().querySelector<HTMLInputElement>('#pk-c-label')!.value = 'Two';
+    modal().querySelector<HTMLElement>('[data-act="confirm"]')!.click();
 
-    expect(document.querySelectorAll('.prep-bag').length).toBe(2);
-    expect(document.querySelector('.lg-bag--backpack')).not.toBeNull();
-    expect(document.querySelector('.lg-bag--suitcase')).not.toBeNull();
-    expect(document.querySelector('.prep-scale-obj')).not.toBeNull();
-    const card = document.querySelector<HTMLElement>('.prep-status--weigh')!;
-    expect(card.classList.contains('is-none')).toBe(true);
-    expect(card.textContent).toContain('2 bags not weighed yet');
-
-    document.querySelector<HTMLElement>('.prep-floor')!.click();
-    expect(pkZone().classList.contains('is-hidden')).toBe(false);
-    expect(pkZone().querySelectorAll('.pkd-bag').length).toBe(2);
-    expect(pkZone().querySelector(`#pk-weigh`)).not.toBeNull();
-    expect(id).toBeTruthy();
+    await vi.waitFor(() => {
+      const l = docs.get(`trips/t1/packLists/${id}`) as { containers: Record<string, unknown>[] };
+      expect(l.containers).toHaveLength(2);
+    });
+    const l = docs.get(`trips/t1/packLists/${id}`) as { containers: Record<string, unknown>[] };
+    expect(l.containers[1].tone).toBe(1);
+    expect(l.containers[1].size ?? null).toBeNull();
   });
 
-  it('a list with no bags offers to add one instead of a Weigh button', async () => {
+  it('restyles an existing bag', async () => {
     initPrepare();
-    await packStore.create({ name: 'Empty', containers: [], items: [] });
-    expect(document.querySelector('.prep-status--weigh')!.textContent).toContain('Add your first bag');
-    expect(document.querySelector('[data-weigh-pk]')).toBeNull();
+    const id = await packStore.create({
+      name: 'Main luggage',
+      containers: [{ id: 'c1', label: 'One', kind: 'backpack', limitG: 0, selfWeightG: 0 }],
+      items: [],
+    });
+    clickScene(`[data-open-pk="${id}"]`);
+
+    pkZone().querySelector<HTMLElement>('[data-edit-bag="c1"]')!.click();
+    modal().querySelector<HTMLElement>('.bagf-swatch[data-tone="5"]')!.click();
+    modal().querySelector<HTMLElement>('.bagf-size[data-size="S"]')!.click();
+    modal().querySelector<HTMLElement>('[data-act="confirm"]')!.click();
+
+    await vi.waitFor(() => {
+      const l = docs.get(`trips/t1/packLists/${id}`) as { containers: Record<string, unknown>[] };
+      expect(l.containers[0]).toMatchObject({ tone: 5, size: 'S' });
+    });
+    expect(pkZone().querySelector('.pkd-bag .lg-bag')!.getAttribute('data-tone')).toBe('5');
   });
 });

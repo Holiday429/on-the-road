@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolvePhase } from './phase-strip.ts';
+import { resolveAlert, resolvePhase, ring, WEIGH_URGENT_DAYS } from './phase-strip.ts';
 
 describe('resolvePhase', () => {
   it('returns "none" when there is no trip/leg data at all', () => {
@@ -31,5 +31,35 @@ describe('resolvePhase', () => {
   it('returns "none" once the trip phase is "after", regardless of daysToGo', () => {
     expect(resolvePhase(-30, 'after')).toBe('none');
     expect(resolvePhase(null, 'after')).toBe('none');
+  });
+});
+
+describe('resolveAlert', () => {
+  it('says nothing when there is nothing to say', () => {
+    expect(resolveAlert(null, 3)).toBeNull();
+  });
+
+  it('an overweight bag is always urgent and leads to the list', () => {
+    const a = resolveAlert({ kind: 'over', listId: 'l1', count: 2 }, 90)!;
+    expect(a).toMatchObject({ kind: 'over', listId: 'l1', urgent: true });
+    expect(a.sub).toContain('2');
+  });
+
+  it('bags still to weigh are calm far from departure and urgent in the last two weeks', () => {
+    const far = resolveAlert({ kind: 'weigh', listId: 'l1', count: 3 }, WEIGH_URGENT_DAYS + 1)!;
+    const soon = resolveAlert({ kind: 'weigh', listId: 'l1', count: 3 }, WEIGH_URGENT_DAYS)!;
+    expect(far.urgent).toBe(false);
+    expect(soon.urgent).toBe(true);
+    expect(soon.sub).toContain(String(WEIGH_URGENT_DAYS));
+    expect(resolveAlert({ kind: 'weigh', listId: 'l1', count: 3 }, null)!.urgent).toBe(false);   // no dates
+    expect(resolveAlert({ kind: 'weigh', listId: 'l1', count: 3 }, -2)!.urgent).toBe(false);     // already left
+  });
+});
+
+describe('ring', () => {
+  it('clamps the arc and escapes the label', () => {
+    expect(ring(2, 'x')).toContain(`stroke-dasharray="${(2 * Math.PI * 18).toFixed(1)} `);
+    expect(ring(-1, 'x')).toContain('stroke-dasharray="0.0 ');
+    expect(ring(0.5, '<b>')).toContain('&lt;b&gt;');
   });
 });

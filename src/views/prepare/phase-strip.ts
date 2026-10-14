@@ -1,10 +1,11 @@
 /* ==========================================================================
    On the Road · Prepare — readiness hero
    --------------------------------------------------------------------------
-   The one place Checklist and Pack data meet. A countdown sets the framing
-   ("what stage am I at"), and beside it the two sections report where they
-   stand — total checklist progress and total packed weight — so the page
-   answers "am I ready to leave?" instead of just listing two tools.
+   The one place Checklist and Pack data meet, drawn like the Dashboard's trip
+   banner: a countdown ring, a line of copy, the two sections' standing as small
+   rings (checklist progress, packed weight vs limits) and — only when there is
+   something to say — one alert (a bag over its limit / bags still to weigh) that
+   takes the place the old "Weigh my bags" card and pre-trip strip used to hold.
    ========================================================================== */
 
 import type { Phase } from '../../data/trip-phase.ts';
@@ -26,7 +27,8 @@ export function resolvePhase(daysToGo: number | null, tripPhase: Phase): PhaseFo
 
 export interface HeroStats {
   checklist: { done: number; total: number; pct: number; lists: number };
-  pack: { lists: number; bags: number; weightLabel: string; over: boolean };
+  /** `pct` is weight against the bags' limits (null when no limit is set anywhere). */
+  pack: { lists: number; bags: number; weightLabel: string; over: boolean; pct: number | null };
 }
 
 interface PhaseCopy { eyebrow: string; title: string; chip: string }
@@ -49,70 +51,116 @@ export function heroChipAction(focus: PhaseFocus): 'check' | 'bagChange' | null 
   return null;
 }
 
-function statCell(label: string, value: string, meta: string, opts: { warn?: boolean; pct?: number } = {}): string {
+/* ── Alert slot ──────────────────────────────────────────────────────────── */
+
+export interface HeroAlert {
+  kind: 'over' | 'weigh';
+  listId: string;
+  title: string;
+  sub: string;
+  /** Departure is close: the slot pulses. */
+  urgent: boolean;
+}
+
+/** Days before departure within which a pending weigh-in is flagged as urgent. */
+export const WEIGH_URGENT_DAYS = 14;
+
+/** Pure: the one thing the banner raises. An overweight bag outranks bags merely not weighed. */
+export function resolveAlert(a: { kind: 'over' | 'weigh'; listId: string; count: number } | null, daysToGo: number | null): HeroAlert | null {
+  if (!a) return null;
+  const soon = daysToGo !== null && daysToGo >= 0 && daysToGo <= WEIGH_URGENT_DAYS;
+  if (a.kind === 'over') {
+    return { kind: 'over', listId: a.listId, title: t('prep.alertOverTitle'), sub: t('prep.alertOverSub', { n: a.count }), urgent: true };
+  }
+  return {
+    kind: 'weigh', listId: a.listId, title: t('prep.alertWeighTitle'),
+    sub: soon && daysToGo !== null ? t('prep.alertWeighSoon', { n: a.count, days: daysToGo }) : t('prep.alertWeighSub', { n: a.count }),
+    urgent: soon,
+  };
+}
+
+/* ── Pieces ──────────────────────────────────────────────────────────────── */
+
+const RING_R = 18;
+const RING_C = 2 * Math.PI * RING_R;
+
+/** A small progress ring with a centred label — the same vocabulary as the Dashboard's trip dial. */
+export function ring(fraction: number, center: string, tone: 'accent' | 'ok' | 'warn' | 'muted' = 'accent'): string {
+  const dash = (RING_C * Math.min(1, Math.max(0, fraction))).toFixed(1);
   return `
-    <div class="prep-hero-stat${opts.warn ? ' is-warn' : ''}">
-      <div class="prep-hero-stat-label">${escHtml(label)}</div>
-      <div class="prep-hero-stat-value">${escHtml(value)}</div>
-      ${opts.pct !== undefined
-        ? `<div class="prep-hero-bar"><div class="prep-hero-bar-fill" style="width:${opts.pct}%"></div></div>`
-        : `<div class="prep-hero-bar is-placeholder"></div>`}
-      <div class="prep-hero-stat-meta">${escHtml(meta)}</div>
+    <span class="prep-ring is-${tone}" data-len="${center.length}">
+      <svg viewBox="0 0 44 44" aria-hidden="true">
+        <circle class="prep-ring-track" cx="22" cy="22" r="${RING_R}"/>
+        <circle class="prep-ring-arc" cx="22" cy="22" r="${RING_R}" stroke-dasharray="${dash} ${RING_C.toFixed(1)}" transform="rotate(-90 22 22)"/>
+      </svg>
+      <span class="prep-ring-num">${escHtml(center)}</span>
+    </span>`;
+}
+
+/** Ring + text for the countdown: D-23 before the trip, a plane while travelling, a compass with no dates. */
+function dial(focus: PhaseFocus, daysToGo: number | null): string {
+  if (focus === 'traveling') return ring(1, '✈️', 'ok');
+  if (daysToGo !== null && daysToGo >= 0 && focus !== 'none') {
+    // The ring fills over the last 60 days; further out it is just a sliver.
+    return ring(daysToGo >= 60 ? 0.04 : 1 - daysToGo / 60, `D-${daysToGo}`);
+  }
+  return ring(0, '🧭', 'muted');
+}
+
+function statCell(ringHtml: string, label: string, value: string, meta: string, warn = false): string {
+  return `
+    <div class="prep-hero-stat${warn ? ' is-warn' : ''}">
+      ${ringHtml}
+      <div class="prep-hero-stat-text">
+        <div class="prep-hero-stat-label">${escHtml(label)}</div>
+        <div class="prep-hero-stat-value">${escHtml(value)}</div>
+        <div class="prep-hero-stat-meta">${escHtml(meta)}</div>
+      </div>
     </div>`;
 }
 
-/**
- * Render the hero.
- *
- * With nothing prepared yet there is no readiness to report, so the hero
- * collapses to a single quiet line rather than a tall card of em-dashes —
- * the empty rails below do the guiding at that point. It grows into the full
- * countdown + stats card as soon as there's either a trip date or any list.
- */
-export function renderHero(focus: PhaseFocus, daysToGo: number | null, stats: HeroStats): string {
+/** Render the banner. Same structure in every state — only the content changes. */
+export function renderHero(focus: PhaseFocus, daysToGo: number | null, stats: HeroStats, alert: HeroAlert | null = null): string {
   const cl = stats.checklist;
   const pk = stats.pack;
-  const hasData = cl.total > 0 || pk.lists > 0;
-
-  if (focus === 'none' && !hasData) {
-    return `
-      <div class="prep-hero prep-hero--bare">
-        <span class="prep-hero-bare-icon">🧭</span>
-        <span class="prep-hero-bare-text">${escHtml(t('prep.heroNoTripTitle'))}</span>
-      </div>`;
-  }
-
   const copy = copyFor(focus);
-  const showCount = daysToGo !== null && daysToGo >= 0 && focus !== 'none';
   const chip = copy && heroChipAction(focus)
     ? `<button class="prep-hero-chip" id="prep-hero-action">${escHtml(copy.chip)}</button>`
     : '';
 
   const clStat = cl.total > 0
-    ? statCell(t('prep.statChecklist'), `${cl.done}/${cl.total}`, t('prep.statChecklistMeta', { lists: cl.lists }), { pct: cl.pct })
-    : statCell(t('prep.statChecklist'), '—', t('prep.statChecklistEmpty'));
+    ? statCell(ring(cl.pct / 100, `${cl.pct}%`, cl.pct >= 100 ? 'ok' : 'accent'), t('prep.statChecklist'), `${cl.done}/${cl.total}`,
+      cl.lists === 1 ? t('prep.statChecklistMeta1') : t('prep.statChecklistMeta', { lists: cl.lists }))
+    : statCell(ring(0, '📋', 'muted'), t('prep.statChecklist'), t('prep.statNone'), t('prep.statChecklistEmpty'));
 
-  const pkStat = pk.lists > 0
-    ? statCell(t('prep.statPack'), pk.weightLabel, pk.over ? t('prep.statPackOver') : t('prep.statPackMeta', { bags: pk.bags }), { warn: pk.over })
-    : statCell(t('prep.statPack'), '—', t('prep.statPackEmpty'));
+  const pkStat = pk.bags > 0
+    ? statCell(ring(pk.pct ?? 0, '🎒', pk.over ? 'warn' : 'accent'), t('prep.statPack'), pk.weightLabel,
+      pk.over ? t('prep.statPackOver') : pk.bags === 1 ? t('prep.statPackMeta1') : t('prep.statPackMeta', { bags: pk.bags }), pk.over)
+    : statCell(ring(0, '🎒', 'muted'), t('prep.statPack'), t('prep.statNone'), t('prep.statPackEmpty'));
+
+  const alertHtml = alert ? `
+      <button type="button" class="prep-hero-alert is-${alert.kind}${alert.urgent ? ' is-urgent' : ''}" id="prep-hero-alert"
+              data-alert="${alert.kind}" data-alert-list="${escHtml(alert.listId)}">
+        <span class="prep-hero-alert-icon" aria-hidden="true">${alert.kind === 'over' ? '⚠️' : '⚖️'}</span>
+        <span class="prep-hero-alert-text">
+          <span class="prep-hero-alert-title">${escHtml(alert.title)}</span>
+          <span class="prep-hero-alert-sub">${escHtml(alert.sub)}</span>
+        </span>
+        <span class="prep-hero-alert-go" aria-hidden="true">›</span>
+      </button>` : '';
 
   return `
     <div class="prep-hero" data-focus="${escHtml(focus)}">
-      <div class="prep-hero-lead">
-        ${showCount ? `
-          <div class="prep-hero-count">
-            <span class="prep-hero-count-num">${daysToGo}</span>
-            <span class="prep-hero-count-label">${escHtml(t('prep.daysLabel'))}</span>
-          </div>` : ''}
-        <div class="prep-hero-copy">
-          <div class="prep-hero-eyebrow">${escHtml(copy ? copy.eyebrow : t('prep.heroNoTripEyebrow'))}</div>
-          <div class="prep-hero-title">${escHtml(copy ? copy.title : t('prep.heroNoTripTitle'))}</div>
-        </div>
+      <div class="prep-hero-dial">${dial(focus, daysToGo)}</div>
+      <div class="prep-hero-copy">
+        <div class="prep-hero-eyebrow">${escHtml(copy ? copy.eyebrow : t('prep.heroNoTripEyebrow'))}</div>
+        <div class="prep-hero-title">${escHtml(copy ? copy.title : t('prep.heroNoTripTitle'))}</div>
         ${chip}
       </div>
       <div class="prep-hero-stats">
         ${clStat}
         ${pkStat}
       </div>
+      ${alertHtml}
     </div>`;
 }

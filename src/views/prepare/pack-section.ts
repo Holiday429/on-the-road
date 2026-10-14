@@ -24,6 +24,9 @@ import { buildPackSuggestions } from '../../data/pack-suggestions.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
 import { escHtml } from '../../core/utils.ts';
 import { bagIcon } from '../../core/icons.ts';
+import { bagLook, BAG_TONES, type BagSize } from '../../core/paper/luggage.ts';
+import { openBagForm } from './pack-bag-form.ts';
+import { wireMenus } from './prepare-ui.ts';
 import { openWeighIn } from './weigh-scale.ts';
 import { createWeighStage, type WeighStage } from './weigh-stage.ts';
 import { renderDetailMarkup, weighBtnInner, weighSentence, type DetailCtx } from './pack-detail.ts';
@@ -36,7 +39,7 @@ import { consumeNavIntent } from '../../core/app.ts';
 import {
   PACK_CATEGORIES, DEFAULT_CATEGORY, categoryColor, categoryLabel, categoryOptions,
   type WeightUnit, WEIGHT_UNITS, toGrams, displayWeight,
-  KINDS, PRIORITIES, priRank,
+  PRIORITIES, priRank,
   num, genLocalId, containerWeight, listTotalWeight, isOver,
 } from '../pack/pack-helpers.ts';
 
@@ -948,54 +951,38 @@ function bindDetail(c: HTMLElement, l: PackList) {
     openBagChangeModal(l as StoredPackList);
   });
 
-  /* Add bag — now uses openModal instead of inline HTML */
+  /* Add a bag / restyle one — the same form, with a live picture */
+  const unitLabel = weightUnit === 'jin' ? '斤' : weightUnit;
   c.querySelector('#pk-open-add-bag')?.addEventListener('click', () => {
-    const m = openModal({
-      title: 'Add bag',
-      body: `
-        <label class="field-label">Name</label>
-        <input class="input" id="pk-c-label" placeholder="e.g. Carry-on backpack">
-        <div style="display:flex;gap:var(--sp-3);margin-top:var(--sp-4)">
-          <div style="flex:1">
-            <label class="field-label">Type</label>
-            <select class="input" id="pk-c-kind">
-              ${KINDS.map(k => `<option value="${k.value}">${k.label}</option>`).join('')}
-            </select>
-          </div>
-          <div style="width:96px">
-            <label class="field-label">Empty (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
-            <input class="input" id="pk-c-self" type="number" min="0" step="any" placeholder="0">
-          </div>
-          <div style="width:96px">
-            <label class="field-label">Limit (${weightUnit === 'jin' ? '斤' : weightUnit})</label>
-            <input class="input" id="pk-c-limit" type="number" min="0" step="any" placeholder="0">
-          </div>
-        </div>
-      `,
-      footer: `
-        <button class="btn btn-ghost" data-act="cancel">Cancel</button>
-        <button class="btn btn-primary" data-act="confirm">Add bag</button>
-      `,
-    });
-    m.root.querySelector('[data-act="cancel"]')?.addEventListener('click', () => m.close());
-    const confirmAddBag = async () => {
-      const label = (m.root.querySelector<HTMLInputElement>('#pk-c-label')?.value || '').trim();
-      if (!label) { m.root.querySelector<HTMLInputElement>('#pk-c-label')?.focus(); return; }
-      const kind = (m.root.querySelector<HTMLSelectElement>('#pk-c-kind')?.value || 'backpack') as PackContainer['kind'];
-      const knownBags = new Set((activeList()?.containers ?? []).map(b => b.id));
-      await packStore.addContainer(id, {
-        label, kind,
-        selfWeightG: toGrams(num(m.root.querySelector<HTMLInputElement>('#pk-c-self')?.value || '0'), weightUnit),
-        limitG:      toGrams(num(m.root.querySelector<HTMLInputElement>('#pk-c-limit')?.value || '0'), weightUnit),
-      });
-      m.close();
-      scheduleWeigh(undefined, knownBags);
-    };
-    m.root.querySelector('[data-act="confirm"]')?.addEventListener('click', confirmAddBag);
-    m.root.querySelector<HTMLInputElement>('#pk-c-label')?.addEventListener('keydown', e => {
-      if ((e as KeyboardEvent).key === 'Enter') void confirmAddBag();
+    const live = activeList() ?? l;
+    openBagForm({
+      defaultTone: live.containers.length % BAG_TONES,
+      unitLabel,
+      toGrams: (n) => toGrams(n, weightUnit),
+      onSave: async (v) => {
+        const knownBags = new Set(live.containers.map(b => b.id));
+        await packStore.addContainer(id, {
+          label: v.label, kind: v.kind, selfWeightG: v.selfWeightG ?? 0, limitG: v.limitG ?? 0, tone: v.tone, size: v.size,
+        });
+        scheduleWeigh(undefined, knownBags);
+      },
     });
   });
+  c.querySelectorAll<HTMLElement>('[data-edit-bag]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const bag = (activeList() ?? l).containers.find(b => b.id === btn.dataset.editBag);
+      if (!bag) return;
+      openBagForm({
+        existing: bag, defaultTone: 0, unitLabel, toGrams: (n) => toGrams(n, weightUnit),
+        onSave: async (v) => { await packStore.updateContainer(id, bag.id, { label: v.label, kind: v.kind, tone: v.tone, size: v.size }); },
+      });
+    });
+  });
+  c.querySelector('[data-act="delete-pk"]')?.addEventListener('click', async () => {
+    if (confirm(t('prep.confirmDeletePackList'))) await packStore.remove(id); // the repaint sends us back to the landing
+  });
+  wireMenus();
 
   c.querySelectorAll<HTMLElement>('.pk-del-c').forEach(b => {
     b.addEventListener('click', async () => { await packStore.removeContainer(id, b.dataset.id!); });
@@ -1424,6 +1411,8 @@ export function peekPackRows(): {
 export interface PackSceneBag {
   id: string; label: string; kind: PackContainer['kind'];
   weightG: number; limitG: number; over: boolean; loadPct: number;
+  /** Resolved look: the bag's own choice, else derived from its id / weight limit. */
+  tone: number; size: BagSize;
 }
 
 /** A pack list's bags and weigh-in standing, for the landing scene and its Weigh card. */
@@ -1436,6 +1425,7 @@ export function peekPackScene(id: string): { bags: PackSceneBag[]; status: Retur
       const r = rows[i];
       return {
         id: c.id, label: c.label, kind: c.kind, weightG: r.weightG, limitG: r.limitG, over: r.verdict === 'over',
+        ...bagLook(c),
         loadPct: r.limitG ? Math.min(100, Math.round((r.weightG / r.limitG) * 100)) : Math.min(100, Math.round(r.weightG / 100)),
       };
     }),
@@ -1443,12 +1433,20 @@ export function peekPackScene(id: string): { bags: PackSceneBag[]; status: Retur
   };
 }
 
-/** The first list (with bags) whose weigh-in is missing, stale or failing — the pre-trip notice's subject. */
-export function packWeighNeeds(): { listId: string; status: ReturnType<typeof weighStatus> } | null {
+/** What the Prepare banner should nag about: a bag over its limit, else bags that still need weighing. */
+export interface PackAlert { kind: 'over' | 'weigh'; listId: string; listName: string; count: number }
+
+export function packAlert(): PackAlert | null {
+  for (const l of _lists) {
+    const over = l.containers.filter(c => isOver(l, c)).length;
+    if (over) return { kind: 'over', listId: l.id, listName: l.name, count: over };
+  }
   for (const l of _lists) {
     if (!l.containers.length) continue;
     const status = weighStatus(weighIn(l), loadRecord(l.id));
-    if (status.state !== 'ok') return { listId: l.id, status };
+    if (status.state === 'none' || status.state === 'stale') {
+      return { kind: 'weigh', listId: l.id, listName: l.name, count: status.pending || status.bags };
+    }
   }
   return null;
 }
