@@ -13,6 +13,7 @@
    ========================================================================== */
 
 import './styles/pack.css';
+import './styles/pack-detail.css';
 import { packStore, STANDALONE_TRIP_ID, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { currentTrip } from '../../data/trip-context.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
@@ -22,14 +23,20 @@ import { itemWeightG, formatKg, itemsPresentAtLeg } from '../../data/packing-for
 import { buildPackSuggestions } from '../../data/pack-suggestions.ts';
 import type { PackList, PackItem, PackContainer, PackPriority } from '../../data/schema.ts';
 import { escHtml } from '../../core/utils.ts';
+import { bagIcon } from '../../core/icons.ts';
 import { openWeighIn } from './weigh-scale.ts';
+import { createWeighStage, type WeighStage } from './weigh-stage.ts';
+import { renderDetailMarkup, weighBtnInner, weighSentence, type DetailCtx } from './pack-detail.ts';
 import { weighIn } from '../pack/weigh-in.ts';
+import {
+  weighStatus, loadRecord, recordWeighIn, makeSlip, loadSlips, saveSlip, type WeighSlip,
+} from '../pack/weigh-status.ts';
 import { t } from '../../core/i18n.ts';
 import { consumeNavIntent } from '../../core/app.ts';
 import {
   PACK_CATEGORIES, DEFAULT_CATEGORY, categoryColor, categoryLabel, categoryOptions,
   type WeightUnit, WEIGHT_UNITS, toGrams, displayWeight,
-  KINDS, PRIORITIES, priRank, kindLabel,
+  KINDS, PRIORITIES, priRank,
   num, genLocalId, containerWeight, listTotalWeight, isOver,
 } from '../pack/pack-helpers.ts';
 
@@ -96,7 +103,9 @@ function scheduleWeigh(bagId: string | undefined, knownBags?: Set<string>): void
     const rows = weighIn(l, target);
     // Nothing to show for an empty bag with no limit.
     if (!rows.length || (rows[0].weightG === 0 && rows[0].verdict === 'nolimit')) return;
-    openWeighIn({ rows, fmt: bagWeight, mode: 'one' });
+    // The scale is on screen: weigh there. Otherwise the corner card, so nothing plays unseen.
+    if (_stage && isStageVisible()) void weighBags([target], { scroll: false });
+    else openWeighIn({ rows, fmt: bagWeight, mode: 'one' });
   }, 600);
 }
 
@@ -141,6 +150,7 @@ function render() {
 
   _onScreenChange?.(screen);
 
+  if (screen !== 'detail') { _stage = null; _stageFor = null; }
   if (screen === 'detail') renderDetail(body, activeList()!);
   else if (screen === 'kit') renderKit(body);
   else body.replaceChildren(); // 'list' → the Prepare landing owns this state
@@ -302,118 +312,134 @@ function renderBagChangeSummary(l: StoredPackList): string {
 
 /* ── Detail screen ───────────────────────────────────────────────────────── */
 
-function renderDetail(c: HTMLElement, l: PackList) {
-  const unassigned = l.items.filter(i => i.containerId === null);
-  const hasLegs = _legs.length > 0;
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  c.innerHTML = `
-    <div class="pack-detail">
-      <div class="pack-detail-bar">
-        <button class="btn btn-ghost pk-sm" id="pk-back">${t('pack.btnBackAllLists')}</button>
-        <div class="pack-detail-title">${escHtml(l.name)}</div>
-        <div class="pack-detail-actions">
-          ${l.containers.length ? `<button class="btn btn-ghost pk-sm" id="pk-weigh">${t('pack.weigh.btn')}</button>` : ''}
-          ${hasLegs ? `<button class="btn btn-ghost pk-sm" id="pk-record-change">${t('pack.btnRecordChange')}</button>` : ''}
-          <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">${t('pack.btnAddBag')}</button>
-          <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${packCheckMode ? 'checked' : ''}> ${t('pack.packCheck')}</label>
-        </div>
-      </div>
+/* ── Screen state that outlives a repaint ────────────────────────────────── */
 
-      ${packCheckMode ? renderPackCheck(l) : ''}
+let selectedItemId: string | null = null;
+const bagOpenOverride = new Map<string, boolean>();
+let _stage: WeighStage | null = null;
+let _stageFor: string | null = null;
+let lastSlip: WeighSlip | null = null;
+let slipsOpen = false;
+let bumpBag: string | undefined;
+let lastDragAt = 0;
 
-      ${renderBagChangeSummary(l as StoredPackList)}
+const soundOn = () => localStorage.getItem('pk-weigh-sound') === '1';
 
-      <div class="pack-add-panel">
-        <span class="pack-add-label">New item</span>
-        <input class="input pack-add-name" id="pk-add-name" placeholder="Name…">
-        <select class="input pack-add-cat" id="pk-add-cat">
-          ${categoryOptions('other')}
-        </select>
-        <input class="input pack-add-weight" id="pk-add-weight" type="number" min="0" step="any" placeholder="${weightUnit === 'jin' ? '斤' : weightUnit}">
-        <select class="input pack-add-pri" id="pk-add-pri">
-          ${PRIORITIES.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
-        </select>
-        <button class="btn btn-primary pk-sm pack-add-btn" id="pk-add-item">Add ↵</button>
-      </div>
-
-      <div class="pack-detail-layout">
-        <div class="pack-containers-grid">
-          ${l.containers.map(ct => renderContainerCard(l, ct)).join('')}
-        </div>
-        ${renderUnassigned(l, unassigned)}
-      </div>
-    </div>
-
-    <div id="pk-drag-ghost" class="pk-drag-ghost" hidden></div>
-  `;
-  bindDetail(c, l);
+/** The heaviest low-priority item that would fix an overweight bag — what to take out. */
+function suggestFor(bagId: string): string | null {
+  const l = activeList();
+  const bag = l?.containers.find(b => b.id === bagId);
+  if (!l || !bag) return null;
+  const excess = containerWeight(l, bag) - bag.limitG;
+  if (excess <= 0) return null;
+  const pool = l.items
+    .filter(i => i.containerId === bagId && i.source !== 'core')
+    .sort((a, b) => priRank(a.priority) - priRank(b.priority) || itemWeightG(b) - itemWeightG(a));
+  const pick = pool.find(i => itemWeightG(i) >= excess) ?? pool[0];
+  return pick ? t('pack.scale.suggest', { item: pick.name }) : null;
 }
 
-function renderContainerCard(l: PackList, c: PackContainer): string {
-  const used = containerWeight(l, c);
-  const over = isOver(l, c);
-  const pct = c.limitG > 0 ? Math.min(100, (used / c.limitG) * 100) : 0;
-  const items = l.items
-    .filter(i => i.containerId === c.id)
-    .sort((a, b) => priRank(a.priority) - priRank(b.priority) || a.order - b.order);
-  // When over, flag the lowest-priority items in this bag as drop candidates.
-  const dropCandidate = new Set<string>();
-  if (over) {
-    let excess = used - c.limitG;
-    for (const it of items.filter(i => i.source !== 'core')) {
-      if (excess <= 0) break;
-      dropCandidate.add(it.id);
-      excess -= itemWeightG(it);
-    }
+function getStage(): WeighStage {
+  if (_stage && _stageFor === activeId) return _stage;
+  _stageFor = activeId;
+  _stage = createWeighStage({
+    rows: () => { const l = activeList(); return l ? weighIn(l) : []; },
+    fmt: bagWeight,
+    suggest: suggestFor,
+    sound: soundOn,
+    onBag: (row) => {
+      if (activeId) recordWeighIn(activeId, [row]);
+      paintWeighStatus();
+    },
+  });
+  return _stage;
+}
+
+function currentStatus(l: PackList) {
+  return weighStatus(weighIn(l), activeId ? loadRecord(activeId) : null);
+}
+
+/** Repaints just the Weigh button and its sentence (no full re-render mid-animation). */
+function paintWeighStatus(): void {
+  const c = getRoot();
+  const l = activeList();
+  if (!c || !l) return;
+  const st = currentStatus(l);
+  const btn = c.querySelector<HTMLElement>('#pk-weigh');
+  // eslint-disable-next-line no-restricted-syntax -- audited: weighBtnInner escapes its label
+  if (btn) { btn.className = `pkd-weigh is-${st.state}`; btn.innerHTML = weighBtnInner(st); }
+  const line = c.querySelector<HTMLElement>('#pk-weigh-status');
+  if (line) { line.className = `pkd-status is-${st.state}`; line.textContent = weighSentence(st); }
+}
+
+function isStageVisible(): boolean {
+  const el = _stage?.el;
+  if (!el || !el.isConnected) return false;
+  const r = el.getBoundingClientRect();
+  return r.bottom > 0 && r.top < window.innerHeight;
+}
+
+/** Puts bags on the scale. `all` = the whole-list weigh-in, which ends in a slip. */
+async function weighBags(ids: string[], opts: { all?: boolean; scroll?: boolean } = {}): Promise<void> {
+  const l = activeList();
+  const c = getRoot();
+  if (!l || !c || !ids.length) return;
+  const stage = getStage();
+  if (stage.busy()) return;
+  if (!stage.el.isConnected) return;
+  if (opts.scroll !== false) {
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    stage.el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'nearest' });
   }
-  return `
-    <div class="pack-container-card ${over ? 'is-over' : ''}" data-id="${c.id}">
-      <div class="pack-c-head">
-        <div class="pack-c-titlewrap">
-          <span class="pack-c-name">${escHtml(c.label)}</span>
-          <span class="pack-c-kind">${kindLabel(c.kind)}</span>
-        </div>
-        <button class="pk-del-c" data-id="${c.id}" title="Remove bag">✕</button>
-      </div>
-
-      <div class="pack-c-limits">
-        <label>Empty <input class="pk-c-self-edit pk-mini" data-id="${c.id}" type="number" min="0" step="any" value="${c.selfWeightG ? kitWeightDisplay(c.selfWeightG) : ''}" placeholder="0"> ${unitLabel()}</label>
-        <label>Limit <input class="pk-c-limit-edit pk-mini" data-id="${c.id}" type="number" min="0" step="any" value="${c.limitG ? kitWeightDisplay(c.limitG) : ''}" placeholder="0"> ${unitLabel()}</label>
-      </div>
-
-      <div class="pack-c-meter">
-        <div class="pack-c-num ${over ? 'is-over' : ''}">${bagWeight(used)}${c.limitG > 0 ? ` / ${bagWeight(c.limitG)}` : ''}</div>
-        <div class="pack-bar"><span class="${over ? 'is-over' : ''}" style="width:${pct}%"></span></div>
-        ${over ? `<div class="pack-c-warn">${t('pack.overBy', { w: bagWeight(used - c.limitG) })}</div>` : ''}
-      </div>
-
-      <div class="pack-c-items pk-drop-zone" data-container-id="${c.id}">
-        ${items.length === 0
-          ? `<div class="pack-c-empty">${t('pack.emptyBagHint')}</div>`
-          : items.map(i => renderItemTag(i, dropCandidate.has(i.id))).join('')}
-      </div>
-    </div>
-  `;
+  stage.el.classList.add('is-seen');
+  lastSlip = null;
+  c.querySelector('.pkd-slip')?.remove();
+  const shown = await stage.run(ids);
+  if (opts.all && shown.length && activeList()) {
+    lastSlip = makeSlip(shown);
+    render();
+  }
 }
 
-function renderUnassigned(_l: PackList, items: PackItem[]): string {
-  const w = items.reduce((s, i) => s + itemWeightG(i), 0);
-  const sorted = [...items].sort((a, b) => priRank(a.priority) - priRank(b.priority) || a.order - b.order);
-  const weightNote = items.length > 0 ? t('pack.waiting', { w: displayWeight(w, weightUnit) }) : '';
-  return `
-    <div class="pack-unassigned-panel">
-      <div class="pack-unassigned-head">
-        <span class="pack-unassigned-title">${t('pack.unassigned')}</span>
-        ${weightNote ? `<span class="pack-unassigned-note">${weightNote}</span>` : ''}
-        <span class="pack-unassigned-badge">Temp</span>
-      </div>
-      <div class="pack-c-items pk-drop-zone pack-unassigned-items" data-container-id="">
-        ${items.length === 0
-          ? `<div class="pack-c-empty">${t('pack.unassignedHint')}</div>`
-          : sorted.map(i => renderItemTag(i, false)).join('')}
-      </div>
-    </div>
-  `;
+function detailCtx(l: PackList): DetailCtx {
+  return {
+    list: l,
+    hasLegs: _legs.length > 0,
+    unit: weightUnit,
+    weightUnitLabel: unitLabel(),
+    packCheck: packCheckMode,
+    selectedItemId,
+    bagOpen: (id, n) => bagOpenOverride.get(id) ?? n <= 8,
+    fmt: bagWeight,
+    inputWeight: kitWeightDisplay,
+    renderItemTag: (i, drop) => renderItemTag(i, drop),
+    packCheckHtml: () => renderPackCheck(l),
+    changeSummaryHtml: renderBagChangeSummary(l as StoredPackList),
+    status: currentStatus(l),
+    slip: lastSlip,
+    slips: activeId ? loadSlips(activeId) : [],
+    slipsOpen,
+    suggest: suggestFor,
+  };
+}
+
+function renderDetail(c: HTMLElement, l: PackList) {
+  if (_stageFor !== activeId) { _stage = null; lastSlip = null; selectedItemId = null; bagOpenOverride.clear(); }
+  if (selectedItemId && !l.items.some(i => i.id === selectedItemId)) selectedItemId = null;
+  const ctx = detailCtx(l);
+  const saved = new Set(ctx.slips.map(s => s.id));
+  // eslint-disable-next-line no-restricted-syntax -- audited: renderDetailMarkup escapes every interpolation (pack-detail.ts)
+  c.innerHTML = renderDetailMarkup(ctx, saved);
+  // The scale stage is built once and moved back in, so an animation survives a repaint.
+  const stage = getStage();
+  stage.setSoundLabel();
+  c.querySelector('[data-stage-slot]')?.replaceWith(stage.el);
+  bindDetail(c, l);
+  if (bumpBag !== undefined) {
+    const card = c.querySelector<HTMLElement>(`.pkd-bag[data-cid="${CSS.escape(bumpBag)}"]`);
+    card?.classList.add('is-bump');
+    bumpBag = undefined;
+  }
 }
 
 function renderItemTag(i: PackItem, isDropCandidate: boolean): string {
@@ -428,7 +454,7 @@ function renderItemTag(i: PackItem, isDropCandidate: boolean): string {
     : `${catLabel} · ${wDisplay}${qtyNote} · ${priLabel}`;
   const dropStyle = isDropCandidate ? 'outline:2px solid var(--coral-400);' : '';
   return `
-    <div class="pack-item-tag ${i.packed ? 'is-packed' : ''}"
+    <div class="pack-item-tag ${i.packed ? 'is-packed' : ''}${i.id === selectedItemId ? ' is-selected' : ''}"
          data-id="${i.id}" data-drag="item" data-tooltip="${escHtml(tooltip)}"
          style="--tint-bg:${bgColor};${dropStyle}">
       ${packCheckMode ? `<input type="checkbox" class="pk-packed" data-id="${i.id}" ${i.packed ? 'checked' : ''} style="flex-shrink:0">` : ''}
@@ -856,14 +882,64 @@ function openFormulaModal() {
 
 /* ── Bind: detail screen ─────────────────────────────────────────────────── */
 
+function toggleBag(bagId: string): void {
+  const l = activeList();
+  const n = l ? l.items.filter(i => i.containerId === bagId).length : 0;
+  bagOpenOverride.set(bagId, !(bagOpenOverride.get(bagId) ?? n <= 8));
+  render();
+}
+
 function bindDetail(c: HTMLElement, l: PackList) {
   const id = l.id;
 
   c.querySelector('#pk-back')?.addEventListener('click', () => { screen = 'list'; activeId = null; render(); });
-  c.querySelector<HTMLButtonElement>('#pk-weigh')?.addEventListener('click', (e) => {
+  c.querySelector<HTMLButtonElement>('#pk-weigh')?.addEventListener('click', () => {
     clearTimeout(weighTimer);
-    const fresh = activeList() ?? l;
-    openWeighIn({ rows: weighIn(fresh), fmt: bagWeight, mode: 'all', returnFocus: e.currentTarget as HTMLElement });
+    void weighBags((activeList() ?? l).containers.map(b => b.id), { all: true });
+  });
+
+  /* Scale stage: sound switch */
+  getStage().el.querySelector<HTMLElement>('[data-wst-sound]')?.addEventListener('click', () => {
+    localStorage.setItem('pk-weigh-sound', soundOn() ? '0' : '1');
+    _stage?.setSoundLabel();
+  });
+
+  /* Bag cards: open / put on the scale / move the selected item here */
+  c.querySelectorAll<HTMLElement>('[data-bag-toggle]').forEach(b => {
+    b.addEventListener('click', () => toggleBag(b.dataset.bagToggle!));
+  });
+  c.querySelectorAll<HTMLElement>('[data-bag-weigh]').forEach(b => {
+    b.addEventListener('click', () => { clearTimeout(weighTimer); void weighBags([b.dataset.bagWeigh!]); });
+  });
+  c.querySelectorAll<HTMLElement>('[data-move-here]').forEach(b => {
+    b.addEventListener('click', () => {
+      const item = selectedItemId;
+      if (!item) return;
+      const to = b.dataset.moveHere || null;
+      selectedItemId = null;
+      bumpBag = to ?? undefined;
+      void packStore.moveItem(id, item, to);
+    });
+  });
+
+  /* Weigh-in slip + history */
+  c.querySelector('[data-slip-save]')?.addEventListener('click', () => {
+    if (lastSlip) saveSlip(id, lastSlip);
+    slipsOpen = true;
+    render();
+  });
+  c.querySelector('[data-slip-dismiss]')?.addEventListener('click', () => { lastSlip = null; render(); });
+  c.querySelector('[data-history-toggle]')?.addEventListener('click', () => { slipsOpen = !slipsOpen; render(); });
+
+  /* Tapping an item tag selects it (then "Move here" on a bag) — the touch/keyboard way to pack */
+  c.querySelectorAll<HTMLElement>('[data-drag="item"]').forEach(tag => {
+    tag.addEventListener('click', e => {
+      if (Date.now() - lastDragAt < 300) return;
+      if ((e.target as HTMLElement).closest('button, input, select, .pk-edit-popover, [contenteditable="true"]')) return;
+      const tid = tag.dataset.id!;
+      selectedItemId = selectedItemId === tid ? null : tid;
+      render();
+    });
   });
   c.querySelector('#pk-check-mode')?.addEventListener('change', e => { packCheckMode = (e.target as HTMLInputElement).checked; render(); });
 
@@ -1088,16 +1164,12 @@ function bindDetail(c: HTMLElement, l: PackList) {
   let dragging = false;
 
   function findDropZone(x: number, y: number): { el: HTMLElement; containerId: string | null } | null {
-    // Check full container card first (wider hit area), then fall back to drop zone
-    const cards = c.querySelectorAll<HTMLElement>('.pack-container-card, .pack-unassigned-panel');
+    // Each bag card and the loose-items panel is a target as a whole (open or closed).
+    const cards = c.querySelectorAll<HTMLElement>('.pkd-bag, .pkd-loose');
     for (const card of cards) {
       const r = card.getBoundingClientRect();
       if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
-        const zone = card.querySelector<HTMLElement>('.pk-drop-zone');
-        if (zone) {
-          const cid = zone.dataset.containerId;
-          return { el: zone, containerId: cid === '' ? null : (cid ?? null) };
-        }
+        return { el: card, containerId: card.dataset.cid === '' ? null : (card.dataset.cid ?? null) };
       }
     }
     return null;
@@ -1109,7 +1181,7 @@ function bindDetail(c: HTMLElement, l: PackList) {
     }
     document.body.style.cursor = '';
     ghost.setAttribute('hidden', '');
-    c.querySelectorAll('.pk-drop-zone').forEach(z => z.classList.remove('is-drag-over'));
+    c.querySelectorAll('.is-drag-over').forEach(z => z.classList.remove('is-drag-over'));
     dragItemId = null;
     dragTag = null;
     dragPointerId = null;
@@ -1131,7 +1203,7 @@ function bindDetail(c: HTMLElement, l: PackList) {
       ghost.style.left = `${e.clientX + 12}px`;
       ghost.style.top  = `${e.clientY - 12}px`;
       // Highlight drop zone under cursor
-      c.querySelectorAll('.pk-drop-zone').forEach(z => z.classList.remove('is-drag-over'));
+      c.querySelectorAll('.is-drag-over').forEach(z => z.classList.remove('is-drag-over'));
       const zone = findDropZone(e.clientX, e.clientY);
       zone?.el.classList.add('is-drag-over');
     }
@@ -1139,8 +1211,11 @@ function bindDetail(c: HTMLElement, l: PackList) {
 
   function onPointerUp(e: PointerEvent) {
     if (dragging && dragItemId) {
+      lastDragAt = Date.now();
       const zone = findDropZone(e.clientX, e.clientY);
       if (zone) {
+        bumpBag = zone.containerId ?? undefined;
+        selectedItemId = null;
         void packStore.moveItem(id, dragItemId, zone.containerId);
       }
     }
@@ -1177,6 +1252,55 @@ function bindDetail(c: HTMLElement, l: PackList) {
     });
     tag.addEventListener('pointercancel', e => {
       if (e.pointerId === dragPointerId) endDrag();
+    });
+  });
+
+  /* ── Drag a bag onto the scale ───────────────────────────────────────────
+     The bag's picture is the handle. A press that barely moves is a click (open
+     or close the bag); a real drag carries a ghost, and letting go over the
+     scale puts that bag on it. */
+  c.querySelectorAll<HTMLElement>('[data-bag-art]').forEach(art => {
+    const bagId = art.dataset.bagArt!;
+    let pid: number | null = null, sx = 0, sy = 0, moved = false;
+    const overScale = (x: number, y: number) => {
+      const r = _stage?.el.getBoundingClientRect();
+      return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+    };
+    art.addEventListener('pointerdown', e => {
+      if (pid !== null) return;
+      pid = e.pointerId; sx = e.clientX; sy = e.clientY; moved = false;
+      try { art.setPointerCapture(e.pointerId); } catch { /* unsupported */ }
+    });
+    art.addEventListener('pointermove', e => {
+      if (e.pointerId !== pid) return;
+      if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) > DRAG_THRESHOLD) {
+        moved = true;
+        ghost.removeAttribute('hidden');
+        ghost.textContent = `${bagIcon(l.containers.find(b => b.id === bagId)?.kind)} ${l.containers.find(b => b.id === bagId)?.label ?? ''}`;
+      }
+      if (moved) {
+        e.preventDefault();
+        ghost.style.left = `${e.clientX + 12}px`;
+        ghost.style.top = `${e.clientY - 12}px`;
+        _stage?.setDropActive(overScale(e.clientX, e.clientY));
+      }
+    });
+    const finish = (e: PointerEvent, cancelled: boolean) => {
+      if (e.pointerId !== pid) return;
+      try { art.releasePointerCapture(e.pointerId); } catch { /* released */ }
+      ghost.setAttribute('hidden', '');
+      _stage?.setDropActive(false);
+      const wasDrag = moved;
+      pid = null; moved = false;
+      if (cancelled) return;
+      lastDragAt = Date.now();
+      if (!wasDrag) toggleBag(bagId);
+      else if (overScale(e.clientX, e.clientY)) { clearTimeout(weighTimer); void weighBags([bagId]); }
+    };
+    art.addEventListener('pointerup', e => finish(e, false));
+    art.addEventListener('pointercancel', e => finish(e, true));
+    art.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBag(bagId); }
     });
   });
 }
@@ -1294,6 +1418,48 @@ export function peekPackRows(): {
     over: l.containers.some(c => isOver(l, c)),
     limitG: l.containers.reduce((n, c) => n + (c.limitG > 0 ? c.limitG : 0), 0),
   }));
+}
+
+/** One bag as the Prepare landing's floor scene draws it. */
+export interface PackSceneBag {
+  id: string; label: string; kind: PackContainer['kind'];
+  weightG: number; limitG: number; over: boolean; loadPct: number;
+}
+
+/** A pack list's bags and weigh-in standing, for the landing scene and its Weigh card. */
+export function peekPackScene(id: string): { bags: PackSceneBag[]; status: ReturnType<typeof weighStatus> } | null {
+  const l = _lists.find(x => x.id === id);
+  if (!l) return null;
+  const rows = weighIn(l);
+  return {
+    bags: l.containers.map((c, i) => {
+      const r = rows[i];
+      return {
+        id: c.id, label: c.label, kind: c.kind, weightG: r.weightG, limitG: r.limitG, over: r.verdict === 'over',
+        loadPct: r.limitG ? Math.min(100, Math.round((r.weightG / r.limitG) * 100)) : Math.min(100, Math.round(r.weightG / 100)),
+      };
+    }),
+    status: weighStatus(rows, loadRecord(id)),
+  };
+}
+
+/** The first list (with bags) whose weigh-in is missing, stale or failing — the pre-trip notice's subject. */
+export function packWeighNeeds(): { listId: string; status: ReturnType<typeof weighStatus> } | null {
+  for (const l of _lists) {
+    if (!l.containers.length) continue;
+    const status = weighStatus(weighIn(l), loadRecord(l.id));
+    if (status.state !== 'ok') return { listId: l.id, status };
+  }
+  return null;
+}
+
+/** Opens a list's detail screen and starts the whole-list weigh-in once it has settled. */
+export function openPackWeigh(id: string): void {
+  openPackDetail(id);
+  window.setTimeout(() => {
+    const l = activeList();
+    if (l && l.id === id && l.containers.length) void weighBags(l.containers.map(b => b.id), { all: true });
+  }, 480);
 }
 
 /** Aggregate pack state across every list — the hero's readout. */

@@ -13,19 +13,21 @@
    ========================================================================== */
 
 import './styles/prepare.css';
-import './styles/stage.css';
+import './styles/prepare-scenes.css';
 import {
   initPrep, openChecklistDetail, openNewChecklistModal, openTemplatePickerModal,
-  peekChecklistRows, checklistTotals, deleteChecklist, peekNextUp, tickNextUp,
-  type ChecklistScreen, type NextUpItem,
+  peekChecklistRows, peekChecklistPreview, checklistTotals, deleteChecklist,
+  type ChecklistScreen,
 } from './checklist-section.ts';
 import {
   initPack, openPackDetail, openNewPackListModal, openPackFormula, openCoreKit,
   peekPackRows, packTotals, packFormulaAvailable, deletePackList, focusPackAction,
-  formatKg, type PackScreen,
+  peekPackScene, packWeighNeeds, openPackWeigh, formatKg, type PackScreen,
 } from './pack-section.ts';
 import { resolvePhase, renderHero, heroChipAction } from './phase-strip.ts';
-import { renderNotesStage, renderPackStage, bindStages, playStages, resetStages, ticksFor } from './prepare-stage.ts';
+import {
+  renderClipboardScene, renderPackScene, renderWeighCard, renderChecklistCard, renderWeighNotice,
+} from './prepare-scenes.ts';
 import { noteVar } from '../../data/palette.ts';
 import { daysToGo, tripPhase, peekLegs } from '../../data/trip-phase.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
@@ -35,16 +37,41 @@ import { t } from '../../core/i18n.ts';
 let _root: HTMLElement | null = null;
 let _landing: HTMLElement | null = null;
 let _legsUnsub: (() => void) | null = null;
-// The stages play when first seen and again when tick progress moves; any other
-// repaint (a store push while editing elsewhere) leaves them at rest.
-let _notesKey = '';
-let _next: NextUpItem[] = [];
+// Which list each scene features (hovering a list's row brings it to the front).
+const _feat: { cl: string | null; pk: string | null } = { cl: null, pk: null };
+const NOTICE_KEY = 'otr:prep:weigh-notice-dismissed';
+/** The weigh-before-you-fly strip shows in the last two weeks before departure. */
+const NOTICE_DAYS = 14;
 
 function getRoot(): HTMLElement | null {
   return document.querySelector<HTMLElement>('#view-prep .prepare-root');
 }
 
 /* ── Landing ─────────────────────────────────────────────────────────────── */
+
+type ChecklistRow = ReturnType<typeof peekChecklistRows>[number];
+type PackRow = ReturnType<typeof peekPackRows>[number];
+
+/** The row a scene features: the one hovered/last chosen if it still exists, else the first. */
+function featured<T extends { id: string }>(rows: T[], id: string | null): T | null {
+  return rows.find(r => r.id === id) ?? rows[0] ?? null;
+}
+
+function clipSceneHtml(rows: ChecklistRow[]): string {
+  const f = featured(rows, _feat.cl);
+  if (!f) return '';
+  return renderClipboardScene({
+    id: f.id, name: f.name, done: f.done, total: f.total, pct: f.pct,
+    preview: peekChecklistPreview(f.id, 4), behind: rows.length - 1,
+  });
+}
+
+function packSceneHtml(rows: PackRow[]): string {
+  const f = featured(rows, _feat.pk);
+  const scene = f ? peekPackScene(f.id) : null;
+  if (!f || !scene) return '';
+  return renderPackScene(f.id, scene.bags, formatKg(f.weightG), formatKg);
+}
 
 function renderLanding() {
   const host = _landing;
@@ -64,7 +91,7 @@ function renderLanding() {
   const clRows = peekChecklistRows();
   const pkRows = peekPackRows();
 
-  // With nothing in a rail, its actions move into the empty card's call to
+  // With nothing in a panel, its actions move into the empty card's call to
   // action — repeating them in the header would put "there's nothing here"
   // and "here's how to start" at opposite corners of the row.
   const clActions = clRows.length ? `
@@ -80,11 +107,16 @@ function renderLanding() {
       <button class="btn btn-primary prep-rail-btn" data-act="new-pk">${t('pack.btnNewList')}</button>
     </div>` : '';
 
-  _next = peekNextUp(3);
+  // Departure is close and a bag has not been weighed (or has changed, or is over): say so up top.
+  const need = packWeighNeeds();
+  const dismissed = (() => { try { return sessionStorage.getItem(NOTICE_KEY) === '1'; } catch { return false; } })();
+  const notice = need && !dismissed && days !== null && days >= 0 && days <= NOTICE_DAYS
+    ? renderWeighNotice(need.listId, days, need.status) : '';
 
-  // eslint-disable-next-line no-restricted-syntax -- audited: escHtml on every interpolation here and in renderHero (N5)
+  // eslint-disable-next-line no-restricted-syntax -- audited: escHtml on every interpolation here, in renderHero and in prepare-scenes.ts (N5)
   host.innerHTML = `
     ${hero}
+    ${notice}
 
     <div class="prep-split">
       <section class="prep-rail prep-rail--checklist" id="prep-rail-checklist">
@@ -92,8 +124,7 @@ function renderLanding() {
           <h2 class="prep-rail-title"><span class="prep-rail-icon">📋</span>${t('prep.checklistSectionTitle')}</h2>
           ${clActions}
         </div>
-        ${renderNotesStage(cl.done, cl.total)}
-        ${renderNextUp(_next, cl.total > 0)}
+        <div class="prep-scene-host" data-scene-host="cl">${clTopHtml(clRows)}</div>
         ${renderChecklistRows(clRows)}
       </section>
 
@@ -102,31 +133,60 @@ function renderLanding() {
           <h2 class="prep-rail-title"><span class="prep-rail-icon">🎒</span>${t('nav.pack')}</h2>
           ${pkActions}
         </div>
-        ${renderPackStage(pkRows.reduce((n, r) => n + r.items, 0))}
+        <div class="prep-scene-host" data-scene-host="pk">${pkTopHtml(pkRows)}</div>
         ${renderPackRows(pkRows)}
       </section>
     </div>
   `;
 
-  const key = `${ticksFor(cl.done, cl.total)}:${cl.total > 0 && cl.done >= cl.total}`;
-  playStages(host, _notesKey !== '' && key !== _notesKey);
-  _notesKey = key;
-
   bindLanding(host);
 }
 
-type ChecklistRow = ReturnType<typeof peekChecklistRows>[number];
-type PackRow = ReturnType<typeof peekPackRows>[number];
+/** Status card + scene for the checklist panel (re-rendered as a unit when the featured list changes). */
+function clTopHtml(rows: ChecklistRow[]): string {
+  const f = featured(rows, _feat.cl);
+  return `${f ? renderChecklistCard(f.id, f.done, f.total, f.name) : ''}${clSceneOrEmpty(rows)}`;
+}
 
-function renderChecklistRows(rows: ChecklistRow[]): string {
-  if (!rows.length) {
-    return emptyCard('📋', t('prep.railChecklistEmptyTitle'), t('prep.railChecklistEmpty'), `
+function pkTopHtml(rows: PackRow[]): string {
+  const f = featured(rows, _feat.pk);
+  const scene = f ? peekPackScene(f.id) : null;
+  const card = !f ? '' : scene && scene.bags.length ? renderWeighCard(f.id, scene.status) : renderPackHintCard(f);
+  return `${card}${pkSceneOrEmpty(rows)}`;
+}
+
+function clSceneOrEmpty(rows: ChecklistRow[]): string {
+  return rows.length ? clipSceneHtml(rows) : emptyCard('📋', t('prep.railChecklistEmptyTitle'), t('prep.railChecklistEmpty'), `
       <button class="btn btn-primary" data-act="new-cl">${t('prep.btnNewChecklist')}</button>
       <button class="btn btn-ghost" data-act="tpl">${t('prep.btnFromTemplate')}</button>
     `);
-  }
+}
 
-  return `<div class="prep-rows">${rows.map((r, i) => {
+function pkSceneOrEmpty(rows: PackRow[]): string {
+  return rows.length ? packSceneHtml(rows) : emptyCard('🎒', t('prep.railPackEmptyTitle'), t('prep.railPackEmpty'), `
+      <button class="btn btn-primary" data-act="new-pk">${t('pack.btnNewList')}</button>
+      ${packFormulaAvailable() ? `<button class="btn btn-ghost" data-act="formula">${t('pack.btnFormula')}</button>` : ''}
+      <button class="btn btn-ghost" data-act="kit">${t('prep.btnCoreKitShort')}</button>
+    `);
+}
+
+/** A list with no bags yet has nothing to weigh: the card nudges toward adding one instead. */
+function renderPackHintCard(f: PackRow): string {
+  return `
+    <button type="button" class="prep-status prep-status--weigh is-none" data-open-pk="${escHtml(f.id)}">
+      <span class="prep-status-dot" aria-hidden="true"></span>
+      <span class="prep-status-text">
+        <span class="prep-status-title">${escHtml(t('prep.packNoBagsTitle'))}</span>
+        <span class="prep-status-sub">${escHtml(t('pack.noBagsYet'))}</span>
+      </span>
+      <span class="prep-status-go" aria-hidden="true">→</span>
+    </button>`;
+}
+
+/** Every list as a compact row: tap to open, hover to bring it to the front of the scene. */
+function renderChecklistRows(rows: ChecklistRow[]): string {
+  if (!rows.length) return '';
+  return `<div class="prep-rows prep-rows--compact">${rows.map((r, i) => {
     const complete = r.total > 0 && r.done === r.total;
     return `
       <div class="prep-row prep-row--note${complete ? ' is-complete' : ''}" data-cl="${escHtml(r.id)}" role="button" tabindex="0" style="--row-note:${noteVar(i)}">
@@ -144,15 +204,8 @@ function renderChecklistRows(rows: ChecklistRow[]): string {
 }
 
 function renderPackRows(rows: PackRow[]): string {
-  if (!rows.length) {
-    return emptyCard('🎒', t('prep.railPackEmptyTitle'), t('prep.railPackEmpty'), `
-      <button class="btn btn-primary" data-act="new-pk">${t('pack.btnNewList')}</button>
-      ${packFormulaAvailable() ? `<button class="btn btn-ghost" data-act="formula">${t('pack.btnFormula')}</button>` : ''}
-      <button class="btn btn-ghost" data-act="kit">${t('prep.btnCoreKitShort')}</button>
-    `);
-  }
-
-  return `<div class="prep-rows">${rows.map(r => `
+  if (!rows.length) return '';
+  return `<div class="prep-rows prep-rows--compact">${rows.map(r => `
     <div class="prep-row${r.over ? ' is-over' : ''}" data-pk="${escHtml(r.id)}" role="button" tabindex="0">
       <div class="prep-row-main">
         <div class="prep-row-name">${escHtml(r.name)}</div>
@@ -169,21 +222,6 @@ function renderPackRows(rows: PackRow[]): string {
     </div>`).join('')}</div>`;
 }
 
-function renderNextUp(items: NextUpItem[], hasItems: boolean): string {
-  if (!hasItems) return '';
-  if (!items.length) return `<div class="prep-next prep-next--clear">${escHtml(t('prep.nextUpClear'))}</div>`;
-  return `
-    <div class="prep-next">
-      <div class="prep-next-head">${escHtml(t('prep.nextUp'))}</div>
-      ${items.map((it, i) => `
-        <button type="button" class="prep-next-item" data-next="${i}">
-          <span class="prep-next-box"><svg viewBox="0 0 16 16"><path d="M3 8.5 l3.2 3.4 l6.6 -8" pathLength="24"/></svg></span>
-          <span class="prep-next-text">${escHtml(it.text)}</span>
-          <span class="prep-next-src">${escHtml(it.icon)} ${escHtml(it.listName)}</span>
-        </button>`).join('')}
-    </div>`;
-}
-
 function emptyCard(icon: string, title: string, text: string, actions: string): string {
   return `
     <div class="prep-empty">
@@ -194,6 +232,38 @@ function emptyCard(icon: string, title: string, text: string, actions: string): 
     </div>`;
 }
 
+/** The scene is the way in: it zooms toward you, then the editor takes the page. */
+function enter(el: HTMLElement, go: () => void): void {
+  const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced || typeof el.animate !== 'function') { go(); return; }
+  void el.animate(
+    [{ transform: 'scale(1)', opacity: 1 }, { transform: 'translateY(-6px) scale(1.07)', opacity: 0 }],
+    { duration: 260, easing: 'cubic-bezier(.4,0,.8,.6)', fill: 'forwards' },
+  ).finished.then(go, go);
+}
+
+/** Wires the scenes and their cards (used on the whole landing and again when a scene is swapped). */
+function bindScenes(root: HTMLElement) {
+  // The scenes: a clipboard and a floor of bags. Either opens the featured list.
+  const keyOpen = (el: HTMLElement, fn: () => void) => el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); }
+  });
+  root.querySelectorAll<HTMLElement>('[data-open-cl]').forEach(el => {
+    const go = () => enter(el.closest<HTMLElement>('.prep-scene') ?? el, () => openChecklistDetail(el.dataset.openCl!));
+    el.addEventListener('click', go);
+    if (el.classList.contains('prep-clip')) keyOpen(el, go);
+  });
+  root.querySelectorAll<HTMLElement>('[data-open-pk]').forEach(el => {
+    const go = () => enter(el.closest<HTMLElement>('.prep-scene') ?? el, () => openPackDetail(el.dataset.openPk!));
+    el.addEventListener('click', go);
+    if (el.classList.contains('prep-floor')) keyOpen(el, go);
+  });
+  // The scale on the floor, the status card and the pre-trip strip all start the weigh-in.
+  root.querySelectorAll<HTMLElement>('[data-weigh-pk]').forEach(el => {
+    el.addEventListener('click', (e) => { e.stopPropagation(); openPackWeigh(el.dataset.weighPk!); });
+  });
+}
+
 function bindLanding(host: HTMLElement) {
   const legs = peekLegs();
   const focus = resolvePhase(daysToGo(legs), tripPhase(legs));
@@ -202,7 +272,7 @@ function bindLanding(host: HTMLElement) {
     if (action) focusPackAction(action);
   });
 
-  // Each action can appear twice — in a rail header and in that rail's empty
+  // Each action can appear twice — in a panel header and in that panel's empty
   // card — so bind every match, not just the first.
   const on = (act: string, fn: () => void) =>
     host.querySelectorAll(`[data-act="${act}"]`).forEach(el => el.addEventListener('click', fn));
@@ -213,16 +283,22 @@ function bindLanding(host: HTMLElement) {
   on('formula', () => openPackFormula());
   on('kit', () => openCoreKit());
 
-  bindStages(host);
-  host.querySelectorAll<HTMLElement>('[data-next]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const it = _next[Number(btn.dataset.next)];
-      if (!it || btn.classList.contains('is-ticking')) return;
-      // Let the tick draw before the store push re-renders the strip.
-      btn.classList.add('is-ticking');
-      window.setTimeout(() => { void tickNextUp(it); }, 480);
-    });
+  bindScenes(host);
+  host.querySelector('[data-dismiss-notice]')?.addEventListener('click', () => {
+    try { sessionStorage.setItem(NOTICE_KEY, '1'); } catch { /* fine: it just comes back */ }
+    host.querySelector('[data-notice]')?.remove();
   });
+
+  // Hovering a list's row brings that list to the front of its scene.
+  const feature = (kind: 'cl' | 'pk', id: string) => {
+    if (_feat[kind] === id) return;
+    _feat[kind] = id;
+    const slot = host.querySelector<HTMLElement>(`[data-scene-host="${kind}"]`);
+    if (!slot) return;
+    // eslint-disable-next-line no-restricted-syntax -- audited: scene markup escapes every interpolation
+    slot.innerHTML = kind === 'cl' ? clTopHtml(peekChecklistRows()) : pkTopHtml(peekPackRows());
+    bindScenes(slot);
+  };
 
   host.querySelectorAll<HTMLElement>('[data-cl]').forEach(row => {
     const open = () => openChecklistDetail(row.dataset.cl!);
@@ -233,6 +309,8 @@ function bindLanding(host: HTMLElement) {
     row.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
     });
+    row.addEventListener('mouseenter', () => feature('cl', row.dataset.cl!));
+    row.addEventListener('focus', () => feature('cl', row.dataset.cl!));
   });
   host.querySelectorAll<HTMLElement>('[data-pk]').forEach(row => {
     const open = () => openPackDetail(row.dataset.pk!);
@@ -243,6 +321,8 @@ function bindLanding(host: HTMLElement) {
     row.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
     });
+    row.addEventListener('mouseenter', () => feature('pk', row.dataset.pk!));
+    row.addEventListener('focus', () => feature('pk', row.dataset.pk!));
   });
 
   host.querySelectorAll<HTMLElement>('[data-del-cl]').forEach(btn => {
@@ -313,8 +393,8 @@ export function initPrepare(): void {
   // — otherwise stale focus flags could hide the landing behind a blank zone.
   _clFocused = false;
   _pkFocused = false;
-  resetStages();
-  _notesKey = '';
+  _feat.cl = null;
+  _feat.pk = null;
 
   // Sections own the store subscriptions; they ping us on every push so the
   // rails and hero repaint from the same data without double-subscribing.

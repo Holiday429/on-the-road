@@ -26,6 +26,7 @@ import { showSlip } from '../../core/paper/slip.ts';
 | **Tag** `paperTag({verdict, sub?, tone?})` | luggage tag with a punched hole | Luggage scale |
 | **LED** `.paper-led` / `.paper-led-num` / `.paper-led-aux` | dark glass, mono digits; `.is-good` / `.is-bad` | Expense checkout display, luggage scale |
 | **Passport stamp** `renderStamp(spec, {size, pressed})` (`core/paper/stamp.ts`; specs from `data/stamps.ts`) | SVG ink stamp: 7 frames (circle, double ring, rounded, hex, oval, octagon, country-entry), worn-ink filter, per-country ink, ±10° tilt; `is-ghost` for stamps still to come | Passport drawer, Itinerary cards + hero (`stampSticker`), Dashboard banner |
+| **Luggage** `renderBag(kind, {loadPct, over, uid, tone})` / `renderScale({reading, verdict, caption})` (`core/paper/luggage.ts`) | matte suitcase / backpack / tote SVGs with a rising fill, and a platform scale with a dark-glass LED; colours are classes in `luggage.css` (tokens only) | Pack detail, Prepare landing scene, scale stage (`views/prepare/weigh-stage.ts`) |
 | **Tear line** `.paper-perf` | dashed rule with half-moon notches | Checkout tape, summary |
 | **Barcode** `.paper-barcode` | CSS-only bars | Receipts, tickets |
 | **Print-in** `printIn(el)` | the "a new line was just printed" motion | Tape lines |

@@ -1,0 +1,51 @@
+/* ==========================================================================
+   On the Road · Paper kit · luggage (bags + platform scale)
+   Matte shells, brushed metal, dark-glass LED. Tokens only — no literals — so
+   both themes read as the same objects. Markup: luggage.ts.
+   ========================================================================== */
+
+/* ── Bags ───────────────────────────────────────────────────────────────── */
+.lg-bag {
+  --lg-shell: color-mix(in srgb, var(--amber-300) 42%, var(--surface-4));
+  --lg-edge:  color-mix(in srgb, var(--ink) 38%, transparent);
+  --lg-metal: color-mix(in srgb, var(--ink) 44%, var(--surface-4));
+  display: block; overflow: visible;
+  filter: drop-shadow(0 6px 5px color-mix(in srgb, var(--ink) 16%, transparent));
+}
+.lg-bag[data-tone='1'] { --lg-shell: color-mix(in srgb, var(--sky-400) 58%, var(--surface-4)); }
+.lg-bag[data-tone='2'] { --lg-shell: color-mix(in srgb, var(--sage-400) 58%, var(--surface-4)); }
+.lg-bag[data-tone='3'] { --lg-shell: color-mix(in srgb, var(--coral-400) 52%, var(--surface-4)); }
+.lg-bag.is-over        { --lg-shell: color-mix(in srgb, var(--coral-500) 70%, var(--surface-4)); }
+
+.lg-bag .lg-body   { fill: var(--lg-shell); stroke: var(--lg-edge); stroke-width: 1.2; stroke-linejoin: round; }
+.lg-bag .lg-fill   { fill: color-mix(in srgb, var(--ink) 17%, transparent); transition: y var(--dur-mid) var(--ease-out), height var(--dur-mid) var(--ease-out); }
+.lg-bag .lg-pocket { fill: color-mix(in srgb, var(--surface) 18%, transparent); stroke: color-mix(in srgb, var(--ink) 28%, transparent); stroke-width: 1.1; }
+.lg-bag .lg-seam   { fill: none; stroke: color-mix(in srgb, var(--ink) 30%, transparent); stroke-width: 1.4; stroke-dasharray: 3 3; }
+.lg-bag .lg-seam-bar { fill: color-mix(in srgb, var(--ink) 30%, transparent); }
+.lg-bag .lg-rib    { fill: none; stroke: color-mix(in srgb, var(--ink) 16%, transparent); stroke-width: 2; }
+.lg-bag .lg-hi     { fill: color-mix(in srgb, var(--surface) 20%, transparent); }
+.lg-bag .lg-metal  { fill: var(--lg-metal); }
+.lg-bag .lg-pull   { fill: color-mix(in srgb, var(--lg-metal) 78%, var(--surface)); stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-width: 1; }
+.lg-bag .lg-wheel  { fill: color-mix(in srgb, var(--ink) 70%, var(--surface-4)); }
+.lg-bag .lg-strap--stroke { fill: none; stroke: var(--lg-metal); stroke-width: 7; stroke-linecap: round; }
+.lg-bag--personal .lg-strap--stroke { stroke-width: 5; }
+
+/* ── Platform scale ─────────────────────────────────────────────────────── */
+.lg-scale { display: block; overflow: visible; }
+.lg-scale .lg-shadow { fill: color-mix(in srgb, var(--ink) 20%, transparent); }
+.lg-scale .lg-foot   { fill: color-mix(in srgb, var(--ink) 62%, var(--surface-4)); }
+.lg-scale .lg-base   { fill: color-mix(in srgb, var(--ink) 26%, var(--surface-4)); stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-width: 1; }
+.lg-scale .lg-grain  { fill: none; stroke: color-mix(in srgb, var(--surface) 30%, transparent); stroke-width: 1; }
+.lg-scale .lg-plate  { fill: color-mix(in srgb, var(--ink) 16%, var(--surface-4)); stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-width: 1; }
+.lg-scale .lg-plate-hi { fill: color-mix(in srgb, var(--surface) 55%, transparent); }
+.lg-scale .lg-led-case  { fill: color-mix(in srgb, var(--scale-glass) 80%, var(--ink)); stroke: color-mix(in srgb, var(--ink) 50%, transparent); stroke-width: 1.2; }
+.lg-scale .lg-led-glass { fill: var(--scale-glass); }
+.lg-scale .lg-led-num {
+  fill: var(--scale-led); font-family: var(--font-data); font-size: 19px; font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+}
+.lg-scale .lg-led-cap { fill: var(--scale-led); opacity: .55; font-family: var(--font-data); font-size: 5.6px; letter-spacing: .12em; text-transform: uppercase; }
+.lg-scale.is-pass .lg-led-num { fill: var(--scale-led-ok); }
+.lg-scale.is-over .lg-led-num { fill: var(--scale-led-over); }
+.lg-scale.is-pass .lg-led-num { filter: drop-shadow(0 0 3px var(--scale-led-ok)); }
+.lg-scale.is-over .lg-led-num { filter: drop-shadow(0 0 3px var(--scale-led-over)); }
