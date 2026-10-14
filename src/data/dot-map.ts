@@ -48,6 +48,24 @@ export function litCells(isos: Iterable<string>): Set<Cell> {
   return lit;
 }
 
+/**
+ * The country at a point of the map (grid units, 0…COLS × 0…ROWS): the land cell nearest to it, within a cell and a
+ * half — a coast or a narrow country is easy to miss by a hair. A country in `prefer` wins a near tie, so a visited
+ * country is never lost to its neighbour. '' for open sea.
+ */
+export function isoNear(gx: number, gy: number, prefer: ReadonlySet<string> = new Set()): string {
+  let best = '';
+  let bestD = 1.5 * 1.5;
+  for (const c of LAND) {
+    const dx = c.x + 0.5 - gx;
+    const dy = c.y + 0.5 - gy;
+    if (Math.abs(dx) > 1.5 || Math.abs(dy) > 1.5) continue;
+    const d = dx * dx + dy * dy - (prefer.has(c.iso) ? 0.6 : 0);
+    if (d < bestD) { bestD = d; best = c.iso; }
+  }
+  return best;
+}
+
 /** Every land cell of the dotted world, flagged when it is one of the countries in `isos`. Grid coordinates, not pixels. */
 export function dotMapCells(isos: Iterable<string>): Array<{ x: number; y: number; lit: boolean }> {
   const lit = litCells(isos);
