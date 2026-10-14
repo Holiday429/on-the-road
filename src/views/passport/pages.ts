@@ -194,14 +194,13 @@ function visaSticker(v: Visa, c: PageCtx): string {
   </button>`;
 }
 
-function schengenBox(u: SchengenUsage): string {
-  const pct = Math.min(100, Math.round((u.used / 90) * 100));
-  const over = u.overstayOn ? `<div class="pp-visa-warn">⚠ ${esc(t('passport.visa.schengenOver', { date: u.overstayOn }))}</div>` : '';
-  return `<div class="pp-schengen">
-    <div class="pp-schengen-head"><span>🇪🇺 ${esc(t('passport.visa.schengenCount'))}</span><strong>${u.used} / 90</strong></div>
-    <div class="pp-schengen-bar" role="img" aria-label="${u.used} / 90"><span style="width:${pct}%"></span></div>
-    <div class="pp-schengen-note">${esc(t('passport.visa.schengenNote', { n: u.remaining }))}</div>${over}
-  </div>`;
+/**
+ * The page is for the visas themselves, so the running 90/180 count is not on it. A stay that
+ * actually breaks the rule still is: a warning is not a statistic.
+ */
+function schengenWarning(u: SchengenUsage): string {
+  if (!u.overstayOn) return '';
+  return `<div class="pp-visa-warn pp-visa-warn-block">⚠ ${esc(t('passport.visa.schengenOver', { date: u.overstayOn }))}</div>`;
 }
 
 function visas(p: { index: number }, c: PageCtx): string {
@@ -210,7 +209,7 @@ function visas(p: { index: number }, c: PageCtx): string {
   const last = from + VISAS_PER_PAGE >= c.visas.length;
   return `<div class="pp-sheet pp-visas">
     <div class="pp-page-head"><span>${esc(t('passport.visas.title'))}</span></div>
-    ${p.index === 0 && c.schengen ? schengenBox(c.schengen) : ''}
+    ${p.index === 0 && c.schengen ? schengenWarning(c.schengen) : ''}
     ${mine.length ? `<div class="pp-visa-list">${mine.map((v) => visaSticker(v, c)).join('')}</div>` : `<div class="pp-note">${esc(t('passport.visas.empty'))}</div>`}
     ${last ? `<button type="button" class="btn btn-ghost pp-visa-add" data-pp-visa-add data-no-turn>${esc(t('passport.visa.add'))}</button>` : ''}
   </div>`;

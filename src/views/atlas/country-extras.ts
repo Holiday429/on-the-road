@@ -35,10 +35,15 @@ export interface SpendLine { tripId: string; currency: string; total: number; co
 /** One journal entry as a line: its title (or the start of its text), the day and a short excerpt. */
 export interface EntryLine { title: string; date: string; excerpt: string }
 
+/** A photo with the place it was taken, for the stamp's memory card. */
+export interface CityPhoto { url: string; city: string; date: string }
+
 export interface CountryExtras {
   journalCount: number;
   /** The newest few entries, for a peek without opening the journal. */
   entries: EntryLine[];
+  /** One photo per city of this country, newest first — the memory card's grid. */
+  cityPhotos: CityPhoto[];
   /** Up to three of the newest photos from this country's entries. */
   covers: string[];
   spend: SpendLine[];
@@ -50,6 +55,8 @@ export interface CountryExtras {
 
 const MAX_COVERS = 3;
 const MAX_ENTRIES = 3;
+/** Photos on a stamp's memory card: one per city, three to a row. */
+const MAX_CITY_PHOTOS = 9;
 
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
@@ -59,19 +66,40 @@ function entryLine(e: JournalRow): EntryLine {
   return { title: title || clip(body, 36), date: e.happenedOn, excerpt: title ? clip(body, 110) : clip(body.slice(36), 110) };
 }
 
-/** Which country a journal entry belongs to ('' = can't tell). */
-export function journalIso(e: JournalRow, legs: PlottedLeg[]): string {
+/** The leg a journal entry belongs to: the stop it names, else the one covering the day it happened. */
+function journalLeg(e: JournalRow, legs: PlottedLeg[]): PlottedLeg | undefined {
   const dest = (e.destination ?? '').trim().toLowerCase();
   if (dest) {
     const stop = legs.find((l) => l.stops.some((s) => dest === s.name.toLowerCase() || dest === s.key)
       || l.city.toLowerCase() === dest);
-    if (stop?.iso) return stop.iso;
-    const named = isoForCountry(e.destination!);
-    if (named) return named;
+    if (stop?.iso) return stop;
   }
-  const covering = legs.find((l) => l.dateFrom <= e.happenedOn && e.happenedOn <= l.dateTo
+  return legs.find((l) => l.dateFrom <= e.happenedOn && e.happenedOn <= l.dateTo
     && (!e.tripId || l.tripId === e.tripId));
-  return covering?.iso ?? '';
+}
+
+/** Which country a journal entry belongs to ('' = can't tell). */
+export function journalIso(e: JournalRow, legs: PlottedLeg[]): string {
+  const named = journalLeg(e, legs);
+  if (named?.iso) return named.iso;
+  // A destination that names a country but no stop of ours ("a weekend in Portugal").
+  const dest = (e.destination ?? '').trim();
+  return (dest && isoForCountry(dest)) || '';
+}
+
+/**
+ * The place an entry was written, as the traveller would name it: the stop it names, else the city of the
+ * leg covering that day. '' when neither is known — the caller falls back to the country.
+ */
+export function journalCity(e: JournalRow, legs: PlottedLeg[]): string {
+  const dest = (e.destination ?? '').trim();
+  const leg = journalLeg(e, legs);
+  if (leg) {
+    const low = dest.toLowerCase();
+    const stop = leg.stops.find((x) => low === x.name.toLowerCase() || low === x.key);
+    return stop?.name || leg.city || '';
+  }
+  return '';
 }
 
 const photos = (e: JournalRow) => (e.images?.length ? e.images : e.coverImage ? [e.coverImage] : []).filter(Boolean);
@@ -82,6 +110,18 @@ export function buildCountryExtras(iso: string, legs: PlottedLeg[], data: Extras
     .sort((a, b) => b.happenedOn.localeCompare(a.happenedOn));
   const covers: string[] = [];
   for (const e of entries) for (const p of photos(e)) if (covers.length < MAX_COVERS) covers.push(p);
+
+  // One photo per city: the newest entry from each place that has one. Entries are already newest-first,
+  // so the first photo seen for a city is that city's most recent.
+  const byCity = new Map<string, CityPhoto>();
+  for (const e of entries) {
+    const city = journalCity(e, legs);
+    const key = city.toLowerCase();
+    if (byCity.has(key)) continue;
+    const first = photos(e)[0];
+    if (first) byCity.set(key, { url: first, city, date: e.happenedOn });
+  }
+  const cityPhotos = [...byCity.values()].slice(0, MAX_CITY_PHOTOS);
 
   const lines = new Map<string, SpendLine>();
   for (const x of data.expenses) {
@@ -104,6 +144,7 @@ export function buildCountryExtras(iso: string, legs: PlottedLeg[], data: Extras
   return {
     journalCount: entries.length,
     entries: entries.slice(0, MAX_ENTRIES).map(entryLine),
+    cityPhotos,
     covers,
     spend,
     spendTotal,

@@ -3,7 +3,7 @@
    --------------------------------------------------------------------------
    Tap a stamp and a memory card slides in from the right while the book moves
    over to make room: the stamp large, a receipt for the stay (cities, nights,
-   what was spent), the photos as taped-down polaroids, and the journal entries
+   what was spent), one photo per city in a Moments-style grid, and the journal entries
    of that country. It holds only what the passport knows — nothing here leads
    away from the book. Previous / next walk through the pressed stamps without
    closing it. All numbers come from data/country-memory.ts.
@@ -42,26 +42,36 @@ function dateRange(a: string, b: string): string {
   return a === b ? day(a) : `${stampDate(a)} – ${stampDate(b)} ${year(b)}`;
 }
 
-/** Tilt of the n-th polaroid, degrees — fixed, so it does not shuffle when the card repaints. */
-const TILT = [-2.6, 1.8, -1.2, 2.4];
-
-function polaroids(m: CountryMemory): string {
-  const urls = m.covers.map((u) => safeUrl(u)).filter(Boolean);
-  if (urls.length === 0) {
-    return `<div class="pp-polaroids"><figure class="pp-polaroid is-empty" style="--tilt:-1.6deg"><span class="pp-tape" aria-hidden="true"></span>
-      <div class="pp-polaroid-pic"></div><figcaption>${esc(t('passport.card.noPhotos'))}</figcaption></figure></div>`;
-  }
+/**
+ * One photo per city, three to a row like a Moments post. A city with no photo of its own still gets a
+ * tile, so the grid reads as "the places of this country" rather than "whatever pictures exist".
+ */
+function photoGrid(m: CountryMemory): string {
+  const taken = new Map(m.cityPhotos.map((p) => [p.city.trim().toLowerCase(), p]));
+  // Every city of the stay, in the order travelled, each with its photo if there is one.
   const cities = m.stamp.cities.length ? m.stamp.cities : [m.stamp.country];
-  return `<div class="pp-polaroids">${urls.map((u, i) => `
-    <figure class="pp-polaroid" style="--tilt:${TILT[i % TILT.length]}deg"><span class="pp-tape" aria-hidden="true"></span>
-      <div class="pp-polaroid-pic"><img src="${esc(u)}" alt="" loading="lazy" referrerpolicy="no-referrer" draggable="false"></div>
-      <figcaption>${esc(cities[i % cities.length])}</figcaption></figure>`).join('')}</div>`;
+  const tiles = cities.map((city) => ({ city, photo: taken.get(city.trim().toLowerCase()) }));
+  // A photo from a place not among the stay's cities (a day trip) still earns a tile of its own.
+  const named = new Set(cities.map((x) => x.trim().toLowerCase()));
+  for (const p of m.cityPhotos) if (p.city && !named.has(p.city.trim().toLowerCase())) tiles.push({ city: p.city, photo: p });
+
+  if (tiles.length === 0) return `<p class="pp-drawer-none">${esc(t('passport.card.noPhotos'))}</p>`;
+  const cells = tiles.map(({ city, photo }) => {
+    const url = photo ? safeUrl(photo.url) : '';
+    const inner = url
+      ? `<img src="${esc(url)}" alt="${esc(city)}" loading="lazy" referrerpolicy="no-referrer" draggable="false">`
+      : `<span class="pp-shot-none" aria-hidden="true">${esc(t('passport.card.noPhotoYet'))}</span>`;
+    return `<figure class="pp-shot${url ? '' : ' is-empty'}"><div class="pp-shot-pic">${inner}</div>
+      <figcaption>${esc(city)}</figcaption></figure>`;
+  }).join('');
+  return `<div class="pp-shots" data-n="${Math.min(tiles.length, 3)}">${cells}</div>`;
 }
 
 function receipt(m: CountryMemory, locale: string): string {
   const s = m.stamp;
   const rows: PaperRow[] = [];
-  if (m.trip.cities.length) rows.push({ label: t('passport.card.cities'), value: m.trip.cities.join(' · ') });
+  // A long list of cities wraps onto its own lines; a price never does, so only this row is let loose.
+  if (m.trip.cities.length) rows.push({ label: t('passport.card.cities'), value: m.trip.cities.join(' · '), className: 'pp-row-wrap' });
   rows.push({ label: t('passport.card.nights'), value: String(m.trip.nights) });
   if (m.total.trips > 1) rows.push({ label: t('passport.card.total'), value: t('passport.card.totalValue', { n: m.total.nights, k: m.total.trips }) });
   rows.push({ label: t('passport.card.journal'), value: String(m.journalCount) });
@@ -106,7 +116,7 @@ export function drawerHtml(m: CountryMemory, locale: string, pos: { i: number; n
         <div class="pp-card-stamp">${renderStamp(s, { size: 190 })}</div>
         ${receipt(m, locale)}
       </div>
-      <section><h3 class="pp-drawer-h">${esc(t('passport.card.photos'))}</h3>${polaroids(m)}</section>
+      <section><h3 class="pp-drawer-h">${esc(t('passport.card.photos'))}</h3>${photoGrid(m)}</section>
       <section><h3 class="pp-drawer-h">${esc(t('passport.card.journal'))}${m.journalCount ? ` · ${m.journalCount}` : ''}</h3>${entries(m)}</section>
     </div>`;
 }

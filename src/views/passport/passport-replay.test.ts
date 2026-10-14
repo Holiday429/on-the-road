@@ -46,6 +46,51 @@ async function mount(): Promise<void> {
   initPassport();
 }
 
+describe('the end of the book', () => {
+  beforeEach(() => { vi.useFakeTimers(); thunks.mockClear(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  const book = () => document.getElementById('pp-book')!;
+  const turned = () => Number(book().dataset.turned);
+  const nextButton = () => document.querySelector<HTMLButtonElement>('[data-pp-next]')!;
+
+  /**
+   * Turns forward until the back cover shows, landing there with the hold still running: the final turn
+   * is only given the leaf animation, never the full pause.
+   */
+  async function toTheEnd(): Promise<number> {
+    for (let i = 0; i < 40 && !nextButton().disabled; i++) {
+      nextButton().click();
+      await vi.advanceTimersByTimeAsync(nextButton().disabled ? 100 : 900);
+    }
+    return turned();
+  }
+
+  it('holds on the back cover, then closes itself back to the front cover', async () => {
+    await mount();
+    const end = await toTheEnd();
+    expect(end).toBeGreaterThan(1);
+    expect(book().classList.contains('is-shut')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(600);                  // still being looked at
+    expect(turned()).toBe(end);
+
+    await vi.advanceTimersByTimeAsync(1000);                 // past the pause
+    expect(turned()).toBe(0);
+    expect(book().classList.contains('is-closed')).toBe(true);
+  });
+
+  it('turning back during the pause keeps the book open', async () => {
+    await mount();
+    const end = await toTheEnd();
+    await vi.advanceTimersByTimeAsync(600);
+    document.querySelector<HTMLButtonElement>('[data-pp-prev]')!.click();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(turned()).toBe(end - 1);                          // it stayed where the traveller put it
+    expect(turned()).toBeGreaterThan(0);
+  });
+});
+
 describe('replay', () => {
   beforeEach(() => { vi.useFakeTimers(); thunks.mockClear(); });
   afterEach(() => { vi.useRealTimers(); });

@@ -34,7 +34,7 @@ import type { PassportStamp } from '../../data/passport.ts';
 import type { PassportCover, PlacementRec } from '../../data/schema.ts';
 import { coverStyle, normalizeCover, sameCover, DEFAULT_COVER } from '../../data/passport-cover.ts';
 import {
-  PAGE_CAP, autoPlacement, bookPages, flippedToShow, leavesFor, pageOfStamp, stampPages,
+  PAGE_CAP, SHUT_PAUSE_MS, autoPlacement, bookPages, flippedToShow, leavesFor, pageOfStamp, reachedBackCover, stampPages,
   type BookPage, type Leaf, type StampPage,
 } from './book.ts';
 import { createFlip, type FlipBook } from './flip.ts';
@@ -86,6 +86,8 @@ let _extrasOn = false;
 /** Bumped to stop a replay in progress. */
 let _replay = 0;
 let _replaying = false;
+/** Pending "close the book" after the back cover; 0 = none. */
+let _shutTimer = 0;
 let _running = 0;
 const narrow = () => window.matchMedia?.('(max-width: 820px)').matches ?? false;
 
@@ -302,6 +304,26 @@ function afterTurn(): void {
   // eslint-disable-next-line no-restricted-syntax -- audited: tray markup escapes every interpolation
   if (tray) tray.innerHTML = trayHtml();
   landVisible(book, turned);
+  watchForEnd(turned);
+}
+
+/**
+ * Read to the end: the back cover is held for a moment, then the book closes itself and comes to rest on
+ * its front cover — the way you would shut a book you have finished. Turning back, or anything else that
+ * moves the book, calls this again and cancels the close.
+ */
+function watchForEnd(turned: number): void {
+  window.clearTimeout(_shutTimer);
+  _shutTimer = 0;
+  if (_replaying || !reachedBackCover(turned, _leaves.length)) return;
+  _shutTimer = window.setTimeout(() => {
+    _shutTimer = 0;
+    // Still on the back cover (the traveller did not turn back in the meantime)?
+    if (!_flip || !reachedBackCover(_flip.turned(), _leaves.length)) return;
+    _turned = 0;
+    _flip.goTo(0, true);
+    playCover();
+  }, SHUT_PAUSE_MS);
 }
 
 /** The faces showing at this turned-count. */
@@ -623,6 +645,8 @@ export function initPassport(): void {
   const root = view();
   if (!root) return;
   _unsubs.forEach((u) => u());
+  window.clearTimeout(_shutTimer);
+  _shutTimer = 0;
   closeSide();
   head(root);
   const refresh = (force = false) => {

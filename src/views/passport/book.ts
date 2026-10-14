@@ -179,3 +179,14 @@ export function flippedToShow(index: number, single: boolean): number {
 export function pageOfStamp(pages: BookPage[], stampId: string): number {
   return pages.findIndex((p) => p.kind === 'stamps' && p.items.some((i) => i.stamp.id === stampId));
 }
+
+/** How long the back cover stays in view before the book closes itself, ms. */
+export const SHUT_PAUSE_MS = 1200;
+
+/**
+ * Whether turning to `turned` has reached the back cover, so the book should pause there and then
+ * close itself. True only at the very end: anywhere earlier the traveller is still reading.
+ */
+export function reachedBackCover(turned: number, leafCount: number): boolean {
+  return leafCount > 0 && turned >= leafCount;
+}

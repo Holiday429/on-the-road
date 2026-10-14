@@ -75,6 +75,40 @@ describe('buildCountryExtras', () => {
     expect(dk.guideCount).toBe(5);
   });
   it('is all zeros for a country with nothing recorded', () => {
-    expect(buildCountryExtras('JP', legs, empty)).toEqual({ journalCount: 0, entries: [], covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
+    expect(buildCountryExtras('JP', legs, empty)).toEqual({ journalCount: 0, entries: [], cityPhotos: [], covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
+  });
+});
+
+describe('cityPhotos', () => {
+  it('takes one photo per city, newest first, and names the place', () => {
+    const data = {
+      journal: [
+        { destination: 'Copenhagen', happenedOn: '2026-06-02', tripId: 'a', images: ['https://x/cph-old.jpg'] },
+        { destination: 'Copenhagen', happenedOn: '2026-06-04', tripId: 'a', images: ['https://x/cph-new.jpg', 'https://x/cph-2.jpg'] },
+        { destination: 'Roskilde', happenedOn: '2026-06-05', tripId: 'a', images: ['https://x/roskilde.jpg'] },
+      ],
+      expenses: [], nomad: [], intel: [],
+    };
+    const shots = buildCountryExtras('DK', legs, data).cityPhotos;
+    expect(shots.map((p) => p.city)).toEqual(['Roskilde', 'Copenhagen']);
+    // One per city: the newest entry's first photo, not every photo it holds.
+    expect(shots.map((p) => p.url)).toEqual(['https://x/roskilde.jpg', 'https://x/cph-new.jpg']);
+  });
+
+  it('falls back to an older entry when the newest one has no photo, and lists a city only once', () => {
+    const data = {
+      journal: [
+        { destination: 'Copenhagen', happenedOn: '2026-06-04', tripId: 'a', images: [] },
+        { destination: 'Copenhagen', happenedOn: '2026-06-02', tripId: 'a', images: ['https://x/a.jpg'] },
+      ],
+      expenses: [], nomad: [], intel: [],
+    };
+    const shots = buildCountryExtras('DK', legs, data).cityPhotos;
+    expect(shots).toHaveLength(1);
+    expect(shots[0]).toMatchObject({ city: 'Copenhagen', url: 'https://x/a.jpg' });
+  });
+
+  it('a country with no photos at all gets no tiles', () => {
+    expect(buildCountryExtras('DK', legs, empty).cityPhotos).toEqual([]);
   });
 });

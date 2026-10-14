@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PAGE_CAP, autoPlacement, bookPages, flippedToShow, leavesFor, pageOfStamp, stampPages, type Placement } from './book.ts';
+import { PAGE_CAP, autoPlacement, bookPages, flippedToShow, leavesFor, pageOfStamp, reachedBackCover, stampPages, type Placement } from './book.ts';
 import type { PassportStamp } from '../../data/passport.ts';
 
 const st = (iso: string, tripId: string, date: string): PassportStamp => ({
@@ -124,5 +124,14 @@ describe('leaves', () => {
     const i = pageOfStamp(pages, 'country:PT:t1');
     expect(pages[i].kind).toBe('stamps');
     expect(pageOfStamp(pages, 'country:XX:t1')).toBe(-1);
+  });
+});
+
+describe('the end of the book', () => {
+  it('only the last turn reaches the back cover', () => {
+    expect(reachedBackCover(4, 4)).toBe(true);
+    expect(reachedBackCover(3, 4)).toBe(false);
+    expect(reachedBackCover(0, 4)).toBe(false);
+    expect(reachedBackCover(0, 0)).toBe(false);     // an empty book has no back cover to reach
   });
 });

@@ -52,11 +52,19 @@ describe('pageHtml', () => {
     expect(html).toContain('too &lt;long&gt;');
     expect(html).not.toContain('AB123456');
     expect(html).toContain('3456');
-    expect(html).toContain('41 / 90');
     expect(html).toContain('data-pp-visa-add');
     const many = Array.from({ length: 3 }, (_, i) => ({ ...v, id: `v${i}` }));
     expect(pageHtml({ kind: 'visas', index: 0 }, { ...c2, visas: many })).not.toContain('data-pp-visa-add');
     expect(pageHtml({ kind: 'visas', index: 1 }, { ...c2, visas: many })).toContain('data-pp-visa-add');
+  });
+
+  it('the visa page carries the visas, not a running Schengen count — but a real overstay is still flagged', () => {
+    const base: PageCtx = { ...ctx, schengen: { used: 41, remaining: 49, peak: 41, overstayOn: '' } };
+    expect(pageHtml({ kind: 'visas', index: 0 }, base)).not.toContain('41');
+    expect(pageHtml({ kind: 'visas', index: 0 }, base)).not.toContain('90');
+    const over = pageHtml({ kind: 'visas', index: 0 }, { ...base, schengen: { used: 95, remaining: 0, peak: 95, overstayOn: '2026-09-02' } });
+    expect(over).toContain('2026-09-02');
+    expect(over).toContain('pp-visa-warn');
   });
 
   it('a stamp page names its page key; a page of deleted-trip stamps says so', () => {
