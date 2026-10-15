@@ -10,7 +10,6 @@
 
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { escHtml, entryCover, excerpt, prettyDate, titleFor, moodEmoji } from '../shared/utils.ts';
-import { todayIso } from '../../../data/trip-phase.ts';
 import { byCountry, countryKey, countryName, flagOf, mapPins, resolveChosen, routeNodes, NO_PLACE, type LegLike, type PlaceStop } from './places-model.ts';
 import { stampDate } from './feed.ts';
 
@@ -38,7 +37,7 @@ export function renderPlaces(stops: PlaceStop[], legs: LegLike[], selectedKey: s
   const chosen = resolveChosen(groups, stops, selectedKey);
   const { group } = chosen;
   const { pins } = mapPins(stops);
-  const route = routeNodes(legs, todayIso());
+  const route = routeNodes(legs);
   const total = stops.reduce((n, s) => n + s.entries.length, 0);
   const placed = groups.filter((g) => g.iso).length;
   const name = group.iso ? countryName(group.iso) : 'Elsewhere';

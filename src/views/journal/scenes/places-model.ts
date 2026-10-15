@@ -19,6 +19,7 @@ import { COUNTRIES } from '../../../data/destinations.ts';
 import { cityLocationsFor, coordsFor, primaryCity, cityTokens } from '../../map/geo.ts';
 import { isoForCountry } from '../../../data/geo-index.ts';
 import type { Leg } from '../../../data/schema.ts';
+import type { RouteStop } from '../../map/route-layer.ts';
 import { WORLD_CITIES } from '../../map/world-cities.ts';
 import { sortEntries } from '../shared/utils.ts';
 
@@ -190,19 +191,18 @@ export function resolveChosen(groups: CountryGroup[], stops: PlaceStop[], key: s
   return { group, stop, key: stop ? stop.key : countryKey(group.iso), entries };
 }
 
-export interface RouteNode { lat: number; lng: number; iso: string | null; reached: boolean }
-
 /**
- * The itinerary as the Map page draws it: one node per leg, in order. A leg you have arrived at
- * (its first day is today or earlier) is reached — the line up to it is coloured; the ones still
- * ahead are not.
+ * The itinerary's stops in travel order, placed and given a country — exactly what
+ * `views/map/route-layer.ts` draws for the Route page, so Places shows the same line.
+ * Dates travel with each stop: the layer decides from them which part of the route is
+ * behind the traveller.
  */
-export function routeNodes(legs: LegLike[], today: string): RouteNode[] {
-  const out: RouteNode[] = [];
+export function routeNodes(legs: LegLike[]): RouteStop[] {
+  const out: RouteStop[] = [];
   for (const l of [...legs].sort((a, b) => a.dateFrom.localeCompare(b.dateFrom))) {
     const at = l.lat != null && l.lng != null ? { lat: l.lat, lng: l.lng } : coordsFor(l.city);
     if (!at) continue;
-    out.push({ lat: at.lat, lng: at.lng, iso: isoForCountry(l.country, l.flag), reached: l.dateFrom <= today });
+    out.push({ lat: at.lat, lng: at.lng, iso: isoForCountry(l.country, l.flag), dateFrom: l.dateFrom, dateTo: l.dateTo });
   }
   return out;
 }

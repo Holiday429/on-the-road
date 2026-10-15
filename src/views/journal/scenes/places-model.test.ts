@@ -96,13 +96,14 @@ describe('places model', () => {
     expect(resolveChosen(groups, stops, 'c:XX').group.iso).toBe('FR');
   });
 
-  it('marks the legs you have arrived at as reached, in date order', () => {
+  it('puts the route stops in travel order, with the dates the map needs', () => {
     const nodes = routeNodes([
       leg('Paris', 'France', '2026-07-01', '2026-07-05'),
       leg('Lisbon', 'Portugal', '2026-06-01', '2026-06-10'),
       leg('Rome', 'Italy', '2026-08-01', '2026-08-10'),
-    ], '2026-07-03');
+    ]);
     expect(nodes.map((n) => n.iso)).toEqual(['PT', 'FR', 'IT']);
-    expect(nodes.map((n) => n.reached)).toEqual([true, true, false]);
+    // the dates ride along so route-layer can split the line at today
+    expect(nodes.map((n) => n.dateFrom)).toEqual(['2026-06-01', '2026-07-01', '2026-08-01']);
   });
 });

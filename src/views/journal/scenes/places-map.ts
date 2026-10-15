@@ -1,34 +1,39 @@
 /* ==========================================================================
    On the Road · Journal places — the route map
    --------------------------------------------------------------------------
-   The same amCharts world the Map page draws, and the same route: the trip's
-   legs joined by arcs. Only the country you picked is lit; every other country
-   is grey. The line is coloured as far as you have got — the legs behind you and
-   the one you are in — and plain dashed grey beyond that. The small places you
-   wrote about inside the lit country sit on it as pins with their entry counts.
-   Click a pin or the lit country to pick it; picking from the line above flies
-   the map there. One chart at a time; it lives in a node marked
-   `data-morph-keep` so the journal's re-renders leave it alone.
+   The Route page's own drawing, borrowed: `views/map/route-layer.ts` puts the
+   trip's line, its numbered pins and its country paint on this chart, so the
+   Journal and the Map can never show different trips.
+
+   What Places adds is the focus. The viewport always frames the WHOLE route —
+   picking a country never zooms into it, because the point of the map here is to
+   show where that country sits in the trip. Instead the picked country keeps its
+   colour while the rest of the route's countries go grey. The small places you
+   wrote about inside it sit on the line as pins carrying their entry counts.
+
+   Click a pin or a route country to pick it. One chart at a time; it lives in a
+   node marked `data-morph-keep` so the journal's re-renders leave it alone.
    ========================================================================== */
 
 import { loadAmCharts } from '../../map/amcharts-loader.ts';
 import { createMapRoot, disposeRoot, waitForSize, motionMs } from '../../map/amcharts-boot.ts';
-import { countryColor, mapColors, onMapRepaint, worldPalette } from '../../map/map-theme.ts';
-import { arcPoints } from '../../map/map-geo.ts';
+import { mapColors, onMapRepaint, worldPalette } from '../../map/map-theme.ts';
+import { createRouteLayer, type RouteLayer, type RouteStop } from '../../map/route-layer.ts';
+import { todayIso } from '../../../data/trip-phase.ts';
 import type { Am5Obj } from '../../map/map-amcharts.ts';
-import { countryKey, type MapPin, type RouteNode } from './places-model.ts';
+import { countryKey, type MapPin } from './places-model.ts';
 
 export interface PlacesMapDeps {
-  /** A pin or a lit country was clicked: this pick key ('c:PT' or a place key) is now the chosen one. */
+  /** A pin or a route country was clicked: this pick key ('c:PT' or a place key) is now the chosen one. */
   onPick: (key: string) => void;
 }
 
-/** What the markup hands the map: the route, the pins, the countries with entries, and the pick. */
+/** What the markup hands the map: the route, the place pins, the countries with entries, and the pick. */
 export interface PlacesMapModel {
-  route: RouteNode[];
+  route: RouteStop[];
   pins: MapPin[];
   isos: string[];
-  /** The lit country ('' when the pick has none). */
+  /** The focused country ('' when the pick has none). */
   iso: string;
   /** The pick key — a country ('c:PT') or one place. */
   key: string;
@@ -38,11 +43,8 @@ interface Live {
   el: HTMLElement;
   root: Am5Obj;
   chart: Am5Obj;
-  world: Am5Obj;
   pinSeries: Am5Obj;
-  doneSeries: Am5Obj;
-  aheadSeries: Am5Obj;
-  nodeSeries: Am5Obj;
+  layer: RouteLayer;
   model: PlacesMapModel;
   json: string;
   off: () => void;
@@ -53,70 +55,21 @@ let building = 0;
 
 /** Bigger bubble for a place with more to read; the chosen one is larger still. */
 export function pinRadius(count: number, selected: boolean): number {
-  const base = 9 + Math.min(6, Math.max(0, count - 1));
-  return selected ? base + 4 : base;
-}
-
-/** Route segments split into the part travelled (or under way) and the part still ahead. */
-export function routeSegments(route: RouteNode[]): { done: [number, number][][]; ahead: [number, number][][] } {
-  const done: [number, number][][] = [], ahead: [number, number][][] = [];
-  for (let i = 0; i < route.length - 1; i++) {
-    const seg = arcPoints(route[i], route[i + 1], 20, 0.15);
-    (route[i + 1].reached ? done : ahead).push(seg);
-  }
-  return { done, ahead };
+  const base = 8 + Math.min(5, Math.max(0, count - 1));
+  return selected ? base + 3 : base;
 }
 
 function readModel(el: HTMLElement): PlacesMapModel {
   try { return JSON.parse(el.dataset.model ?? '') as PlacesMapModel; } catch { return { route: [], pins: [], isos: [], iso: '', key: '' }; }
 }
 
-/** The pins of the lit country — the small places inside it. */
+/** The place pins of the focused country — the small spots inside it. */
 function pinsOf(m: PlacesMapModel): MapPin[] {
   return m.iso ? m.pins.filter((p) => p.iso === m.iso) : [];
 }
 
 function toDatum(p: MapPin) {
   return { ...p, longitude: p.lng, latitude: p.lat };
-}
-
-function paintWorld(l: Live): void {
-  const am5 = (window as Am5Obj).am5;
-  const w = worldPalette();
-  const known = new Set(l.model.isos);
-  l.world.mapPolygons.template.setAll({ fill: am5.color(w.land), fillOpacity: 1, stroke: am5.color(w.border), strokeWidth: 0.8, nonScalingStroke: true });
-  l.world.mapPolygons.each((poly: Am5Obj) => {
-    const id: string | undefined = poly.dataItem?.get('id');
-    const lit = !!id && id === l.model.iso;
-    poly.setAll({
-      fill: am5.color(lit ? countryColor(id!) : w.land),
-      stroke: am5.color(lit ? mapColors().ink : w.border),
-      strokeWidth: lit ? 1.4 : 0.8,
-      interactive: !!id && known.has(id),
-      cursorOverStyle: 'pointer',
-    });
-  });
-}
-
-function paintRoute(l: Live): void {
-  const am5 = (window as Am5Obj).am5;
-  const c = mapColors();
-  const w = worldPalette();
-  l.doneSeries.mapLines.template.setAll({ stroke: am5.color(c.route), strokeWidth: 2.8, strokeOpacity: 0.95, strokeDasharray: [] });
-  l.aheadSeries.mapLines.template.setAll({ stroke: am5.color(w.border), strokeWidth: 2, strokeOpacity: 0.7, strokeDasharray: [3, 6] });
-  l.nodeSeries.dataItems.forEach((item: Am5Obj) => {
-    const dot = item.bullets?.[0]?.get('sprite');
-    const reached = (item.dataContext as RouteNode).reached;
-    dot?.setAll({ fill: am5.color(reached ? c.route : w.land), stroke: am5.color(reached ? w.ocean : w.border) });
-  });
-}
-
-function drawRoute(l: Live): void {
-  const { done, ahead } = routeSegments(l.model.route);
-  l.doneSeries.data.setAll(done.map((coordinates) => ({ geometry: { type: 'LineString', coordinates } })));
-  l.aheadSeries.data.setAll(ahead.map((coordinates) => ({ geometry: { type: 'LineString', coordinates } })));
-  l.nodeSeries.data.setAll(l.model.route.map((n) => ({ ...n, longitude: n.lng, latitude: n.lat })));
-  paintRoute(l);
 }
 
 function restylePins(l: Live): void {
@@ -129,29 +82,28 @@ function restylePins(l: Live): void {
     const on = ctx.key === l.model.key;
     circle.setAll({
       radius: pinRadius(ctx.count, on),
-      fill: am5.color(on ? c.hover : c.route),
+      fill: am5.color(on ? c.hover : c.ink),
       strokeWidth: on ? 3 : 2,
     });
   });
 }
 
-/** Bring the lit country (or the chosen place inside it) into view. */
-function fit(l: Live, animate: boolean): void {
-  const m = l.model;
-  const pin = m.pins.find((p) => p.key === m.key);
+/**
+ * Frame the whole route, always.
+ *
+ * Places answers "where in the trip is this country", so the viewport never
+ * follows the pick — only the colouring does.
+ */
+function fitRoute(l: Live, animate: boolean): void {
+  const pts = [...l.model.route, ...l.model.pins];
   const ms = animate ? motionMs(600) : 0;
-  if (pin) { l.chart.zoomToGeoPoint({ longitude: pin.lng, latitude: pin.lat }, Math.max(5, l.chart.get('zoomLevel') ?? 1), true, ms); return; }
-  const pts = [
-    ...m.route.filter((n) => n.iso === m.iso).map((n) => ({ lat: n.lat, lng: n.lng })),
-    ...pinsOf(m).map((p) => ({ lat: p.lat, lng: p.lng })),
-  ];
-  if (!m.iso || !pts.length) { l.chart.goHome(ms); return; }
-  if (pts.length === 1) { l.chart.zoomToGeoPoint({ longitude: pts[0].lng, latitude: pts[0].lat }, 5, true, ms); return; }
+  if (!pts.length) { l.chart.goHome(ms); return; }
+  if (pts.length === 1) { l.chart.zoomToGeoPoint({ longitude: pts[0].lng, latitude: pts[0].lat }, 4, true, ms); return; }
   const lats = pts.map((p) => p.lat), lngs = pts.map((p) => p.lng);
   try {
     l.chart.zoomToGeoBounds({
-      left: Math.min(...lngs) - 3, right: Math.max(...lngs) + 3,
-      top: Math.max(...lats) + 2.5, bottom: Math.min(...lats) - 2.5,
+      left: Math.min(...lngs) - 4, right: Math.max(...lngs) + 4,
+      top: Math.max(...lats) + 3, bottom: Math.min(...lats) - 3,
     }, ms);
   } catch { l.chart.goHome(); }
 }
@@ -161,7 +113,7 @@ export function disposePlacesMap(): void {
   if (live) { live.off(); disposeRoot(live.root); live = null; }
 }
 
-/** Call after each render. Builds the chart once per node, then only repaints / re-aims it. */
+/** Call after each render. Builds the chart once per node, then only repaints it. */
 export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Promise<void> {
   const el = root.querySelector<HTMLElement>('[data-places-map]');
   if (!el) { disposePlacesMap(); return; }
@@ -171,15 +123,13 @@ export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Prom
 
   if (live && live.el === el) {
     if (live.json === json) return;
-    const moved = live.model.key !== model.key;
-    const reroute = JSON.stringify(live.model.route) !== JSON.stringify(model.route);
+    const rerouted = JSON.stringify(live.model.route) !== JSON.stringify(model.route);
     live.json = json;
     live.model = model;
-    paintWorld(live);
-    if (reroute) drawRoute(live);
+    live.layer.update(model.route, { focusIso: model.iso || null, pins: true });
     live.pinSeries.data.setAll(pinsOf(model).map(toDatum));
     restylePins(live);
-    if (moved) fit(live, true);
+    if (rerouted) fitRoute(live, true);
     return;
   }
 
@@ -205,17 +155,20 @@ export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Prom
     minZoomLevel: 1, maxZoomLevel: 16, zoomStep: 1.3,
   }));
   const world = chart.series.push(am5map.MapPolygonSeries.new(r, { geoJSON: geodata, exclude: ['AQ'] }));
-  const aheadSeries = chart.series.push(am5map.MapLineSeries.new(r, {}));
-  const doneSeries = chart.series.push(am5map.MapLineSeries.new(r, {}));
-  const nodeSeries = chart.series.push(am5map.MapPointSeries.new(r, {}));
-  nodeSeries.bullets.push((root2: Am5Obj) => am5.Bullet.new(root2, {
-    sprite: am5.Circle.new(root2, { radius: 4, strokeWidth: 1.5, interactive: false }),
-  }));
+  world.mapPolygons.template.setAll({ interactive: true, cursorOverStyle: 'default', nonScalingStroke: true });
+  world.mapPolygons.template.events.on('click', (ev: Am5Obj) => {
+    const id: string | undefined = ev.target.dataItem?.get('id');
+    if (id && live && live.model.isos.includes(id)) deps.onPick(countryKey(id));
+  });
+
+  const layer = createRouteLayer(r, chart, world, todayIso(), model.route, { focusIso: model.iso || null, pins: true });
+
+  // The journal's own pins: one per place written about inside the focused country.
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(r, {}));
   pinSeries.bullets.push((root2: Am5Obj, _s: Am5Obj, item: Am5Obj) => {
     const ctx = item.dataContext as MapPin;
     const box = am5.Container.new(root2, { cursorOverStyle: 'pointer', tooltipText: '{label} · {count}' });
-    box.children.push(am5.Circle.new(root2, { radius: pinRadius(ctx.count, false), fill: am5.color(mapColors().route), stroke: am5.color(worldPalette().ocean), strokeWidth: 2 }));
+    box.children.push(am5.Circle.new(root2, { radius: pinRadius(ctx.count, false), fill: am5.color(mapColors().ink), stroke: am5.color(worldPalette().ocean), strokeWidth: 2 }));
     box.children.push(am5.Label.new(root2, {
       text: String(ctx.count), fontSize: 10, fontWeight: '700', fill: am5.color(worldPalette().ocean),
       centerX: am5.percent(50), centerY: am5.percent(50), interactive: false,
@@ -224,21 +177,14 @@ export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Prom
     return am5.Bullet.new(root2, { sprite: box });
   });
 
-  world.mapPolygons.template.setAll({ interactive: false });
-  world.mapPolygons.template.events.on('click', (ev: Am5Obj) => {
-    const id: string | undefined = ev.target.dataItem?.get('id');
-    if (id && live && live.model.isos.includes(id)) deps.onPick(countryKey(id));
-  });
-
-  const next: Live = { el, root: r, chart, world, pinSeries, doneSeries, aheadSeries, nodeSeries, model, json, off: () => {} };
+  const next: Live = { el, root: r, chart, pinSeries, layer, model, json, off: () => {} };
   live = next;
-  const repaint = () => { paintWorld(next); paintRoute(next); restylePins(next); };
-  world.events.on('datavalidated', () => paintWorld(next));
-  next.off = onMapRepaint(repaint);
-  drawRoute(next);
+  next.off = onMapRepaint(() => { layer.repaint(); restylePins(next); });
+  // The world series validates its data asynchronously; paint once it has polygons.
+  world.events.on('datavalidated', () => layer.update(next.model.route, { focusIso: next.model.iso || null, pins: true }));
   pinSeries.data.setAll(pinsOf(model).map(toDatum));
   chart.events.once('boundschanged', () => {
-    requestAnimationFrame(() => { paintWorld(next); restylePins(next); fit(next, false); });
+    requestAnimationFrame(() => { restylePins(next); fitRoute(next, false); });
   });
   chart.appear(motionMs(600));
 }

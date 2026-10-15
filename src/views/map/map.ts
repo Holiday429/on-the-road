@@ -19,11 +19,12 @@ import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
 import { createMapRoot, disposeRoot, motionMs, prefersReducedMotion } from './amcharts-boot.ts';
 import { mapColors as C, countryColor, onMapRepaint } from './map-theme.ts';
+import { drawRouteLines } from './route-layer.ts';
 import { legVisitState } from './map-status.ts';
 import { t, getLocale } from '../../core/i18n.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import {
-  type GeoPt, arcPoints, chainWaypoints,
+  type GeoPt, chainWaypoints,
   expandBounds, geoDist, wrapMapLabel, heatColor,
 } from './map-geo.ts';
 import {
@@ -934,19 +935,10 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     _repaintExtras.push(() => flightSeries.mapLines.template.set('stroke', am5.color(C().flightArc)));
   }
 
-  /* Trip route arcs */
-  const lineSeries = chart.series.push(am5map.MapLineSeries.new(root, {}));
-  lineSeries.mapLines.template.setAll({
-    stroke:am5.color(C().route), strokeWidth:2.5, strokeOpacity:0.85, strokeDasharray:[4,6],
-  });
-  const routeCoords: [number,number][] = [];
-  for (let i = 0; i < legs.length-1; i++) {
-    const seg = arcPoints({lat:legs[i].lat,lng:legs[i].lng},{lat:legs[i+1].lat,lng:legs[i+1].lng},20,0.15);
-    if (i>0) seg.shift();
-    routeCoords.push(...seg);
-  }
-  if (routeCoords.length) lineSeries.pushDataItem({ geometry:{ type:'LineString', coordinates:routeCoords }});
-  _repaintExtras.push(() => lineSeries.mapLines.template.set('stroke', am5.color(C().route)));
+  /* Trip route arcs — drawn in two parts so how far you have got reads off the
+     map: the legs behind you (and the one you are in) in the route colour, the
+     ones still ahead in grey. Shared with the Journal's Places view. */
+  _repaintExtras.push(drawRouteLines(root, chart, legs, today));
 
   /* City number pins */
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(root, {}));
