@@ -50,14 +50,16 @@
 .jp-city.is-selected { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: var(--fw-medium); }
 .jp-city-n { font-family: var(--font-data); font-size: var(--fs-2xs); opacity: .75; }
 
-/* ── Map beside the entries ──────────────────────────────────────────────── */
-.jp-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: stretch; }
+/* ── Map beside the entries ──────────────────────────────────────────────────
+   One height for both columns (`--jp-h`), tall enough that the right-hand side
+   shows its heading, the place chips and two full rows of cards without
+   scrolling; past that the cards scroll inside their own column. */
+.jp-split { --jp-h: clamp(600px, calc(100vh - 220px), 900px); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: stretch; }
 .jp-split > * { min-width: 0; }
-.jp-split .jp-map { height: 100%; min-height: clamp(320px, 46vh, 520px); }
-.jp-split .jp-pile { overflow-y: auto; max-height: clamp(320px, 46vh, 520px); }
+.jp-split .jp-map { height: 100%; min-height: var(--jp-h); }
+.jp-split .jp-pile { overflow-y: auto; max-height: var(--jp-h); }
 @media (max-width: 900px) {
-  .jp-split { grid-template-columns: minmax(0, 1fr); }
-  .jp-split .jp-map { min-height: clamp(240px, 34vh, 360px); }
+  .jp-split { grid-template-columns: minmax(0, 1fr); --jp-h: clamp(280px, 40vh, 420px); }
   .jp-split .jp-pile { max-height: none; }
 }
 

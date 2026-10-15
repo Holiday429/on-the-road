@@ -14,7 +14,9 @@
   gap: var(--sp-5);
 }
 
-/* ── Top bar: mode tabs + view tabs on one row ───────────────────────────── */
+/* ── Top bar ─────────────────────────────────────────────────────────────────
+   Everything the journal needs on one row: the view tabs on the left, then the
+   scope toggle, Portrait, the ⋯ menu and the new-entry button. */
 .journal-topbar {
   display: flex;
   align-items: center;
@@ -22,12 +24,59 @@
   gap: var(--sp-3);
   flex-wrap: wrap;
 }
-.journal-topbar-left {
-  display: flex; align-items: center; gap: var(--sp-3); flex-shrink: 0;
-}
 .journal-topbar-right {
-  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-left: auto;
+  display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-left: auto;
 }
+
+/* Quiet square controls (Portrait, ⋯) — the amber button is the only loud one. */
+.journal-tool-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: var(--ctl-h, 34px); padding: 0 var(--sp-3);
+  border: 1px solid var(--rule); border-radius: var(--r-full);
+  background: var(--surface); color: var(--ink-soft);
+  font-family: var(--font-ui); font-size: var(--fs-sm); cursor: pointer;
+  transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+.journal-tool-btn:hover { background: var(--surface-3); color: var(--ink); }
+.journal-tool-btn:disabled { opacity: .45; cursor: not-allowed; }
+.journal-tool-btn:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+
+/* The one filled button on the page. */
+.journal-new-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: var(--ctl-h, 34px); padding: 0 var(--sp-4);
+  border: 1px solid var(--accent); border-radius: var(--r-full);
+  background: var(--accent); color: var(--on-accent);
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold);
+  box-shadow: var(--shadow-sm); cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast);
+}
+.journal-new-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.journal-new-btn:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+
+/* ⋯ menu — export lives here instead of on the page. */
+.journal-menu { position: relative; }
+.journal-menu-toggle { list-style: none; justify-content: center; min-width: 36px; }
+.journal-menu-toggle::-webkit-details-marker { display: none; }
+.journal-menu-sheet {
+  position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
+  display: flex; flex-direction: column; gap: 2px; min-width: 230px; padding: var(--sp-2);
+  border: 1px solid var(--rule); border-radius: var(--r-lg);
+  background: var(--surface); box-shadow: var(--shadow-lg);
+}
+.journal-menu-hint {
+  padding: 4px var(--sp-2) var(--sp-2);
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .04em; color: var(--ink-faint);
+}
+.journal-menu-item {
+  padding: 8px var(--sp-2); border: 0; border-radius: var(--r-md);
+  background: transparent; color: var(--ink-soft);
+  font-family: var(--font-ui); font-size: var(--fs-sm); text-align: left; cursor: pointer;
+}
+.journal-menu-item:hover { background: var(--surface-3); color: var(--ink); }
+
+/* The feed's single "filtering by…" chip (a tag group in Albums sets it). */
+.journal-feed-filtered { display: flex; margin-bottom: var(--sp-3); }
 .journal-topbar-title {
   font-family: var(--font-ui); font-size: var(--fs-base); font-weight: var(--fw-semibold);
   color: var(--ink); flex-shrink: 0;
@@ -134,12 +183,11 @@
 .journal-story-stat .journal-story-stat-num { display: block; font-size: var(--fs-xl); }
 .journal-story-stat .journal-story-stat-label { display: block; margin-top: 4px; }
 
-/* View tabs (Feed / Places / …) — plain text underline, right-aligned */
+/* View tabs (Feed / Places / …) — plain text underline, leading the top bar */
 .journal-layout-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 0;
-  margin-left: auto;
 }
 .journal-layout-tab {
   display: inline-flex;
@@ -150,9 +198,10 @@
   border: none;
   border-bottom: 2px solid transparent;
   font-family: var(--font-ui);
-  font-size: var(--fs-xs);
+  font-size: var(--fs-sm);
   font-weight: var(--fw-medium);
   color: var(--ink-faint);
+  cursor: pointer;
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
 .journal-layout-tab:hover { color: var(--ink-muted); }
@@ -165,46 +214,6 @@
 .journal-view-surface {
   /* no outer card — views render their own containers */
 }
-
-/* ── Compose bar (the single entry point) ────────────────────────────────── */
-.journal-compose-bar { display: flex; gap: var(--sp-3); align-items: stretch; }
-.journal-export { display: flex; flex-direction: column; justify-content: center; gap: 6px; flex-shrink: 0; }
-.journal-export-btn {
-  padding: 6px 12px;
-  border-radius: var(--r-md);
-  border: 1px solid var(--rule-soft);
-  background: var(--surface);
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-medium);
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-.journal-export-btn:hover { background: var(--amber-50); border-color: var(--amber-200); color: var(--ink); }
-.journal-compose-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  padding: 16px 20px;
-  background: var(--surface);
-  border-radius: var(--r-lg);
-  border: 1.5px solid var(--rule-soft);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast);
-}
-.journal-compose-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-.journal-compose-icon { font-size: 20px; line-height: 1; }
-.journal-compose-label {
-  font-family: var(--font-ui); font-size: var(--fs-md); font-weight: var(--fw-medium);
-  color: var(--ink);
-}
-
 
 /* ── Composer overlay + modal ────────────────────────────────────────────── */
 .journal-composer-overlay {

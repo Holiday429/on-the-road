@@ -1,5 +1,8 @@
 import './journal.css';
 import { morphInto } from '../../core/utils.ts';
+import { t } from '../../core/i18n.ts';
+import { escHtml as esc } from './shared/utils.ts';
+import { MIN_ENTRIES_FOR_PORTRAIT } from './recap/generator.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
 import { journalStoryStore, type StoredJournalStory } from '../../data/stores/journal-story-store.ts';
 import { journalAlbumStore, type StoredJournalAlbum } from '../../data/stores/journal-album-store.ts';
@@ -102,6 +105,47 @@ function updateSubtitle() {
   if (subtitle) subtitle.textContent = subtitleFor(mode);
 }
 
+const VIEWS = ['feed', 'places', 'albums', 'gallery', 'calendar'] as const;
+
+/**
+ * The journal's one bar of chrome: the view tabs on the left, then the scope
+ * toggle, Portrait, the overflow menu and the new-entry button on the right.
+ *
+ * It replaced three stacked rows (mode title + tabs, a full-width compose
+ * button with the export pair, and a tag/place filter strip), which together
+ * pushed the first entry most of a screen down the page.
+ */
+function renderToolbar(): string {
+  const enough = entries.length >= MIN_ENTRIES_FOR_PORTRAIT;
+  const short = MIN_ENTRIES_FOR_PORTRAIT - entries.length;
+  return `
+    <div class="journal-topbar">
+      <div class="journal-layout-bar">
+        ${VIEWS.map((id) => `
+          <button class="journal-layout-tab ${capture.currentView() === id ? 'active' : ''}" data-journal-view="${id}" type="button">${esc(t(`journal.view.${id}`))}</button>
+        `).join('')}
+      </div>
+      <div class="journal-topbar-right">
+        <div class="journal-scope">
+          <button class="journal-scope-btn ${entryScope === 'trip' ? 'active' : ''}" data-journal-scope="trip" type="button">${esc(t('journal.scope.trip'))}</button>
+          <button class="journal-scope-btn ${entryScope === 'all' ? 'active' : ''}" data-journal-scope="all" type="button">${esc(t('journal.scope.all'))}</button>
+        </div>
+        <button class="journal-tool-btn" data-journal-mode="recap" type="button"
+          ${enough ? '' : `disabled title="${esc(t('journal.portrait.need', { n: short }))}"`}>🃏 ${esc(t('journal.mode.portrait'))}</button>
+        <details class="journal-menu">
+          <summary class="journal-tool-btn journal-menu-toggle" title="${esc(t('journal.more'))}" aria-label="${esc(t('journal.more'))}">⋯</summary>
+          <div class="journal-menu-sheet">
+            <span class="journal-menu-hint">${esc(t('journal.export.hint'))}</span>
+            <button class="journal-menu-item" data-journal-export="md" type="button">⬇ ${esc(t('journal.export.md'))}</button>
+            <button class="journal-menu-item" data-journal-export="json" type="button">⬇ ${esc(t('journal.export.json'))}</button>
+          </div>
+        </details>
+        <button class="journal-new-btn" data-journal-new type="button">✍️ ${esc(t('journal.new'))}</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderJournal() {
   const root = document.getElementById('view-journal');
   const body = root?.querySelector<HTMLElement>('.journal-body');
@@ -113,34 +157,12 @@ function renderJournal() {
 
   const html = `
     <div class="journal-mode-shell">
-      <div class="journal-topbar">
-        <div class="journal-topbar-left">
-          <span class="journal-topbar-title${mode === 'capture' ? '' : ' is-story'}">
-            ${mode === 'story' ? '📖 Story' : mode === 'recap' ? '🃏 Portrait' : 'Capture'}
-          </span>
-          ${mode === 'capture' ? `
-            <div class="journal-scope">
-              <button class="journal-scope-btn ${entryScope === 'trip' ? 'active' : ''}" data-journal-scope="trip" type="button">This trip</button>
-              <button class="journal-scope-btn ${entryScope === 'all' ? 'active' : ''}" data-journal-scope="all" type="button">All</button>
-            </div>
-          ` : ''}
+      ${mode === 'capture' ? renderToolbar() : `
+        <div class="journal-topbar">
+          <span class="journal-topbar-title is-story">${mode === 'recap' ? `🃏 ${esc(t('journal.mode.portrait'))}` : `📖 ${esc(t('journal.mode.story'))}`}</span>
+          <button class="btn journal-story-btn btn-ghost" data-journal-mode="capture" type="button">← ${esc(t('journal.mode.entries'))}</button>
         </div>
-        <div class="journal-topbar-right">
-          ${mode === 'capture' ? `
-            <div class="journal-layout-bar">
-              ${(['feed','places','albums','gallery','calendar'] as const).map((id) => `
-                <button class="journal-layout-tab ${capture.currentView() === id ? 'active' : ''}" data-journal-view="${id}" type="button">${id.charAt(0).toUpperCase() + id.slice(1)}</button>
-              `).join('')}
-            </div>
-          ` : ''}
-          ${mode === 'capture' ? `
-            <button class="btn journal-story-btn btn-ghost" data-journal-mode="story" type="button">📖 Story</button>
-            <button class="btn journal-story-btn btn-ghost" data-journal-mode="recap" type="button">🃏 Portrait</button>
-          ` : `
-            <button class="btn journal-story-btn btn-ghost" data-journal-mode="capture" type="button">← Entries</button>
-          `}
-        </div>
-      </div>
+      `}
       ${captureHtml}${storyHtml}${recapHtml}
     </div>
   `;

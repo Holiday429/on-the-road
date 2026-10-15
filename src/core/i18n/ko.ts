@@ -168,4 +168,22 @@ export const ko: StringTable = {
   'dashboard.todoOverdueDay':    '1일 지남',
   'dashboard.todoOverdueDays':   '{n}일 지남',
   'dashboard.alertDismiss':      '닫기',
+
+  /* ── Journal ─────────────────────────────────────────────────────────── */
+  'journal.view.feed':     '피드',
+  'journal.view.places':   '장소',
+  'journal.view.albums':   '앨범',
+  'journal.view.gallery':  '갤러리',
+  'journal.view.calendar': '달력',
+  'journal.scope.trip':    '이번 여행',
+  'journal.scope.all':     '전체',
+  'journal.mode.story':    '스토리',
+  'journal.mode.portrait': '포트레이트',
+  'journal.mode.entries':  '기록',
+  'journal.more':          '더보기',
+  'journal.export.md':     'Markdown으로 내보내기',
+  'journal.export.json':   'JSON으로 내보내기',
+  'journal.new':           '한 줄 쓰기',
+  'journal.save':          '저장',
+  'journal.cancel':        '취소',
 };

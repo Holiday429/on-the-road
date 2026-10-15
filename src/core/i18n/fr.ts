@@ -168,4 +168,22 @@ export const fr: StringTable = {
   'dashboard.todoOverdueDay':    '1 jour de retard',
   'dashboard.todoOverdueDays':   '{n} jours de retard',
   'dashboard.alertDismiss':      'Ignorer',
+
+  /* ── Journal ─────────────────────────────────────────────────────────── */
+  'journal.view.feed':     'Fil',
+  'journal.view.places':   'Lieux',
+  'journal.view.albums':   'Albums',
+  'journal.view.gallery':  'Galerie',
+  'journal.view.calendar': 'Calendrier',
+  'journal.scope.trip':    'Ce voyage',
+  'journal.scope.all':     'Tout',
+  'journal.mode.story':    'Récit',
+  'journal.mode.portrait': 'Portrait',
+  'journal.mode.entries':  'Notes',
+  'journal.more':          'Plus',
+  'journal.export.md':     'Exporter en Markdown',
+  'journal.export.json':   'Exporter en JSON',
+  'journal.new':           'Nouvelle note',
+  'journal.save':          'Enregistrer',
+  'journal.cancel':        'Annuler',
 };

@@ -171,4 +171,22 @@ export const ja: StringTable = {
   'dashboard.todoOverdueDay':    '1 日超過',
   'dashboard.todoOverdueDays':   '{n} 日超過',
   'dashboard.alertDismiss':      '閉じる',
+
+  /* ── Journal ─────────────────────────────────────────────────────────── */
+  'journal.view.feed':     'フィード',
+  'journal.view.places':   '場所',
+  'journal.view.albums':   'アルバム',
+  'journal.view.gallery':  'ギャラリー',
+  'journal.view.calendar': 'カレンダー',
+  'journal.scope.trip':    'この旅行',
+  'journal.scope.all':     'すべて',
+  'journal.mode.story':    'ストーリー',
+  'journal.mode.portrait': 'ポートレート',
+  'journal.mode.entries':  '記録',
+  'journal.more':          'その他',
+  'journal.export.md':     'Markdown で書き出す',
+  'journal.export.json':   'JSON で書き出す',
+  'journal.new':           '書く',
+  'journal.save':          '保存',
+  'journal.cancel':        'キャンセル',
 };

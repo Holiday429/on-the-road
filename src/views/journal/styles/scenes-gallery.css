@@ -1,8 +1,8 @@
 /* ==========================================================================
    On the Road · Journal gallery — a wall of photographs that drifts
-   After the curator's wall in "The Prism of Time": a dark room, square photos,
-   black-and-white until you point at one, amber hairline on hover. Photos only —
-   no captions, no link back to the entry.
+   After the curator's wall in "The Prism of Time": square photos, black-and-white
+   until you point at one, amber hairline on hover. The wall hangs on the page's
+   own paper, not in a dark room. Photos only — no captions, no link to the entry.
    Markup: scenes/gallery.ts · motion: scenes/gallery-flow.ts
    ========================================================================== */
 
@@ -26,17 +26,16 @@
 /* ── The wall ────────────────────────────────────────────────────────────── */
 .jg-wall {
   height: clamp(460px, calc(100vh - 250px), 880px); overflow-y: auto; padding: var(--sp-6) var(--sp-6) var(--sp-10);
-  background: #050505;
-  scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .25) transparent; outline: none;
+  scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 25%, transparent) transparent; outline: none;
 }
 .jg-cols { columns: 3; column-gap: var(--sp-8); }
 .jg-tile {
   position: relative; margin: 0 0 var(--sp-8); break-inside: avoid; overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, .1); transition: border-color 500ms var(--ease-out);
+  border: 1px solid var(--rule); transition: border-color 500ms var(--ease-out);
 }
 .jg-tile:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .jg-img {
-  position: relative; display: block; width: 100%; height: auto; background: #0b0b0b;
+  position: relative; display: block; width: 100%; height: auto; background: var(--surface-3);
   filter: grayscale(1); opacity: .8; transition: filter 500ms var(--ease-out), opacity 500ms var(--ease-out);
   animation: jg-hang 620ms var(--ease-out) both; animation-delay: calc(var(--i) * 55ms);
 }
@@ -48,8 +47,8 @@
 .jg-tile.is-picked .jg-img { filter: grayscale(0); opacity: 1; }
 .jg-check {
   position: absolute; top: var(--sp-2); right: var(--sp-2); z-index: 3; width: 24px; height: 24px; display: grid; place-items: center;
-  border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, .7);
-  background: rgba(0, 0, 0, .35); color: var(--on-accent); font-size: var(--fs-sm);
+  border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--ink) 35%, transparent);
+  background: color-mix(in srgb, var(--surface) 80%, transparent); color: var(--on-accent); font-size: var(--fs-sm);
 }
 .jg-tile.is-picked .jg-check { background: var(--accent); border-color: var(--accent); }
 

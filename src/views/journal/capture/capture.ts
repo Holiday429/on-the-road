@@ -319,6 +319,14 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
+      // The feed's one chip: drop whichever filter an album tag group set.
+      const clearBtn = target.closest<HTMLElement>('[data-filter-clear]');
+      if (clearBtn) {
+        state.filter = { tag: 'all', destination: 'all', favoritesOnly: false };
+        deps.requestRender();
+        return;
+      }
+
       const pickBtn = target.closest<HTMLElement>('[data-place-pick]');
       if (pickBtn) {
         pickPlace(pickBtn.dataset.placePick ?? '');

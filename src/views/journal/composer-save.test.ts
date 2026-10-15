@@ -68,6 +68,18 @@ function mount(entries: any[] = []) {
   return { root, body, ctrl };
 }
 
+/* The new-entry button lives in the journal's top bar (views/journal/index.ts),
+   which this fixture does not mount — but the click handler for it belongs to
+   the capture controller, so the bar's button is recreated here to exercise it. */
+function newEntryButton(root: HTMLElement, body: HTMLElement): HTMLElement {
+  const btn = document.createElement('button');
+  btn.className = 'journal-new-btn';
+  btn.dataset.journalNew = '';
+  body.prepend(btn);
+  void root;
+  return btn;
+}
+
 /** Type into the open composer and hit Save. */
 async function writeAndSave(body: HTMLElement, text: string) {
   const textarea = body.querySelector('#journal-body') as HTMLTextAreaElement;
@@ -85,19 +97,17 @@ beforeEach(() => {
 
 describe('composer save', () => {
   it('opens straight from one button, with no category to pick first', () => {
-    const { body } = mount();
-    const newBtn = body.querySelector('[data-journal-new]') as HTMLElement;
-    expect(newBtn, 'single compose button rendered').toBeTruthy();
+    const { root, body } = mount();
     expect(body.querySelector('[data-stamp]'), 'no category stamps').toBeFalsy();
 
-    newBtn.click();
+    newEntryButton(root, body).click();
     expect(body.querySelector('.journal-composer'), 'composer opened').toBeTruthy();
     expect(body.querySelector('#journal-body'), 'straight to the text field').toBeTruthy();
   });
 
   it('keeps the optional fields collapsed until asked for', () => {
-    const { body } = mount();
-    (body.querySelector('[data-journal-new]') as HTMLElement).click();
+    const { root, body } = mount();
+    newEntryButton(root, body).click();
 
     // L2 is a summary line, not a set of controls.
     expect(body.querySelector('[data-meta-edit]'), 'place+date collapsed').toBeTruthy();
@@ -109,15 +119,15 @@ describe('composer save', () => {
   });
 
   it('rejects a draft with neither text nor photos', async () => {
-    const { body } = mount();
-    (body.querySelector('[data-journal-new]') as HTMLElement).click();
+    const { root, body } = mount();
+    newEntryButton(root, body).click();
     await writeAndSave(body, '   ');
     expect(save).not.toHaveBeenCalled();
   });
 
   it('infers note from a price', async () => {
-    const { body } = mount();
-    (body.querySelector('[data-journal-new]') as HTMLElement).click();
+    const { root, body } = mount();
+    newEntryButton(root, body).click();
     await writeAndSave(body, '手冲 ¥800，老板很酷');
 
     expect(save).toHaveBeenCalledTimes(1);
@@ -125,8 +135,8 @@ describe('composer save', () => {
   });
 
   it('falls back to moment for ordinary prose', async () => {
-    const { body } = mount();
-    (body.querySelector('[data-journal-new]') as HTMLElement).click();
+    const { root, body } = mount();
+    newEntryButton(root, body).click();
     await writeAndSave(body, '今天走了很久的路');
 
     expect(save).toHaveBeenCalledTimes(1);

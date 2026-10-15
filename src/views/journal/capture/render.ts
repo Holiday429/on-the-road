@@ -2,6 +2,7 @@ import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import type { CaptureState } from './types.ts';
+import { t } from '../../../core/i18n.ts';
 import { renderFeedGrid } from '../scenes/feed.ts';
 import { renderGallery } from '../scenes/gallery.ts';
 import { renderPlaces } from '../scenes/places.ts';
@@ -61,7 +62,7 @@ function renderFirstTimeGuide(): string {
     <div class="journal-first-guide">
       <div class="journal-first-guide-icon">✍️</div>
       <div class="journal-first-guide-text">
-        <strong>从这里开始</strong> — 点「记一笔」，传张照片或写一句话就行，之后再整理。
+        <strong>${escHtml(t('journal.firstGuide.lead'))}</strong> — ${escHtml(t('journal.firstGuide.text'))}
       </div>
     </div>
   `;
@@ -74,7 +75,6 @@ export function renderCapture(model: CaptureRenderModel): string {
 
   return `
     <div class="journal-shell">
-      ${renderComposeButton()}
       ${model.allEntries.length === 0 && !model.state.composerOpen ? renderFirstTimeGuide() : ''}
 
       ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs, model.savedGuidePlaces ?? [])}</div></div>` : ''}
@@ -100,29 +100,7 @@ function renderActiveView(model: CaptureRenderModel): string {
     }, renderEmpty('Gallery', 'No photographs yet', 'Entries with photos hang here as a wall that drifts past you.'));
   }
   if (model.state.view === 'calendar') return renderCalendarView(model.calendarCells, model.currentMonthLabel);
-  return renderFeedWithFilters(model);
-}
-
-/**
- * The single way into the composer.
- *
- * This used to be a row of category "stamps", which forced a classification
- * decision before the user had written anything. Category is inferred on save
- * now (see classify.ts), so there is one button and no decision.
- */
-function renderComposeButton(): string {
-  return `
-    <div class="journal-compose-bar">
-      <button class="journal-compose-btn" data-journal-new type="button">
-        <span class="journal-compose-icon">✍️</span>
-        <span class="journal-compose-label">记一笔</span>
-      </button>
-      <div class="journal-export" title="导出当前范围内的全部记录">
-        <button class="journal-export-btn" data-journal-export="md" type="button">⬇ Markdown</button>
-        <button class="journal-export-btn" data-journal-export="json" type="button">⬇ JSON</button>
-      </div>
-    </div>
-  `;
+  return renderFeed(model);
 }
 
 /**
@@ -183,22 +161,22 @@ function renderComposer(
   return `
     <section class="journal-composer">
       <div class="journal-composer-head">
-        <span class="journal-composer-title">${state.editingId ? '编辑记录' : '记一笔'}</span>
+        <span class="journal-composer-title">${escHtml(t(state.editingId ? 'journal.edit' : 'journal.new'))}</span>
         <button class="journal-icon-btn" data-journal-close type="button" title="Close">✕</button>
       </div>
 
-      ${renderImageZone(state, '加照片')}
+      ${renderImageZone(state, t('journal.addPhoto'))}
 
       <div class="journal-write-area">
-        <textarea class="journal-textarea" id="journal-body" placeholder="写点什么，或只放张照片">${escHtml(state.draft.body)}</textarea>
+        <textarea class="journal-textarea" id="journal-body" placeholder="${escHtml(t('journal.bodyPlaceholder'))}">${escHtml(state.draft.body)}</textarea>
       </div>
 
       ${renderComposerMeta(state, cities, destinations, currentDestination, isCustomDestination)}
       ${renderMoreFields(state, savedGuidePlaces)}
 
       <div class="journal-composer-actions">
-        <button class="btn btn-ghost" data-journal-cancel type="button">Cancel</button>
-        <button class="btn btn-primary" data-journal-save type="button">保存</button>
+        <button class="btn btn-ghost" data-journal-cancel type="button">${escHtml(t('journal.cancel'))}</button>
+        <button class="btn btn-primary" data-journal-save type="button">${escHtml(t('journal.save'))}</button>
       </div>
     </section>
   `;
@@ -221,7 +199,7 @@ function renderComposerMeta(
   if (!state.metaEditing) {
     return `
       <button class="journal-meta-summary" data-meta-edit type="button">
-        <span class="journal-meta-summary-place">📍 ${escHtml(currentDestination || '未定地点')}</span>
+        <span class="journal-meta-summary-place">📍 ${escHtml(currentDestination || t('journal.noPlace'))}</span>
         <span class="journal-meta-summary-sep">·</span>
         <span class="journal-meta-summary-date">${escHtml(prettyDate(state.draft.happenedOn))}</span>
       </button>
@@ -234,14 +212,14 @@ function renderComposerMeta(
         ${cities.length ? `
           <select class="select input" id="journal-destination-select">
             ${cities.map((city) => `<option value="${escHtml(city)}" ${!isCustomDestination && city === currentDestination ? 'selected' : ''}>${escHtml(city)}</option>`).join('')}
-            <option value="${OTHER_DESTINATION}" ${isCustomDestination ? 'selected' : ''}>Other place…</option>
+            <option value="${OTHER_DESTINATION}" ${isCustomDestination ? 'selected' : ''}>${escHtml(t('journal.otherPlace'))}</option>
           </select>
         ` : ''}
         <input
           class="input"
           id="journal-destination"
           list="journal-dest-list"
-          placeholder="Where were you?"
+          placeholder="${escHtml(t('journal.whereWereYou'))}"
           value="${escHtml(state.draft.destination)}"
           style="${cities.length && !isCustomDestination ? 'display:none' : ''}"
         >
@@ -294,13 +272,13 @@ function renderMoreFields(
 ): string {
   return `
     <details class="journal-composer-more" data-journal-more ${state.moreOpen ? 'open' : ''}>
-      <summary class="journal-composer-more-toggle">更多</summary>
+      <summary class="journal-composer-more-toggle">${escHtml(t('journal.moreFields'))}</summary>
       <div class="journal-composer-extras">
         <div class="journal-extras-row">
-          <input class="input journal-meta-title" id="journal-title" maxlength="80" placeholder="标题（可选）" value="${escHtml(state.draft.title)}">
+          <input class="input journal-meta-title" id="journal-title" maxlength="80" placeholder="${escHtml(t('journal.titlePlaceholder'))}" value="${escHtml(state.draft.title)}">
         </div>
         <div class="journal-extras-row">
-          <input class="input" id="journal-tags" placeholder="标签，逗号分隔" value="${escHtml(state.draft.tagsText)}">
+          <input class="input" id="journal-tags" placeholder="${escHtml(t('journal.tagsPlaceholder'))}" value="${escHtml(state.draft.tagsText)}">
         </div>
         <div class="journal-extras-row">
           <div class="journal-mood-row">
@@ -318,31 +296,41 @@ function renderMoreFields(
   `;
 }
 
-function renderFeedWithFilters(model: CaptureRenderModel): string {
-  const hasFilters = model.allTags.length > 0 || model.destinations.length > 0;
-  const filterBar = hasFilters ? `
-    <div class="journal-feed-filter-bar">
-      <div class="journal-filter-group">
-        <button class="journal-filter-chip journal-filter-pin ${model.state.filter.favoritesOnly ? 'active' : ''}" data-filter-favorites type="button" title="Pinned only">📌</button>
-        ${model.allTags.slice(0, 8).map((tag) => `
-          <button class="journal-filter-chip ${model.state.filter.tag === tag ? 'active' : ''}" data-filter-tag="${escHtml(tag)}" type="button">#${escHtml(tag)}</button>
-        `).join('')}
-      </div>
-      ${model.destinations.length ? `
-        <select class="select input journal-dest-select" data-filter-destination>
-          <option value="all" ${model.state.filter.destination === 'all' ? 'selected' : ''}>All places</option>
-          ${model.destinations.map((destination) => `
-            <option value="${escHtml(destination)}" ${model.state.filter.destination === destination ? 'selected' : ''}>${escHtml(destination)}</option>
-          `).join('')}
-        </select>
-      ` : ''}
-    </div>
-  ` : '';
+/**
+ * The feed is the magazine and nothing else.
+ *
+ * The tag chips and the place dropdown that used to sit above it are gone: Places
+ * already answers "what did I write in Lisbon", and the strip cost a whole row of
+ * chrome on every visit. A tag filter can still be set from the Albums view's tag
+ * groups, so the filtered-empty state stays reachable and keeps its way out.
+ */
+function renderFeed(model: CaptureRenderModel): string {
+  const filtered = model.state.filter.tag !== 'all'
+    || model.state.filter.destination !== 'all'
+    || model.state.filter.favoritesOnly;
 
-  if (model.visibleEntries.length === 0) {
-    return filterBar + renderEmpty('Filtered', 'No entries match this filter', 'Try clearing a tag or place filter.');
+  if (model.visibleEntries.length === 0 && filtered) {
+    return `
+      <div class="journal-feed-filtered">
+        <button class="journal-filter-chip active" data-filter-clear type="button">✕ ${escHtml(t('journal.view.feed'))}</button>
+        ${renderEmpty('Filtered', 'No entries match this filter', 'Clear the filter to see every entry again.')}
+      </div>`;
   }
-  return filterBar + renderMagazineFeed(model.visibleEntries, model.state.editingId);
+  if (filtered) {
+    return `
+      <div class="journal-feed-filtered">
+        <button class="journal-filter-chip active" data-filter-clear type="button">✕ ${escHtml(filterLabel(model.state))}</button>
+      </div>
+      ${renderMagazineFeed(model.visibleEntries, model.state.editingId)}`;
+  }
+  return renderMagazineFeed(model.visibleEntries, model.state.editingId);
+}
+
+/** What the one "filtering by…" chip above the feed says. */
+function filterLabel(state: CaptureState): string {
+  if (state.filter.tag !== 'all') return `#${state.filter.tag}`;
+  if (state.filter.destination !== 'all') return state.filter.destination;
+  return '📌';
 }
 
 /** The feed: planned editorial blocks (scenes/feed-plan.ts), not equal cards. */
@@ -437,13 +425,13 @@ function renderReaderAlbums(entry: StoredJournalEntry, albums: StoredJournalAlbu
       ${inAlbums.length ? inAlbums.map((album) => `
         <span class="journal-album-chip">
           ${escHtml(album.emoji)} ${escHtml(album.title)}
-          <button class="journal-album-chip-x" data-album-remove-entry="${escHtml(album.id)}:${escHtml(entry.id)}" type="button" title="移出">✕</button>
+          <button class="journal-album-chip-x" data-album-remove-entry="${escHtml(album.id)}:${escHtml(entry.id)}" type="button" title="${escHtml(t('journal.album.remove'))}">✕</button>
         </span>
       `).join('') : '<span class="journal-reader-albums-none">—</span>'}
       <select class="select input journal-album-add" data-album-add-entry="${escHtml(entry.id)}">
-        <option value="">+ 加入…</option>
+        <option value="">${escHtml(t('journal.album.add'))}</option>
         ${available.map((album) => `<option value="${escHtml(album.id)}">${escHtml(album.emoji)} ${escHtml(album.title)}</option>`).join('')}
-        <option value="__new__">+ 新建 album…</option>
+        <option value="__new__">${escHtml(t('journal.album.new'))}</option>
       </select>
     </div>
   `;
@@ -473,13 +461,13 @@ function renderAlbumsView(model: CaptureRenderModel): string {
       ${model.albumDrawer ? '' : `<div class="journal-album-head">
         <div>
           <div class="journal-section-kicker">Albums</div>
-          <p class="journal-album-hint">先随手记，之后把相关的几条放进一个 album。</p>
+          <p class="journal-album-hint">${escHtml(t('journal.album.hint'))}</p>
         </div>
         <div class="journal-album-head-actions">
           <button class="btn btn-ghost" data-album-tidy type="button" ${model.state.tidyLoading ? 'disabled' : ''}>
-            ${model.state.tidyLoading ? '整理中…' : '✨ AI 整理'}
+            ${escHtml(t(model.state.tidyLoading ? 'journal.tidying' : 'journal.tidy'))}
           </button>
-          <button class="btn btn-ghost" data-album-create type="button">+ 新建 album</button>
+          <button class="btn btn-ghost" data-album-create type="button">${escHtml(t('journal.album.create'))}</button>
         </div>
       </div>`}
 
@@ -487,7 +475,7 @@ function renderAlbumsView(model: CaptureRenderModel): string {
 
       ${model.albums.length
         ? renderShelf(model.albums, (a) => albumEntries(a, model.allEntries), !model.albumDrawer)
-        : `<div class="journal-album-empty">${model.albumDrawer ? '还没有 album。' : '还没有 album。到 Gallery 里选几张，或点上面新建一个。'}</div>`}
+        : `<div class="journal-album-empty">${escHtml(t(model.albumDrawer ? 'journal.album.none' : 'journal.album.noneHint'))}</div>`}
 
       ${model.albumDrawer ? '' : renderAutoGroups(model.tagGroups)}
     </div>
@@ -506,12 +494,12 @@ function renderTidySuggestions(model: CaptureRenderModel): string {
   const tidy = model.state.tidy;
   if (!tidy) return '';
   if (!tidy.albums.length) {
-    return `<div class="journal-tidy-empty">没找到明显可以成组的记录 —— 现在这样就挺好。</div>`;
+    return `<div class="journal-tidy-empty">${escHtml(t('journal.tidy.none'))}</div>`;
   }
   return `
     <section class="journal-tidy">
       <div class="journal-tidy-head">
-        <span class="journal-section-kicker">建议的分组</span>
+        <span class="journal-section-kicker">${escHtml(t('journal.tidy.suggested'))}</span>
         <button class="journal-icon-btn" data-tidy-dismiss type="button" title="Dismiss">✕</button>
       </div>
       ${tidy.albums.map((album, index) => `
@@ -526,7 +514,7 @@ function renderTidySuggestions(model: CaptureRenderModel): string {
               }).join('')}
             </div>
           </div>
-          <button class="btn btn-primary" data-tidy-accept="${index}" type="button">建立</button>
+          <button class="btn btn-primary" data-tidy-accept="${index}" type="button">${escHtml(t('journal.tidy.accept'))}</button>
         </article>
       `).join('')}
     </section>
@@ -554,7 +542,7 @@ function renderAlbumFeed(album: StoredJournalAlbum, all: StoredJournalEntry[], r
       </div>
       ${entries.length
         ? renderMagazineFeed(entries, readingId)
-        : '<div class="journal-album-empty">这个 album 还是空的。</div>'}
+        : `<div class="journal-album-empty">${escHtml(t('journal.album.empty'))}</div>`}
     </div>
   `;
 }
@@ -564,7 +552,7 @@ function renderAutoGroups(tagGroups: TagGroup[]): string {
   if (!tagGroups.length) return '';
   return `
     <details class="journal-auto-groups">
-      <summary class="journal-auto-groups-toggle">按标签</summary>
+      <summary class="journal-auto-groups-toggle">${escHtml(t('journal.album.byTag'))}</summary>
       <div class="journal-category-shell">
         <div class="journal-tag-groups">
           ${tagGroups.map((group) => `
