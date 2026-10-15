@@ -57,6 +57,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     metaEditing: false,
     editingId: null,
     readingId: null,
+    readerTurn: '',
     calendarMonth: currentMonthKey(),
     gallerySquare: false,
     galleryDrift: true,
@@ -390,7 +391,21 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         // entry required going through an editable textarea. Editing is now
         // a deliberate action from inside the reader (data-open-reader-edit).
         state.readingId = entryTarget.dataset.openEntry!;
+        state.readerTurn = '';
         deps.requestRender();
+        return;
+      }
+
+      // The reader's page arrows: walk the entries without closing the book.
+      const turnBtn = target.closest<HTMLElement>('[data-spread-prev], [data-spread-next]');
+      if (turnBtn) {
+        const back = turnBtn.hasAttribute('data-spread-prev');
+        const id = (back ? turnBtn.dataset.spreadPrev : turnBtn.dataset.spreadNext) ?? '';
+        if (id) {
+          state.readingId = id;
+          state.readerTurn = back ? 'prev' : 'next';
+          deps.requestRender();
+        }
         return;
       }
 

@@ -54,7 +54,7 @@ function openEditor(getEntries: () => any[]) {
 
   (body.querySelector('[data-open-entry]') as HTMLElement).click();
   (body.querySelector('[data-open-reader-edit]') as HTMLElement).click();
-  expect(body.querySelector('.journal-composer'), 'composer open').toBeTruthy();
+  expect(body.querySelector('.jsp--write'), 'composer open').toBeTruthy();
 
   return { ctrl, body };
 }
@@ -72,7 +72,7 @@ describe('open editor survives store refreshes', () => {
 
     // eslint-disable-next-line no-restricted-syntax -- fixture data
     body.innerHTML = ctrl.render();
-    expect(body.querySelector('.journal-composer'), 'composer must stay open').toBeTruthy();
+    expect(body.querySelector('.jsp--write'), 'composer must stay open').toBeTruthy();
   });
 
   it('still closes the editor when the entry is genuinely deleted', () => {
@@ -88,6 +88,6 @@ describe('open editor survives store refreshes', () => {
 
     // eslint-disable-next-line no-restricted-syntax -- fixture data
     body.innerHTML = ctrl.render();
-    expect(body.querySelector('.journal-composer'), 'composer should close').toBeFalsy();
+    expect(body.querySelector('.jsp--write'), 'composer should close').toBeFalsy();
   });
 });

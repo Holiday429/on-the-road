@@ -101,21 +101,24 @@ describe('composer save', () => {
     expect(body.querySelector('[data-stamp]'), 'no category stamps').toBeFalsy();
 
     newEntryButton(root, body).click();
-    expect(body.querySelector('.journal-composer'), 'composer opened').toBeTruthy();
+    expect(body.querySelector('.jsp--write'), 'composer opened').toBeTruthy();
     expect(body.querySelector('#journal-body'), 'straight to the text field').toBeTruthy();
   });
 
-  it('keeps the optional fields collapsed until asked for', () => {
+  it('puts the day on the page and keeps the rest on a folded note', () => {
     const { root, body } = mount();
     newEntryButton(root, body).click();
 
-    // L2 is a summary line, not a set of controls.
-    expect(body.querySelector('[data-meta-edit]'), 'place+date collapsed').toBeTruthy();
-    expect(body.querySelector('#journal-destination'), 'no destination input yet').toBeFalsy();
-    // L3 is present but closed.
+    // The notebook's own furniture is always out: the date stamp, the place, the
+    // mood stickers and somewhere to write. None of it hides behind a summary line.
+    expect(body.querySelector('#journal-date'), 'date stamp is the date control').toBeTruthy();
+    expect(body.querySelector('#journal-destination'), 'place is on the page').toBeTruthy();
+    expect(body.querySelector('input[name="journal-mood"]'), 'mood stickers are on the page').toBeTruthy();
+    expect(body.querySelector('#journal-body'), 'ruled page to write on').toBeTruthy();
+    // Only the extras (tags, saved places) are folded away.
     const more = body.querySelector('[data-journal-more]') as HTMLDetailsElement;
-    expect(more, 'more section rendered').toBeTruthy();
-    expect(more.open, 'more section starts closed').toBe(false);
+    expect(more, 'sticky note rendered').toBeTruthy();
+    expect(more.open, 'sticky note starts folded').toBe(false);
   });
 
   it('rejects a draft with neither text nor photos', async () => {

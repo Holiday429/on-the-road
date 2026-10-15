@@ -7,17 +7,12 @@ import { renderFeedGrid } from '../scenes/feed.ts';
 import { renderGallery } from '../scenes/gallery.ts';
 import { renderPlaces } from '../scenes/places.ts';
 import { renderBook, renderShelf } from '../scenes/albums.ts';
+import { renderReadSpread, renderWriteSpread } from '../scenes/spread.ts';
 import type { PlaceStop } from '../scenes/places-model.ts';
 import {
-  MAX_JOURNAL_IMAGES,
-  MOODS,
-  OTHER_DESTINATION,
-  coverAspect,
-  entryImages,
   escHtml,
   excerpt,
   moodEmoji,
-  photoGridColumns,
   prettyDate,
   suggestedDestinations,
   titleFor,
@@ -69,16 +64,23 @@ function renderFirstTimeGuide(): string {
 }
 
 export function renderCapture(model: CaptureRenderModel): string {
-  const readingEntry = model.state.readingId
-    ? model.allEntries.find((e) => e.id === model.state.readingId)
-    : undefined;
+  const readingAt = model.state.readingId
+    ? model.allEntries.findIndex((e) => e.id === model.state.readingId)
+    : -1;
+  const readingEntry = readingAt >= 0 ? model.allEntries[readingAt] : undefined;
+  // The reader turns pages through the entries in the order the feed shows them
+  // (newest first), so ‹ goes back in time and › forward.
+  const neighbours = {
+    prevId: readingAt > 0 ? model.allEntries[readingAt - 1].id : null,
+    nextId: readingAt >= 0 && readingAt < model.allEntries.length - 1 ? model.allEntries[readingAt + 1].id : null,
+  };
 
   return `
     <div class="journal-shell">
       ${model.allEntries.length === 0 && !model.state.composerOpen ? renderFirstTimeGuide() : ''}
 
       ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs, model.savedGuidePlaces ?? [])}</div></div>` : ''}
-      ${readingEntry ? `<div class="journal-reader-overlay" data-journal-reader-overlay><div class="journal-reader-drawer">${renderReader(readingEntry, model.albums)}</div></div>` : ''}
+      ${readingEntry ? `<div class="journal-reader-overlay" data-journal-reader-overlay><div class="journal-reader-drawer">${renderReader(readingEntry, model.albums, neighbours, model.state.readerTurn)}</div></div>` : ''}
 
       <div class="journal-view-surface">
         ${renderActiveView(model)}
@@ -103,49 +105,6 @@ function renderActiveView(model: CaptureRenderModel): string {
   return renderFeed(model);
 }
 
-/**
- * Composer photo tray — a WeChat-Moments style thumbnail grid plus an add tile.
- *
- * The first thumbnail is marked as the cover because it decides both the feed
- * hero and the card's aspect ratio, so the reorder arrows are how you choose it.
- */
-function renderImageZone(state: CaptureState, imageLabel: string): string {
-  const photos = state.draft.images;
-  const full = photos.length >= MAX_JOURNAL_IMAGES;
-  return `
-    <div class="journal-image-zone">
-      ${photos.length ? `
-        <div class="journal-image-tray">
-          ${photos.map((src, index) => `
-            <figure class="journal-image-thumb${index === 0 ? ' is-cover' : ''}">
-              <img src="${escHtml(src)}" alt="Photo ${index + 1}" loading="lazy">
-              ${index === 0 ? '<figcaption class="journal-image-cover-tag">Cover</figcaption>' : ''}
-              <div class="journal-image-thumb-tools">
-                ${index > 0 ? `<button class="journal-image-move" data-move-image="${index}" data-move-dir="back" type="button" title="Move earlier" aria-label="Move photo ${index + 1} earlier">‹</button>` : ''}
-                ${index < photos.length - 1 ? `<button class="journal-image-move" data-move-image="${index}" data-move-dir="fwd" type="button" title="Move later" aria-label="Move photo ${index + 1} later">›</button>` : ''}
-              </div>
-              <button class="journal-image-remove" data-remove-image="${index}" type="button" title="Remove" aria-label="Remove photo ${index + 1}">✕</button>
-            </figure>
-          `).join('')}
-          ${full ? '' : `
-            <label class="journal-image-add" for="journal-image-input" title="Add photos">
-              <span class="journal-image-add-icon">+</span>
-              <span class="journal-image-add-count">${photos.length}/${MAX_JOURNAL_IMAGES}</span>
-            </label>
-          `}
-        </div>
-      ` : `
-        <label class="journal-image-placeholder" for="journal-image-input">
-          <span class="journal-image-placeholder-icon">🖼</span>
-          <span>${escHtml(imageLabel)}</span>
-          <span class="journal-image-placeholder-hint">up to ${MAX_JOURNAL_IMAGES}</span>
-        </label>
-      `}
-      <input class="journal-image-input" type="file" id="journal-image-input" accept="image/*" multiple>
-      ${state.draft.uploading ? '<p class="journal-image-uploading">Uploading photos…</p>' : ''}
-    </div>
-  `;
-}
 
 function renderComposer(
   state: CaptureState,
@@ -155,82 +114,15 @@ function renderComposer(
 ): string {
   const destinations = suggestedDestinations(entries, legs);
   const cities = tripCities(legs);
-  const currentDestination = state.draft.destination.trim();
-  const isCustomDestination = currentDestination !== '' && !cities.includes(currentDestination);
 
-  return `
-    <section class="journal-composer">
-      <div class="journal-composer-head">
-        <span class="journal-composer-title">${escHtml(t(state.editingId ? 'journal.edit' : 'journal.new'))}</span>
-        <button class="journal-icon-btn" data-journal-close type="button" title="Close">✕</button>
-      </div>
+  // The optional extras that are not part of the notebook's own furniture.
+  const extras = savedGuidePlaces.length
+    ? renderGuidePlacesPicker(savedGuidePlaces, state.draft.linkedPlaces)
+    : '';
 
-      ${renderImageZone(state, t('journal.addPhoto'))}
-
-      <div class="journal-write-area">
-        <textarea class="journal-textarea" id="journal-body" placeholder="${escHtml(t('journal.bodyPlaceholder'))}">${escHtml(state.draft.body)}</textarea>
-      </div>
-
-      ${renderComposerMeta(state, cities, destinations, currentDestination, isCustomDestination)}
-      ${renderMoreFields(state, savedGuidePlaces)}
-
-      <div class="journal-composer-actions">
-        <button class="btn btn-ghost" data-journal-cancel type="button">${escHtml(t('journal.cancel'))}</button>
-        <button class="btn btn-primary" data-journal-save type="button">${escHtml(t('journal.save'))}</button>
-      </div>
-    </section>
-  `;
+  return renderWriteSpread({ state, cities, destinations, extras });
 }
 
-/**
- * L2 of the composer: place + date.
- *
- * Both are pre-filled (current city, today), so by default they collapse to a
- * single read-only line — the common case needs no interaction at all. Tapping
- * it swaps in the real controls.
- */
-function renderComposerMeta(
-  state: CaptureState,
-  cities: string[],
-  destinations: string[],
-  currentDestination: string,
-  isCustomDestination: boolean,
-): string {
-  if (!state.metaEditing) {
-    return `
-      <button class="journal-meta-summary" data-meta-edit type="button">
-        <span class="journal-meta-summary-place">📍 ${escHtml(currentDestination || t('journal.noPlace'))}</span>
-        <span class="journal-meta-summary-sep">·</span>
-        <span class="journal-meta-summary-date">${escHtml(prettyDate(state.draft.happenedOn))}</span>
-      </button>
-    `;
-  }
-
-  return `
-    <div class="journal-composer-meta">
-      <div class="journal-meta-row-single">
-        ${cities.length ? `
-          <select class="select input" id="journal-destination-select">
-            ${cities.map((city) => `<option value="${escHtml(city)}" ${!isCustomDestination && city === currentDestination ? 'selected' : ''}>${escHtml(city)}</option>`).join('')}
-            <option value="${OTHER_DESTINATION}" ${isCustomDestination ? 'selected' : ''}>${escHtml(t('journal.otherPlace'))}</option>
-          </select>
-        ` : ''}
-        <input
-          class="input"
-          id="journal-destination"
-          list="journal-dest-list"
-          placeholder="${escHtml(t('journal.whereWereYou'))}"
-          value="${escHtml(state.draft.destination)}"
-          style="${cities.length && !isCustomDestination ? 'display:none' : ''}"
-        >
-        <datalist id="journal-dest-list">
-          ${destinations.map((destination) => `<option value="${escHtml(destination)}"></option>`).join('')}
-        </datalist>
-        <input class="input journal-meta-date" type="date" id="journal-date" value="${escHtml(state.draft.happenedOn)}">
-      </div>
-    </div>
-  `;
-}
 
 function typeIcon(type: string): string {
   const map: Record<string, string> = { attraction: '🏛️', restaurant: '🍽️', cafe: '☕', experience: '🎭' };
@@ -259,42 +151,6 @@ function renderGuidePlacesPicker(
   `;
 }
 
-/**
- * L3 of the composer: everything optional, behind one disclosure.
- *
- * Every field renders unconditionally now. They used to be gated on the chosen
- * template's `fields` map, which meant picking a category silently took options
- * away — a `place` entry could not carry a mood. Nothing is taken away here.
- */
-function renderMoreFields(
-  state: CaptureState,
-  savedGuidePlaces: Array<{ id: string; title: string; type: string }>,
-): string {
-  return `
-    <details class="journal-composer-more" data-journal-more ${state.moreOpen ? 'open' : ''}>
-      <summary class="journal-composer-more-toggle">${escHtml(t('journal.moreFields'))}</summary>
-      <div class="journal-composer-extras">
-        <div class="journal-extras-row">
-          <input class="input journal-meta-title" id="journal-title" maxlength="80" placeholder="${escHtml(t('journal.titlePlaceholder'))}" value="${escHtml(state.draft.title)}">
-        </div>
-        <div class="journal-extras-row">
-          <input class="input" id="journal-tags" placeholder="${escHtml(t('journal.tagsPlaceholder'))}" value="${escHtml(state.draft.tagsText)}">
-        </div>
-        <div class="journal-extras-row">
-          <div class="journal-mood-row">
-            ${MOODS.map((mood) => `
-              <label class="journal-mood-chip ${state.draft.mood === mood.value ? 'active' : ''}" title="${mood.value}">
-                <input type="radio" name="journal-mood" value="${mood.value}" ${state.draft.mood === mood.value ? 'checked' : ''}>
-                <span>${mood.emoji}</span>
-              </label>
-            `).join('')}
-          </div>
-        </div>
-        ${savedGuidePlaces.length ? renderGuidePlacesPicker(savedGuidePlaces, state.draft.linkedPlaces) : ''}
-      </div>
-    </details>
-  `;
-}
 
 /**
  * The feed is the magazine and nothing else.
@@ -338,35 +194,6 @@ function renderMagazineFeed(entries: StoredJournalEntry[], editingId: string | n
   return renderFeedGrid(entries, editingId);
 }
 
-/**
- * All of an entry's photos as a WeChat-Moments grid: a single photo gets its
- * real aspect ratio (not forced square — this is the reading surface, so it
- * should look like the actual picture), 2/3 sit in one row, 4 as 2x2, more in
- * rows of 3 up to MAX_JOURNAL_IMAGES. Square tiles from the second photo on
- * keep the grid calm; a lone photo skips that so a tall or wide shot isn't
- * cropped into a square it was never framed for.
- */
-function renderReaderGallery(photos: string[], entryId: string, ratio: number | undefined): string {
-  const shown = photos.slice(0, MAX_JOURNAL_IMAGES);
-  if (shown.length === 0) return '';
-  if (shown.length === 1) {
-    return `
-      <div class="journal-reader-single" style="aspect-ratio:${coverAspect(ratio)}">
-        <img src="${escHtml(shown[0])}" alt="" loading="lazy">
-      </div>
-    `;
-  }
-  const cols = photoGridColumns(shown.length);
-  return `
-    <div class="journal-photo-grid journal-reader-grid" style="--cols:${cols}" data-photo-grid="${entryId}">
-      ${shown.map((src, index) => `
-        <div class="journal-photo-cell">
-          <img src="${escHtml(src)}" alt="Photo ${index + 1}" loading="lazy">
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
 
 /**
  * Read-only entry view — what opens when a feed/gallery/calendar card is
@@ -374,45 +201,16 @@ function renderReaderGallery(photos: string[], entryId: string, ratio: number | 
  * single explicit button here rather than the default action, so opening an
  * entry to read it never drops you into an editable textarea.
  */
-function renderReader(entry: StoredJournalEntry, albums: StoredJournalAlbum[]): string {
-  const photos = entryImages(entry);
-  const title = titleFor(entry);
-  const isPublic = entry.visibility === 'public';
-
-  return `
-    <article class="journal-reader">
-      <header class="journal-reader-head">
-        <div class="journal-reader-head-actions">
-          <button class="journal-reader-pill" data-open-reader-edit="${entry.id}" type="button">✎ Edit</button>
-          <button class="journal-icon-btn" data-reader-close type="button" title="Close">✕</button>
-        </div>
-      </header>
-
-      ${photos.length ? renderReaderGallery(photos, entry.id, entry.imageRatio) : ''}
-
-      <div class="journal-reader-body">
-        ${entry.title.trim() ? `<h2 class="journal-reader-title">${escHtml(title)}</h2>` : ''}
-        ${entry.body.trim() ? `<p class="journal-reader-text">${escHtml(entry.body)}</p>` : ''}
-
-        ${entry.tags.length ? `<div class="journal-mag-tags">${entry.tags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
-
-        ${renderReaderAlbums(entry, albums)}
-
-        <footer class="journal-reader-meta">
-          ${entry.destination ? `<span class="journal-reader-where">📍 ${escHtml(entry.destination)}</span>` : ''}
-          <span class="journal-reader-date">${escHtml(prettyDate(entry.happenedOn))}</span>
-          ${entry.mood ? `<span class="journal-reader-mood">${moodEmoji(entry.mood)}</span>` : ''}
-        </footer>
-
-        <div class="journal-reader-actions">
-          <button class="journal-reader-pill" data-card-entry="${entry.id}" type="button">🖼 Card</button>
-          <button class="journal-reader-pill ${isPublic ? 'is-on' : ''}" data-share-entry="${entry.id}" type="button">↗ Share</button>
-          <button class="journal-reader-pill ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${entry.id}" type="button">📌 Pin</button>
-          <button class="journal-reader-pill is-danger" data-delete-entry="${entry.id}" type="button">✕ Delete</button>
-        </div>
-      </div>
-    </article>
-  `;
+function renderReader(
+  entry: StoredJournalEntry,
+  albums: StoredJournalAlbum[],
+  neighbours: { prevId: string | null; nextId: string | null },
+  dir: '' | 'next' | 'prev',
+): string {
+  return renderReadSpread(
+    { entry, albums, prevId: neighbours.prevId, nextId: neighbours.nextId, dir },
+    renderReaderAlbums(entry, albums),
+  );
 }
 
 /** Album membership for one entry, editable inline — the per-entry way to file something. */

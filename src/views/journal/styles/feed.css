@@ -345,14 +345,13 @@
   animation: fadeIn var(--dur-fast) var(--ease-out);
 }
 
+/* The notebook draws its own covers (styles/spread.css), so the drawer is only
+   the space it opens in — wide enough for two pages side by side. */
 .journal-reader-drawer {
   width: 100%;
-  max-width: 560px;
-  max-height: 90dvh;
+  max-width: 1040px;
+  max-height: 92dvh;
   overflow-y: auto;
-  border-radius: var(--r-xl);
-  background: var(--surface);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22), 0 4px 16px rgba(0, 0, 0, 0.12);
   animation: scaleIn var(--dur-mid) var(--ease-out);
 }
 
@@ -472,6 +471,6 @@
 @media (max-width: 640px) {
 .journal-reader-overlay { padding: 0; align-items: flex-end; }
 
-  .journal-reader-drawer { max-width: none; max-height: 94dvh; border-radius: var(--r-xl) var(--r-xl) 0 0; }
+  .journal-reader-drawer { max-width: none; max-height: 94dvh; }
 }
 

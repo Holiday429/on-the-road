@@ -1,0 +1,230 @@
+/* ==========================================================================
+   On the Road · Journal — the open notebook
+   Markup: scenes/spread.ts. Two pages hinged at a spine: the day on the left
+   (date stamp, postmark, mood, taped photos), the writing on the right (ruled
+   paper). Reading and writing are the same furniture, so the switch between
+   them moves nothing.
+   ========================================================================== */
+
+.jsp {
+  position: relative;
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  width: 100%;
+}
+
+/* ── The book ────────────────────────────────────────────────────────────── */
+.jsp-book {
+  position: relative;
+  display: grid; grid-template-columns: 1fr 1fr;
+  min-height: clamp(420px, 62vh, 640px);
+  border-radius: 4px 10px 10px 4px;
+  /* The spine is a crease down the middle, with the gutter shadow either side,
+     laid over the paper grain — one declaration, or the shorthand resets it. */
+  background:
+    linear-gradient(to right, transparent calc(50% - 26px),
+      color-mix(in srgb, var(--ink) 9%, transparent) calc(50% - 10px),
+      color-mix(in srgb, var(--ink) 26%, transparent) calc(50% - 1px),
+      color-mix(in srgb, var(--ink) 30%, transparent) 50%,
+      color-mix(in srgb, var(--ink) 26%, transparent) calc(50% + 1px),
+      color-mix(in srgb, var(--ink) 9%, transparent) calc(50% + 10px),
+      transparent calc(50% + 26px)),
+    var(--paper-grain), var(--surface);
+  box-shadow: var(--shadow-lg), 0 2px 4px rgba(0, 0, 0, .06);
+  overflow: hidden;
+}
+.jsp-page {
+  position: relative; display: flex; flex-direction: column; gap: var(--sp-3);
+  min-width: 0; padding: var(--sp-5) var(--sp-5) var(--sp-4);
+}
+.jsp-page--left { padding-right: var(--sp-6); }
+/* Ruled paper: the writing sits on the lines. */
+.jsp-page--right {
+  padding-left: var(--sp-6);
+  --jsp-rule: 30px;
+  /* The rules start where the writing does, so a line of text sits ON a rule. */
+  background-image: repeating-linear-gradient(
+    to bottom, transparent 0 calc(var(--jsp-rule) - 1px),
+    color-mix(in srgb, var(--sky-400) 20%, transparent) calc(var(--jsp-rule) - 1px) var(--jsp-rule));
+  background-position: 0 calc(var(--sp-5) - 1px);
+  background-repeat: repeat-x;
+}
+
+/* The page turning in or out, when you move between entries. */
+@keyframes jsp-turn-next { from { opacity: 0; transform: perspective(1400px) rotateY(-14deg) translateX(18px); } }
+@keyframes jsp-turn-prev { from { opacity: 0; transform: perspective(1400px) rotateY(14deg) translateX(-18px); } }
+.jsp--read.is-turning-next .jsp-book { animation: jsp-turn-next 380ms var(--ease-out) both; transform-origin: left center; }
+.jsp--read.is-turning-prev .jsp-book { animation: jsp-turn-prev 380ms var(--ease-out) both; transform-origin: right center; }
+
+/* ── The day: stamp, postmark, mood ──────────────────────────────────────── */
+.jsp-day { display: flex; align-items: flex-start; gap: var(--sp-3); flex-wrap: wrap; }
+
+/* Rubber date stamp, inked slightly off-square. */
+.jsp-stamp {
+  position: relative; display: grid; place-items: center; gap: 0;
+  width: 72px; padding: 6px 4px 5px;
+  border: 2px solid color-mix(in srgb, var(--coral-500) 62%, transparent);
+  border-radius: 3px; transform: rotate(-3deg);
+  color: color-mix(in srgb, var(--coral-500) 78%, var(--ink));
+  font-family: var(--font-stamp, var(--font-data)); line-height: 1;
+}
+.jsp-stamp-day { font-size: 24px; font-weight: 700; letter-spacing: .02em; }
+.jsp-stamp-month { font-size: var(--fs-xs); letter-spacing: .22em; }
+.jsp-stamp-year { font-size: var(--fs-2xs); letter-spacing: .16em; opacity: .75; }
+.jsp-stamp.is-editable { cursor: pointer; }
+.jsp-stamp.is-editable:hover { border-color: var(--coral-500); }
+/* The real date control sits invisibly over the stamp, so the stamp IS the button. */
+.jsp-stamp-input {
+  position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%;
+  border: 0; padding: 0; cursor: pointer; font: inherit; color: transparent;
+}
+.jsp-stamp:focus-within { outline: 2px solid var(--select-bg); outline-offset: 3px; }
+
+/* The city, struck on as a postmark ring. */
+.jsp-postmark {
+  display: grid; place-items: center; gap: 1px;
+  min-width: 74px; height: 74px; padding: 0 8px; border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 34%, transparent);
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
+  font-family: var(--font-data); text-align: center; transform: rotate(5deg);
+}
+.jsp-postmark-city { font-size: var(--fs-2xs); letter-spacing: .1em; line-height: 1.05; }
+.jsp-postmark-date { font-size: var(--fs-2xs); letter-spacing: .12em; opacity: .8; }
+.jsp-mood { font-size: 26px; line-height: 1; margin-left: auto; transform: rotate(-6deg); }
+
+/* The place, as a written-in line rather than a form field. */
+.jsp-place { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.jsp-place-select, .jsp-place-input {
+  min-width: 0; max-width: 100%; padding: 2px 0;
+  border: 0; border-bottom: 1.5px dashed color-mix(in srgb, var(--ink) 26%, transparent);
+  background: transparent; color: var(--ink);
+  font-family: var(--font-hand); font-size: var(--fs-lg);
+}
+/* Written on the page, not typed into a form: no select chrome, just a caret. */
+.jsp-place-select {
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 18px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 9px) calc(50% + 1px), calc(100% - 4px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--ink-muted);
+}
+.jsp-place-select:focus, .jsp-place-input:focus { outline: none; border-bottom-color: var(--accent); }
+
+/* Mood stickers, peeled off a sheet. The radio itself is the state, not the picture. */
+.jsp-stickers { display: flex; gap: var(--sp-2); }
+.jsp-sticker {
+  position: relative; width: 38px; height: 38px; display: grid; place-items: center;
+  border: 1px solid var(--rule); border-radius: 50%;
+  background: var(--surface); font-size: 19px; cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur-fast), background var(--dur-fast);
+}
+.jsp-sticker input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.jsp-sticker:hover { transform: translateY(-2px) rotate(-4deg); }
+/* Selected follows the radio itself, so peeling a sticker shows at once —
+   the draft is only re-rendered on save, not on every field change. */
+.jsp-sticker.is-on,
+.jsp-sticker:has(input:checked) { background: var(--amber-100); border-color: var(--accent); transform: rotate(-7deg) scale(1.06); }
+.jsp-sticker:has(input:focus-visible) { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+
+/* ── Photos, taped to the page ───────────────────────────────────────────── */
+.jsp-photos { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-3); align-content: flex-start; padding-top: var(--sp-2); }
+.jsp-photo {
+  position: relative; margin: 0; padding: 7px 7px 20px; flex: 0 0 auto; width: 100%;
+  background: var(--surface); border-radius: 2px; transform: rotate(var(--lean, 0deg));
+  box-shadow: var(--shadow-md);
+  transition: transform var(--dur-mid) var(--ease-spring);
+}
+.jsp-photo:hover { transform: rotate(0deg) translateY(-3px); z-index: 2; }
+.jsp-photo img { display: block; width: 100%; height: auto; max-height: 340px; object-fit: cover; background: var(--surface-3); }
+/* A single photo gets the width of the page; several share it. */
+.jsp-photos.is-many .jsp-photo { width: calc(50% - var(--sp-2)); }
+.jsp-photos.is-many .jsp-photo img { max-height: 200px; }
+.jsp-photo-x {
+  position: absolute; top: -8px; right: -8px; z-index: 4; width: 22px; height: 22px;
+  border: 1px solid var(--rule); border-radius: 50%; background: var(--surface);
+  color: var(--ink-muted); font-size: var(--fs-xs); cursor: pointer;
+}
+.jsp-photo-x:hover { background: var(--danger-bg, var(--surface-3)); color: var(--ink); }
+.jsp-nophoto { margin: 0; font-family: var(--font-hand); font-size: var(--fs-md); color: var(--ink-faint); }
+
+/* The slot where another photo goes. */
+.jsp-add {
+  display: grid; place-items: center; gap: 2px; width: 118px; height: 118px; cursor: pointer;
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 24%, transparent); border-radius: 3px;
+  color: var(--ink-faint); background: color-mix(in srgb, var(--surface-3) 50%, transparent);
+  transition: border-color var(--dur-fast), color var(--dur-fast), background var(--dur-fast);
+}
+.jsp-add:hover { border-color: var(--accent); color: var(--ink-soft); background: var(--amber-50); }
+.jsp-add-plus { font-size: 22px; line-height: 1; }
+.jsp-add-label { font-size: var(--fs-2xs); letter-spacing: .04em; }
+/* The real file input is plumbing: the dashed slot above is what you click. */
+.jsp-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.jsp-uploading { align-self: center; font-family: var(--font-data); font-size: var(--fs-2xs); color: var(--ink-faint); }
+
+/* ── The writing ─────────────────────────────────────────────────────────── */
+.jsp-written { display: flex; flex-direction: column; gap: var(--sp-2); flex: 1; min-height: 0; overflow-y: auto; }
+.jsp-title, .jsp-title-input {
+  margin: 0; font-family: var(--font-hand); font-size: var(--fs-2xl, var(--fs-xl));
+  font-weight: var(--fw-regular, 400); line-height: var(--jsp-rule, 30px); color: var(--ink);
+}
+.jsp-text, .jsp-text-input {
+  font-family: var(--font-hand); font-size: var(--fs-lg); line-height: var(--jsp-rule, 30px);
+  color: var(--ink-soft); white-space: pre-wrap; word-break: break-word;
+}
+.jsp-title-input, .jsp-text-input {
+  width: 100%; border: 0; background: transparent; padding: 0; resize: none;
+}
+.jsp-title-input::placeholder, .jsp-text-input::placeholder { color: var(--ink-faint); opacity: .7; }
+.jsp-title-input:focus, .jsp-text-input:focus { outline: none; }
+.jsp-text-input { flex: 1; min-height: 200px; }
+
+/* Tags and the optional fields, on a sticky note at the foot of the page. */
+.jsp-foot { margin-top: auto; display: flex; flex-direction: column; gap: var(--sp-2); }
+.jsp-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.jsp-note { margin-top: auto; }
+.jsp-note-tab {
+  display: inline-block; padding: 3px var(--sp-3); cursor: pointer; list-style: none;
+  background: var(--amber-100); border-radius: 2px 2px 0 0;
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .08em; color: var(--ink-soft);
+}
+.jsp-note-tab::-webkit-details-marker { display: none; }
+.jsp-note-body {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: var(--sp-3); background: var(--amber-50); border: 1px solid var(--amber-200);
+}
+
+/* ── The bar under the book ──────────────────────────────────────────────── */
+.jsp-bar { display: flex; align-items: center; gap: var(--sp-3); }
+/* The page arrows sit over the outer edges of the book, where a thumb would be. */
+.jsp--read .jsp-turn {
+  position: absolute; top: 50%; margin-top: -18px; z-index: 4;
+  background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--shadow-sm);
+}
+.jsp--read .jsp-turn[data-spread-prev] { left: var(--sp-2); }
+.jsp--read .jsp-turn[data-spread-next] { right: var(--sp-2); }
+.jsp--read .jsp-bar { justify-content: center; }
+.jsp-tools { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-inline: auto; }
+.jsp-bar-hint { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
+.jsp-turn {
+  width: 36px; height: 36px; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--rule); border-radius: 50%; background: var(--surface);
+  color: var(--ink-soft); font-size: var(--fs-lg); cursor: pointer;
+}
+.jsp-turn:hover:not(:disabled) { background: var(--surface-3); color: var(--ink); }
+.jsp-turn:disabled { opacity: .35; cursor: default; }
+.jsp-close { position: absolute; top: var(--sp-3); right: var(--sp-3); z-index: 5; }
+
+/* ── One page at a time on a phone ───────────────────────────────────────── */
+@media (max-width: 760px) {
+  .jsp-book { grid-template-columns: 1fr; background-image: var(--paper-grain); min-height: 0; }
+  .jsp-page { padding: var(--sp-4); }
+  .jsp-page--left { padding-bottom: 0; }
+  .jsp-page--right { padding-left: var(--sp-4); border-top: 1px dashed var(--rule); }
+  .jsp-photos.is-many .jsp-photo { width: calc(50% - var(--sp-2)); }
+  .jsp-close { top: var(--sp-2); right: var(--sp-2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jsp--read.is-turning-next .jsp-book, .jsp--read.is-turning-prev .jsp-book { animation: none; }
+  .jsp-photo, .jsp-sticker { transition: none; }
+}

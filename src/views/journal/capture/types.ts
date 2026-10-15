@@ -44,6 +44,8 @@ export interface CaptureState {
    *  Tapping a feed/gallery/calendar card opens this, NOT the composer —
    *  editing is a separate action reached from inside the reader. */
   readingId: string | null;
+  /** Which way the reader last turned a page, so the spread animates from that edge. */
+  readerTurn: '' | 'next' | 'prev';
   calendarMonth: string;
   gallerySquare: boolean;
   /** Whether the gallery wall is drifting by itself. */

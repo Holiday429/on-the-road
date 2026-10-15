@@ -66,7 +66,7 @@ describe('reader -> edit flow', () => {
     const editBtn = body.querySelector('[data-open-reader-edit]') as HTMLElement;
     editBtn.click();
 
-    const composer = body.querySelector('.journal-composer');
+    const composer = body.querySelector('.jsp--write');
     const readerStill = body.querySelector('.journal-reader');
     expect(readerStill, 'reader should be closed').toBeFalsy();
     expect(composer, 'composer should be open').toBeTruthy();
