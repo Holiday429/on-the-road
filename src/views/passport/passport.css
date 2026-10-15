@@ -396,7 +396,7 @@
      picture's lower left. The head keeps the height it had when it carried more, so the picture stays a picture. */
   position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; min-height: 168px;
   padding: var(--sp-3) calc(var(--sp-5) + 44px) var(--sp-4) var(--sp-5);
-  overflow: visible; border-bottom: 0; background: none; color: #fff;
+  overflow: hidden; border-bottom: 0; background: none; color: #fff;
 }
 .pp-hero .pp-drawer-first { position: relative; z-index: 1; margin-top: var(--sp-3); }
 .pp-hero-img, .pp-hero-fallback, .pp-hero-shade { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -433,19 +433,19 @@
 .pp-drawer-h { margin: 0 0 var(--sp-2); font-family: var(--font-data); font-size: var(--fs-2xs); font-weight: var(--fw-regular, 400); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-muted); }
 .pp-drawer-none { margin: 0; font-size: var(--fs-sm); color: var(--ink-muted); }
 
-.pp-drawer-top { display: block; }
-/* The stamp straddles the lower edge of the picture, opposite the first-time note, so the slip below can have the
-   card's whole width. It belongs to the head (not the scrolling body, which would clip it where it overlaps). */
-.pp-card-stamp { position: absolute; right: var(--sp-5); bottom: -46px; z-index: 3; width: 124px; transform: rotate(-5deg); filter: drop-shadow(0 4px 8px color-mix(in srgb, black 22%, transparent)); animation: pp-lift .7s cubic-bezier(.3, 1.2, .5, 1) both; }
-.pp-drawer-top { padding-top: 30px; }
+.pp-drawer-top { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr); gap: var(--sp-4); align-items: center; }
+.pp-card-stamp { transform: rotate(-5deg); filter: drop-shadow(0 4px 8px color-mix(in srgb, black 16%, transparent)); animation: pp-lift .7s cubic-bezier(.3, 1.2, .5, 1) both; }
 .pp-card-stamp .pp-stamp { display: block; }
 .pp-card-stamp .pp-stamp svg { width: 100%; height: auto; }
 .pp-card-receipt { min-width: 0; transform: rotate(1.2deg); box-shadow: 0 8px 18px -10px color-mix(in srgb, black 45%, transparent); }
 /* The slip is the Expenses page's own (styles/checkout.css); here it only has to sit on the card: it grows to its
    lines instead of scrolling, and a long list of cities is trimmed by its own ellipsis. */
 .pp-card-receipt .rc-scroll { max-height: none; overflow: visible; }
-/* Simpler than the till's: no tagline, barcode number or thank-you line — the head, the lines and the total are the receipt. */
+/* Simpler than the till's: no tagline, barcode number or thank-you line — the head, the lines and the total are the receipt.
+   Beside the stamp the slip is narrow, so its head is set a little smaller to stay on one line. */
 .pp-card-receipt .rc-tag, .pp-card-receipt .rc-bcnum, .pp-card-receipt .rc-thanks { display: none; }
+.pp-card-receipt .rc-title { font-size: 12px; letter-spacing: .14em; white-space: nowrap; }
+.pp-card-receipt .rc-inner { padding-inline: 12px; }
 .pp-card-receipt .rc-stamp { bottom: 22px; }
 
 /* Photos: the journal's pictures taped down as polaroids. */

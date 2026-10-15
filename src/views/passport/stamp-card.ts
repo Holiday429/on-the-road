@@ -85,22 +85,20 @@ function categoryLine(id: string): { icon: string; label: string } {
 
 /**
  * The stay's spend as the Expenses page's own till slip: the same markup (expenses/checkout.ts renderReceipt) and the
- * same styles, so the two can never drift apart. One numbered line per category, biggest first, then the subtotal and
- * the boxed total. Different currencies are never added, so each currency gets its own slip.
+ * same styles, so the two can never drift apart. One numbered line per category, biggest first, then the boxed total. Different currencies are never added, so each currency gets its own slip.
  */
 function receipt(m: CountryMemory, locale: string): string {
   const s = m.stamp;
   const range = dateRange(m.trip.dateFrom, m.trip.dateTo);
+  // The till's store / cashier rows are not the card's business (the picture says where, the stamp says which);
+  // what is left is the day the stay began and, for a country seen before, how it adds up over every trip.
   const meta: Array<readonly [string, string]> = [
-    [t('expenses.mart.store'), s.country.toUpperCase()],
-    ...(m.trip.cities.length ? [[t('passport.card.cities').toUpperCase(), m.trip.cities.join(' · ')] as const] : []),
-    [t('passport.card.nights').toUpperCase(), String(m.trip.nights)],
     ...(m.total.trips > 1 ? [[t('passport.card.total').toUpperCase(), t('passport.card.totalValue', { n: m.total.nights, k: m.total.trips })] as const] : []),
     [t('expenses.mart.date'), range],
   ];
   const slip = (lines: MartLine[], fmt: (n: number) => string, rows: ReadonlyArray<readonly [string, string]>, seed: string) =>
     `<div class="rc rc--zoom paper paper--zigzag pp-card-receipt">${renderReceipt({
-      lines, store: s.country.toUpperCase(), stamp: range, fmt, meta: rows, readonly: true,
+      lines, store: s.country.toUpperCase(), stamp: range, fmt, meta: rows, readonly: true, subtotal: false,
       // A stay that is over is settled, like a past day on the Expenses page.
       paid: m.trip.dateTo < todayIso(), seed,
     })}</div>`;
@@ -116,7 +114,7 @@ function receipt(m: CountryMemory, locale: string): string {
         const { icon, label } = categoryLine(l.category);
         return { id: `${currency}:${l.category}`, icon, name: label, category: l.category, baseAmount: l.total, amount: l.total, currency };
       });
-    return slip(lines, (n) => money(currency, n, locale), i === 0 ? meta : [[t('expenses.mart.store'), s.country.toUpperCase()]], seedOf(currency + i));
+    return slip(lines, (n) => money(currency, n, locale), i === 0 ? meta : [[t('expenses.mart.date'), range]], seedOf(currency + i));
   }).join('');
 }
 
@@ -137,10 +135,10 @@ export function drawerHtml(m: CountryMemory, locale: string, _pos: { i: number; 
         <div class="pp-drawer-sub">${esc(sub)}${s.orphan ? ` · ${esc(t('passport.deletedTrip'))}` : ''}</div>
       </div>
       ${s.firstEver ? `<div class="pp-drawer-first"><i>★</i> ${esc(t('passport.card.first', { c: s.country }))}</div>` : ''}
-      <div class="pp-card-stamp">${renderStamp(s, { size: 190 })}</div>
     </header>
     <div class="pp-drawer-body">
       <div class="pp-drawer-top">
+        <div class="pp-card-stamp">${renderStamp(s, { size: 190 })}</div>
         ${receipt(m, locale)}
       </div>
       ${polaroids(m)}

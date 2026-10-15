@@ -129,6 +129,8 @@ export interface ReceiptInput {
   stagger?: boolean;
   /** Replaces the store / cashier / date rows under the head with these label–value rows (the passport's memory card). */
   meta?: ReadonlyArray<readonly [string, string]>;
+  /** Show the subtotal line above the total (default yes); the passport's card leaves it out, the total says it. */
+  subtotal?: boolean;
 }
 
 /** The receipt: head and meta on top, lines + subtotal in a scrolling middle
@@ -161,7 +163,7 @@ export function renderReceipt(inp: ReceiptInput): string {
       </div>
       <div class="rc-scroll">
         <div class="rc-lines">${body}</div>
-        <div class="rc-row rc-row--sub"><span>${escHtml(t('expenses.tapeSubtotal').toUpperCase())}</span><span>${escHtml(inp.fmt(total))}</span></div>
+        ${inp.subtotal === false ? '' : `<div class="rc-row rc-row--sub"><span>${escHtml(t('expenses.tapeSubtotal').toUpperCase())}</span><span>${escHtml(inp.fmt(total))}</span></div>`}
       </div>
       <div class="rc-foot">
         <div class="rc-total"><span>${escHtml(t('expenses.mart.total'))}</span><span class="rc-total-amt" data-total="${Math.round(total)}">${escHtml(inp.fmt(total))}</span></div>

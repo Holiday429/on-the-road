@@ -129,6 +129,13 @@ describe('renderReceipt meta rows', () => {
     expect(html).not.toContain('#0429</span>');
   });
 
+  it('the subtotal line can be left out; by default the till keeps it', () => {
+    const lines = [{ id: 'a', icon: '🍜', name: 'Ramen', category: 'food', baseAmount: 45, amount: 45, currency: 'CNY' }];
+    expect(receipt(lines)).toContain('rc-row--sub');
+    expect(receipt(lines, { subtotal: false })).not.toContain('rc-row--sub');
+    expect(receipt(lines, { subtotal: false })).toContain('rc-total');
+  });
+
   it('without meta it keeps the till\'s own three rows', () => {
     const html = receipt([]);
     expect(html).toContain('LISBON · PORTUGAL');

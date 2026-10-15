@@ -44,7 +44,7 @@ describe('the memory card', () => {
     expect(html(second)).not.toContain('Your first time');
   });
 
-  it('the spend is the Expenses page\'s own till slip: numbered lines per category, biggest first, subtotal and total', () => {
+  it('the spend is the Expenses page\'s own till slip: numbered lines per category, biggest first, then the total', () => {
     const h = html(second);
     expect(h).toContain('class="rc rc--zoom');
     expect(h).toContain('ON THE ROAD MART');
@@ -52,15 +52,27 @@ describe('the memory card', () => {
     expect(h).toContain('¥300');
     expect(h).toContain('¥100');                 // food: 80 + 20
     expect(h).toContain('¥400');                 // the total
-    expect(h).toContain('SUBTOTAL');
   });
 
-  it('a stay that is over is stamped PAID; the slip carries cities and nights in place of the till\'s cashier line', () => {
+  it('the slip has no store, cities, nights or subtotal rows — only the date (and the all-trips line for a repeat country)', () => {
     const h = html(second);
-    expect(h).toContain('rc-stamp');
-    expect(h).toContain('CITIES');
-    expect(h).toContain('NIGHTS');
-    expect(h).not.toContain('#0429</span>');
+    for (const gone of ['STORE', 'CITIES', 'NIGHTS', 'SUBTOTAL', 'CASHIER', '#0429</span>']) expect(h).not.toContain(gone);
+    expect(h).toContain('DATE');
+    expect(h).toContain('ALL TRIPS');            // Italy has two trips here
+    expect(html(first)).toContain('ALL TRIPS');
+  });
+
+  it('a stay that is over is stamped PAID', () => {
+    expect(html(second)).toContain('rc-stamp');
+  });
+
+  it('the stamp stands to the left of the slip, in the card\'s body — not in the picture', () => {
+    const h = html(second);
+    const head = h.slice(0, h.indexOf('</header>'));
+    expect(head).not.toContain('pp-card-stamp');
+    const body = h.slice(h.indexOf('pp-drawer-top'));
+    expect(body.indexOf('pp-card-stamp')).toBeGreaterThan(-1);
+    expect(body.indexOf('pp-card-stamp')).toBeLessThan(body.indexOf('rc rc--zoom'));
   });
 
   it('photos are taped in without a heading, and their addresses are not double-escaped', () => {
