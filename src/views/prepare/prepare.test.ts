@@ -67,8 +67,16 @@ vi.mock('../../core/paywall.ts', () => ({ handleAiError: vi.fn() }));
 
 // Deep links (e.g. Dashboard's "Open Pack ›") arrive as a nav intent.
 let _pendingIntent: { listId?: string } | null = null;
+// setViewHome is the shell's: a view registers "my page title goes back to my
+// landing", and the top bar draws that title as a button (see view-home.test.ts
+// and topbar.ts). Here the mock stands in for the registry so these tests can
+// press the title exactly as a user would.
+const _viewHome = new Map<string, () => void>();
 vi.mock('../../core/app.ts', () => ({
   consumeNavIntent: () => { const i = _pendingIntent; _pendingIntent = null; return i; },
+  setViewHome: (id: string, fn: (() => void) | null) => {
+    if (fn) _viewHome.set(id, fn); else _viewHome.delete(id);
+  },
 }));
 
 // Trip context: one active trip with dates far enough out to be 'far' phase.
@@ -98,7 +106,16 @@ function packItem(over: Partial<PackItem> & { id: string; name: string }): PackI
 function mountShell() {
   // eslint-disable-next-line no-restricted-syntax -- audited: static test shell, no interpolation
   document.body.innerHTML = `<div id="view-prep"><div class="prepare-root"></div></div>`;
+  _viewHome.clear();
 }
+/** Press the page title — the way back out of an editor, drawn by the top bar. */
+const goBack = () => {
+  const fn = _viewHome.get('prep');
+  if (!fn) throw new Error('the page title is not offering a way back');
+  fn();
+};
+/** Whether the title is currently offering that way back. */
+const titleGoesBack = () => _viewHome.has('prep');
 const landing = () => document.querySelector<HTMLElement>('#prepare-landing')!;
 const clZone = () => document.querySelector<HTMLElement>('#prepare-checklist-zone')!;
 const pkZone = () => document.querySelector<HTMLElement>('#prepare-pack-zone')!;
@@ -277,13 +294,16 @@ describe('Prepare landing — a scene hands the page to an editor', () => {
     expect(landing().classList.contains('is-hidden')).toBe(true);
     expect(clZone().classList.contains('is-hidden')).toBe(false);
     expect(pkZone().classList.contains('is-hidden')).toBe(true);
-    expect(clZone().querySelector('.prep-crumb #back-to-list')).not.toBeNull();
+    // No back control inside the editor: the page title took that job.
+    expect(clZone().querySelector('#back-to-list, .prep-crumb')).toBeNull();
+    expect(titleGoesBack()).toBe(true);
 
-    clZone().querySelector<HTMLElement>('#back-to-list')!.click();
+    goBack();
 
     expect(landing().classList.contains('is-hidden')).toBe(false);
     expect(clZone().classList.contains('is-hidden')).toBe(true);
     expect(clZone().childElementCount).toBe(0); // editor torn down
+    expect(titleGoesBack()).toBe(false);        // back on the landing, a plain heading again
   });
 
   it('opens the pack editor full-page and returns on Back', async () => {
@@ -294,9 +314,10 @@ describe('Prepare landing — a scene hands the page to an editor', () => {
 
     expect(landing().classList.contains('is-hidden')).toBe(true);
     expect(pkZone().classList.contains('is-hidden')).toBe(false);
-    expect(pkZone().querySelector('.prep-crumb #pk-back')).not.toBeNull();
+    expect(pkZone().querySelector('#pk-back, .prep-crumb')).toBeNull();
+    expect(titleGoesBack()).toBe(true);
 
-    pkZone().querySelector<HTMLElement>('#pk-back')!.click();
+    goBack();
 
     expect(landing().classList.contains('is-hidden')).toBe(false);
     expect(pkZone().classList.contains('is-hidden')).toBe(true);
@@ -325,7 +346,7 @@ describe('Prepare landing — a scene hands the page to an editor', () => {
     clickScene(`[data-open-cl="${id}"]`);
     await checklistStore.toggleItem(id, 'g1', 'i1');   // tick it off in the editor
     // Completing the last item shows the celebration; leave through its back link.
-    (clZone().querySelector<HTMLElement>('#back-to-list') ?? clZone().querySelector<HTMLElement>('.celebrate-back'))?.click();
+    goBack();
 
     expect(document.querySelector('.prep-clip-count')!.textContent).toBe('1/1');
     expect(document.querySelector('.prep-scene--cl.is-complete')).not.toBeNull();
@@ -341,6 +362,36 @@ describe('Prepare landing — a scene hands the page to an editor', () => {
 
     expect(landing().classList.contains('is-hidden')).toBe(false);
     expect(document.querySelector('.prep-scene--pk.is-empty')).not.toBeNull();
+  });
+});
+
+describe('Prepare — the page title is the only way back', () => {
+  it('offers no way back from the landing itself', async () => {
+    initPrepare();
+    await checklistStore.create({ name: 'Paris Prep', groups: [GROUP([])] });
+    expect(titleGoesBack()).toBe(false);
+  });
+
+  it('leaves the Core Kit screen too, not just the editors', async () => {
+    initPrepare();
+    await packStore.create({ name: 'Bag', containers: [], items: [] });
+    document.querySelector<HTMLElement>('[data-act="kit"]')!.click();
+    expect(pkZone().querySelector('#pk-kit-back')).toBeNull();   // no back button of its own
+    expect(titleGoesBack()).toBe(true);
+
+    goBack();
+    expect(landing().classList.contains('is-hidden')).toBe(false);
+    expect(titleGoesBack()).toBe(false);
+  });
+
+  it('stops offering it once the open list is deleted elsewhere', async () => {
+    initPrepare();
+    const id = await packStore.create({ name: 'Main luggage', containers: [], items: [] });
+    clickScene(`[data-open-pk="${id}"]`);
+    expect(titleGoesBack()).toBe(true);
+
+    await packStore.remove(id);
+    expect(titleGoesBack()).toBe(false);
   });
 });
 
@@ -400,7 +451,7 @@ describe('Prepare landing — create flows via the shared modal', () => {
     expect(document.querySelector('.otr-modal')).toBeNull();  // closed after create
     expect(landing().classList.contains('is-hidden')).toBe(true);
 
-    clZone().querySelector<HTMLElement>('#back-to-list')!.click();
+    goBack();
     expect(clipNames()).toEqual(['Iceland Prep']);
   });
 
@@ -424,7 +475,7 @@ describe('Prepare landing — create flows via the shared modal', () => {
     modal().querySelector<HTMLElement>('[data-act="confirm"]')!.click();
 
     await vi.waitFor(() => expect(pkZone().classList.contains('is-hidden')).toBe(false));
-    pkZone().querySelector<HTMLElement>('#pk-back')!.click();
+    goBack();
     expect(document.querySelector<HTMLElement>('.prep-floor')!.dataset.openPk).toBeTruthy();
     expect(document.querySelector('.prep-scene--pk')!.textContent).toContain('Cabin bag');   // its name on the switcher-less scene's label
   });
@@ -457,7 +508,7 @@ describe('Prepare landing — create flows via the shared modal', () => {
     modal().querySelector<HTMLElement>('[data-act="confirm"]')!.click();
 
     await vi.waitFor(() => expect(clZone().classList.contains('is-hidden')).toBe(false));
-    clZone().querySelector<HTMLElement>('#back-to-list')!.click();
+    goBack();
     // Stored under the standalone trip, still surfaced on this trip's landing.
     expect([...docs.keys()].some(k => k.startsWith('trips/standalone/checklists/'))).toBe(true);
     expect(clipNames()).toEqual(['Not tied to a trip']);
@@ -573,7 +624,7 @@ describe('Checklist → Pack linkage', () => {
     clZone().querySelector<HTMLElement>('.send-to-pack-btn')!.click();
     await vi.waitFor(() => expect(clZone().querySelectorAll('.send-to-pack-btn').length).toBe(1));
 
-    clZone().querySelector<HTMLElement>('#back-to-list')!.click();
+    goBack();
 
     expect(document.querySelector('.prep-clip-count')!.textContent).toBe('1/2');
   });
@@ -627,7 +678,7 @@ describe('Prepare landing — Core Kit screen', () => {
     expect(pkZone().classList.contains('is-hidden')).toBe(false);
     expect(pkZone().querySelector('#pk-kit-add-row')).not.toBeNull();
 
-    pkZone().querySelector<HTMLElement>('#pk-kit-back')!.click();
+    goBack();
     expect(landing().classList.contains('is-hidden')).toBe(false);
   });
 });

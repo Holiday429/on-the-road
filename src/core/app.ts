@@ -9,7 +9,7 @@ import { track } from './analytics.ts';
 import { NAV_ICON } from './icons.ts';
 import {
   type ViewId, type NavItem,
-  initSidebar, buildSidebar, buildMobileNav, decorateViewTitles,
+  initSidebar, buildSidebar, buildMobileNav, decorateViewTitles, setViewHome,
   renderViewTitleMarkup, refreshRequestSubscription,
   getTripMenuOpen, setTripMenuOpen,
 } from './sidebar.ts';
@@ -111,6 +111,8 @@ const viewInits: Partial<Record<ViewId, ViewInit>> = {};
 const mountedViews = new Set<ViewId>();
 let sessionState: { user: User | null } = { user: null };
 let sessionPrimaryAction: (() => void | Promise<void>) | null = null;
+
+export { setViewHome };
 
 export function registerView(id: ViewId, initFn: ViewInit) {
   viewInits[id] = initFn;

@@ -140,16 +140,6 @@
 .prep-menu-item.is-danger { color: var(--danger); }
 .prep-menu-item.is-danger:hover { background: var(--danger-bg); }
 
-/* ── Breadcrumb: "📋 Prepare › Europe 2026" — the way back, without a big button ── */
-.prep-crumb { display: flex; align-items: center; gap: var(--sp-2); flex-shrink: 0; }
-.prep-crumb-back {
-  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 0; border-radius: var(--r-full);
-  background: transparent; color: var(--ink-muted); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer;
-}
-.prep-crumb-back:hover { background: var(--surface-3); color: var(--ink); }
-.prep-crumb-back:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
-.prep-crumb-sep { color: var(--ink-faint); }
-
 /* ── Landing ↔ focused editor ─────────────────────────────────────────────── */
 
 .prepare-landing.is-hidden,

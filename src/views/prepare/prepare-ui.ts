@@ -1,13 +1,13 @@
 /* ==========================================================================
    On the Road · Prepare — small shared UI (menu, breadcrumb)
    --------------------------------------------------------------------------
-   The landing's "+ New ▾", and both editors' "⋯" menu and breadcrumb back link,
-   so Checklist and Pack read as the same product. Markup only; one document-level
-   listener drives every menu, so re-rendering a screen never leaks handlers.
+   The landing's "+ New ▾" and both editors' "⋯" menu, so Checklist and Pack read
+   as the same product. (Going back is the page title's job — see setViewHome.)
+   Markup only; one document-level listener drives every menu, so re-rendering a
+   screen never leaks handlers.
    ========================================================================== */
 
 import { escHtml } from '../../core/utils.ts';
-import { t } from '../../core/i18n.ts';
 
 export interface MenuItem {
   /** Becomes `data-act`, so callers bind it like any other action button. */
@@ -60,15 +60,4 @@ export function wireMenus(): void {
       m.querySelector<HTMLElement>('[data-menu-btn]')?.focus();
     });
   });
-}
-
-/** "📋 Prepare › Europe 2026" — the root link goes back (id on the link, set by the caller). */
-export function renderCrumb(icon: string, backId: string): string {
-  return `
-    <nav class="prep-crumb" aria-label="${escHtml(t('prep.crumbAria'))}">
-      <button type="button" class="prep-crumb-back" id="${escHtml(backId)}" title="${escHtml(t('prep.crumbBack'))}">
-        <span aria-hidden="true">${escHtml(icon)}</span><span>${escHtml(t('prep.crumbRoot'))}</span>
-      </button>
-      <span class="prep-crumb-sep" aria-hidden="true">›</span>
-    </nav>`;
 }

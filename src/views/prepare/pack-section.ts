@@ -213,7 +213,6 @@ function renderKit(c: HTMLElement) {
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   c.innerHTML = `
     <div class="pack-detail-bar">
-      <button class="btn btn-ghost" id="pk-kit-back">${t('pack.btnBackAllLists')}</button>
       <div class="pack-detail-title">${t('pack.coreKitSection')}</div>
       <div class="pack-kit-header-right">
         ${_kit.length > 0 ? `<span class="pack-kit-total">${displayWeight(kitTotal, weightUnit)} ${t('pack.totalLabel')}</span>` : ''}
@@ -235,7 +234,6 @@ function renderKit(c: HTMLElement) {
 }
 
 function bindKit(c: HTMLElement) {
-  c.querySelector('#pk-kit-back')?.addEventListener('click', () => { screen = 'list'; render(); });
 
   /* Unit selector */
   c.querySelector<HTMLSelectElement>('#pk-unit-sel')?.addEventListener('change', e => {
@@ -895,7 +893,6 @@ function toggleBag(bagId: string): void {
 function bindDetail(c: HTMLElement, l: PackList) {
   const id = l.id;
 
-  c.querySelector('#pk-back')?.addEventListener('click', () => { screen = 'list'; activeId = null; render(); });
   c.querySelector<HTMLButtonElement>('#pk-weigh')?.addEventListener('click', () => {
     clearTimeout(weighTimer);
     void weighBags((activeList() ?? l).containers.map(b => b.id), { all: true });
@@ -1344,6 +1341,13 @@ export function openPackDetail(id: string): void {
   activeId = id;
   screen = 'detail';
   packCheckMode = false;
+  render();
+}
+
+/** Leave whatever screen this section is on (detail / Core Kit) for the Prepare landing. */
+export function closePackDetail(): void {
+  screen = 'list';
+  activeId = null;
   render();
 }
 

@@ -15,7 +15,7 @@ import { t as tr } from '../../core/i18n.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { citySharedStore, type StoredCityShared } from '../../data/stores/city-shared-store.ts';
 import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
-import { navigateTo, consumeNavIntent, type NavIntent } from '../../core/app.ts';
+import { navigateTo, consumeNavIntent, setViewHome, type NavIntent } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
@@ -821,23 +821,6 @@ function renderDetail(leg: Leg): string {
     </div>`;
 }
 
-/** "← All stops" lives in the page header (same row as the Itinerary title)
- *  while a leg is open; removed again on the list. */
-function syncHeaderBack(show: boolean) {
-  const header = document.querySelector<HTMLElement>('#view-route .view-header');
-  if (!header) return;
-  let btn = header.querySelector<HTMLButtonElement>('.route-header-back');
-  header.classList.toggle('has-back', show);
-  if (!show) { btn?.remove(); return; }
-  if (!btn) {
-    btn = document.createElement('button');
-    btn.className = 'btn btn-ghost route-header-back';
-    btn.addEventListener('click', backToList);
-    header.appendChild(btn);
-  }
-  btn.textContent = tr('route.btnBackAllStops');
-}
-
 function backToList() {
   if (_planLeaflet) { _planLeaflet.remove(); _planLeaflet = null; _planLeafletEl = null; }
   selectedLegId = null;
@@ -861,7 +844,8 @@ function render() {
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
   timeline.innerHTML = selected ? renderDetail(selected) : renderTimeline();
   timeline.classList.toggle('is-detail', !!selected);
-  syncHeaderBack(!!selected);
+  // With a stop open, the "Itinerary" page title is the way back to the list.
+  setViewHome('route', selected ? backToList : null);
 
   if (selected) wireDetail(timeline, selected);
   else wireList(timeline);

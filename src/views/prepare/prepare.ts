@@ -15,19 +15,20 @@ import './styles/prepare.css';
 import './styles/prepare-scenes.css';
 import {
   initPrep, openChecklistDetail, openNewChecklistModal, openTemplatePickerModal,
-  peekChecklistRows, peekChecklistPreview, checklistTotals,
+  peekChecklistRows, peekChecklistPreview, checklistTotals, closeChecklistDetail,
   type ChecklistScreen,
 } from './checklist-section.ts';
 import {
   initPack, openPackDetail, openNewPackListModal, openPackFormula, openCoreKit,
   peekPackRows, packTotals, packFormulaAvailable, focusPackAction,
-  peekPackScene, packAlert, openPackWeigh, formatKg, type PackScreen,
+  peekPackScene, packAlert, openPackWeigh, closePackDetail, formatKg, type PackScreen,
 } from './pack-section.ts';
 import { resolvePhase, renderHero, heroChipAction, resolveAlert } from './phase-strip.ts';
 import { renderClipboardScene, renderPackScene, renderSwitcher, CLIP_SLOTS } from './prepare-scenes.ts';
 import { renderMenu, wireMenus } from './prepare-ui.ts';
 import { daysToGo, tripPhase, peekLegs } from '../../data/trip-phase.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
+import { setViewHome } from '../../core/app.ts';
 import { t } from '../../core/i18n.ts';
 
 let _root: HTMLElement | null = null;
@@ -242,6 +243,13 @@ function applyMode() {
   _landing?.classList.toggle('is-hidden', focused);
   root.querySelector('#prepare-checklist-zone')?.classList.toggle('is-hidden', !_clFocused);
   root.querySelector('#prepare-pack-zone')?.classList.toggle('is-hidden', !_pkFocused);
+
+  // While an editor has the page, the "Prepare" title is the way back to the
+  // landing — whichever of the two sections is open (or both, mid-switch).
+  setViewHome('prep', focused ? () => {
+    if (_clFocused) closeChecklistDetail();
+    if (_pkFocused) closePackDetail();
+  } : null);
 
   // Returning from an editor: repaint so edits made in there (renamed list,
   // items ticked off) show in the rails and hero straight away.

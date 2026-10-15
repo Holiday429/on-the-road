@@ -129,6 +129,26 @@ function buildGuestPanel(): string {
   return '';
 }
 
+/* ── The page title as the way back ──────────────────────────────────────────
+   A view that opens a detail screen over its own landing registers a "go home"
+   callback here; while one is registered the page title in the top bar (e.g.
+   "Prepare") becomes a button that returns to that landing, so no view needs its
+   own back control. The state lives here rather than in the top bar because the
+   top bar repaints the title on every view change and locale switch and has to
+   be able to ask for the current state. */
+const viewHome = new Map<ViewId, () => void>();
+
+/** Register (fn) or clear (null) the title's "back to this view's landing" action. */
+export function setViewHome(id: ViewId, fn: (() => void) | null): void {
+  if (fn) viewHome.set(id, fn); else viewHome.delete(id);
+  window.dispatchEvent(new CustomEvent('otr:view-home', { detail: { id } }));
+}
+
+/** The callback for a view, if it is currently on a detail screen. */
+export function getViewHome(id: ViewId): (() => void) | null {
+  return viewHome.get(id) ?? null;
+}
+
 export function renderViewTitleMarkup(id: ViewId, title?: string): string {
   // Views can be routable (ViewId) without a NAV_ITEMS entry (profile,
   // and now nomad) — fall back to a bare translated label rather than

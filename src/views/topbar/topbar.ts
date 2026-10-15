@@ -19,7 +19,7 @@ import { onSimChange } from '../../data/sim-clock.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { openNewTrip, navigateTo, NAV_ITEMS, type ViewId } from '../../core/app.ts';
-import { navLabel, renderNavIcon } from '../../core/sidebar.ts';
+import { navLabel, renderNavIcon, getViewHome } from '../../core/sidebar.ts';
 import { mountPrefControls } from '../../core/pref-mounts.ts';
 import { renderSimControl, wireSimControl } from '../dashboard/dashboard-simclock.ts';
 import { renderAlertBell, wireAlertBell } from '../dashboard/dashboard-alert-bell.ts';
@@ -73,10 +73,22 @@ function tabsHtml(id: ViewId): string {
 function paintTitle(): void {
   const slot = host()?.querySelector<HTMLElement>('[data-tb-title]');
   if (!slot) return;
+  // While the active view sits on a detail screen of its own, its title is the
+  // way back to that view's landing — so a detail screen needs no back button.
+  const home = getViewHome(_viewId);
+  const attrs = home
+    ? ` class="tb-title is-home-link" role="button" tabindex="0" data-tb-home title="${esc(t('app.backToView', { view: navLabel(NAV_ITEMS.find((n) => n.id === _viewId)!) }))}"`
+    : ' class="tb-title"';
   // eslint-disable-next-line no-restricted-syntax -- audited: copied from the view's own markup, which escapes its values
-  slot.innerHTML = `<div class="tb-title">${titleHtml(_viewId)}</div>${tabsHtml(_viewId)}`;
+  slot.innerHTML = `<div${attrs}>${titleHtml(_viewId)}</div>${tabsHtml(_viewId)}`;
   slot.querySelectorAll<HTMLElement>('[data-tb-tab]').forEach((b) =>
     b.addEventListener('click', () => { void navigateTo(b.dataset.tbTab as ViewId); }));
+  const title = slot.querySelector<HTMLElement>('[data-tb-home]');
+  if (!title || !home) return;
+  title.addEventListener('click', () => home());
+  title.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); home(); }
+  });
 }
 
 function host(): HTMLElement | null { return document.getElementById('app-topbar'); }
@@ -144,6 +156,10 @@ export function initTopbar(): void {
   });
   // The Dashboard re-renders its greeting (time of day, language, name).
   window.addEventListener('otr:title-refresh', paintTitle);
+  // A view entered or left a detail screen: the title becomes (or stops being) the way back.
+  window.addEventListener('otr:view-home', (e) => {
+    if ((e as CustomEvent<{ id: ViewId }>).detail.id === _viewId) paintTitle();
+  });
 
   routeStore.subscribe((rows) => { _legs = rows; schedule(); });
   expenseStore.subscribe((rows) => { _expenses = rows; schedule(); });

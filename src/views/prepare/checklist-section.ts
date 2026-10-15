@@ -20,7 +20,7 @@ import { handleAiError } from '../../core/paywall.ts';
 import { openModal } from '../../core/modal.ts';
 import { addToUnassigned, hasPackList } from './pack-section.ts';
 import { categoryForGroupName } from '../pack/pack-helpers.ts';
-import { renderCrumb, renderMenu, wireMenus } from './prepare-ui.ts';
+import { renderMenu, wireMenus } from './prepare-ui.ts';
 
 /* ── State ───────────────────────────────────────────────────────────────── */
 
@@ -173,6 +173,15 @@ function renderTemplatePickerItem(tpl: StoredTemplate): string {
 export function openChecklistDetail(id: string): void {
   activeChecklistId = id;
   screen = 'detail';
+  render();
+}
+
+/** Leave whatever screen this section is on (detail / celebrate) for the Prepare landing. */
+export function closeChecklistDetail(): void {
+  screen = 'list';
+  activeChecklistId = null;
+  editingGroupId = null;
+  _newNote = { open: false, icon: '📋', text: '' };
   render();
 }
 
@@ -408,11 +417,11 @@ function renderDetailScreen(container: HTMLElement) {
     <div class="prep-detail-screen">
       <!-- Breadcrumb back + title + actions -->
       <div class="detail-topbar">
-        ${renderCrumb('📋', 'back-to-list')}
         <div class="detail-title-wrap">
           <input class="detail-title-input" id="detail-title-input" value="${escHtml(cl.name)}" aria-label="${escHtml(t('prep.renameChecklist'))}">
         </div>
         <div class="detail-actions">
+          ${renderNewNote(cl)}
           <button class="btn btn-ghost ai-check-btn" id="ai-check-btn" title="${escHtml(t('prep.aiCheckTitle'))}">✨ ${escHtml(t('prep.aiCheckBtn'))}</button>
           ${menu}
         </div>
@@ -426,11 +435,11 @@ function renderDetailScreen(container: HTMLElement) {
         ${allDone ? `<button class="btn btn-primary celebrate-btn" id="celebrate-btn">🎉 ${escHtml(t('prep.viewCompletion'))}</button>` : ''}
       </div>
 
-      <!-- Notes (+ the dashed "new note" tile at the end) -->
+      <!-- Notes -->
       <div class="groups-list" id="groups-list">
         ${[...cl.groups].sort((a, b) => a.order - b.order).map((g, i) => renderGroup(cl.id, g, i)).join('')}
-        ${renderNewNote(cl)}
       </div>
+      ${cl.groups.length ? '' : `<p class="prep-board-empty">${escHtml(t('prep.boardEmpty'))}</p>`}
 
       <!-- AI panel -->
       <div class="ai-panel" id="ai-panel" hidden>
@@ -475,12 +484,12 @@ function renderNextPill(cl: StoredChecklist): string {
     </div>`;
 }
 
-/** The dashed tile at the end of the board: a name box whose drop-down is the preset list. */
+/** "+ New note" beside the title: a button that drops a name box whose list is the presets. */
 function renderNewNote(cl: StoredChecklist): string {
   const used = new Set(cl.groups.map(g => g.name.trim().toLowerCase()));
   return `
     <div class="prep-newnote${_newNote.open ? ' is-open' : ''}" id="prep-newnote">
-      <button type="button" class="prep-newnote-open" id="newnote-open"><span aria-hidden="true">+</span> ${escHtml(t('prep.newNote'))}</button>
+      <button type="button" class="btn btn-primary prep-newnote-open" id="newnote-open" aria-expanded="${_newNote.open}">${escHtml(t('prep.newNote'))}</button>
       <div class="prep-newnote-form">
         <div class="prep-newnote-row">
           <button type="button" class="add-group-emoji-btn" id="add-group-emoji-btn" title="${escHtml(t('prep.pickIcon'))}" aria-label="${escHtml(t('prep.pickIcon'))}">${escHtml(_newNote.icon)}</button>
@@ -585,13 +594,6 @@ function renderItem(item: ChecklistItem, groupName: string): string {
 }
 
 function bindDetailScreen(container: HTMLElement, cl: StoredChecklist) {
-  // Back
-  container.querySelector('#back-to-list')?.addEventListener('click', () => {
-    screen = 'list';
-    editingGroupId = null;
-    render();
-  });
-
   // Rename checklist
   container.querySelector<HTMLInputElement>('#detail-title-input')?.addEventListener('change', async (e) => {
     const val = (e.target as HTMLInputElement).value.trim();
@@ -756,7 +758,7 @@ function wireEscBack() {
     const el = e.target as HTMLElement | null;
     if (el instanceof HTMLElement && (el.matches('input, textarea, select') || el.isContentEditable)) return;
     if (document.querySelector('[role="dialog"]')) return;
-    document.querySelector<HTMLElement>('#prepare-checklist-zone #back-to-list')?.click();
+    closeChecklistDetail();
   });
 }
 

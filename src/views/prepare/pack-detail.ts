@@ -10,7 +10,7 @@
 
 import type { PackList, PackContainer, PackItem } from '../../data/schema.ts';
 import { renderBag, bagLook, bagWidth } from '../../core/paper/luggage.ts';
-import { renderCrumb, renderMenu } from './prepare-ui.ts';
+import { renderMenu } from './prepare-ui.ts';
 import { paperReceipt } from '../../core/paper/paper.ts';
 import { escHtml } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
@@ -254,7 +254,6 @@ export function renderDetailMarkup(ctx: DetailCtx, savedSlipIds: Set<string>): s
   return `
     <div class="pack-detail pkd">
       <div class="pack-detail-bar pkd-bar">
-        ${renderCrumb('🎒', 'pk-back')}
         <div class="pack-detail-title">${escHtml(l.name)}</div>
         <div class="pack-detail-actions pkd-actions">
           ${ctx.hasLegs ? `<button class="btn btn-ghost pk-sm" id="pk-record-change">${escHtml(t('pack.btnRecordChange'))}</button>` : ''}
@@ -279,8 +278,8 @@ export function renderDetailMarkup(ctx: DetailCtx, savedSlipIds: Set<string>): s
           <div data-stage-slot></div>
           ${ctx.slip ? renderSlip(ctx.slip, ctx.fmt, l.name, savedSlipIds.has(ctx.slip.id)) : ''}
           ${renderLoose(ctx)}
-          ${renderAddPanel(ctx)}
           ${renderHistory(ctx)}
+          ${renderAddPanel(ctx)}
         </div>
       </div>
     </div>

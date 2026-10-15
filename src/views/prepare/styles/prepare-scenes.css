@@ -72,15 +72,24 @@
 .prep-clip-bar { margin-top: var(--sp-2); height: 7px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
 .prep-clip-bar span { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width var(--dur-mid) var(--ease-out); }
 
-/* ── Pack: a floor with bags and a scale ─────────────────────────────────── */
+/* ── Pack: a floor of bags, the scale on its own shelf below ─────────────── */
+/* Two rows filling the frame: the bags stand on the upper floor, the scale waits
+   on the lower one. Both rows are sized by the frame, not by how many bags there
+   are, so the panel matches the Checklist's whatever the list holds. */
 .prep-scene--pk {
-  display: flex; align-items: flex-end; gap: var(--sp-2); padding: var(--sp-4) var(--sp-4) var(--sp-3);
-  /* a wall above, a floor below */
-  background: linear-gradient(180deg, var(--surface-2) 0 56%, var(--surface-3) 56% 100%);
+  display: grid; grid-template-rows: 1fr auto; padding: 0;
+  background: linear-gradient(180deg, var(--surface-2) 0 66%, var(--surface-3) 66% 100%);
 }
-.prep-scene--pk::before { content: ''; position: absolute; left: 0; right: 0; top: 56%; height: 1px; background: var(--rule); }
-.prep-floor { position: relative; flex: 1; min-width: 0; align-self: stretch; display: flex; align-items: flex-end; justify-content: center; gap: var(--sp-3); padding-bottom: var(--sp-3); cursor: pointer; }
-.prep-floor:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; border-radius: var(--r-md); }
+.prep-scene--pk::before { content: ''; position: absolute; left: 0; right: 0; top: 66%; height: 1px; background: var(--rule); }
+.prep-floor {
+  position: relative; min-width: 0; min-height: 0;
+  display: flex; align-items: flex-end; justify-content: center; gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-5) var(--sp-4); cursor: pointer;
+}
+/* The bags themselves take the floor's height, so a short list still fills it. */
+.prep-floor .prep-bag-art { display: flex; align-items: flex-end; justify-content: center; }
+.prep-floor .prep-bag-art .lg-bag { max-height: 100%; }
+.prep-floor:focus-visible { outline: 2px solid var(--select-bg); outline-offset: -3px; border-radius: var(--r-md); }
 .prep-bag-art { width: 100%; }
 .prep-bag { position: relative; flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1); }
 .prep-floor:hover .prep-bag { transform: translateY(-5px); }
@@ -88,20 +97,33 @@
 .prep-floor:hover .prep-bag:nth-child(3) { transform: translateY(-4px); }
 .prep-bag-kg { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .04em; padding: 1px var(--sp-2); border: 1px solid var(--rule); border-radius: var(--r-full); background: var(--surface); color: var(--ink-soft); }
 .prep-bag-kg.is-over { color: var(--coral-500); border-color: var(--coral-400); }
-.prep-bag-more { align-self: center; font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-faint); }
-.prep-bag--ghost { flex-basis: 96px; opacity: .35; }
-.prep-scale-obj.is-idle { cursor: default; }
-.prep-scale-obj.is-idle:hover { transform: none; }
-.prep-scale-label { display: block; margin-top: 2px; text-align: center; font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
-.prep-scale-obj { flex: none; width: 168px; padding: 0 0 var(--sp-3); border: 0; background: transparent; cursor: pointer; transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1); }
+.prep-bag--ghost { flex-basis: 108px; opacity: .35; }
+
+/* The shelf: the scale, centred, with its invitation beside it. */
+.prep-shelf {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-5) var(--sp-3);
+}
+.prep-scale-obj { flex: none; width: 190px; padding: 0; border: 0; background: transparent; cursor: pointer; transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1); }
 .prep-scale-obj:hover { transform: translateY(-4px); }
 .prep-scale-obj:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; border-radius: var(--r-md); }
+.prep-scale-obj.is-idle { cursor: default; }
+.prep-scale-obj.is-idle:hover { transform: none; }
 .prep-scale-art { display: block; }
-@media (max-width: 520px) {
-  .prep-scene--pk { flex-wrap: wrap; justify-content: center; }
+.prep-scale-label { font-size: var(--fs-sm); color: var(--ink-muted); }
+.prep-scale-obj:hover + .prep-scale-label, .prep-scale-obj:focus-visible + .prep-scale-label { color: var(--ink); }
+@media (max-width: 560px) {
+  /* On a phone the frame is narrower than three bags at their natural size:
+     let them shrink together rather than pushing the panel off-screen. */
+  .prep-scene { height: clamp(300px, 46vh, 380px); }
+  .prep-floor { gap: var(--sp-2); padding: var(--sp-4) var(--sp-3) var(--sp-3); }
+  .prep-bag { flex: 1 1 0; min-width: 0; }
   .prep-scale-obj { width: 132px; }
+  .prep-shelf { gap: var(--sp-2); padding-inline: var(--sp-3); }
+  .prep-scale-label { font-size: var(--fs-xs); }
+  .prep-clip-stack { width: 100%; }
+  .prep-switch-name { max-width: 110px; }
 }
-
 
 /* ── States ──────────────────────────────────────────────────────────────── */
 .prep-clip-row.is-blank .prep-clip-box { opacity: .5; }
@@ -125,7 +147,8 @@
   box-shadow: var(--shadow-sm); transform: rotate(-4deg); font-family: var(--font-data); font-weight: var(--fw-semibold); color: var(--ink-soft);
 }
 .prep-bag-tag-hole { position: absolute; left: 7px; top: 50%; width: 7px; height: 7px; margin-top: -3.5px; border-radius: 50%; background: var(--surface-3); box-shadow: inset 0 1px 1px color-mix(in srgb, var(--ink) 30%, transparent); }
-.prep-scene--pk.is-empty .prep-floor .prep-scene-hint { position: absolute; left: 0; right: 0; top: 30%; }
+.prep-scene--pk.is-empty .prep-floor { flex-direction: column; justify-content: center; gap: var(--sp-2); }
+.prep-scene--pk.is-empty .prep-bag--ghost { flex: none; }
 
 /* ── Entering an editor: it comes up from the scene ──────────────────────── */
 .prepare-zone:not(.is-hidden) { animation: prep-zoom-in 420ms var(--ease-out) both; }

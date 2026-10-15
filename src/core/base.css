@@ -559,6 +559,10 @@ body.otr-modal-open { overflow: hidden; }
     padding-bottom: 0;
   }
 }
+/* A dialog whose content is laid out in columns (a form beside a preview) needs
+   the room; it falls back to the normal width when the window is too narrow. */
+.otr-modal--wide { max-width: 720px; }
+
 @keyframes otrModalIn { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: none } }
 @keyframes otrSheetIn { from { transform: translateY(100%) } to { transform: none } }
 

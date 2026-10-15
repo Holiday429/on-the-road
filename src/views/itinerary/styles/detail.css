@@ -10,13 +10,6 @@
 
 /* "← All stops" sits on the Itinerary title row while a leg is open. */
 #view-route .view-header { position: relative; }
-#view-route .view-header.has-back { padding-right: 150px; }
-.route-header-back {
-  position: absolute;
-  right: 0;
-  top: var(--sp-5);
-  white-space: nowrap;
-}
 
 /* ── Hero: cover photo with the city, status and dates laid over it ─────── */
 .rd-hero {
@@ -139,8 +132,6 @@
 .rd-status-pill.status-past   { background: color-mix(in srgb, var(--surface) 85%, transparent); color: var(--ink-soft); }
 
 @media (max-width: 640px) {
-  #view-route .view-header.has-back { padding-right: 0; }
-  .route-header-back { position: static; margin-top: var(--sp-3); }
   .rd-hero { min-height: 240px; }
   .rd-hero-content { padding: var(--sp-5); padding-bottom: 60px; }
   .rd-hero-cover-actions { left: var(--sp-5); right: auto; }

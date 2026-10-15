@@ -55,6 +55,7 @@ export function openBagForm(opts: BagFormOpts): void {
 
   const m = openModal({
     title: ex ? t('pack.bagForm.editTitle') : t('pack.bagForm.addTitle'),
+    className: 'otr-modal--wide',
     body: `
       <div class="bagf">
         <div class="bagf-fields">
@@ -70,15 +71,20 @@ export function openBagForm(opts: BagFormOpts): void {
               </button>`).join('')}
           </div>
 
-          <div class="field-label">${escHtml(t('pack.bagForm.colour'))}</div>
-          <div class="bagf-swatches" role="radiogroup" aria-label="${escHtml(t('pack.bagForm.colour'))}">
-            ${Array.from({ length: BAG_TONES }, (_, i) => `<button type="button" role="radio" class="lg-swatch bagf-swatch" data-tone="${i}" aria-checked="${i === tone}" aria-label="${escHtml(t('pack.bagForm.colourN', { n: i + 1 }))}"></button>`).join('')}
-          </div>
-
-          <div class="field-label">${escHtml(t('pack.bagForm.size'))}</div>
-          <div class="bagf-sizes" role="radiogroup" aria-label="${escHtml(t('pack.bagForm.size'))}">
-            <button type="button" role="radio" class="bagf-size" data-size="" aria-checked="${size === null}">${escHtml(t('pack.bagForm.sizeAuto'))}</button>
-            ${SIZES.map((s) => `<button type="button" role="radio" class="bagf-size" data-size="${s}" aria-checked="${s === size}">${s}</button>`).join('')}
+          <div class="bagf-pair">
+            <div>
+              <div class="field-label">${escHtml(t('pack.bagForm.colour'))}</div>
+              <div class="bagf-swatches" role="radiogroup" aria-label="${escHtml(t('pack.bagForm.colour'))}">
+                ${Array.from({ length: BAG_TONES }, (_, i) => `<button type="button" role="radio" class="lg-swatch bagf-swatch" data-tone="${i}" aria-checked="${i === tone}" aria-label="${escHtml(t('pack.bagForm.colourN', { n: i + 1 }))}"></button>`).join('')}
+              </div>
+            </div>
+            <div>
+              <div class="field-label">${escHtml(t('pack.bagForm.size'))}</div>
+              <div class="bagf-sizes" role="radiogroup" aria-label="${escHtml(t('pack.bagForm.size'))}">
+                <button type="button" role="radio" class="bagf-size" data-size="" aria-checked="${size === null}">${escHtml(t('pack.bagForm.sizeAuto'))}</button>
+                ${SIZES.map((s) => `<button type="button" role="radio" class="bagf-size" data-size="${s}" aria-checked="${s === size}">${s}</button>`).join('')}
+              </div>
+            </div>
           </div>
 
           ${ex ? '' : `

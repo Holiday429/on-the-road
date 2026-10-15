@@ -139,12 +139,16 @@ export function floorBags(bags: PackSceneBag[]): { shown: PackSceneBag[]; hidden
   return { shown: bags.filter((b) => keep.has(b.id)), hidden: bags.length - FLOOR_BAGS };
 }
 
-const scaleObj = (listId: string | null, reading: string) => listId
-  ? `<button type="button" class="prep-scale-obj" data-weigh-pk="${escHtml(listId)}" aria-label="${escHtml(t('pack.weigh.btnNone'))}">
-        <span class="prep-scale-art">${renderScale({ reading })}</span>
-        <span class="prep-scale-label">${escHtml(t('prep.sceneWeighHere'))}</span>
-      </button>`
-  : `<div class="prep-scale-obj is-idle" aria-hidden="true"><span class="prep-scale-art">${renderScale({ reading })}</span></div>`;
+/** The shelf under the floor: the scale, and beside it what it is for. */
+const shelf = (listId: string | null, reading: string) => `
+      <div class="prep-shelf">
+        ${listId
+          ? `<button type="button" class="prep-scale-obj" data-weigh-pk="${escHtml(listId)}" aria-label="${escHtml(t('pack.weigh.btnNone'))}">
+              <span class="prep-scale-art">${renderScale({ reading })}</span>
+            </button>
+            <span class="prep-scale-label">${escHtml(t('prep.sceneWeighHere'))}</span>`
+          : `<div class="prep-scale-obj is-idle" aria-hidden="true"><span class="prep-scale-art">${renderScale({ reading })}</span></div>`}
+      </div>`;
 
 /** The pack panel's scene. `p` is null while the user has no pack list at all. */
 export function renderPackScene(p: PackScene | null, fmt: (g: number) => string, switcher = ''): string {
@@ -156,19 +160,19 @@ export function renderPackScene(p: PackScene | null, fmt: (g: number) => string,
       ${switcher || (p ? `<div class="prep-scene-label">${escHtml(p.name)}</div>` : '')}
       <div class="prep-floor" role="button" tabindex="0" ${attrs}
            aria-label="${escHtml(noList ? t('prep.pkEmptyTitle') : t('prep.packNoBagsTitle'))}">
-        <div class="prep-bag prep-bag--ghost" style="flex-basis:${bagWidth('suitcase', false) * 1.5}px">
+        <div class="prep-bag prep-bag--ghost" style="flex-basis:${bagWidth('suitcase', true)}px">
           <div class="prep-bag-art">${renderBag('suitcase', { loadPct: 0, uid: `ghost-${p?.id ?? 'none'}`, tone: 0, ghost: true })}</div>
         </div>
         <div class="prep-scene-hint">${escHtml(noList ? t('prep.pkEmptyHint') : t('pack.noBagsYet'))}</div>
         <span class="prep-scene-cta">${escHtml(noList ? t('prep.pkEmptyCta') : t('prep.sceneOpenPack'))}</span>
       </div>
-      ${scaleObj(null, fmt(0))}
+      ${shelf(null, fmt(0))}
     </div>`;
   }
   const label = switcher || `<div class="prep-scene-label">${escHtml(p.name)}</div>`;
   const { shown, hidden } = floorBags(p.bags);
   const bagHtml = shown.map((b) => `
-    <div class="prep-bag" data-over="${b.over}" style="flex-basis:${Math.round(bagWidth(b.kind, false, b.size) * 1.4)}px">
+    <div class="prep-bag" data-over="${b.over}" style="flex:0 1 ${Math.round(bagWidth(b.kind, true, b.size) * 1.6)}px">
       <div class="prep-bag-art">${renderBag(b.kind, { loadPct: b.loadPct, over: b.over, uid: `ln-${b.id}`, tone: b.tone })}</div>
       <div class="prep-bag-kg${b.over ? ' is-over' : ''}">${escHtml(fmt(b.weightG))}</div>
     </div>`).join('');
@@ -181,6 +185,6 @@ export function renderPackScene(p: PackScene | null, fmt: (g: number) => string,
         ${hidden > 0 ? `<div class="prep-bag-tag" title="${escHtml(t('prep.sceneMore', { n: hidden }))}"><span class="prep-bag-tag-hole" aria-hidden="true"></span><span>+${hidden}</span></div>` : ''}
         <span class="prep-scene-cta">${escHtml(t('prep.sceneOpenPack'))}</span>
       </div>
-      ${scaleObj(p.id, p.totalLabel)}
+      ${shelf(p.id, p.totalLabel)}
     </div>`;
 }
