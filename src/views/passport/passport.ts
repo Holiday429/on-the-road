@@ -278,13 +278,17 @@ function onCoverChange(c: PassportCover): void {
 
 /**
  * How much room the book actually has. The view sits under a topbar of its own height and over a bar of controls
- * whose height depends on how they wrap, so both are measured rather than guessed: the desk then keeps every pixel
- * the controls do not need, and the book grows to fill it.
+ * whose height depends on how they wrap, so both are measured — but NOT from the desk's own rendered size: the
+ * desk holds the book, so reading room back from it after the book has already grown into that room would feed
+ * the book's old size into its own next size, creeping the page taller on every resize and eventually pushing
+ * the controls off the bottom of the window. Room is measured from the window down instead: a ceiling the book
+ * is sized to fit under, never a floor read back from whatever the book last was.
  */
 function fitRoom(): void {
   const root = view();
   const body = root?.querySelector<HTMLElement>('.pp-body');
   const desk = body?.querySelector<HTMLElement>('.pp-desk');
+  const controls = body?.querySelector<HTMLElement>('.pp-controls');
   if (!root || !body || !desk) return;
   // Above: the topbar and whatever header the view carries. Below: the phone's nav bar, when there is one.
   const above = Math.max(0, Math.round(body.getBoundingClientRect().top));
@@ -292,8 +296,12 @@ function fitRoom(): void {
   const navH = document.getElementById('mobile-nav')?.getBoundingClientRect().height ?? 0;
   const below = Math.round(navH);
   body.style.setProperty('--pp-chrome', `${above + below + 16}px`);
-  // Read back the room the desk was given, so the stage sizes itself from the real figure.
-  const room = Math.max(240, Math.round(desk.clientHeight - 8));
+  // The controls' own height (it wraps to more rows on a narrow window) is read at its CURRENT size — fixed
+  // input, not fed by the book — so there is nothing here for a feedback loop to run away with.
+  const controlsH = controls ? Math.round(controls.getBoundingClientRect().height) : 0;
+  const gap = 16;      // the column's own gaps (.pp-body's `gap`, roughly) between desk, tray and controls
+  const ceiling = window.innerHeight - above - below - controlsH - gap;
+  const room = Math.max(240, Math.round(ceiling - 8));
   body.style.setProperty('--pp-room', `${room}px`);
   // Half a spread can never be wider than half the desk, whatever the window's shape.
   body.style.setProperty('--pp-half', `${Math.max(140, Math.round(desk.clientWidth / 2) - 8)}px`);

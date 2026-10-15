@@ -7,6 +7,8 @@
    ========================================================================== */
 
 export const SHARE = {
+  /** The cover's own navy — the default cloth, so the picture reads as a passport whatever the traveller dressed theirs in. */
+  cover: '#34465e',
   paper: '#f7f1e2',
   paperEdge: '#e3d9c2',
   ink: '#2a2520',

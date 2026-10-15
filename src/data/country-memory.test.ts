@@ -19,10 +19,10 @@ const data = {
     { destination: '', happenedOn: '2027-03-02', tripId: 't2', images: [] },
   ],
   expenses: [
-    { country: 'Denmark', baseAmount: 100, baseCurrency: 'EUR', tripId: 't1' },
-    { country: 'Denmark', baseAmount: 40, baseCurrency: 'EUR', tripId: 't1' },
-    { country: 'Denmark', baseAmount: 900, baseCurrency: 'DKK', tripId: 't2' },
-    { country: 'Germany', baseAmount: 5, baseCurrency: 'EUR', tripId: 't1' },
+    { country: 'Denmark', baseAmount: 100, baseCurrency: 'EUR', tripId: 't1', category: 'accommodation' },
+    { country: 'Denmark', baseAmount: 40, baseCurrency: 'EUR', tripId: 't1', category: 'food' },
+    { country: 'Denmark', baseAmount: 900, baseCurrency: 'DKK', tripId: 't2', category: 'accommodation' },
+    { country: 'Germany', baseAmount: 5, baseCurrency: 'EUR', tripId: 't1', category: 'food' },
   ],
   nomad: [], intel: [],
 };
@@ -45,6 +45,13 @@ describe('countryMemory', () => {
 
   it('spend: this trip only, in its own currency', () => {
     expect(m.spend).toEqual([{ tripId: 't1', currency: 'EUR', total: 140, count: 2 }]);
+  });
+
+  it('spendByCategory: this trip only, broken down the same way the Expenses receipt would show it', () => {
+    expect(m.spendByCategory).toEqual([
+      { tripId: 't1', currency: 'EUR', category: 'accommodation', total: 100, count: 1 },
+      { tripId: 't1', currency: 'EUR', category: 'food', total: 40, count: 1 },
+    ]);
   });
 
   describe('the picture at the head of the card and the polaroids', () => {
