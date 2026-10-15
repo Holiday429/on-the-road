@@ -16,14 +16,17 @@ import { DOT_COLS, dotMapCells } from '../../data/dot-map.ts';
 import { SHARE } from './share-palette.ts';
 
 export const SHARE_W = 1080;
-export const SHARE_H = 1440;
-/** Stamps that fit on the image: two rows of four. */
-export const MAX_SHARE_STAMPS = 8;
+/** Everything above the stamps: header, name, totals, the dotted world. Fixed, whatever the passport holds. */
+const HEAD_H = 905;
+/** The footer: the rule, the invitation and the QR code. */
+const FOOT_H = 155;
+/** The shortest the picture can be — a passport with a stamp or two still reads as a 3:4 card. */
+export const SHARE_MIN_H = 1440;
+/** Kept for the layout's old name; the picture is no longer capped at this. @deprecated */
+export const SHARE_H = SHARE_MIN_H;
 
 const MARGIN = 64;
 const MONO = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace';
-const STAMP_ZONE = { top: 905, bottom: 1285 };
-const COLS = 4;
 
 export interface ShareStamp {
   /** The rasterised stamp, square; null = could not be drawn. */
@@ -53,19 +56,37 @@ export interface ShareInput {
 
 export interface StampSlot { cx: number; cy: number; size: number }
 
-/** Where each of `n` stamps goes: rows of up to four, each row centred, the whole block centred in the zone. */
+/** How the stamps are laid out for `n` of them: a grid wide enough to keep them big without crowding. */
+export function stampGrid(n: number): { cols: number; rows: number; size: number; rowH: number } {
+  const count = Math.max(0, n);
+  // Few stamps stay large; many go into a wider grid so they still fit side by side.
+  const cols = count <= 2 ? Math.max(1, count) : count <= 12 ? 4 : count <= 24 ? 5 : 6;
+  const rows = Math.ceil(count / cols) || 0;
+  const cell = (SHARE_W - MARGIN * 2) / cols;
+  const size = Math.round(Math.min(cell * 0.95, count <= 2 ? 300 : 240));
+  // Rows overlap a little, the way stamps crowd a real page.
+  const rowH = Math.round(size * (cols >= 5 ? 0.84 : 0.88));
+  return { cols, rows, size, rowH };
+}
+
+/** How tall the whole picture is for `n` stamps: the fixed parts, plus however many rows of stamps there are. */
+export function shareHeight(n: number): number {
+  const { rows, size, rowH } = stampGrid(n);
+  const block = rows === 0 ? 0 : rowH * (rows - 1) + size;
+  const zone = block + (rows > 0 ? 110 : 40);
+  return Math.max(SHARE_MIN_H, Math.round(HEAD_H + zone + FOOT_H));
+}
+
+/** Where each of `n` stamps goes: rows centred in the grid, the whole block centred under the map. Every stamp gets a slot. */
 export function stampSlots(n: number): StampSlot[] {
-  const count = Math.min(Math.max(n, 0), MAX_SHARE_STAMPS);
+  const count = Math.max(0, n);
   if (count === 0) return [];
-  const rows = Math.ceil(count / COLS);
-  const cell = (SHARE_W - MARGIN * 2) / COLS;
-  const size = rows === 1 ? 240 : 224;
-  const rowH = rows === 1 ? size : 196;
-  const blockH = rowH * (rows - 1) + size;
-  const top = STAMP_ZONE.top + ((STAMP_ZONE.bottom - STAMP_ZONE.top) - blockH) / 2 + size / 2;
+  const { cols, rows, size, rowH } = stampGrid(count);
+  const cell = (SHARE_W - MARGIN * 2) / cols;
+  const top = HEAD_H + 46 + size / 2;
   const slots: StampSlot[] = [];
   for (let r = 0; r < rows; r++) {
-    const inRow = Math.min(COLS, count - r * COLS);
+    const inRow = Math.min(cols, count - r * cols);
     const left = (SHARE_W - inRow * cell) / 2 + cell / 2;
     for (let c = 0; c < inRow; c++) {
       // A little offset, fixed by position, so the stamps look pressed by hand rather than set on a grid.
@@ -106,13 +127,15 @@ function fitFont(ctx: Ctx, text: string, weight: number, family: string, max: nu
 export function drawPassportShare(ctx: Ctx, input: ShareInput): void {
   const inner = SHARE_W - MARGIN * 2;
   const w = input.words;
+  // The picture is as tall as the stamps need; everything above them is fixed, the footer hangs off the bottom.
+  const H = shareHeight(input.stamps.length);
 
   // Paper, with a fine inset rule like the edge of a page.
   ctx.fillStyle = SHARE.paper;
-  ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+  ctx.fillRect(0, 0, SHARE_W, H);
   ctx.strokeStyle = SHARE.paperEdge;
   ctx.lineWidth = 3;
-  ctx.strokeRect(24, 24, SHARE_W - 48, SHARE_H - 48);
+  ctx.strokeRect(24, 24, SHARE_W - 48, H - 48);
 
   // Header: the word on the cover, and the number.
   ctx.textBaseline = 'alphabetic';
@@ -206,23 +229,24 @@ export function drawPassportShare(ctx: Ctx, input: ShareInput): void {
     ctx.textAlign = 'right';
     ctx.fillStyle = SHARE.inkMuted;
     ctx.font = '600 40px Caveat, "DM Sans", cursive';
-    ctx.fillText(w.more, SHARE_W - MARGIN, STAMP_ZONE.bottom + 38);
+    ctx.fillText(w.more, SHARE_W - MARGIN, H - FOOT_H - 24);
   }
 
-  // Footer: an invitation, not a link to this passport.
-  line(ctx, MARGIN, 1318, SHARE_W - MARGIN, 1318, 1.5, SHARE.rule);
+  // Footer: an invitation, not a link to this passport. Measured from the foot, so it sits on the edge of any height.
+  const footTop = H - FOOT_H;
+  line(ctx, MARGIN, footTop, SHARE_W - MARGIN, footTop, 1.5, SHARE.rule);
   const qr = 96;
-  drawQr(ctx, input.url, SHARE_W - MARGIN - qr, 1332, qr, SHARE.ink);
+  drawQr(ctx, input.url, SHARE_W - MARGIN - qr, footTop + 14, qr, SHARE.ink);
   let textX = MARGIN;
   if (input.logo) {
-    ctx.drawImage(input.logo, MARGIN, 1346, 64, 64);
+    ctx.drawImage(input.logo, MARGIN, footTop + 28, 64, 64);
     textX = MARGIN + 84;
   }
   ctx.textAlign = 'left';
   ctx.fillStyle = SHARE.ink;
   ctx.font = `600 30px ${FONT.ui}`;
-  ctx.fillText(w.invite, textX, 1374);
+  ctx.fillText(w.invite, textX, footTop + 56);
   ctx.fillStyle = SHARE.inkMuted;
   ctx.font = `500 24px ${MONO}`;
-  ctx.fillText(input.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), textX, 1410);
+  ctx.fillText(input.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), textX, footTop + 92);
 }

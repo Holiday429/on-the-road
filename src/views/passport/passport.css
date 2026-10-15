@@ -8,17 +8,20 @@
    container units (cqw), so a page reads the same at any book size.
    ========================================================================== */
 
-.pp-body { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); padding-bottom: var(--sp-6); }
+/* The view is the desk plus the bar under it, and together they fill what is left of the window: the book takes
+   every pixel the bar does not need, so there is no dead space under the controls. */
+.pp-body { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); min-height: calc(100dvh - var(--pp-chrome, 150px)); padding-bottom: var(--sp-3); }
 
 /* ── Desk ─────────────────────────────────────────────────────────────────
    No table top, no frame: the book sits on the page itself, and its own drop
    shadow is what lifts it off. The element stays as the positioning context
    for the stamping tool and the side panels. */
-.pp-desk { width: 100%; display: grid; place-items: center; padding: var(--sp-6) var(--sp-3); }
+.pp-desk { flex: 1; min-height: 0; width: 100%; display: grid; place-items: center; padding: var(--sp-3) var(--sp-3) 0; }
 
 /* ── Book ────────────────────────────────────────────────────────────────── */
 .pp-stage {
-  --pw: min(44vw, 470px, calc((100dvh - 300px) * .714));
+  /* Half the spread: never wider than the page allows, never taller than the desk's own room. */
+  --pw: min(var(--pp-half, 44vw), 560px, calc(var(--pp-room, 60vh) * .714));
   --pp-accent: color-mix(in srgb, var(--danger) 76%, var(--amber-500));
   position: relative; width: calc(var(--pw) * 2); height: calc(var(--pw) * 1.4); perspective: 2600px;
   touch-action: pan-y; user-select: none;
@@ -66,7 +69,7 @@
 .pp-book.is-closed .pp-gutter, .pp-book.is-shut .pp-gutter, .pp-stage.is-single .pp-gutter { opacity: 0; }
 
 /* Narrow: one page per sheet. */
-.pp-stage.is-single { --pw: min(86vw, 420px, calc((100dvh - 330px) * .714)); width: var(--pw); }
+.pp-stage.is-single { --pw: min(calc(var(--pp-half, 43vw) * 2), 460px, calc(var(--pp-room, 56vh) * .714)); width: var(--pw); }
 .pp-stage.is-single .pp-book.is-closed, .pp-stage.is-single .pp-book.is-shut { transform: none; }
 .pp-stage.is-single .pp-spine { left: 0; }
 .pp-stage.is-single .pp-leaf { left: 0; width: 100%; }
@@ -242,10 +245,23 @@
 .pp-backpage-sub { font-family: var(--font-data); font-size: 3cqw; color: var(--ink-muted); }
 
 /* ── Controls ────────────────────────────────────────────────────────────── */
-.pp-bar { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--sp-3); }
-.pp-bar .btn { min-width: 40px; }
-.pp-page-label { min-width: 120px; text-align: center; font-family: var(--font-data); font-size: var(--fs-sm); color: var(--ink-muted); }
+/* One strip under the book: page arrows on the left of it, the tools on the right, the page count between them. */
+.pp-controls { flex: none; width: 100%; display: grid; justify-items: center; gap: var(--sp-2); }
+.pp-bar {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+  padding: var(--sp-2) var(--sp-3); border-radius: var(--r-full);
+  background: color-mix(in srgb, var(--surface) 70%, transparent); border: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.pp-bar-nav, .pp-bar-tools { display: flex; align-items: center; gap: var(--sp-2); }
+.pp-bar-tools { gap: 6px; }
+.pp-bar .pp-round { width: 34px; height: 34px; font-size: 16px; }
+.pp-icon-btn { font-size: 15px; }
+.pp-tool-btn { padding: 7px 14px; font-size: var(--fs-xs); border-radius: var(--r-full); }
+.pp-share-btn { padding: 7px 18px; font-size: var(--fs-xs); border-radius: var(--r-full); }
+.pp-page-label { min-width: 118px; text-align: center; font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); }
 .pp-jumps { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); max-width: 760px; }
+.pp-jumps:empty { display: none; }
 .pp-jump {
   padding: 4px 12px; border-radius: var(--r-full); border: 1px solid var(--rule); background: var(--surface); cursor: pointer;
   font: inherit; font-size: var(--fs-xs); color: var(--ink-soft);
@@ -344,12 +360,13 @@
 /* ── Memory card and cover panel: slide in beside the book ───────────────── */
 .pp-drawer-scrim { display: none; }
 .pp-drawer {
-  position: absolute; top: 0; right: 0; bottom: 0; width: min(420px, 44%); z-index: 60; display: flex; flex-direction: column;
+  /* As tall as what is in it, up to the height of the desk — a short memory does not leave an empty column. */
+  position: absolute; top: 0; right: 0; max-height: 100%; width: min(420px, 44%); z-index: 60; display: flex; flex-direction: column;
   background: var(--paper-grain), linear-gradient(180deg, var(--pp-paper), color-mix(in srgb, var(--pp-paper) 94%, var(--pp-paper-edge)));
   color: var(--ink); border-left: 1px solid var(--rule); box-shadow: -18px 0 40px -22px color-mix(in srgb, black 55%, transparent);
   animation: pp-drawer-in .34s cubic-bezier(.2, .9, .3, 1) both;
 }
-.pp-drawer.is-left { right: auto; left: 0; border-left: 0; border-right: 1px solid var(--rule); box-shadow: 18px 0 40px -22px color-mix(in srgb, black 55%, transparent); animation-name: pp-drawer-in-left; }
+.pp-drawer.is-left { right: auto; left: 0; top: 0; border-left: 0; border-right: 1px solid var(--rule); box-shadow: 18px 0 40px -22px color-mix(in srgb, black 55%, transparent); animation-name: pp-drawer-in-left; }
 .pp-drawer.is-leaving { animation: pp-drawer-out .26s ease both; }
 .pp-drawer.is-left.is-leaving { animation-name: pp-drawer-out-left; }
 .pp-drawer-head {
@@ -389,7 +406,7 @@
 .pp-round:disabled { opacity: .4; cursor: default; }
 .pp-round.is-close { background: var(--surface); }
 .pp-round:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
-.pp-drawer-body { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-4) var(--sp-5) var(--sp-5); display: grid; gap: var(--sp-4); align-content: start; }
+.pp-drawer-body { flex: 0 1 auto; min-height: 0; overflow: auto; padding: var(--sp-4) var(--sp-5) var(--sp-5); display: grid; gap: var(--sp-4); align-content: start; }
 .pp-drawer-h { margin: 0 0 var(--sp-2); font-family: var(--font-data); font-size: var(--fs-2xs); font-weight: var(--fw-regular, 400); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-muted); }
 .pp-drawer-none { margin: 0; font-size: var(--fs-sm); color: var(--ink-muted); }
 
@@ -498,3 +515,12 @@
 .pp-sign-top .pp-bio-edit { margin: 0; align-self: auto; }
 /* In the dark theme the crease must not turn into a lighter stripe. */
 :root[data-theme='dark'] .pp-gutter { --pp-crease: color-mix(in srgb, #fffaf0 3%, transparent); }
+
+/* ── Share: the picture, looked at before it goes anywhere ───────────────── */
+.pp-share-modal { width: min(560px, 94vw); }
+.pp-share-preview {
+  max-height: min(62vh, 760px); overflow: auto; overscroll-behavior: contain; border-radius: var(--r-md);
+  background: var(--surface-3); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.pp-share-canvas { display: block; width: 100%; height: auto; }
+.pp-share-note { margin: var(--sp-3) 0 0; font-size: var(--fs-xs); color: var(--ink-muted); text-align: center; }

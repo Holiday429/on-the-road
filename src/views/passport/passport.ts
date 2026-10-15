@@ -212,16 +212,22 @@ function render(): void {
       </div>
     </div>
     <div class="pp-tray-host" data-pp-tray></div>
-    <div class="pp-bar">
-      <button type="button" class="btn btn-ghost" data-pp-prev aria-label="${esc(t('passport.nav.prev'))}">‹</button>
-      <span class="pp-page-label" data-pp-label aria-live="polite"></span>
-      <button type="button" class="btn btn-ghost" data-pp-next aria-label="${esc(t('passport.nav.next'))}">›</button>
-      <button type="button" class="btn btn-ghost" data-pp-replay>${esc(t(_replaying ? 'passport.replay.stop' : 'passport.replay'))}</button>
-      <button type="button" class="btn btn-ghost" data-pp-sound aria-pressed="${isSoundOn()}" title="${esc(t('passport.sound'))}">${isSoundOn() ? '🔊' : '🔈'}</button>
-      <button type="button" class="btn btn-ghost" data-pp-share${state().pressed.length === 0 ? ' disabled' : ''}>${esc(t('passport.share'))}</button>
-      <button type="button" class="btn btn-ghost" data-pp-cover aria-pressed="${!!_panel}">${esc(t('passport.cover.edit'))}</button>
-    </div>
-    <div class="pp-jumps">${jumpsHtml()}</div>`;
+    <div class="pp-controls">
+      <div class="pp-jumps">${jumpsHtml()}</div>
+      <div class="pp-bar">
+        <div class="pp-bar-nav">
+          <button type="button" class="pp-round" data-pp-prev aria-label="${esc(t('passport.nav.prev'))}">‹</button>
+          <span class="pp-page-label" data-pp-label aria-live="polite"></span>
+          <button type="button" class="pp-round" data-pp-next aria-label="${esc(t('passport.nav.next'))}">›</button>
+        </div>
+        <div class="pp-bar-tools">
+          <button type="button" class="btn btn-ghost pp-tool-btn" data-pp-replay>${esc(t(_replaying ? 'passport.replay.stop' : 'passport.replay'))}</button>
+          <button type="button" class="btn btn-ghost pp-tool-btn" data-pp-cover aria-pressed="${!!_panel}">${esc(t('passport.cover.edit'))}</button>
+          <button type="button" class="pp-round pp-icon-btn" data-pp-sound aria-pressed="${isSoundOn()}" aria-label="${esc(t('passport.sound'))}" title="${esc(t('passport.sound'))}">${isSoundOn() ? '🔊' : '🔈'}</button>
+          <button type="button" class="btn btn-primary pp-share-btn" data-pp-share${state().pressed.length === 0 ? ' disabled' : ''}>${esc(t('passport.share'))}</button>
+        </div>
+      </div>
+    </div>`;
 
   _flip?.destroy();
   _flip = createFlip({
@@ -235,6 +241,7 @@ function render(): void {
   // The desk was rebuilt: put an open card or panel back on it.
   const desk = body.querySelector<HTMLElement>('.pp-desk')!;
   for (const side of [_drawer, _panel]) if (side) desk.append(side.scrim, side.el);
+  fitRoom();
   fitStage();
 }
 
@@ -267,6 +274,29 @@ function onCoverChange(c: PassportCover): void {
   applyCover();
   window.clearTimeout(_coverSave);
   _coverSave = window.setTimeout(() => { _coverSave = 0; void passportStore.save({ cover: c }); }, 450);
+}
+
+/**
+ * How much room the book actually has. The view sits under a topbar of its own height and over a bar of controls
+ * whose height depends on how they wrap, so both are measured rather than guessed: the desk then keeps every pixel
+ * the controls do not need, and the book grows to fill it.
+ */
+function fitRoom(): void {
+  const root = view();
+  const body = root?.querySelector<HTMLElement>('.pp-body');
+  const desk = body?.querySelector<HTMLElement>('.pp-desk');
+  if (!root || !body || !desk) return;
+  // Above: the topbar and whatever header the view carries. Below: the phone's nav bar, when there is one.
+  const above = Math.max(0, Math.round(body.getBoundingClientRect().top));
+  // (The nav is fixed, so it has no offsetParent even when shown: its height is what says whether it is there.)
+  const navH = document.getElementById('mobile-nav')?.getBoundingClientRect().height ?? 0;
+  const below = Math.round(navH);
+  body.style.setProperty('--pp-chrome', `${above + below + 16}px`);
+  // Read back the room the desk was given, so the stage sizes itself from the real figure.
+  const room = Math.max(240, Math.round(desk.clientHeight - 8));
+  body.style.setProperty('--pp-room', `${room}px`);
+  // Half a spread can never be wider than half the desk, whatever the window's shape.
+  body.style.setProperty('--pp-half', `${Math.max(140, Math.round(desk.clientWidth / 2) - 8)}px`);
 }
 
 /** Moves the book aside (and shrinks it if it must) so an open card or panel does not cover it. */
@@ -535,20 +565,21 @@ function stepCard(dir: 1 | -1): void {
 async function shareNow(btn: HTMLButtonElement): Promise<void> {
   if (btn.disabled) return;
   const label = btn.textContent;
+  // Drawing a long passport takes a moment; the button says so until the preview is up, then goes back to itself.
+  const restore = () => { btn.disabled = false; btn.textContent = label; };
   btn.disabled = true;
   btn.textContent = t('passport.share.making');
   try {
     // Loaded on demand: the picture code and the QR library are not needed to read the book.
     const { sharePassport } = await import('./share.ts');
     const c = ctx();
-    await sharePassport({ nickname: c.nickname, uid: c.uid, issued: c.issued, data: _feed, pressed: state().pressed });
+    await sharePassport({ nickname: c.nickname, uid: c.uid, issued: c.issued, data: _feed, pressed: state().pressed }, restore);
   } catch (err) {
     console.error('Passport share failed:', err);
     const { toast } = await import('../journal/recap/export/ui.ts');
     toast(t('passport.share.failed'));
   } finally {
-    btn.disabled = false;
-    btn.textContent = label;
+    restore();
   }
 }
 
@@ -759,8 +790,9 @@ export function initPassport(): void {
   const onMq = () => { if (narrow() !== _single) render(); };
   mq?.addEventListener('change', onMq);
   _unsubs.push(() => mq?.removeEventListener('change', onMq));
-  window.addEventListener('resize', fitStage);
-  _unsubs.push(() => window.removeEventListener('resize', fitStage));
+  const onResize = () => { fitRoom(); fitStage(); };
+  window.addEventListener('resize', onResize);
+  _unsubs.push(() => window.removeEventListener('resize', onResize));
   window.addEventListener('otr:nav-intent', onIntent);
   _unsubs.push(() => window.removeEventListener('otr:nav-intent', onIntent));
   wire(root);

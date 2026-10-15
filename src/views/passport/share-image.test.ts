@@ -5,7 +5,7 @@
  * is WHAT is drawn and WHERE it goes, not pixels.
  */
 import { describe, expect, it } from 'vitest';
-import { MAX_SHARE_STAMPS, SHARE_H, SHARE_W, drawPassportShare, stampSlots, type ShareInput } from './share-image.ts';
+import { SHARE_MIN_H, SHARE_W, drawPassportShare, shareHeight, stampGrid, stampSlots, type ShareInput } from './share-image.ts';
 import { stampsForImage } from './share.ts';
 import type { PassportStamp } from '../../data/passport.ts';
 
@@ -42,14 +42,20 @@ const input = (over: Partial<ShareInput> = {}): ShareInput => ({
 });
 
 describe('stampSlots', () => {
-  it('rows of up to four, never more than eight, each inside the page', () => {
+  it('every stamp gets a slot, however many there are — none is dropped', () => {
     expect(stampSlots(0)).toEqual([]);
-    expect(stampSlots(3)).toHaveLength(3);
-    expect(stampSlots(30)).toHaveLength(MAX_SHARE_STAMPS);
-    for (const n of [1, 4, 5, 8]) for (const s of stampSlots(n)) {
-      expect(s.cx - s.size / 2).toBeGreaterThanOrEqual(0);
-      expect(s.cx + s.size / 2).toBeLessThanOrEqual(SHARE_W);
-      expect(s.cy + s.size / 2).toBeLessThanOrEqual(SHARE_H);
+    for (const n of [1, 3, 8, 9, 17, 40, 95]) expect(stampSlots(n)).toHaveLength(n);
+  });
+
+  it('each stamp stays inside the picture it is drawn on', () => {
+    for (const n of [1, 4, 5, 8, 13, 26, 60]) {
+      const H = shareHeight(n);
+      for (const s of stampSlots(n)) {
+        expect(s.cx - s.size / 2).toBeGreaterThanOrEqual(0);
+        expect(s.cx + s.size / 2).toBeLessThanOrEqual(SHARE_W);
+        expect(s.cy - s.size / 2).toBeGreaterThanOrEqual(0);
+        expect(s.cy + s.size / 2).toBeLessThanOrEqual(H);
+      }
     }
   });
 
@@ -58,6 +64,20 @@ describe('stampSlots', () => {
     expect(Math.abs(one.cx - SHARE_W / 2)).toBeLessThan(12);
     const two = stampSlots(8);
     expect(two[4].cy).toBeGreaterThan(two[0].cy + 100);
+  });
+
+  it('many stamps go into a wider grid, so they stay a usable size', () => {
+    expect(stampGrid(8).cols).toBeLessThan(stampGrid(40).cols);
+    expect(stampGrid(40).size).toBeGreaterThan(100);
+  });
+});
+
+describe('shareHeight', () => {
+  it('a short passport keeps the 3:4 card; a long one grows instead of dropping stamps', () => {
+    expect(shareHeight(0)).toBe(SHARE_MIN_H);
+    expect(shareHeight(4)).toBe(SHARE_MIN_H);
+    expect(shareHeight(60)).toBeGreaterThan(SHARE_MIN_H);
+    expect(shareHeight(60)).toBeGreaterThan(shareHeight(20));
   });
 });
 
@@ -84,11 +104,12 @@ describe('drawPassportShare', () => {
     expect(rec.multiplied).toBe(2);
   });
 
-  it('says how many stamps did not fit, only when some did not', () => {
-    const none = fakeCtx(); drawPassportShare(none.ctx, input());
-    expect(none.rec.texts.join('\n')).not.toContain('more');
-    const some = fakeCtx(); drawPassportShare(some.ctx, input({ words: { ...words, more: '…and 4 more' } }));
-    expect(some.rec.texts).toContain('…and 4 more');
+  it('presses every stamp it is given, however many — a shared passport shows them all', () => {
+    const many = Array.from({ length: 37 }, (_, i) => ({ image: {} as CanvasImageSource, rotation: i }));
+    const { ctx, rec } = fakeCtx();
+    drawPassportShare(ctx, input({ stamps: many }));
+    expect(rec.images).toBe(37);
+    expect(rec.multiplied).toBe(37);
   });
 
   it('a very long name still gets drawn, and the logo only when there is one', () => {
@@ -103,11 +124,12 @@ describe('drawPassportShare', () => {
 
 describe('stampsForImage', () => {
   const stamp = (id: string, date: string) => ({ id, date }) as PassportStamp;
-  it('shows the latest eight, oldest first, and counts the rest', () => {
+  it('keeps every stamp, oldest first — none is left out of the picture', () => {
     const pressed = Array.from({ length: 11 }, (_, i) => stamp(`s${i}`, `2026-01-${String(i + 1).padStart(2, '0')}`)).reverse();
     const { shown, extra } = stampsForImage(pressed);
-    expect(extra).toBe(3);
-    expect(shown.map((s) => s.id)).toEqual(['s3', 's4', 's5', 's6', 's7', 's8', 's9', 's10']);
+    expect(extra).toBe(0);
+    expect(shown).toHaveLength(11);
+    expect(shown.map((s) => s.id)).toEqual(Array.from({ length: 11 }, (_, i) => `s${i}`));
   });
 
   it('a short passport is shown whole', () => {

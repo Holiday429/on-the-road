@@ -2,19 +2,21 @@
    On the Road · Passport — share it
    --------------------------------------------------------------------------
    One button on the passport turns it into a picture (share-image.ts) and
-   hands it to the phone's share sheet, or downloads it. The picture carries
-   only what the passport itself shows — name, totals, the visited countries,
-   the latest stamps — and an invitation to the site, never a link to this
-   passport. Reuses the journal recap's delivery and QR code.
+   shows it to the traveller first (share-sheet.ts); from there it goes to the
+   phone's share sheet, or downloads. The picture carries only what the passport
+   itself shows — name, totals, the visited countries, EVERY stamp pressed — and
+   an invitation to the site, never a link to this passport. The stamps are the
+   point of sharing it, so the picture grows as tall as it must to hold them all.
+   Reuses the journal recap's delivery and QR code.
    ========================================================================== */
 
 import { t } from '../../core/i18n.ts';
 import type { PassportData, PassportStamp } from '../../data/passport.ts';
 import { ensureCardFonts } from '../journal/card/card-fonts.ts';
-import { deliverImage } from '../journal/recap/export/save.ts';
+import { previewShare } from './share-sheet.ts';
 import { SITE_URL } from '../journal/recap/export/qr.ts';
 import { passportNumber, travelLevel } from './bio.ts';
-import { MAX_SHARE_STAMPS, SHARE_H, SHARE_W, drawPassportShare, type ShareInput } from './share-image.ts';
+import { SHARE_W, drawPassportShare, shareHeight, type ShareInput } from './share-image.ts';
 import { stampImage } from './stamp-raster.ts';
 
 const FILENAME = 'on-the-road-passport.png';
@@ -28,11 +30,13 @@ export interface ShareSource {
   pressed: PassportStamp[];
 }
 
-/** The latest stamps that fit, oldest first (the way they would read on a page), and how many were left out. */
+/**
+ * Every stamp, oldest first — the way they would read on a page. A shared passport is a picture of how many
+ * countries the traveller has been to, so none of them is left out; the picture grows instead.
+ */
 export function stampsForImage(pressed: PassportStamp[]): { shown: PassportStamp[]; extra: number } {
   const byDate = [...pressed].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
-  const shown = byDate.slice(-MAX_SHARE_STAMPS);
-  return { shown, extra: byDate.length - shown.length };
+  return { shown: byDate, extra: 0 };
 }
 
 function loadLogo(): Promise<HTMLImageElement | null> {
@@ -72,13 +76,20 @@ export async function renderPassportImage(src: ShareSource): Promise<HTMLCanvasE
   };
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
-  canvas.height = SHARE_H;
+  canvas.height = shareHeight(shown.length);
   drawPassportShare(canvas.getContext('2d')!, input);
   return canvas;
 }
 
-/** Makes the picture and shares or downloads it. */
-export async function sharePassport(src: ShareSource): Promise<'shared' | 'downloaded' | 'cancelled'> {
+/**
+ * Makes the picture, shows it to the traveller, and shares or downloads it if they say so. `onReady` fires once
+ * the picture exists and the preview has it — the button that started this is free again from that moment.
+ */
+export async function sharePassport(src: ShareSource, onReady?: () => void): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const canvas = await renderPassportImage(src);
-  return deliverImage(canvas, FILENAME, t('passport.title'));
+  onReady?.();
+  return previewShare({
+    canvas, filename: FILENAME, title: t('passport.title'),
+    stamps: src.pressed.length, countries: src.data.countries,
+  });
 }
