@@ -19,6 +19,7 @@ import { ExpirationPlugin } from 'workbox-expiration';
 import { precacheAndRoute, PrecacheFallbackPlugin } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from 'workbox-strategies';
+import { isCachedStoragePhoto } from './sw-routes.ts';
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -67,8 +68,11 @@ registerRoute(
 // uploaded — each upload path is timestamped, never overwritten. Cache-first
 // means a photo is fetched once and then reused on every re-render and while
 // offline, instead of hitting the network every time the feed redraws.
+//
+// Only for the page's own <img> requests: a CORS request (a canvas about to draw the photo) handed the opaque copy
+// those leave in the cache is rejected by the browser — see sw-routes.ts.
 registerRoute(
-  ({ url }) => url.origin === 'https://firebasestorage.googleapis.com',
+  ({ url, request }) => isCachedStoragePhoto(url, request),
   new CacheFirst({
     cacheName: 'otr-journal-images',
     plugins: [

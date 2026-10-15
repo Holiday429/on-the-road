@@ -136,6 +136,14 @@ describe('renderReceipt meta rows', () => {
     expect(receipt(lines, { subtotal: false })).toContain('rc-total');
   });
 
+  it('the line numbers can be left out, the icon then leading each line; by default the till numbers them', () => {
+    const lines = [{ id: 'a', icon: '🍜', name: 'Ramen', category: 'food', baseAmount: 45, amount: 45, currency: 'CNY' }];
+    expect(receipt(lines)).toContain('rc-no');
+    const plain = receipt(lines, { numbered: false });
+    expect(plain).not.toContain('rc-no');
+    expect(plain).toContain('rc-line--plain');
+  });
+
   it('without meta it keeps the till\'s own three rows', () => {
     const html = receipt([]);
     expect(html).toContain('LISBON · PORTUGAL');

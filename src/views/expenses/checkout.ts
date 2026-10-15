@@ -131,6 +131,8 @@ export interface ReceiptInput {
   meta?: ReadonlyArray<readonly [string, string]>;
   /** Show the subtotal line above the total (default yes); the passport's card leaves it out, the total says it. */
   subtotal?: boolean;
+  /** Number the lines 01, 02 … (default yes, the till); off, each line starts with its icon. */
+  numbered?: boolean;
 }
 
 /** The receipt: head and meta on top, lines + subtotal in a scrolling middle
@@ -139,8 +141,8 @@ export function renderReceipt(inp: ReceiptInput): string {
   const total = inp.lines.reduce((s, l) => s + l.baseAmount, 0);
   const body = inp.lines.length
     ? inp.lines.map((l, i) => `
-        <div class="rc-line${inp.fresh?.has(l.id) || inp.stagger ? ' rc-line--print' : ''}" data-line="${escHtml(l.id)}"${inp.stagger ? ` style="animation-delay:${Math.min(i, 14) * 70 + 260}ms"` : ''}>
-          <span class="rc-no">${String(i + 1).padStart(2, '0')}</span>
+        <div class="rc-line${inp.numbered === false ? ' rc-line--plain' : ''}${inp.fresh?.has(l.id) || inp.stagger ? ' rc-line--print' : ''}" data-line="${escHtml(l.id)}"${inp.stagger ? ` style="animation-delay:${Math.min(i, 14) * 70 + 260}ms"` : ''}>
+          ${inp.numbered === false ? '' : `<span class="rc-no">${String(i + 1).padStart(2, '0')}</span>`}
           <span class="rc-emoji" aria-hidden="true">${escHtml(l.icon)}</span>
           <span class="rc-desc" title="${escHtml(l.name)}">${escHtml(l.name.toUpperCase())}</span>
           <span class="rc-dots" aria-hidden="true"></span>

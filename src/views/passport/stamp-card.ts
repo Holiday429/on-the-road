@@ -6,7 +6,7 @@
    for the stop, else a journal photo, else the country's colour and flag), the
    stamp large, a receipt for the stay (cities, nights, what was spent — one
    line per category, Stay / Food / …, the same words and icons the Expenses
-   page's own till slip uses), the journal's photos taped down as polaroids.
+   page's own till slip uses), the journal's photos pinned up as polaroids.
    Nothing more: it is a card to glance
    at, not a page to scroll. It holds only what the passport knows — nothing here leads
    away from the book. Previous / next walk through the pressed stamps without
@@ -20,9 +20,8 @@ import { renderStamp } from '../../core/paper/stamp.ts';
 import { stampDate } from '../../core/paper/stamp-base.ts';
 import '../expenses/styles/checkout.css';
 import { renderReceipt, type MartLine } from '../expenses/checkout.ts';
-import { todayIso } from '../../data/trip-phase.ts';
 import { currencySymbol } from '../../data/rates.ts';
-import { BUILTIN_CATEGORIES } from '../expenses/expense-defaults.ts';
+import { BUILTIN_CATEGORIES } from '../expenses/expense-helpers.ts';
 import { nationalityFlag } from '../../data/nationalities.ts';
 import type { CountryMemory } from '../../data/country-memory.ts';
 
@@ -61,7 +60,7 @@ function polaroids(m: CountryMemory): string {
   const label = (p: { city: string; title: string; date: string }) => p.city || p.title || m.stamp.country;
   return `<section>
     <div class="pp-polaroids">${shots.map((p, i) => `
-      <figure class="pp-polaroid" style="--tilt:${TILT[i % TILT.length]}deg"><span class="pp-tape" aria-hidden="true"></span>
+      <figure class="pp-polaroid" style="--tilt:${TILT[i % TILT.length]}deg"><span class="pp-pin" aria-hidden="true"></span>
         <div class="pp-polaroid-pic"><img src="${p.url}" alt="${esc(label(p))}" loading="lazy" referrerpolicy="no-referrer" draggable="false"></div>
         <figcaption>${esc(label(p))}</figcaption></figure>`).join('')}</div></section>`;
 }
@@ -85,7 +84,8 @@ function categoryLine(id: string): { icon: string; label: string } {
 
 /**
  * The stay's spend as the Expenses page's own till slip: the same markup (expenses/checkout.ts renderReceipt) and the
- * same styles, so the two can never drift apart. One numbered line per category, biggest first, then the boxed total. Different currencies are never added, so each currency gets its own slip.
+ * same styles, so the two can never drift apart. One line per category led by its icon, biggest first, then the boxed
+ * total — plainer than the till: no line numbers, no subtotal, no PAID stamp. Different currencies are never added, so each currency gets its own slip.
  */
 function receipt(m: CountryMemory, locale: string): string {
   const s = m.stamp;
@@ -98,9 +98,9 @@ function receipt(m: CountryMemory, locale: string): string {
   ];
   const slip = (lines: MartLine[], fmt: (n: number) => string, rows: ReadonlyArray<readonly [string, string]>, seed: string) =>
     `<div class="rc rc--zoom paper paper--zigzag pp-card-receipt">${renderReceipt({
-      lines, store: s.country.toUpperCase(), stamp: range, fmt, meta: rows, readonly: true, subtotal: false,
-      // A stay that is over is settled, like a past day on the Expenses page.
-      paid: m.trip.dateTo < todayIso(), seed,
+      // A plain slip: no line numbers (the icon leads each line), no subtotal, no PAID stamp.
+      lines, store: s.country.toUpperCase(), stamp: range, fmt, meta: rows, readonly: true, subtotal: false, numbered: false,
+      paid: false, seed,
     })}</div>`;
   const seedOf = (k: string) => `${m.trip.dateFrom.replace(/-/g, '')}${String(k.length).padStart(2, '0')}0429`;
 

@@ -70,6 +70,9 @@ function tryImage(src: string, cors: boolean, ms: number): Promise<HTMLImageElem
  * fetched and drawn from a local copy instead, which can never taint the canvas. Why it failed is logged.
  */
 async function loadImage(src: string, cors = false): Promise<HTMLImageElement | null> {
+  // A URL of its own for the CORS request, so no cached copy of the page's plain <img> (the browser's, or the service
+  // worker's opaque one — see sw-routes.ts) can be handed to it. The storage hosts ignore a parameter they do not know.
+  if (cors) src = `${src}${src.includes('?') ? '&' : '?'}otrshare=${Date.now().toString(36)}`;
   const direct = await tryImage(src, cors, cors ? 8000 : 4000);
   if (direct || !cors) return direct;
   try {

@@ -67,6 +67,9 @@
   align-items: baseline; column-gap: 4px; padding: 2px 0; position: relative;
 }
 .rc-line:hover { background: color-mix(in srgb, var(--amber-200) 34%, transparent); }
+/* Without the 01, 02 … column (renderReceipt's `numbered: false`): the icon leads the line. */
+.rc-line--plain { grid-template-columns: 1.5em minmax(0, auto) minmax(10px, 1fr) auto 1.3em; }
+.rc-line--plain .rc-orig { grid-column: 2 / -1; }
 .rc-line--print { animation: paper-print .52s steps(8, end) both; }
 .rc-line--void { animation: rc-tear .4s cubic-bezier(.36,0,.66,-.56) both; }
 @keyframes rc-tear { 40% { transform: translateX(6px) rotate(1deg); opacity: .7; } to { transform: translateX(130px) rotate(7deg); opacity: 0; } }

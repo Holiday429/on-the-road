@@ -62,8 +62,19 @@ describe('the memory card', () => {
     expect(html(first)).toContain('ALL TRIPS');
   });
 
-  it('a stay that is over is stamped PAID', () => {
-    expect(html(second)).toContain('rc-stamp');
+  it('the slip is plain: no PAID stamp, no 01 / 02 numbers — each line starts with its icon', () => {
+    const h = html(second);
+    expect(h).not.toContain('rc-stamp');
+    expect(h).not.toContain('rc-no');
+    expect(h).toContain('rc-line rc-line--plain');
+    const line = h.slice(h.indexOf('rc-line rc-line--plain'));
+    expect(line.indexOf('rc-emoji')).toBeLessThan(line.indexOf('rc-desc'));
+  });
+
+  it('the polaroids are pinned up, not taped', () => {
+    const h = html(second);
+    expect(h).toContain('pp-pin');
+    expect(h).not.toContain('pp-tape');
   });
 
   it('the stamp stands to the left of the slip, in the card\'s body — not in the picture', () => {
