@@ -29,7 +29,7 @@ import { openBagForm } from './pack-bag-form.ts';
 import { wireMenus } from './prepare-ui.ts';
 import { openWeighIn } from './weigh-scale.ts';
 import { createWeighStage, type WeighStage } from './weigh-stage.ts';
-import { renderDetailMarkup, weighBtnInner, weighSentence, type DetailCtx } from './pack-detail.ts';
+import { renderDetailMarkup, weighBtnInner, type DetailCtx } from './pack-detail.ts';
 import { weighIn } from '../pack/weigh-in.ts';
 import {
   weighStatus, loadRecord, recordWeighIn, makeSlip, loadSlips, saveSlip, type WeighSlip,
@@ -291,26 +291,6 @@ function bindKit(c: HTMLElement) {
   });
 }
 
-/* ── Bag change summary strip (above containers) ─────────────────────────── */
-
-function renderBagChangeSummary(l: StoredPackList): string {
-  // Show items that have been acquired or dropped during the trip
-  const acquired = l.items.filter(it => it.acquiredLegId);
-  const dropped  = l.items.filter(it => it.droppedLegId);
-  if (!acquired.length && !dropped.length) return '';
-
-  const acqChips = acquired.map(it => {
-    const leg = _legs.find(lg => lg.id === it.acquiredLegId);
-    return `<span class="pk-bl-chip pk-bl-chip--add" title="Acquired in ${leg ? escHtml(leg.city) : ''}">+ ${escHtml(it.name)}</span>`;
-  }).join('');
-  const dropChips = dropped.map(it => {
-    const leg = _legs.find(lg => lg.id === it.droppedLegId);
-    return `<span class="pk-bl-chip pk-bl-chip--drop" title="Left in ${leg ? escHtml(leg.city) : ''}">− ${escHtml(it.name)}</span>`;
-  }).join('');
-
-  return `<div class="pk-change-strip">${acqChips}${dropChips}</div>`;
-}
-
 /* ── Detail screen ───────────────────────────────────────────────────────── */
 
 /* ── Screen state that outlives a repaint ────────────────────────────────── */
@@ -360,7 +340,7 @@ function currentStatus(l: PackList) {
   return weighStatus(weighIn(l), activeId ? loadRecord(activeId) : null);
 }
 
-/** Repaints just the Weigh button and its sentence (no full re-render mid-animation). */
+/** Repaints just the Weigh button (no full re-render mid-animation). */
 function paintWeighStatus(): void {
   const c = getRoot();
   const l = activeList();
@@ -369,8 +349,6 @@ function paintWeighStatus(): void {
   const btn = c.querySelector<HTMLElement>('#pk-weigh');
   // eslint-disable-next-line no-restricted-syntax -- audited: weighBtnInner escapes its label
   if (btn) { btn.className = `pkd-weigh is-${st.state}`; btn.innerHTML = weighBtnInner(st); }
-  const line = c.querySelector<HTMLElement>('#pk-weigh-status');
-  if (line) { line.className = `pkd-status is-${st.state}`; line.textContent = weighSentence(st); }
 }
 
 function isStageVisible(): boolean {
@@ -415,7 +393,6 @@ function detailCtx(l: PackList): DetailCtx {
     inputWeight: kitWeightDisplay,
     renderItemTag: (i, drop) => renderItemTag(i, drop),
     packCheckHtml: () => renderPackCheck(l),
-    changeSummaryHtml: renderBagChangeSummary(l as StoredPackList),
     status: currentStatus(l),
     slip: lastSlip,
     slips: activeId ? loadSlips(activeId) : [],

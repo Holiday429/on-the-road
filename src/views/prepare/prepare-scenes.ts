@@ -139,14 +139,13 @@ export function floorBags(bags: PackSceneBag[]): { shown: PackSceneBag[]; hidden
   return { shown: bags.filter((b) => keep.has(b.id)), hidden: bags.length - FLOOR_BAGS };
 }
 
-/** The shelf under the floor: the scale, and beside it what it is for. */
+/** The shelf under the floor: the scale, centred. */
 const shelf = (listId: string | null, reading: string) => `
       <div class="prep-shelf">
         ${listId
           ? `<button type="button" class="prep-scale-obj" data-weigh-pk="${escHtml(listId)}" aria-label="${escHtml(t('pack.weigh.btnNone'))}">
               <span class="prep-scale-art">${renderScale({ reading })}</span>
-            </button>
-            <span class="prep-scale-label">${escHtml(t('prep.sceneWeighHere'))}</span>`
+            </button>`
           : `<div class="prep-scale-obj is-idle" aria-hidden="true"><span class="prep-scale-art">${renderScale({ reading })}</span></div>`}
       </div>`;
 

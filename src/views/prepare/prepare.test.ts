@@ -722,33 +722,17 @@ describe('Checklist editor — one board, a left-pill, a combobox for new notes'
     expect(remainingByGroup(cl as never)).toEqual([]);
   });
 
-  it('typing filters the presets, the ones already on the board are marked, Enter adds the highlighted one', async () => {
-    const id = await open();
+  it('offers no preset notes — only the name box', async () => {
+    await open();
     const z = clZone();
     z.querySelector<HTMLElement>('#newnote-open')!.click();
     expect(z.querySelector('.prep-newnote')!.classList.contains('is-open')).toBe(true);
-
-    const used = [...z.querySelectorAll<HTMLElement>('.prep-newnote-opt.is-used')].map(o => o.dataset.name);
-    expect(used.sort()).toEqual(['Documents', 'Health']);
-
-    const input = z.querySelector<HTMLInputElement>('#add-group-input')!;
-    input.value = 'ins';
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    const visible = [...z.querySelectorAll<HTMLElement>('.prep-newnote-opt')].filter(o => !o.hidden).map(o => o.dataset.name);
-    expect(visible).toEqual(['Insurance']);
-
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-
-    await vi.waitFor(() => {
-      const cl = docs.get(`trips/t1/checklists/${id}`) as { groups: { name: string; icon: string }[] };
-      expect(cl.groups.map(g => g.name)).toContain('Insurance');
-    });
-    const cl = docs.get(`trips/t1/checklists/${id}`) as { groups: { name: string; icon: string }[] };
-    expect(cl.groups.find(g => g.name === 'Insurance')!.icon).toBe('🛡️');
+    expect(z.querySelector('.prep-newnote-opt, #newnote-list')).toBeNull();
+    expect(z.querySelector('.detail-title')!.tagName).toBe('H2');
+    expect(z.querySelector('#detail-title-input')).toBeNull();
   });
 
-  it('Enter with no highlighted preset adds the typed name as a custom note', async () => {
+  it('Enter adds the typed name as a note', async () => {
     const id = await open();
     const z = clZone();
     z.querySelector<HTMLElement>('#newnote-open')!.click();

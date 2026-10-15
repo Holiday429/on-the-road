@@ -119,12 +119,20 @@
 
 /* ── Menu (the "+ New" in a panel header, the "⋯" in an editor) ───────────── */
 .prep-menu { position: relative; flex-shrink: 0; }
-.prep-menu-btn { white-space: nowrap; font-size: var(--fs-sm); padding: 7px 16px; }
+/* One size for every action button on a Prepare screen (landing "+ New", editors' New note / AI check / ⋯ /
+   Record change / Add bag / Weigh): same height, radius, type and padding, whatever its colour. */
+.prep-menu-btn, .prep-newnote-open, .ai-check-btn, .pkd-actions > .btn, .pkd-actions > .pkd-weigh {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  height: var(--ctl-h); box-sizing: border-box; padding: 0 var(--sp-4);
+  border-width: 1.5px; border-style: solid; border-radius: var(--r-full);
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: 1; white-space: nowrap;
+}
+.btn-primary.prep-menu-btn, .btn-primary.prep-newnote-open { border-color: transparent; }
 .prep-menu-btn:not(.prep-menu-icon)::after {
   content: ''; display: inline-block; margin-left: 8px; vertical-align: 2px;
   border: 4px solid transparent; border-top-color: currentColor; border-bottom-width: 0; opacity: .75;
 }
-.prep-menu-icon { width: var(--ctl-h, 40px); height: var(--ctl-h, 40px); padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-lg); line-height: 1; }
+.prep-menu-icon { width: var(--ctl-h, 40px); padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-lg); line-height: 1; }
 .prep-menu-list {
   display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 200px;
   padding: var(--sp-1); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg);

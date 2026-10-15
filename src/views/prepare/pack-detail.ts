@@ -19,7 +19,7 @@ import {
   PACK_CATEGORIES, categoryLabel, categoryOptions, PRIORITIES, kindLabel, priRank,
   containerWeight, isOver,
 } from '../pack/pack-helpers.ts';
-import { ago, slipCode, type WeighSlip, type WeighStatus } from '../pack/weigh-status.ts';
+import { slipCode, type WeighSlip, type WeighStatus } from '../pack/weigh-status.ts';
 
 export interface DetailCtx {
   list: PackList;
@@ -36,7 +36,6 @@ export interface DetailCtx {
   renderItemTag: (item: PackItem, dropCandidate: boolean) => string;
   /** The Pack-check progress block (only called when packCheck is on). */
   packCheckHtml: () => string;
-  changeSummaryHtml: string;
   status: WeighStatus;
   slip: WeighSlip | null;
   slips: WeighSlip[];
@@ -54,22 +53,6 @@ export function weighBtnLabel(s: WeighStatus): string {
     case 'stale': return t('pack.weigh.btnStale');
     case 'ok':    return t('pack.weigh.btnOk');
     default:      return t('pack.weigh.btnOver', { n: s.over });
-  }
-}
-
-function agoText(at: number | null, now: number): string {
-  if (at == null) return '';
-  const a = ago(at, now);
-  return t(`pack.weigh.ago.${a.unit}`, { n: a.n });
-}
-
-/** The one sentence that says where the weigh-in stands. */
-export function weighSentence(s: WeighStatus, now = Date.now()): string {
-  switch (s.state) {
-    case 'none':  return t('pack.weigh.stNone', { n: s.bags });
-    case 'stale': return t('pack.weigh.stStale', { n: s.pending });
-    case 'ok':    return t('pack.weigh.stOk', { ago: agoText(s.at, now) });
-    default:      return t('pack.weigh.stOver', { n: s.over, ago: agoText(s.at, now) });
   }
 }
 
@@ -129,8 +112,8 @@ export function renderBagCard(ctx: DetailCtx, c: PackContainer): string {
   return `
     <article class="pkd-bag${over ? ' is-over' : ''}" data-id="${escHtml(c.id)}" data-cid="${escHtml(c.id)}">
       <div class="pkd-bag-art" data-bag-art="${escHtml(c.id)}" role="button" tabindex="0"
-           aria-label="${escHtml(t('pack.bag.openAria', { name: c.label }))}" style="width:${w}px">
-        ${renderBag(c.kind, { loadPct: pct, over, uid: c.id, tone: look.tone })}
+           aria-label="${escHtml(t('pack.bag.openAria', { name: c.label }))}">
+        <div class="pkd-bag-pic" style="width:${w}px">${renderBag(c.kind, { loadPct: pct, over, uid: c.id, tone: look.tone })}</div>
       </div>
       <div class="pkd-bag-info">
         <div class="pkd-bag-head">
@@ -256,17 +239,15 @@ export function renderDetailMarkup(ctx: DetailCtx, savedSlipIds: Set<string>): s
       <div class="pack-detail-bar pkd-bar">
         <div class="pack-detail-title">${escHtml(l.name)}</div>
         <div class="pack-detail-actions pkd-actions">
-          ${ctx.hasLegs ? `<button class="btn btn-ghost pk-sm" id="pk-record-change">${escHtml(t('pack.btnRecordChange'))}</button>` : ''}
-          <button class="btn btn-ghost pk-sm" id="pk-open-add-bag">${escHtml(t('pack.btnAddBag'))}</button>
+          ${ctx.hasLegs ? `<button class="btn btn-ghost" id="pk-record-change">${escHtml(t('pack.btnRecordChange'))}</button>` : ''}
+          <button class="btn btn-ghost" id="pk-open-add-bag">${escHtml(t('pack.btnAddBag'))}</button>
           <label class="pk-toggle"><input type="checkbox" id="pk-check-mode" ${ctx.packCheck ? 'checked' : ''}> ${escHtml(t('pack.packCheck'))}</label>
           ${hasBags ? `<button type="button" class="pkd-weigh is-${ctx.status.state}" id="pk-weigh">${weighBtnInner(ctx.status)}</button>` : ''}
           ${renderMenu('⋯', [{ act: 'delete-pk', label: t('pack.deleteList'), icon: '🗑️', danger: true }], { variant: 'icon', title: t('prep.moreActions') })}
         </div>
       </div>
-      ${hasBags ? `<div class="pkd-status is-${ctx.status.state}" id="pk-weigh-status" role="status">${escHtml(weighSentence(ctx.status))}</div>` : ''}
 
       ${ctx.packCheck ? ctx.packCheckHtml() : ''}
-      ${ctx.changeSummaryHtml}
 
       <div class="pkd-grid">
         <div class="pkd-main">

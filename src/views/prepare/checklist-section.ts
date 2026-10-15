@@ -34,19 +34,6 @@ let editingGroupId: string | null = null;
 // The "+ New note" combobox survives the repaint a store push causes mid-typing.
 let _newNote = { open: false, icon: '📋', text: '' };
 
-/** Quick-start note names offered by the "+ New note" box (stored as written — they become the note's title). */
-const GROUP_PRESETS = [
-  { icon: '📄', name: 'Documents' },
-  { icon: '💳', name: 'Money & Cards' },
-  { icon: '🛡️', name: 'Insurance' },
-  { icon: '💊', name: 'Health' },
-  { icon: '📱', name: 'Tech & Comms' },
-  { icon: '✈️', name: 'Logistics' },
-  { icon: '🎒', name: 'Packing' },
-  { icon: '🛍️', name: 'Shopping' },
-  { icon: '🏨', name: 'Accommodation' },
-  { icon: '⏰', name: 'Last-minute' },
-] as const;
 const EMOJI_CHOICES = ['📋','📄','💳','🛡️','💊','📱','✈️','🎒','🛍️','✅','⏰','🌍','📌','🏨','🚂','🚌','⛴️','🎫','💰','🔑','📸','🌞','❄️','🌧️','👔','👗','🧴','💡','📝','🔐','🏥','🚑','🦺','🧳'];
 
 // Live cache — kept fresh by subscriptions
@@ -420,10 +407,10 @@ function renderDetailScreen(container: HTMLElement) {
       <!-- Breadcrumb back + title + actions -->
       <div class="detail-topbar">
         <div class="detail-title-wrap">
-          <input class="detail-title-input" id="detail-title-input" value="${escHtml(cl.name)}" aria-label="${escHtml(t('prep.renameChecklist'))}">
+          <h2 class="detail-title">${escHtml(cl.name)}</h2>
         </div>
         <div class="detail-actions">
-          ${renderNewNote(cl)}
+          ${renderNewNote()}
           <button class="btn btn-ghost ai-check-btn" id="ai-check-btn" title="${escHtml(t('prep.aiCheckTitle'))}">✨ ${escHtml(t('prep.aiCheckBtn'))}</button>
           ${menu}
         </div>
@@ -486,27 +473,17 @@ function renderNextPill(cl: StoredChecklist): string {
     </div>`;
 }
 
-/** "+ New note" beside the title: a button that drops a name box whose list is the presets. */
-function renderNewNote(cl: StoredChecklist): string {
-  const used = new Set(cl.groups.map(g => g.name.trim().toLowerCase()));
+/** "+ New note" beside the title: a button that drops a small panel to name the note (and pick its icon). */
+function renderNewNote(): string {
   return `
     <div class="prep-newnote${_newNote.open ? ' is-open' : ''}" id="prep-newnote">
       <button type="button" class="btn btn-primary prep-newnote-open" id="newnote-open" aria-expanded="${_newNote.open}">${escHtml(t('prep.newNote'))}</button>
       <div class="prep-newnote-form">
         <div class="prep-newnote-row">
           <button type="button" class="add-group-emoji-btn" id="add-group-emoji-btn" title="${escHtml(t('prep.pickIcon'))}" aria-label="${escHtml(t('prep.pickIcon'))}">${escHtml(_newNote.icon)}</button>
-          <input class="input add-group-input" id="add-group-input" role="combobox" aria-expanded="false" aria-controls="newnote-list"
-                 aria-autocomplete="list" autocomplete="off" placeholder="${escHtml(t('prep.newNotePh'))}" value="${escHtml(_newNote.text)}">
+          <input class="input add-group-input" id="add-group-input" autocomplete="off" placeholder="${escHtml(t('prep.newNotePh'))}" value="${escHtml(_newNote.text)}">
           <button type="button" class="btn btn-primary" id="add-group-btn">${escHtml(t('prep.newNoteAdd'))}</button>
         </div>
-        <ul class="prep-newnote-list" id="newnote-list" role="listbox" hidden>
-          ${GROUP_PRESETS.map((p, i) => {
-            const isUsed = used.has(p.name.toLowerCase());
-            return `<li role="option" id="newnote-opt-${i}" class="prep-newnote-opt${isUsed ? ' is-used' : ''}" aria-disabled="${isUsed}" data-name="${escHtml(p.name)}" data-icon="${p.icon}">
-              <span aria-hidden="true">${p.icon}</span><span class="prep-newnote-opt-name">${escHtml(p.name)}</span>${isUsed ? `<span class="prep-newnote-opt-used">✓ ${escHtml(t('prep.newNoteUsed'))}</span>` : ''}
-            </li>`;
-          }).join('')}
-        </ul>
         <div class="emoji-picker-popover" id="emoji-picker-popover" hidden>
           ${EMOJI_CHOICES.map(e => `<button type="button" class="emoji-option" data-emoji="${e}">${e}</button>`).join('')}
         </div>
@@ -593,12 +570,6 @@ function renderItem(item: ChecklistItem, groupName: string): string {
 }
 
 function bindDetailScreen(container: HTMLElement, cl: StoredChecklist) {
-  // Rename checklist
-  container.querySelector<HTMLInputElement>('#detail-title-input')?.addEventListener('change', async (e) => {
-    const val = (e.target as HTMLInputElement).value.trim();
-    if (val) await checklistStore.rename(cl.id, val);
-  });
-
   // Celebrate button
   container.querySelector('#celebrate-btn')?.addEventListener('click', () => {
     screen = 'celebrate';
@@ -761,11 +732,11 @@ function wireEscBack() {
   });
 }
 
-/* ── "+ New note" combobox ───────────────────────────────────────────────── */
+/* ── "+ New note" panel ──────────────────────────────────────────────────── */
 
 let _nnWired = false;
 
-/** One document-level listener: outside a open tile, the list/picker close and an empty tile folds away. */
+/** One document-level listener: outside an open panel, the icon picker closes and an empty panel folds away. */
 function wireNewNoteDismiss() {
   if (_nnWired) return;
   _nnWired = true;
@@ -777,8 +748,6 @@ function wireNewNoteDismiss() {
     const emojiBtn = wrap.querySelector('#add-group-emoji-btn');
     if (picker && !picker.hidden && !picker.contains(target) && !emojiBtn?.contains(target)) picker.hidden = true;
     if (wrap.contains(target)) return;
-    wrap.querySelector<HTMLElement>('#newnote-list')?.setAttribute('hidden', '');
-    wrap.querySelector('#add-group-input')?.setAttribute('aria-expanded', 'false');
     if (!wrap.querySelector<HTMLInputElement>('#add-group-input')?.value.trim()) {
       wrap.classList.remove('is-open');
       _newNote.open = false;
@@ -789,49 +758,18 @@ function wireNewNoteDismiss() {
 function bindNewNote(container: HTMLElement, cl: StoredChecklist) {
   const wrap = container.querySelector<HTMLElement>('#prep-newnote');
   const input = wrap?.querySelector<HTMLInputElement>('#add-group-input');
-  const list = wrap?.querySelector<HTMLElement>('#newnote-list');
   const emojiBtn = wrap?.querySelector<HTMLButtonElement>('#add-group-emoji-btn');
   const picker = wrap?.querySelector<HTMLElement>('#emoji-picker-popover');
-  if (!wrap || !input || !list || !emojiBtn || !picker) return;
+  if (!wrap || !input || !emojiBtn || !picker) return;
   wireNewNoteDismiss();
 
-  const options = () => [...list.querySelectorAll<HTMLElement>('.prep-newnote-opt')];
-  const choosable = () => options().filter(o => !o.hidden && !o.classList.contains('is-used'));
-  let active = -1;
-  const setActive = (i: number) => {
-    const rows = choosable();
-    options().forEach(o => o.classList.remove('is-active'));
-    active = rows.length && i >= 0 ? i % rows.length : -1;
-    if (active >= 0) {
-      rows[active].classList.add('is-active');
-      rows[active].scrollIntoView?.({ block: 'nearest' });
-      input.setAttribute('aria-activedescendant', rows[active].id);
-    } else input.removeAttribute('aria-activedescendant');
-  };
-  const showList = (on: boolean) => {
-    list.hidden = !on;
-    input.setAttribute('aria-expanded', String(on));
-    if (!on) setActive(-1);
-  };
-  const filter = () => {
-    const q = input.value.trim().toLowerCase();
-    options().forEach(o => { o.hidden = !!q && !o.dataset.name!.toLowerCase().includes(q); });
-    _newNote.text = input.value;
-    setActive(-1);
-  };
   const fold = () => {
     _newNote = { open: false, icon: '📋', text: '' };
     wrap.classList.remove('is-open');
     input.value = '';
     emojiBtn.textContent = '📋';
-    showList(false);
   };
-  const addPreset = async (o: HTMLElement) => {
-    const name = o.dataset.name!, icon = o.dataset.icon!;
-    fold();
-    await checklistStore.addGroup(cl.id, name, icon);
-  };
-  const addCustom = async () => {
+  const add = async () => {
     const name = input.value.trim();
     if (!name) return;
     const icon = emojiBtn.textContent?.trim() || '📋';
@@ -843,35 +781,13 @@ function bindNewNote(container: HTMLElement, cl: StoredChecklist) {
     wrap.classList.add('is-open');
     _newNote.open = true;
     input.focus();
-    showList(true);
   });
-  input.addEventListener('focus', () => showList(true));
-  input.addEventListener('click', () => showList(true));
-  input.addEventListener('input', () => { showList(true); filter(); });
+  input.addEventListener('input', () => { _newNote.text = input.value; });
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      showList(true);
-      const n = choosable().length;
-      if (n) setActive(e.key === 'ArrowDown' ? active + 1 : (active <= 0 ? n - 1 : active - 1));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const rows = choosable();
-      if (active >= 0 && rows[active]) void addPreset(rows[active]);
-      else void addCustom();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (!list.hidden) showList(false); else fold();
-    }
+    if (e.key === 'Enter') { e.preventDefault(); void add(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); fold(); }
   });
-  // mousedown (not click) so the box keeps focus until the choice lands
-  list.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    const o = (e.target as HTMLElement).closest<HTMLElement>('.prep-newnote-opt');
-    if (o && !o.classList.contains('is-used')) void addPreset(o);
-  });
-  wrap.querySelector('#add-group-btn')?.addEventListener('click', () => void addCustom());
+  wrap.querySelector('#add-group-btn')?.addEventListener('click', () => void add());
 
   emojiBtn.addEventListener('click', (e) => { e.stopPropagation(); picker.hidden = !picker.hidden; });
   picker.querySelectorAll<HTMLButtonElement>('.emoji-option').forEach(opt => opt.addEventListener('click', () => {
@@ -880,8 +796,6 @@ function bindNewNote(container: HTMLElement, cl: StoredChecklist) {
     picker.hidden = true;
     input.focus();
   }));
-
-  if (_newNote.open && _newNote.text) filter();
 }
 
 /* ── Drag-to-reorder (groups) ────────────────────────────────────────────── */

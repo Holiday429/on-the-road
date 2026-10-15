@@ -432,12 +432,6 @@
 .pk-wb-next { font-size: var(--fs-xs); color: var(--ink-muted); }
 .pk-wb-hint { font-size: var(--fs-xs); color: var(--ink-faint); font-style: italic; }
 
-/* ── Bag change summary strip (above containers in detail view) ───────────── */
-.pk-change-strip {
-  display: flex; flex-wrap: wrap; gap: 5px;
-  padding: var(--sp-2) var(--sp-1);
-}
-
 /* ── Shared bag-change chips (used in pack detail + dashboard widget) ─────── */
 .pk-bl-chip {
   display: inline-flex; align-items: center;

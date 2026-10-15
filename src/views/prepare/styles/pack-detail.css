@@ -6,14 +6,10 @@
 .pkd-bar { margin-bottom: var(--sp-2); display: flex; align-items: center; gap: var(--sp-3); }
 .pkd-bar .pack-detail-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pkd-actions { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
-.pkd-actions > .btn, .pkd-actions > .pkd-weigh { height: var(--ctl-h); box-sizing: border-box; padding-block: 0; }
-.pkd-actions > .btn { display: inline-flex; align-items: center; }
 
 /* ── The Weigh button: it reports, not just asks ─────────────────────────── */
 .pkd-weigh {
-  display: inline-flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-4);
-  border: 1px solid transparent; border-radius: var(--r-full); cursor: pointer;
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold); white-space: nowrap;
+  border-color: transparent; cursor: pointer;
   box-shadow: var(--shadow-sm); transition: transform var(--dur-fast) var(--ease-out), filter var(--dur-fast);
 }
 .pkd-weigh:hover { transform: translateY(-1px); filter: brightness(1.04); }
@@ -29,13 +25,6 @@
   70%  { box-shadow: 0 0 0 9px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
 }
-
-.pkd-status {
-  margin: 0 0 var(--sp-4); font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .04em; color: var(--ink-muted);
-}
-.pkd-status.is-ok { color: var(--success); }
-.pkd-status.is-over { color: var(--danger); }
-.pkd-status.is-stale, .pkd-status.is-none { color: var(--accent-deep); }
 
 /* ── Layout: bags + scale | loose items + add row ────────────────────────── */
 .pkd-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: var(--sp-5); align-items: start; }
@@ -61,7 +50,9 @@
 @keyframes pkd-bump { 0% { transform: translateY(0) scaleY(1); } 24% { transform: translateY(4px) scaleY(.985); } 52% { transform: translateY(-2px) scaleY(1.01); } 100% { transform: none; } }
 @keyframes pkd-shake { 0%, 100% { transform: none; } 20% { transform: translateX(-5px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
 
-.pkd-bag-art { flex: none; cursor: grab; touch-action: none; user-select: none; transition: transform var(--dur-fast) var(--ease-out); }
+/* Every bag gets the same slot — wide enough for the biggest (a large duffel, 124px) — and sits centred in
+   it, so the frames line up whatever the bags' sizes. */
+.pkd-bag-art { flex: none; width: 124px; display: flex; justify-content: center; cursor: grab; touch-action: none; user-select: none; transition: transform var(--dur-fast) var(--ease-out); }
 .pkd-bag-art:hover { transform: translateY(-3px) rotate(-1deg); }
 .pkd-bag-art:active { cursor: grabbing; }
 .pkd-bag-art:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 4px; border-radius: var(--r-md); }
@@ -153,7 +144,8 @@
 /* ── Phones ──────────────────────────────────────────────────────────────── */
 @media (max-width: 520px) {
   .pkd-bag { gap: var(--sp-3); padding: var(--sp-3); }
-  .pkd-bag-art { width: 64px !important; }
+  .pkd-bag-art { width: 64px; }
+  .pkd-bag-pic { width: 100% !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pkd-weigh-dot, .pkd-bag.is-bump, .pkd-slip, .pkd-bag-items { animation: none; }

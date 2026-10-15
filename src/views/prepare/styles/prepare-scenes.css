@@ -78,9 +78,8 @@
    are, so the panel matches the Checklist's whatever the list holds. */
 .prep-scene--pk {
   display: grid; grid-template-rows: 1fr auto; padding: 0;
-  background: linear-gradient(180deg, var(--surface-2) 0 66%, var(--surface-3) 66% 100%);
+  background: var(--surface-2);
 }
-.prep-scene--pk::before { content: ''; position: absolute; left: 0; right: 0; top: 66%; height: 1px; background: var(--rule); }
 .prep-floor {
   position: relative; min-width: 0; min-height: 0;
   display: flex; align-items: flex-end; justify-content: center; gap: var(--sp-4);
@@ -110,8 +109,6 @@
 .prep-scale-obj.is-idle { cursor: default; }
 .prep-scale-obj.is-idle:hover { transform: none; }
 .prep-scale-art { display: block; }
-.prep-scale-label { font-size: var(--fs-sm); color: var(--ink-muted); }
-.prep-scale-obj:hover + .prep-scale-label, .prep-scale-obj:focus-visible + .prep-scale-label { color: var(--ink); }
 @media (max-width: 560px) {
   /* On a phone the frame is narrower than three bags at their natural size:
      let them shrink together rather than pushing the panel off-screen. */
@@ -119,8 +116,7 @@
   .prep-floor { gap: var(--sp-2); padding: var(--sp-4) var(--sp-3) var(--sp-3); }
   .prep-bag { flex: 1 1 0; min-width: 0; }
   .prep-scale-obj { width: 132px; }
-  .prep-shelf { gap: var(--sp-2); padding-inline: var(--sp-3); }
-  .prep-scale-label { font-size: var(--fs-xs); }
+  .prep-shelf { padding-inline: var(--sp-3); }
   .prep-clip-stack { width: 100%; }
   .prep-switch-name { max-width: 110px; }
 }

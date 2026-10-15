@@ -266,21 +266,15 @@
   min-width: 0;
 }
 
-.detail-title-input {
-  width: 100%;
+.detail-title {
+  margin: 0;
   font-family: var(--font-display);
   font-size: var(--fs-2xl);
   font-weight: var(--fw-semibold);
   color: var(--ink);
-  border: none;
-  background: transparent;
-  outline: none;
   padding: 4px 8px;
-  border-radius: var(--r-sm);
-  transition: background var(--dur-fast);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.detail-title-input:hover,
-.detail-title-input:focus { background: var(--surface-3); }
 
 .detail-actions {
   display: flex;
@@ -583,7 +577,6 @@
 
 /* ── "New note": a button in the title row that drops a naming panel ─────── */
 .prep-newnote { position: relative; flex-shrink: 0; }
-.prep-newnote-open { white-space: nowrap; font-size: var(--fs-sm); padding: 7px 16px; }
 .prep-newnote-open::before { content: '+'; margin-right: 6px; font-weight: var(--fw-semibold); }
 .prep-newnote-form {
   display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 25; width: min(380px, calc(100vw - 32px));
@@ -594,18 +587,6 @@
 .prep-newnote-row { display: flex; gap: var(--sp-2); align-items: center; }
 .add-group-input { flex: 1; min-width: 0; }
 
-.prep-newnote-list {
-  margin: var(--sp-2) 0 0; padding: 0; list-style: none; max-height: 260px; overflow-y: auto;
-  border-top: 1px solid var(--rule-soft); padding-top: var(--sp-2);
-}
-.prep-newnote-list[hidden] { display: none; }
-.prep-newnote-opt { display: flex; align-items: center; gap: var(--sp-2); padding: 8px var(--sp-2); border-radius: var(--r-md); font-size: var(--fs-sm); cursor: pointer; }
-.prep-newnote-opt[hidden] { display: none; }
-.prep-newnote-opt:hover, .prep-newnote-opt.is-active { background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.prep-newnote-opt-name { flex: 1; min-width: 0; }
-.prep-newnote-opt.is-used { color: var(--ink-faint); cursor: default; }
-.prep-newnote-opt.is-used:hover { background: transparent; }
-.prep-newnote-opt-used { font-size: var(--fs-xs); color: var(--success); }
 
 /* An empty board says what to do rather than showing nothing. */
 .prep-board-empty {
@@ -888,6 +869,6 @@
   .detail-topbar { flex-wrap: wrap; }
   .detail-title-wrap { order: 3; flex-basis: 100%; }
   .detail-actions { margin-left: auto; }
-  .detail-title-input { font-size: var(--fs-xl); }
+  .detail-title { font-size: var(--fs-xl); }
   .checklist-grid, .templates-grid { grid-template-columns: 1fr; }
 }
