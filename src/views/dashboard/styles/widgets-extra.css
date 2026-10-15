@@ -122,8 +122,10 @@ button.td-pk-bag:focus-visible { outline: 2px solid var(--accent-deep); outline-
 }
 .td-pk-tag-hole { position: absolute; left: 6px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--surface-3); box-shadow: inset 0 1px 1px color-mix(in srgb, var(--ink) 30%, transparent); }
 /* the shelf: the scale and what its reading means */
-.td-pk-shelf { display: flex; align-items: center; gap: var(--sp-3); min-height: 0; }
-.td-pk-scale { flex: 0 0 52%; min-width: 0; }
+.td-pk-shelf { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); min-height: 0; }
+.td-pk-scale { flex: none; width: 52%; min-width: 0; }
+.td-pk-shelf.is-near { flex-direction: row; gap: var(--sp-3); }   /* near a flight: the reading's meaning sits beside it */
+.td-pk-shelf.is-near .td-pk-scale { flex: 0 0 52%; width: auto; }
 .td-pk-notes { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .td-pk-allowance { font-size: var(--fs-xs); color: var(--ink-muted); }
 .td-pk-limit { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink-soft); }

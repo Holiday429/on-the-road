@@ -88,10 +88,8 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
         : esc(t('dash.pack.left', { kg: kg(s.remainG) }))}</div>
       <div class="td-pk-allowance">${esc(`${t('dash.pack.limit')} ${kg(s.limitG)} kg`)}</div>`;
   } else {
-    notes = `
-      <div class="td-pk-allowance">${esc(piecesLabel(s.pieces))}</div>
-      ${contents.unassigned.length ? `<div class="td-pk-limit">${esc(t('dash.pack.unassignedN', { n: contents.unassigned.length }))}</div>` : ''}
-      ${!contents.containers.length && s.recent.length ? `<div class="td-pk-recent">${s.recent.map(chip).join('')}</div>` : ''}`;
+    // Away from a flight there's nothing to explain: the scale alone, centred.
+    notes = !contents.containers.length && s.recent.length ? `<div class="td-pk-recent">${s.recent.map(chip).join('')}</div>` : '';
   }
   const carried = s.kind === 'near' || s.kind === 'idle' ? s.carriedG : 0;
 
@@ -99,9 +97,9 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
     <div class="td-widget td-w-pack">
       ${head(details)}
       ${bags}
-      <div class="td-pk-shelf${s.kind === 'near' && s.over ? ' is-over' : ''}">
+      <div class="td-pk-shelf${s.kind === 'near' ? ' is-near' : ''}${s.kind === 'near' && s.over ? ' is-over' : ''}">
         <div class="td-pk-scale" role="img" aria-label="${esc(formatKg(carried))}">${renderScale({ reading: formatKg(carried), verdict })}</div>
-        <div class="td-pk-notes">${notes}</div>
+        ${notes ? `<div class="td-pk-notes">${notes}</div>` : ''}
       </div>
       ${actions}
     </div>`;
