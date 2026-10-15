@@ -60,6 +60,8 @@ export interface ShareInput {
   nationalityLabel?: string;
   /** The cloth colour of the traveller's own cover; the default navy when they have not dressed it. */
   coverColor?: string;
+  /** The portrait, loaded and allowed on a canvas; null = draw the nickname's initial instead. */
+  photo?: CanvasImageSource | null;
   stats: { countries: number; cities: number; nights: number; trips: number };
   /** Words, already translated. */
   words: {
@@ -189,6 +191,61 @@ function fitFont(ctx: Ctx, text: string, weight: number, family: string, max: nu
   return size;
 }
 
+/** Draws `img` to fill the box the way object-fit: cover does (centred, the overflow cropped). */
+function drawCover(ctx: Ctx, img: CanvasImageSource, x: number, y: number, w: number, h: number): void {
+  const src = img as { naturalWidth?: number; naturalHeight?: number; width?: number; height?: number };
+  const iw = src.naturalWidth || src.width || w;
+  const ih = src.naturalHeight || src.height || h;
+  const k = Math.max(w / iw, h / ih);
+  const dw = iw * k;
+  const dh = ih * k;
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+}
+
+/**
+ * A portrait frame on the data page: the traveller's photo when there is one (toned down like the real page's),
+ * else the pale sky wash with the nickname's initial. `ghost` is the small second portrait, in black and white.
+ */
+function portrait(ctx: Ctx, photo: CanvasImageSource | null, initial: string, x: number, y: number, w: number, h: number, r: number, ghost: boolean): void {
+  ctx.save();
+  roundRect(ctx, x, y, w, h, r);
+  ctx.clip();
+  if (photo) {
+    ctx.fillStyle = SHARE.photoTop;
+    ctx.fillRect(x, y, w, h);
+    // Not every engine filters a canvas; without it the picture is simply as it was taken.
+    (ctx as unknown as { filter?: string }).filter = ghost ? 'grayscale(1) contrast(0.85)' : 'saturate(0.8) contrast(1.04)';
+    if (ghost) ctx.globalAlpha = 0.5;
+    drawCover(ctx, photo, x, y, w, h);
+    (ctx as unknown as { filter?: string }).filter = 'none';
+    ctx.globalAlpha = 1;
+  } else if (ghost) {
+    ctx.fillStyle = SHARE.photoGhost;
+    ctx.fillRect(x, y, w, h);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(42, 37, 32, 0.26)';
+    ctx.font = `700 ${Math.round(w * 0.5)}px ${FONT.ui}`;
+    ctx.fillText(initial, x + w / 2, y + h / 2 + w * 0.18);
+  } else {
+    const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+    grad.addColorStop(0, SHARE.photoTop);
+    grad.addColorStop(1, SHARE.photoBottom);
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, w, h);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(42, 37, 32, 0.4)';
+    ctx.font = `700 ${Math.round(w * 0.52)}px ${FONT.ui}`;
+    ctx.fillText(initial, x + w / 2, y + h / 2 + w * 0.19);
+  }
+  ctx.restore();
+  if (!ghost) {
+    ctx.strokeStyle = SHARE.rule;
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, x, y, w, h, r);
+    ctx.stroke();
+  }
+}
+
 export function drawPassportShare(ctx: Ctx, input: ShareInput): void {
   const w = input.words;
 
@@ -310,42 +367,23 @@ function drawDataPage(ctx: Ctx, input: ShareInput, p: { x: number; y: number; w:
   line(ctx, p.x + pad, headRule, p.x + p.w - pad, headRule, 2, SHARE.ink);
 
   /* The portrait frame and the fields beside it. */
-  const photoW = Math.round(inner * 0.27);
+  const photoW = Math.round(inner * 0.28);
   const photoH = Math.round(photoW * 1.28);
   const photoX = p.x + pad;
-  const photoY = headRule + 30;
-  const grad = ctx.createLinearGradient(photoX, photoY, photoX + photoW, photoY + photoH);
-  grad.addColorStop(0, SHARE.photoTop);
-  grad.addColorStop(1, SHARE.photoBottom);
-  roundRect(ctx, photoX, photoY, photoW, photoH, 8);
-  ctx.fillStyle = grad;
-  ctx.fill();
-  ctx.strokeStyle = SHARE.rule;
-  ctx.lineWidth = 1.5;
-  roundRect(ctx, photoX, photoY, photoW, photoH, 8);
-  ctx.stroke();
-  // The traveller's initial stands in for the portrait — a shared picture carries no face.
+  const photoY = headRule + 34;
   const initial = [...input.nickname.trim()][0]?.toUpperCase() ?? '?';
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(42, 37, 32, 0.4)';
-  ctx.font = `700 ${Math.round(photoW * 0.52)}px ${FONT.ui}`;
-  ctx.fillText(initial, photoX + photoW / 2, photoY + photoH / 2 + photoW * 0.19);
-  // The small ghost portrait under it, as the real page has.
+  portrait(ctx, input.photo ?? null, initial, photoX, photoY, photoW, photoH, 8, false);
+  // The small ghost portrait under it, as the real page has: paler, and in black and white.
   const ghostW = Math.round(photoW * 0.46);
-  const ghostH = Math.round(ghostW * 1.32);
-  const ghostY = photoY + photoH + 14;
-  roundRect(ctx, photoX, ghostY, ghostW, ghostH, 5);
-  ctx.fillStyle = SHARE.photoGhost;
-  ctx.fill();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(42, 37, 32, 0.26)';
-  ctx.font = `700 ${Math.round(ghostW * 0.5)}px ${FONT.ui}`;
-  ctx.fillText(initial, photoX + ghostW / 2, ghostY + ghostH / 2 + ghostW * 0.18);
+  const ghostH = Math.round(ghostW * 1.28);
+  const ghostY = photoY + photoH + 16;
+  portrait(ctx, input.photo ?? null, initial, photoX, ghostY, ghostW, ghostH, 5, true);
 
   /* The fields: a nickname and what they have earned. Nothing a document would carry. */
-  const fx = photoX + photoW + 30;
+  // Room between the portrait and what is written beside it: the details sit apart from the frame, not against it.
+  const fx = photoX + photoW + 58;
   const fw = p.x + p.w - pad - fx;
-  let fy = photoY + 6;
+  let fy = photoY + 10;
   const field = (label: string, value: string, big = false) => {
     ctx.textAlign = 'left';
     ctx.fillStyle = SHARE.inkMuted;
@@ -358,12 +396,12 @@ function drawDataPage(ctx: Ctx, input: ShareInput, p: { x: number; y: number; w:
       const size = fitFont(ctx, value, 700, FONT.ui, 46, 24, fw);
       ctx.font = `700 ${size}px ${FONT.ui}`;
       ctx.fillText(value, fx, fy + size * 0.82 + 6);
-      fy += size * 0.82 + 40;
+      fy += size * 0.82 + 50;
     } else {
       const size = fitFont(ctx, value, 600, MONO, 23, 15, fw);
       ctx.font = `600 ${size}px ${MONO}`;
       ctx.fillText(value, fx, fy + 28);
-      fy += 62;
+      fy += 72;
     }
   };
   field(w.nickname, input.nickname, true);

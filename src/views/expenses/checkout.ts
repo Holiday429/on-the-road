@@ -127,6 +127,8 @@ export interface ReceiptInput {
   running?: string;
   /** Animate the lines printing in one after another (the receipt book). */
   stagger?: boolean;
+  /** Replaces the store / cashier / date rows under the head with these label–value rows (the passport's memory card). */
+  meta?: ReadonlyArray<readonly [string, string]>;
 }
 
 /** The receipt: head and meta on top, lines + subtotal in a scrolling middle
@@ -153,9 +155,9 @@ export function renderReceipt(inp: ReceiptInput): string {
         <div class="rc-tag">${escHtml(t('expenses.mart.tagline'))}</div>
       </div>
       <div class="rc-meta">
-        <div><span>${escHtml(t('expenses.mart.store'))}</span><span>${escHtml(inp.store)}</span></div>
-        <div><span>${escHtml(t('expenses.mart.cashier'))}</span><span>#0429</span></div>
-        <div><span>${escHtml(t('expenses.mart.date'))}</span><span>${escHtml(inp.stamp)}</span></div>
+        ${(inp.meta ?? [
+    [t('expenses.mart.store'), inp.store], [t('expenses.mart.cashier'), '#0429'], [t('expenses.mart.date'), inp.stamp],
+  ]).map(([k, v]) => `<div><span>${escHtml(k)}</span><span>${escHtml(v)}</span></div>`).join('')}
       </div>
       <div class="rc-scroll">
         <div class="rc-lines">${body}</div>

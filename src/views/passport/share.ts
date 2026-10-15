@@ -33,6 +33,8 @@ export interface ShareSource {
   nationality?: string;
   /** How they dressed the booklet; the picture's cloth follows it. */
   cover?: PassportCover;
+  /** The portrait on their data page, when they have one. */
+  photoUrl?: string;
   data: PassportData;
   /** The stamps pressed onto pages, in book order. */
   pressed: PassportStamp[];
@@ -47,16 +49,24 @@ export function stampsForImage(pressed: PassportStamp[]): { shown: PassportStamp
   return { shown: byDate, extra: 0 };
 }
 
-function loadLogo(): Promise<HTMLImageElement | null> {
-  const art = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
+/**
+ * An image for the canvas, or null. A failure to load must never stop the export — the picture just goes without it.
+ * `cors` asks the host for permission to draw it: a picture from a host that refuses would otherwise "taint" the
+ * canvas and make saving it impossible, so such a host simply gets the fallback (the nickname's initial).
+ */
+function loadImage(src: string, cors = false): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    // A logo that fails to load must never stop the export — the picture just goes without it.
     const timer = window.setTimeout(() => resolve(null), 4000);
     img.onload = () => { window.clearTimeout(timer); resolve(img); };
     img.onerror = () => { window.clearTimeout(timer); resolve(null); };
-    img.src = `${art}logo.png`;
+    if (cors) { img.crossOrigin = 'anonymous'; img.referrerPolicy = 'no-referrer'; }
+    img.src = src;
   });
+}
+
+function loadLogo(): Promise<HTMLImageElement | null> {
+  return loadImage(`${import.meta.env.BASE_URL}art/logo.png`.replace(/\/{2,}/g, '/'));
 }
 
 /** Makes the passport picture. Exported separately so it can be looked at without being delivered. */
@@ -64,7 +74,10 @@ export async function renderPassportImage(src: ShareSource): Promise<HTMLCanvasE
   await ensureCardFonts();
   if ('fonts' in document) await document.fonts.load('500 16px "JetBrains Mono"').catch(() => []);
   const { shown, extra } = stampsForImage(src.pressed);
-  const [logo, images] = await Promise.all([loadLogo(), Promise.all(shown.map((s) => stampImage(s)))]);
+  const [logo, photo, images] = await Promise.all([
+    loadLogo(), src.photoUrl && /^https?:/i.test(src.photoUrl) ? loadImage(src.photoUrl, true) : Promise.resolve(null),
+    Promise.all(shown.map((s) => stampImage(s))),
+  ]);
 
   const input: ShareInput = {
     nickname: src.nickname,
@@ -73,6 +86,7 @@ export async function renderPassportImage(src: ShareSource): Promise<HTMLCanvasE
     nationality: src.nationality ?? '',
     nationalityLabel: src.nationality ? nationalityLabel(src.nationality) : '',
     coverColor: src.cover?.color,
+    photo,
     mrz: mrz({ nickname: src.nickname, nationality: src.nationality ?? '', uid: src.uid }, src.issued),
     level: t(`passport.level.${travelLevel(src.data.countries)}`),
     stats: { countries: src.data.countries, cities: src.data.cities, nights: src.data.nights, trips: src.data.trips },

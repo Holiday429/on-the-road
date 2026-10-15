@@ -583,7 +583,7 @@ async function shareNow(btn: HTMLButtonElement): Promise<void> {
     // Loaded on demand: the picture code and the QR library are not needed to read the book.
     const { sharePassport } = await import('./share.ts');
     const c = ctx();
-    await sharePassport({ nickname: c.nickname, uid: c.uid, issued: c.issued, nationality: c.nationality, cover: c.cover, data: _feed, pressed: state().pressed }, restore);
+    await sharePassport({ nickname: c.nickname, uid: c.uid, issued: c.issued, nationality: c.nationality, cover: c.cover, photoUrl: c.photoUrl, data: _feed, pressed: state().pressed }, restore);
   } catch (err) {
     console.error('Passport share failed:', err);
     const { toast } = await import('../journal/recap/export/ui.ts');

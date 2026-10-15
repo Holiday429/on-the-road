@@ -122,6 +122,16 @@ describe('drawPassportShare', () => {
     expect(text).toContain('P<OTRHOLIDAY');
   });
 
+  it('draws the traveller\'s photo on the data page — twice, the second paler in black and white — and the initial only when there is none', () => {
+    const withPhoto = fakeCtx();
+    drawPassportShare(withPhoto.ctx, input({ photo: {} as CanvasImageSource }));
+    const without = fakeCtx();
+    drawPassportShare(without.ctx, input());
+    expect(withPhoto.rec.images).toBe(without.rec.images + 2);
+    expect(without.rec.texts.filter((x) => x === 'H').length).toBe(2);
+    expect(withPhoto.rec.texts.filter((x) => x === 'H').length).toBe(0);
+  });
+
   it('a very long name still gets drawn, and the logo only when there is one', () => {
     const { ctx, rec } = fakeCtx();
     drawPassportShare(ctx, input({ nickname: 'A'.repeat(60) }));

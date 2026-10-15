@@ -15,7 +15,7 @@
 .pp-body {
   display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);
   min-height: calc(100dvh - var(--pp-chrome, 150px)); max-height: calc(100dvh - var(--pp-chrome, 150px));
-  padding-bottom: var(--sp-3); overflow: hidden;
+  padding-bottom: var(--sp-3);
 }
 
 /* ── Desk ─────────────────────────────────────────────────────────────────
@@ -37,10 +37,16 @@
 }
 .pp-book {
   position: relative; width: 100%; height: 100%; transform-style: preserve-3d;
-  transition: transform .7s cubic-bezier(.45, .05, .25, 1);
+  transition: transform .7s cubic-bezier(.45, .05, .25, 1), filter .35s;
   /* With no desk under it, the book's own shadow is what puts it on a surface. */
   filter: drop-shadow(0 4px 6px color-mix(in srgb, black 14%, transparent))
     drop-shadow(0 26px 34px color-mix(in srgb, black 26%, transparent));
+}
+/* A card open beside it moves the book toward the sidebar, whose opaque edge would slice a wide shadow off. The shadow
+   tightens to what fits in the gap, so it fades out softly instead of ending on a line. */
+.pp-desk.has-side .pp-book {
+  filter: drop-shadow(0 2px 4px color-mix(in srgb, black 12%, transparent))
+    drop-shadow(0 12px 16px color-mix(in srgb, black 16%, transparent));
 }
 .pp-book.is-closed { transform: translateX(-25%); }
 /* While the booklet is edge-on and being put back together, nothing may animate. */
@@ -203,9 +209,11 @@
 .pp-field-pair .pp-field-v { font-size: 2.8cqw; white-space: nowrap; }
 .pp-field-pair .pp-field-l { font-size: 2.2cqw; letter-spacing: .06em; white-space: nowrap; }
 .pp-field.is-hidden .pp-field-v, .pp-bio-no.is-hidden { letter-spacing: .1em; color: var(--ink-muted); }
-.pp-sign { display: grid; gap: .6cqw; margin-top: auto; position: relative; flex: none; }
-.pp-sign-top { display: flex; justify-content: space-between; align-items: center; }
-.pp-sign-line { height: 10cqw; }
+/* One row: the label, the signature on the same line as it, the edit button. The signature is written on the line the
+   label stands on, not under it. */
+.pp-sign { display: flex; align-items: flex-end; gap: 3cqw; margin-top: auto; padding-bottom: 4cqw; position: relative; flex: none; }
+.pp-sign .pp-sign-l { padding-bottom: 1.2cqw; }
+.pp-sign-line { flex: 1; min-width: 0; height: 10cqw; }
 .pp-mrz {
   flex: none; display: grid; align-content: center; height: var(--pp-foot); box-sizing: border-box; margin: calc(-1 * var(--pp-gap)) -7cqw -8cqw; padding: 0 7cqw;
   font-family: var(--font-data); font-size: 2.9cqw; letter-spacing: .02em; line-height: 1.55;
@@ -334,7 +342,7 @@
 .pp-tool.is-pressing .pp-tool-knob { transform: translateY(calc(var(--press) * 6px)); }
 
 /* ── Data-page form ──────────────────────────────────────────────────────── */
-.pp-bio-edit { align-self: flex-start; margin-top: 2cqw; font-size: 3cqw; padding: 1cqw 3cqw; }
+.pp-bio-edit { flex: none; font-size: 3cqw; padding: 1cqw 3cqw; }
 .pp-sign-line { position: relative; display: block; }
 .pp-sign-line svg { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; }
 .pp-sign-line path, .pp-sig-old path { fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
@@ -384,13 +392,14 @@
 .pp-drawer-titles { min-width: 0; }
 /* The memory card's head is a picture of the place, like the itinerary's cards. */
 .pp-drawer-head.pp-hero {
-  /* The country's name starts level with the close button, so the two read as one line across the picture;
-     the date and the first-entry note hang under it. */
-  position: relative; display: flex; align-items: flex-start; min-height: 132px;
+  /* The country's name starts level with the close button, the date under it; the first-time note sits at the
+     picture's lower left. The head keeps the height it had when it carried more, so the picture stays a picture. */
+  position: relative; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; min-height: 168px;
   padding: var(--sp-3) calc(var(--sp-5) + 44px) var(--sp-4) var(--sp-5);
-  overflow: hidden; border-bottom: 0; background: none; color: #fff;
+  overflow: visible; border-bottom: 0; background: none; color: #fff;
 }
-.pp-hero-img, .pp-hero-fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pp-hero .pp-drawer-first { position: relative; z-index: 1; margin-top: var(--sp-3); }
+.pp-hero-img, .pp-hero-fallback, .pp-hero-shade { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pp-hero-img { object-fit: cover; }
 .pp-hero-fallback {
   display: flex; align-items: center; justify-content: flex-end; padding-right: 9%; font-size: 76px;
@@ -399,8 +408,8 @@
     linear-gradient(135deg, color-mix(in srgb, var(--ink-c, var(--select-bg)) 72%, #1c1a17), color-mix(in srgb, var(--ink-c, var(--select-bg)) 46%, #1c1a17));
 }
 .pp-hero-fallback span { opacity: .4; filter: saturate(.8); }
-/* The words sit at the top now, so the picture is darkened there rather than along its foot. */
-.pp-hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .62) 0, rgba(0, 0, 0, .28) 52%, rgba(0, 0, 0, .34) 100%); }
+/* Words at the top and the first-time note at the foot: the picture is darkened at both ends. */
+.pp-hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .6) 0, rgba(0, 0, 0, .22) 48%, rgba(0, 0, 0, .5) 100%); }
 .pp-hero .pp-drawer-titles { position: relative; z-index: 1; text-shadow: 0 1px 8px rgba(0, 0, 0, .45); }
 .pp-hero .pp-drawer-title { margin-top: -2px; }
 .pp-hero .pp-drawer-kicker, .pp-hero .pp-drawer-sub { color: rgba(255, 255, 255, .84); }
@@ -424,15 +433,20 @@
 .pp-drawer-h { margin: 0 0 var(--sp-2); font-family: var(--font-data); font-size: var(--fs-2xs); font-weight: var(--fw-regular, 400); letter-spacing: .22em; text-transform: uppercase; color: var(--ink-muted); }
 .pp-drawer-none { margin: 0; font-size: var(--fs-sm); color: var(--ink-muted); }
 
-.pp-drawer-top { display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr); gap: var(--sp-4); align-items: center; }
-.pp-card-stamp { transform: rotate(-5deg); filter: drop-shadow(0 4px 8px color-mix(in srgb, black 16%, transparent)); animation: pp-lift .7s cubic-bezier(.3, 1.2, .5, 1) both; }
+.pp-drawer-top { display: block; }
+/* The stamp straddles the lower edge of the picture, opposite the first-time note, so the slip below can have the
+   card's whole width. It belongs to the head (not the scrolling body, which would clip it where it overlaps). */
+.pp-card-stamp { position: absolute; right: var(--sp-5); bottom: -46px; z-index: 3; width: 124px; transform: rotate(-5deg); filter: drop-shadow(0 4px 8px color-mix(in srgb, black 22%, transparent)); animation: pp-lift .7s cubic-bezier(.3, 1.2, .5, 1) both; }
+.pp-drawer-top { padding-top: 30px; }
 .pp-card-stamp .pp-stamp { display: block; }
 .pp-card-stamp .pp-stamp svg { width: 100%; height: auto; }
-.pp-card-receipt { transform: rotate(1.2deg); font-size: var(--fs-sm); box-shadow: 0 8px 18px -10px color-mix(in srgb, black 45%, transparent); }
-/* The city list is prose, not a figure: it wraps instead of running off the slip. */
-.pp-card-receipt .pp-row-wrap { grid-template-columns: minmax(0, auto) minmax(0, 1fr); }
-.pp-card-receipt .pp-row-wrap .paper-row-lead { display: none; }
-.pp-card-receipt .pp-row-wrap .paper-row-value { white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+.pp-card-receipt { min-width: 0; transform: rotate(1.2deg); box-shadow: 0 8px 18px -10px color-mix(in srgb, black 45%, transparent); }
+/* The slip is the Expenses page's own (styles/checkout.css); here it only has to sit on the card: it grows to its
+   lines instead of scrolling, and a long list of cities is trimmed by its own ellipsis. */
+.pp-card-receipt .rc-scroll { max-height: none; overflow: visible; }
+/* Simpler than the till's: no tagline, barcode number or thank-you line — the head, the lines and the total are the receipt. */
+.pp-card-receipt .rc-tag, .pp-card-receipt .rc-bcnum, .pp-card-receipt .rc-thanks { display: none; }
+.pp-card-receipt .rc-stamp { bottom: 22px; }
 
 /* Photos: the journal's pictures taped down as polaroids. */
 .pp-polaroids { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-4) var(--sp-3); padding-top: 8px; }
@@ -526,15 +540,12 @@
 .pp-visa-add { align-self: flex-start; margin-top: auto; font-size: 3cqw; padding: 1cqw 3cqw; }
 .pp-visa-warn-block { padding: 2cqw 3cqw; border-radius: 1.4cqw; background: color-mix(in srgb, var(--danger) 8%, transparent); border: 1px dashed color-mix(in srgb, var(--danger) 40%, transparent); line-height: 1.5; }
 .pp-danger { color: var(--danger); }
-.pp-sign-top .pp-bio-edit { margin: 0; align-self: auto; }
 /* In the dark theme the crease must not turn into a lighter stripe. */
 :root[data-theme='dark'] .pp-gutter { --pp-crease: color-mix(in srgb, #fffaf0 3%, transparent); }
 
 /* ── Share: the picture, looked at before it goes anywhere ───────────────── */
-.pp-share-modal { width: min(560px, 94vw); }
-.pp-share-preview {
-  max-height: min(62vh, 760px); overflow: auto; overscroll-behavior: contain; border-radius: var(--r-md);
-  background: var(--surface-3); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
-}
-.pp-share-canvas { display: block; width: 100%; height: auto; }
+.otr-modal.pp-share-modal { width: min(1080px, 96vw); max-width: 96vw; }
+.pp-share-preview { display: grid; place-items: center; border-radius: var(--r-md); background: var(--surface-3); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); }
+/* The whole picture, always: it scales to the window (both ways) instead of scrolling inside the sheet. */
+.pp-share-canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: calc(100dvh - 250px); }
 .pp-share-note { margin: var(--sp-3) 0 0; font-size: var(--fs-xs); color: var(--ink-muted); text-align: center; }

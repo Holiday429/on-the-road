@@ -3,7 +3,7 @@ import {
   assertFails, assertSucceeds, initializeTestEnvironment,
   type RulesTestEnvironment, type RulesTestContext,
 } from '@firebase/rules-unit-testing';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, getDocs, collection, query, where,
 } from 'firebase/firestore';
@@ -104,6 +104,23 @@ describe('users/{userId}', () => {
       { accountMigrationsVersion: 1, updatedAt: Date.now() }, { merge: true }));
     const bob = testEnv.authenticatedContext('bob');
     await assertFails(setDoc(doc(bob.firestore(), 'users/alice'), { accountMigrationsVersion: 1 }, { merge: true }));
+  });
+
+  it('the passport\'s real details (number, birth date, show switches) live in the user\'s own passportDocs, and nobody else can read them', async () => {
+    const alice = testEnv.authenticatedContext('alice');
+    const ref = doc(alice.firestore(), 'users/alice/passportDocs/me');
+    await assertSucceeds(setDoc(ref, {
+      id: 'me', fullName: 'Holiday Xiao', number: 'E12345678', issuingCountry: 'China', issued: '2026-06-25', expires: '2036-06-24',
+      birthDate: '1992-04-17', gender: 'F', showNumber: true, showFullName: false, showBirth: false,
+      createdAt: 1, updatedAt: 2, schemaVersion: 1,
+    }));
+    const back = await assertSucceeds(getDoc(ref));
+    expect(back.data()?.number).toBe('E12345678');
+    expect(back.data()?.showNumber).toBe(true);
+    const bob = testEnv.authenticatedContext('bob');
+    await assertFails(getDoc(doc(bob.firestore(), 'users/alice/passportDocs/me')));
+    await assertFails(setDoc(doc(bob.firestore(), 'users/alice/passportDocs/me'), { number: 'x' }));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'users/alice/passportDocs/me')));
   });
 
   it('a user can read and write their own sub-collections (coreKit, etc.)', async () => {

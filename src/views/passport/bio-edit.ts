@@ -21,6 +21,7 @@ import { todayIso } from '../../data/trip-phase.ts';
 import { docWarnings } from '../../data/passport-state.ts';
 import { uploadPassportPhoto } from '../../firebase/storage.ts';
 import { maskNumber } from './bio.ts';
+import { toast } from '../journal/recap/export/ui.ts';
 import { isSafePath, signaturePath, SIG_H, SIG_W, type Pt } from './signature.ts';
 
 const input = (name: string, label: string, value: string, extra = '') =>
@@ -190,24 +191,33 @@ export function openBioEditor(def: BioDefaults, onSaved: () => void): void {
     const val = (n: string) => (field(n).value ?? '').trim();
     const btn = q<HTMLButtonElement>('[data-pp-save]');
     btn.disabled = true;
+    // Firestore resolves a write only once the server has it, so "saved" below means "in the account". A dead
+    // connection would wait forever; give it a way out (the write stays queued and goes through when back online).
+    const reached = <T,>(p: Promise<T>): Promise<T> => Promise.race([p, new Promise<never>((_, no) => window.setTimeout(() => no(new Error('timeout')), 15000))]);
     try {
-      await passportStore.save({
+      await reached(passportStore.save({
         nickname: val('nickname'), nationality: val('nationality'), occupation: val('occupation'), photoURL: photo,
         signature: sigChanged ? signaturePath(strokes) : signature,
-      });
+      }));
       const hasDoc = ['fullName', 'issuingCountry', 'issued', 'expires', 'birthDate', 'gender'].some((n) => val(n)) || !!num.dataset.real;
       if (hasDoc || passportDocStore.peek()) {
         const on = (n: string) => (field(n) as HTMLInputElement).checked;
         const gender = val('gender');
-        await passportDocStore.save({
+        await reached(passportDocStore.save({
           fullName: val('fullName'), number: (num.dataset.real ?? '').trim(), issuingCountry: val('issuingCountry'),
           issued: val('issued'), expires: val('expires'), birthDate: val('birthDate'),
           gender: gender === 'F' || gender === 'M' || gender === 'X' ? gender : '',
           showFullName: on('showFullName'), showNumber: on('showNumber'), showBirth: on('showBirth'),
-        });
+        }));
       }
       closeDrawer();
       onSaved();
-    } catch { btn.disabled = false; }
+      toast(t('passport.edit.saved'));
+    } catch (err) {
+      // A write that did not reach the account must say so: the drawer stays open with everything typed in it.
+      console.error('Passport save failed:', err);
+      toast(t('passport.edit.saveFailed'));
+      btn.disabled = false;
+    }
   });
 }

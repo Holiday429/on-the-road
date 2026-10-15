@@ -183,11 +183,11 @@ function bio(c: PageCtx): string {
         ${row(t('passport.bio.occupation'), esc(c.occupation || t('passport.bio.traveller')))}
       </div>
     </div>
-    <div class="pp-sign"><div class="pp-sign-top"><span class="pp-sign-l">${esc(t('passport.bio.signature'))}</span>
-      <button type="button" class="btn btn-ghost pp-bio-edit" data-pp-edit data-no-turn>${esc(t('passport.edit.open'))}</button></div>
+    <div class="pp-sign"><span class="pp-sign-l">${esc(t('passport.bio.signature'))}</span>
       <span class="pp-sign-line">${
-        c.signature && isSafePath(c.signature) ? `<svg viewBox="0 0 300 100" preserveAspectRatio="xMidYMax meet" aria-hidden="true"><path d="${esc(c.signature)}"/></svg>` : ''
-      }</span></div>
+        c.signature && isSafePath(c.signature) ? `<svg viewBox="0 0 300 100" preserveAspectRatio="xMinYMax meet" aria-hidden="true"><path d="${esc(c.signature)}"/></svg>` : ''
+      }</span>
+      <button type="button" class="btn btn-ghost pp-bio-edit" data-pp-edit data-no-turn>${esc(t('passport.edit.open'))}</button></div>
     <div class="pp-mrz" aria-hidden="true"><div>${esc(l1)}</div><div>${esc(l2)}</div></div>
   </div>`;
 }

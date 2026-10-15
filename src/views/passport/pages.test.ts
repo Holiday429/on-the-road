@@ -157,4 +157,13 @@ describe('pageHtml', () => {
       expect(html).not.toContain('is-hidden');
     });
   });
+
+  it('the signature shares its row with the SIGNATURE label (and the edit button), instead of sitting under it', () => {
+    const bio = pageHtml({ kind: 'bio' }, ctx);
+    const row = bio.slice(bio.indexOf('class="pp-sign"'), bio.indexOf('class="pp-mrz"'));
+    expect(row.indexOf('pp-sign-l')).toBeGreaterThan(-1);
+    expect(row.indexOf('pp-sign-l')).toBeLessThan(row.indexOf('pp-sign-line'));
+    expect(row.indexOf('pp-sign-line')).toBeLessThan(row.indexOf('data-pp-edit'));
+    expect(row).not.toContain('pp-sign-top');
+  });
 });

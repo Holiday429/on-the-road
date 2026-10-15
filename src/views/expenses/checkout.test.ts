@@ -119,3 +119,20 @@ describe('convertedHint', () => {
     expect(convertedHint(10, 'EUR', 'CNY', toBase, fmt)).toBe('≈ ¥80');
   });
 });
+
+describe('renderReceipt meta rows', () => {
+  it('a caller can replace the store / cashier / date rows with its own, escaped', () => {
+    const html = receipt([], { meta: [['CITIES', 'Rome · <Florence>'], ['NIGHTS', '12']] });
+    expect(html).toContain('CITIES');
+    expect(html).toContain('Rome · &lt;Florence&gt;');
+    expect(html).toContain('NIGHTS');
+    expect(html).not.toContain('#0429</span>');
+  });
+
+  it('without meta it keeps the till\'s own three rows', () => {
+    const html = receipt([]);
+    expect(html).toContain('LISBON · PORTUGAL');
+    expect(html).toContain('#0429');
+    expect(html).toContain('2026-10-12  18:42');
+  });
+});

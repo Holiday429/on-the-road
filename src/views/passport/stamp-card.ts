@@ -18,7 +18,9 @@ import { t } from '../../core/i18n.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { renderStamp } from '../../core/paper/stamp.ts';
 import { stampDate } from '../../core/paper/stamp-base.ts';
-import { paperReceipt, type PaperRow } from '../../core/paper/paper.ts';
+import '../expenses/styles/checkout.css';
+import { renderReceipt, type MartLine } from '../expenses/checkout.ts';
+import { todayIso } from '../../data/trip-phase.ts';
 import { currencySymbol } from '../../data/rates.ts';
 import { BUILTIN_CATEGORIES } from '../expenses/expense-defaults.ts';
 import { nationalityFlag } from '../../data/nationalities.ts';
@@ -81,42 +83,41 @@ function categoryLine(id: string): { icon: string; label: string } {
   return known ?? { icon: '🏷️', label: t('passport.card.otherSpend') };
 }
 
+/**
+ * The stay's spend as the Expenses page's own till slip: the same markup (expenses/checkout.ts renderReceipt) and the
+ * same styles, so the two can never drift apart. One numbered line per category, biggest first, then the subtotal and
+ * the boxed total. Different currencies are never added, so each currency gets its own slip.
+ */
 function receipt(m: CountryMemory, locale: string): string {
-  const rows: PaperRow[] = [];
-  // A long list of cities wraps onto its own lines; a price never does, so only this row is let loose.
-  if (m.trip.cities.length) rows.push({ label: t('passport.card.cities'), value: m.trip.cities.join(' · '), className: 'pp-row-wrap' });
-  rows.push({ label: t('passport.card.nights'), value: String(m.trip.nights) });
-  if (m.total.trips > 1) rows.push({ label: t('passport.card.total'), value: t('passport.card.totalValue', { n: m.total.nights, k: m.total.trips }) });
+  const s = m.stamp;
+  const range = dateRange(m.trip.dateFrom, m.trip.dateTo);
+  const meta: Array<readonly [string, string]> = [
+    [t('expenses.mart.store'), s.country.toUpperCase()],
+    ...(m.trip.cities.length ? [[t('passport.card.cities').toUpperCase(), m.trip.cities.join(' · ')] as const] : []),
+    [t('passport.card.nights').toUpperCase(), String(m.trip.nights)],
+    ...(m.total.trips > 1 ? [[t('passport.card.total').toUpperCase(), t('passport.card.totalValue', { n: m.total.nights, k: m.total.trips })] as const] : []),
+    [t('expenses.mart.date'), range],
+  ];
+  const slip = (lines: MartLine[], fmt: (n: number) => string, rows: ReadonlyArray<readonly [string, string]>, seed: string) =>
+    `<div class="rc rc--zoom paper paper--zigzag pp-card-receipt">${renderReceipt({
+      lines, store: s.country.toUpperCase(), stamp: range, fmt, meta: rows, readonly: true,
+      // A stay that is over is settled, like a past day on the Expenses page.
+      paid: m.trip.dateTo < todayIso(), seed,
+    })}</div>`;
+  const seedOf = (k: string) => `${m.trip.dateFrom.replace(/-/g, '')}${String(k.length).padStart(2, '0')}0429`;
 
-  // One currency reads as a till slip — a line per category, biggest first; several currencies fall back to
-  // one line per currency, the way the card did before categories, since mixed amounts are never added together.
-  const currencies = new Set(m.spendByCategory.map((l) => l.currency));
-  if (m.spendByCategory.length && currencies.size === 1) {
-    const [currency] = currencies;
-    const byCat = [...m.spendByCategory].sort((a, b) => b.total - a.total);
-    for (const l of byCat) {
-      const { icon, label } = categoryLine(l.category);
-      rows.push({ label, icon, value: money(l.currency, l.total, locale) });
-    }
-    const total = byCat.reduce((n, l) => n + l.total, 0);
-    return paperReceipt({
-      title: t('passport.card.stub'),
-      rows,
-      total: { label: t('passport.card.spent'), value: money(currency, total, locale) },
-      zigzag: true,
-      className: 'pp-card-receipt',
-    });
-  }
-  // One currency reads as the receipt's total; several are never added together.
-  const one = m.spend.length === 1 ? m.spend[0] : null;
-  if (!one) for (const l of m.spend) rows.push({ label: t('passport.card.spent'), value: money(l.currency, l.total, locale) });
-  return paperReceipt({
-    title: t('passport.card.stub'),
-    rows,
-    total: one ? { label: t('passport.card.spent'), value: money(one.currency, one.total, locale) } : undefined,
-    zigzag: true,
-    className: 'pp-card-receipt',
-  });
+  const currencies = [...new Set(m.spendByCategory.map((l) => l.currency))];
+  if (currencies.length === 0) return slip([], () => '—', meta, seedOf(''));
+  return currencies.map((currency, i) => {
+    const lines: MartLine[] = m.spendByCategory
+      .filter((l) => l.currency === currency)
+      .sort((a, b) => b.total - a.total)
+      .map((l) => {
+        const { icon, label } = categoryLine(l.category);
+        return { id: `${currency}:${l.category}`, icon, name: label, category: l.category, baseAmount: l.total, amount: l.total, currency };
+      });
+    return slip(lines, (n) => money(currency, n, locale), i === 0 ? meta : [[t('expenses.mart.store'), s.country.toUpperCase()]], seedOf(currency + i));
+  }).join('');
 }
 
 /** The inside of the drawer for one stamp. */
@@ -134,12 +135,12 @@ export function drawerHtml(m: CountryMemory, locale: string, _pos: { i: number; 
       <div class="pp-drawer-titles">
         <h2 class="pp-drawer-title">${esc(s.country)}</h2>
         <div class="pp-drawer-sub">${esc(sub)}${s.orphan ? ` · ${esc(t('passport.deletedTrip'))}` : ''}</div>
-        ${s.firstEver ? `<div class="pp-drawer-first"><i>★</i> ${esc(t('passport.card.first', { c: s.country, y: year(s.date) }))}</div>` : ''}
       </div>
+      ${s.firstEver ? `<div class="pp-drawer-first"><i>★</i> ${esc(t('passport.card.first', { c: s.country }))}</div>` : ''}
+      <div class="pp-card-stamp">${renderStamp(s, { size: 190 })}</div>
     </header>
     <div class="pp-drawer-body">
       <div class="pp-drawer-top">
-        <div class="pp-card-stamp">${renderStamp(s, { size: 190 })}</div>
         ${receipt(m, locale)}
       </div>
       ${polaroids(m)}
