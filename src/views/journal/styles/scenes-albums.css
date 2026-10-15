@@ -58,11 +58,15 @@
 .jb-open { position: relative; perspective: 1900px; animation: jb-rise 520ms var(--ease-out) both; }
 @keyframes jb-rise { from { opacity: 0; transform: translateY(18px) scale(.97); } }
 .jb-spread {
-  position: relative; display: grid; grid-template-columns: 1fr 1fr; min-height: clamp(460px, 62vh, 620px); perspective: 1600px;
+  /* A magazine page is a fixed size: 3:4 a side, so a spread is 3:2. The content
+     is fitted to the page (and paginated when it does not fit), never the page
+     stretched to the content — that is what makes every spread feel printed. */
+  position: relative; display: grid; grid-template-columns: 1fr 1fr; aspect-ratio: 3 / 2;
+  max-height: calc(100vh - 210px); margin-inline: auto; perspective: 1600px;
   border-radius: 6px 14px 14px 6px; background: var(--surface); box-shadow: var(--shadow-lg); border: 1px solid var(--rule);
 }
 .jb-spread::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 56px; transform: translateX(-50%); pointer-events: none; z-index: 2; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 12%, transparent) 50%, transparent); }
-.jb-page { position: relative; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-5) var(--sp-5); background: var(--paper-grain), var(--surface); min-width: 0; min-height: 0; overflow: hidden; cursor: pointer; }
+.jb-page { position: relative; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-5) var(--sp-5) var(--sp-8); background: var(--paper-grain), var(--surface); min-width: 0; min-height: 0; height: 100%; overflow: hidden; cursor: pointer; }
 .jb-page--left { border-radius: 6px 0 0 6px; padding-right: var(--sp-8); }
 .jb-page--right { border-radius: 0 14px 14px 0; padding-left: var(--sp-8); transform-origin: left center; }
 .jb-page--left { transform-origin: right center; }
@@ -83,7 +87,7 @@
 
 /* Photos sit inside the page: one run large, or several in a block. A page holds one entry,
    so the pictures take whatever room the words leave rather than sitting at a fixed size. */
-.jb-plate { display: grid; gap: var(--sp-2); min-height: 0; flex: 1; }
+.jb-plate { display: grid; gap: var(--sp-2); min-height: 0; flex: 1 1 auto; }
 .jb-plate--1 { grid-template-columns: 1fr; }
 .jb-plate--2 { grid-template-columns: 1fr 1fr; }
 .jb-plate--3 { grid-template-columns: 1fr 1fr; }
@@ -101,21 +105,65 @@
 }
 
 /* The words, set as a reading column. */
-.jb-copy { min-height: 0; overflow: hidden; }
+.jb-copy { min-height: 0; flex: 0 1 auto; overflow: hidden; }
 .jb-copy p { margin: 0; font-size: var(--fs-sm); line-height: 1.65; color: var(--ink-soft); text-wrap: pretty; white-space: pre-wrap; }
-/* A page of nothing but text reads in two columns, like a magazine's run-on. */
-.jb-page--column .jb-copy { flex: 1; columns: 2; column-gap: var(--sp-5); column-rule: 1px solid var(--rule); }
-.jb-page--column .jb-copy p { font-size: var(--fs-sm); }
 /* A page broken mid-sentence fades out rather than stopping flat. */
 .jb-copy.is-cut { -webkit-mask-image: linear-gradient(180deg, #000 82%, transparent 100%); mask-image: linear-gradient(180deg, #000 82%, transparent 100%); }
-.jb-page--plate .jb-copy { flex: none; }
-.jb-page--feature .jb-plate { flex: 1 1 55%; }
-/* A page of only words gives the column the whole page. */
-.jb-page--column .jb-copy { flex: 1; }
-.jb-page--feature .jb-copy { flex: 1; }
+
+/* ── The six page arrangements (scenes/album-layout.ts) ──────────────────────
+   Each decides how the pictures and the words share the page; the planner never
+   puts the same one on two facing or consecutive pages. */
+
+/* plate — one picture as large as the page allows, the words beneath it. */
+.jb-lay--plate .jb-plate { flex: 1 1 auto; }
+.jb-lay--plate .jb-copy { flex: 0 0 auto; max-height: 28%; }
+
+/* openerL — the picture bled to the page edge, the heading sitting over it. */
+.jb-lay--openerL { padding: 0; }
+.jb-lay--openerL .jb-plate { flex: 1; gap: 0; }
+.jb-lay--openerL .jb-shot { box-shadow: none; }
+.jb-lay--openerL .jb-head {
+  position: absolute; left: var(--sp-5); right: var(--sp-5); bottom: var(--sp-6); z-index: 2;
+  color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, .5);
+}
+.jb-lay--openerL .jb-head .jb-date { color: rgba(255, 255, 255, .86); }
+.jb-lay--openerL .jb-copy {
+  position: absolute; left: var(--sp-5); right: var(--sp-5); bottom: var(--sp-3); z-index: 2;
+  max-height: 3em; color: rgba(255, 255, 255, .9); text-shadow: 0 1px 8px rgba(0, 0, 0, .6);
+}
+.jb-lay--openerL .jb-copy p { color: inherit; }
+.jb-lay--openerL .jb-page-x, .jb-lay--openerL .jb-folio { color: #fff; }
+
+/* duo — the pictures stacked, the words running under them. */
+.jb-lay--duo .jb-plate { flex: 1 1 auto; grid-template-columns: 1fr; }
+.jb-lay--duo .jb-copy { flex: 0 1 auto; max-height: 38%; }
+
+/* mosaic — pictures at mixed sizes, the first one leading. */
+.jb-lay--mosaic .jb-plate { flex: 1 1 auto; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; }
+.jb-lay--mosaic .jb-plate .jb-shot:first-child { grid-column: 1 / -1; }
+.jb-lay--mosaic .jb-copy { flex: 0 1 auto; max-height: 34%; }
+
+/* inset — the words lead the page, one picture set into them. */
+.jb-lay--inset .jb-plate { flex: 0 1 38%; min-height: 34%; }
+.jb-lay--inset .jb-copy { flex: 0 1 auto; }
+/* Whatever the words leave over belongs to the picture. */
+.jb-lay--inset .jb-plate { flex-grow: 1; }
+
+/* column — nothing but words, in two reading columns. */
+.jb-lay--column .jb-copy { flex: 1; columns: 2; column-gap: var(--sp-5); column-rule: 1px solid var(--rule); }
+
+/* The page number, printed small in the outer corner. */
+.jb-folio {
+  position: absolute; bottom: var(--sp-4); z-index: 3;
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .1em; color: var(--ink-faint);
+}
+.jb-page--left .jb-folio { left: var(--sp-5); }
+.jb-page--right .jb-folio { right: var(--sp-5); }
 
 .jb-page--title { align-items: center; justify-content: center; text-align: center; gap: var(--sp-3); }
-.jb-title-emoji { font-size: 56px; line-height: 1; }
+/* The album's own cover, printed as the book's first leaf. It needs an explicit
+   width: .jc is a container query root, so it cannot size itself from content. */
+.jb-title-cover { width: min(74%, 300px); box-shadow: var(--shadow-md); }
 .jb-book-title { margin: 0; font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); letter-spacing: -.02em; text-wrap: balance; }
 .jb-book-meta { margin: 0; font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .08em; color: var(--ink-muted); }
 .jb-book-actions { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); }

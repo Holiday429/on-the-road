@@ -17,6 +17,7 @@ import { hashId } from './feed-plan.ts';
 import { stampDate } from './feed.ts';
 import { clampSpread, paginate, type Leaf } from './album-pages.ts';
 import { coverOf, renderCover } from './album-cover.ts';
+import { planLayouts, type PageLayout } from './album-layout.ts';
 import { t } from '../../../core/i18n.ts';
 import '../styles/album-cover.css';
 
@@ -69,13 +70,13 @@ function plate(photos: string[], title: string, big: boolean): string {
     </div>`;
 }
 
-function entryLeaf(leaf: Leaf, albumId: string, side: 'l' | 'r'): string {
+function entryLeaf(leaf: Leaf, albumId: string, side: 'l' | 'r', layout: PageLayout, folio: number): string {
   const e = leaf.entry!;
   const where = e.destination.trim();
   const mood = moodEmoji(e.mood);
-  const big = leaf.layout === 'plate';
+  const big = layout === 'plate' || layout === 'openerL';
   return `
-    <section class="jb-page jb-page--${side === 'l' ? 'left' : 'right'} jb-page--${leaf.layout}" data-open-entry="${escHtml(e.id)}" role="button" tabindex="0">
+    <section class="jb-page jb-page--${side === 'l' ? 'left' : 'right'} jb-lay--${layout}" data-open-entry="${escHtml(e.id)}" role="button" tabindex="0">
       <button class="jb-page-x journal-icon-btn" data-album-remove-entry="${escHtml(albumId)}:${escHtml(e.id)}" type="button" title="Take out of this album" aria-label="Take out of this album">✕</button>
       ${leaf.continued
         ? '<span class="jb-runon">continued</span>'
@@ -86,6 +87,7 @@ function entryLeaf(leaf: Leaf, albumId: string, side: 'l' | 'r'): string {
       ${plate(leaf.photos, titleFor(e), big)}
       ${leaf.text ? `<div class="jb-copy${leaf.continues ? ' is-cut' : ''}"><p>${escHtml(leaf.text)}</p></div>` : ''}
       ${leaf.continues ? '<span class="jb-turnover">continues ›</span>' : ''}
+      <span class="jb-folio" aria-hidden="true">${folio}</span>
     </section>`;
 }
 
@@ -123,9 +125,15 @@ export function renderBook(album: StoredJournalAlbum, entries: StoredJournalEntr
   const spreads = paginate(entries);
   const i = clampSpread(s.spread, spreads.length);
   const [left, right] = spreads[i];
-  const side = (leaf: Leaf | null, which: 'l' | 'r') =>
-    !leaf ? `<section class="jb-page jb-page--${which === 'l' ? 'left' : 'right'} is-blank" aria-hidden="true"></section>`
-    : leaf.layout === 'title' ? titleLeaf(album, entries) : entryLeaf(leaf, album.id, which);
+  // Layouts are planned across the WHOLE book, not per spread, so the no-repeat
+  // and alternation rules still hold when you turn the page.
+  const plan = planLayouts(spreads.flat(), album.id);
+  const side = (leaf: Leaf | null, which: 'l' | 'r') => {
+    const at = i * 2 + (which === 'l' ? 0 : 1);
+    if (!leaf) return `<section class="jb-page jb-page--${which === 'l' ? 'left' : 'right'} is-blank" aria-hidden="true"></section>`;
+    if (leaf.layout === 'title') return titleLeaf(album, entries);
+    return entryLeaf(leaf, album.id, which, plan[at] ?? 'inset', at + 1);
+  };
   const turn = s.dir ? ` is-turn-${s.dir}-${s.turn ? 'a' : 'b'}` : '';
   return `
     <div class="jb-desk" tabindex="0" data-book-keys>
