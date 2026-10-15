@@ -611,6 +611,7 @@ export const en: StringTable = {
   'passport.share.preview': 'Your passport, as a picture',
   'passport.share.note': '{n} stamps · {c} countries. Everything you have collected is in the picture.',
   'passport.share.download': 'Save image',
+  'passport.share.noPhoto': 'Your photo could not be added to the picture, so it shows your initial instead.',
   'passport.share.failed': 'Could not make the picture. Please try again.',
   'passport.record.title': 'Travel record',
   'passport.record.collected': 'Stamps pressed',

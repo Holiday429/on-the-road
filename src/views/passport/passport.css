@@ -544,8 +544,9 @@
 :root[data-theme='dark'] .pp-gutter { --pp-crease: color-mix(in srgb, #fffaf0 3%, transparent); }
 
 /* ── Share: the picture, looked at before it goes anywhere ───────────────── */
-.otr-modal.pp-share-modal { width: min(1080px, 96vw); max-width: 96vw; }
-.pp-share-preview { display: grid; place-items: center; border-radius: var(--r-md); background: var(--surface-3); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent); }
-/* The whole picture, always: it scales to the window (both ways) instead of scrolling inside the sheet. */
-.pp-share-canvas { display: block; width: auto; height: auto; max-width: 100%; max-height: calc(100dvh - 250px); }
+/* The sheet is as wide as the picture and no wider: no frame round it, the sides close up on it. The picture is sized
+   by its height (the window's, less the title, note and buttons) and its width follows from its own proportions. */
+.otr-modal.pp-share-modal { width: fit-content; min-width: 340px; max-width: 96vw; }
+.pp-share-preview { display: block; line-height: 0; }
+.pp-share-canvas { display: block; width: auto; height: min(calc(100dvh - 250px), calc((96vw - 56px) * 0.675)); max-width: 100%; margin: 0 auto; border-radius: var(--r-md); box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent), 0 8px 24px -12px color-mix(in srgb, black 40%, transparent); }
 .pp-share-note { margin: var(--sp-3) 0 0; font-size: var(--fs-xs); color: var(--ink-muted); text-align: center; }

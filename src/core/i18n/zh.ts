@@ -604,6 +604,7 @@ export const zh: StringTable = {
   'passport.share.preview': '你的护照图片',
   'passport.share.note': '{n} 枚印章 · {c} 个国家，全部都在这张图里。',
   'passport.share.download': '保存图片',
+  'passport.share.noPhoto': '没能把你的照片放进图片里，先用你的首字母代替。',
   'passport.share.failed': '图片生成失败，请重试。',
   'passport.record.title': '旅行记录',
   'passport.record.collected': '已盖印章',

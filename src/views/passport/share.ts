@@ -16,6 +16,7 @@ import { t } from '../../core/i18n.ts';
 import type { PassportData, PassportStamp } from '../../data/passport.ts';
 import { ensureCardFonts } from '../journal/card/card-fonts.ts';
 import { previewShare } from './share-sheet.ts';
+import { toast } from '../journal/recap/export/ui.ts';
 import { SITE_URL } from '../journal/recap/export/qr.ts';
 import { mrz, passportNumber, travelLevel } from './bio.ts';
 import { nationalityLabel } from '../../data/nationalities.ts';
@@ -49,20 +50,42 @@ export function stampsForImage(pressed: PassportStamp[]): { shown: PassportStamp
   return { shown: byDate, extra: 0 };
 }
 
-/**
- * An image for the canvas, or null. A failure to load must never stop the export — the picture just goes without it.
- * `cors` asks the host for permission to draw it: a picture from a host that refuses would otherwise "taint" the
- * canvas and make saving it impossible, so such a host simply gets the fallback (the nickname's initial).
- */
-function loadImage(src: string, cors = false): Promise<HTMLImageElement | null> {
+/** One try at loading `src` into an Image; null on failure or after `ms`. */
+function tryImage(src: string, cors: boolean, ms: number): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
-    const timer = window.setTimeout(() => resolve(null), 4000);
+    const timer = window.setTimeout(() => resolve(null), ms);
     img.onload = () => { window.clearTimeout(timer); resolve(img); };
     img.onerror = () => { window.clearTimeout(timer); resolve(null); };
     if (cors) { img.crossOrigin = 'anonymous'; img.referrerPolicy = 'no-referrer'; }
     img.src = src;
   });
+}
+
+/**
+ * An image for the canvas, or null. A failure to load must never stop the export — the picture just goes without it.
+ * `cors` is for a picture from another host (the traveller's photo): it must come in a way that leaves the canvas
+ * saveable. First the host is asked for permission to draw it; if the image cannot be had that way (a copy the
+ * browser cached from the page's own plain <img>, a host that answers differently to a CORS request), the bytes are
+ * fetched and drawn from a local copy instead, which can never taint the canvas. Why it failed is logged.
+ */
+async function loadImage(src: string, cors = false): Promise<HTMLImageElement | null> {
+  const direct = await tryImage(src, cors, cors ? 8000 : 4000);
+  if (direct || !cors) return direct;
+  try {
+    // no-store: skip whatever the page's own <img> left in the cache, which may carry no CORS verdict.
+    const res = await fetch(src, { mode: 'cors', cache: 'no-store', referrerPolicy: 'no-referrer' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const url = URL.createObjectURL(await res.blob());
+    const img = await tryImage(url, false, 8000);
+    // The bytes are decoded into the Image by now; the object URL has done its job.
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    if (img) return img;
+    throw new Error('the bytes are not an image');
+  } catch (err) {
+    console.warn('Passport share: could not use the photo —', err);
+    return null;
+  }
 }
 
 function loadLogo(): Promise<HTMLImageElement | null> {
@@ -78,6 +101,9 @@ export async function renderPassportImage(src: ShareSource): Promise<HTMLCanvasE
     loadLogo(), src.photoUrl && /^https?:/i.test(src.photoUrl) ? loadImage(src.photoUrl, true) : Promise.resolve(null),
     Promise.all(shown.map((s) => stampImage(s))),
   ]);
+
+  // They have a photo and it could not be drawn: say so, rather than leave them wondering where it went.
+  if (src.photoUrl && !photo) toast(t('passport.share.noPhoto'));
 
   const input: ShareInput = {
     nickname: src.nickname,
