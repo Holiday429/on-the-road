@@ -102,20 +102,21 @@ beforeEach(() => {
 });
 
 describe('albums view', () => {
-  it('lists the user albums as booklets with their page counts', () => {
+  it('lists the user albums as covers carrying their issue number', () => {
     const { body } = mount([mkEntry('e1'), mkEntry('e2')], [mkAlbum('a1', ['e1', 'e2'])]);
     gotoView(body, 'albums');
 
     expect(body.querySelector('[data-open-album="a1"]'), 'album tile rendered').toBeTruthy();
     expect(body.textContent).toContain('Album a1');
-    expect(body.textContent).toContain('2 pages');
+    // How much the album holds is printed the way a magazine numbers an issue.
+    expect(body.textContent).toContain('VOL.02');
   });
 
   it('ignores entry ids whose entry was deleted', () => {
     // a1 references e2, which no longer exists.
     const { body } = mount([mkEntry('e1')], [mkAlbum('a1', ['e1', 'e2'])]);
     gotoView(body, 'albums');
-    expect(body.textContent).toContain('1 page');
+    expect(body.textContent).toContain('VOL.01');
   });
 
   it('opens an album and can drop an entry from it', async () => {

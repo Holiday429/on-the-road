@@ -1,0 +1,141 @@
+/* ==========================================================================
+   On the Road · Journal albums — the printed cover
+   Markup: scenes/album-cover.ts. Four structures (wordmark / masthead / banner
+   / frame) in six tones.
+
+   Everything is sized in cqw — percentages of the cover's OWN width — so one
+   set of rules prints the same cover as a shelf thumbnail and as a full page.
+   The container is `.jc`; give it a width and it does the rest.
+   ========================================================================== */
+
+.jc {
+  container-type: inline-size;
+  position: relative;
+  display: flex; flex-direction: column;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--jc-paper);
+  color: var(--jc-ink);
+  /* Default tone; each jc-tone--* below overrides these three. */
+  --jc-paper: var(--surface);
+  --jc-ink: var(--ink);
+  --jc-accent: var(--accent);
+}
+
+/* ── Tones ───────────────────────────────────────────────────────────────── */
+.jc-tone--paper { --jc-paper: var(--surface);   --jc-ink: var(--ink);        --jc-accent: var(--accent); }
+.jc-tone--ink   { --jc-paper: var(--ink);       --jc-ink: var(--surface);    --jc-accent: var(--amber-300); }
+.jc-tone--amber { --jc-paper: var(--amber-100); --jc-ink: var(--ink);        --jc-accent: var(--amber-600); }
+.jc-tone--sky   { --jc-paper: var(--sky-400);   --jc-ink: var(--ink);        --jc-accent: var(--surface); }
+.jc-tone--sage  { --jc-paper: var(--sage-400);  --jc-ink: var(--ink);        --jc-accent: var(--surface); }
+.jc-tone--coral { --jc-paper: var(--coral-400); --jc-ink: var(--ink);        --jc-accent: var(--surface); }
+
+/* ── The parts every cover is built from ─────────────────────────────────── */
+.jc-well { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.jc-photo { display: block; width: 100%; height: 100%; object-fit: cover; }
+.jc-photo--none { background: color-mix(in srgb, var(--jc-ink) 12%, var(--jc-paper)); }
+
+.jc-headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--fw-bold, 700);
+  font-size: 13cqw;
+  line-height: .95;
+  letter-spacing: -.03em;
+  text-wrap: balance;
+  /* A cover name never breaks mid-word — it is a wordmark. Long ones shrink
+     (the headline is in cqw) and, failing that, hyphenate at a real break. */
+  overflow-wrap: break-word;
+  hyphens: auto;
+  color: var(--jc-ink);
+}
+.jc-kicker {
+  font-family: var(--font-ui);
+  font-size: 3.4cqw;
+  line-height: 1.25;
+  letter-spacing: .02em;
+  color: color-mix(in srgb, var(--jc-ink) 88%, transparent);
+}
+.jc-issue {
+  font-family: var(--font-data);
+  font-size: 2.8cqw;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--jc-ink) 78%, transparent);
+}
+.jc-lines {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: .8cqw;
+  font-family: var(--font-ui); font-size: 3.1cqw; line-height: 1.2;
+  color: color-mix(in srgb, var(--jc-ink) 88%, transparent);
+}
+.jc-lines li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.jc-top, .jc-foot { display: flex; flex-direction: column; gap: 1cqw; padding: 5cqw 5cqw 3cqw; }
+.jc-foot { padding: 3cqw 5cqw 5cqw; }
+
+/* ── wordmark: the name across the top, photo below ──────────────────────── */
+.jc--wordmark .jc-headline { font-size: 13.5cqw; }
+.jc--wordmark .jc-issue { margin-top: .5cqw; }
+.jc--wordmark .jc-lines { padding: 3cqw 5cqw 4cqw; }
+
+/* ── masthead: a band of titling, then the picture ───────────────────────── */
+.jc--masthead .jc-band {
+  display: flex; flex-direction: column; gap: 1cqw;
+  padding: 5cqw 5cqw 3.5cqw;
+  background: var(--jc-paper);
+}
+.jc--masthead .jc-headline { font-size: 14.5cqw; letter-spacing: -.04em; }
+.jc--masthead .jc-band-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 3cqw; }
+.jc--masthead .jc-band-foot .jc-kicker { font-size: 3cqw; text-transform: uppercase; letter-spacing: .1em; }
+.jc--masthead .jc-lines {
+  /* Over a photo of unknown brightness: each billing carries its own dark slip. */
+  position: absolute; left: 5cqw; right: 5cqw; top: 5cqw;
+  align-items: flex-start; color: #fff; font-weight: var(--fw-semibold);
+}
+.jc--masthead .jc-lines li {
+  max-width: 100%; padding: .6cqw 1.6cqw;
+  background: rgba(0, 0, 0, .42);
+  backdrop-filter: blur(2px);
+}
+
+/* ── banner: full-bleed photo, type reversed out of it ───────────────────── */
+.jc--banner .jc-well--full { position: absolute; inset: 0; }
+.jc--banner .jc-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, .42) 0%, rgba(0, 0, 0, .05) 38%, rgba(0, 0, 0, .55) 100%);
+}
+.jc--banner .jc-headline {
+  position: absolute; left: 5cqw; right: 5cqw; top: 4cqw;
+  font-size: 14cqw; color: #fff; text-shadow: 0 2px 12px rgba(0, 0, 0, .4);
+}
+.jc--banner .jc-kicker {
+  /* Under the headline, however many lines it took — not at a guessed offset. */
+  position: absolute; left: 5cqw; right: 5cqw; top: 4cqw; padding-top: 16cqw;
+  color: rgba(255, 255, 255, .88); text-shadow: 0 1px 6px rgba(0, 0, 0, .45);
+}
+.jc--banner .jc-issue {
+  position: absolute; left: 5cqw; bottom: 4.5cqw;
+  color: rgba(255, 255, 255, .8); text-shadow: 0 1px 6px rgba(0, 0, 0, .45);
+}
+.jc--banner .jc-lines {
+  position: absolute; right: 5cqw; bottom: 4.5cqw; max-width: 58%;
+  text-align: right; color: #fff; text-shadow: 0 1px 8px rgba(0, 0, 0, .5);
+  font-weight: var(--fw-semibold);
+}
+
+/* ── frame: a wide paper margin round the picture ────────────────────────── */
+.jc--frame { padding: 0; }
+.jc--frame .jc-headline { font-size: 12cqw; }
+.jc--frame .jc-well { margin: 0 7cqw; flex: 1; }
+.jc--frame .jc-top { padding-bottom: 2.5cqw; text-align: center; align-items: center; }
+.jc--frame .jc-foot { align-items: center; text-align: center; }
+.jc--frame .jc-lines { align-items: center; }
+
+/* The cover reacts a little when it is something you can pick. */
+.jc.is-interactive { cursor: pointer; transition: transform var(--dur-mid) var(--ease-out), box-shadow var(--dur-mid); }
+.jc.is-interactive:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .jc.is-interactive { transition: none; }
+}

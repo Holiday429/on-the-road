@@ -7,6 +7,10 @@ import { buildStops } from '../scenes/places-model.ts';
 import { syncPlacesMap, disposePlacesMap } from '../scenes/places-map.ts';
 import { syncGalleryFlow, stopGalleryFlow } from '../scenes/gallery-flow.ts';
 import { clampSpread, spreadCount } from '../scenes/albums.ts';
+import { coverDraftFor } from '../scenes/album-cover-edit.ts';
+import { albumEntries, coverArtOf } from '../scenes/albums.ts';
+import { renderCover } from '../scenes/album-cover.ts';
+import type { JournalAlbumCover } from '../../../data/schema.ts';
 import { currentTrip } from '../../../data/trip-context.ts';
 import {
   DEFAULT_TEMPLATE,
@@ -69,6 +73,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     albumOpening: false,
     selection: null,
     openAlbumId: null,
+    coverEdit: null,
     tidy: null,
     tidyLoading: false,
   };
@@ -265,6 +270,41 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
+      /* ── Designing a cover ────────────────────────────────────────────── */
+
+      const coverBtn = target.closest<HTMLElement>('[data-album-cover]');
+      if (coverBtn) {
+        const album = deps.getAlbums?.().find((a) => a.id === coverBtn.dataset.albumCover);
+        if (album) state.coverEdit = { albumId: album.id, draft: coverDraftFor(album) };
+        deps.requestRender();
+        return;
+      }
+
+      const tplBtn = target.closest<HTMLElement>('[data-cover-template]');
+      if (tplBtn && state.coverEdit) {
+        state.coverEdit.draft.template = tplBtn.dataset.coverTemplate as JournalAlbumCover['template'];
+        deps.requestRender();
+        return;
+      }
+
+      const toneBtn = target.closest<HTMLElement>('[data-cover-tone]');
+      if (toneBtn && state.coverEdit) {
+        state.coverEdit.draft.tone = toneBtn.dataset.coverTone as JournalAlbumCover['tone'];
+        deps.requestRender();
+        return;
+      }
+
+      if (target.closest('[data-cover-cancel]')) {
+        state.coverEdit = null;
+        deps.requestRender();
+        return;
+      }
+
+      if (target.closest('[data-cover-save]')) {
+        void saveCover();
+        return;
+      }
+
       const albumRemoveBtn = target.closest<HTMLElement>('[data-album-remove-entry]');
       if (albumRemoveBtn) {
         const [albumId, entryId] = (albumRemoveBtn.dataset.albumRemoveEntry ?? '').split(':');
@@ -432,6 +472,22 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         deps.requestRender();
         return;
       }
+    });
+
+    // The cover's text fields repaint only the proof: a full re-render would
+    // rebuild the input under the cursor and lose the caret mid-word.
+    root.addEventListener('input', (event) => {
+      const el = event.target as HTMLInputElement;
+      if (!state.coverEdit || !syncCoverField(el)) return;
+      const album = albums().find((a) => a.id === state.coverEdit!.albumId);
+      const proof = root.querySelector<HTMLElement>('.jce-proof-art');
+      if (!album || !proof) return;
+      const draft = state.coverEdit.draft;
+      // eslint-disable-next-line no-restricted-syntax -- audited: renderCover escapes every field
+      proof.innerHTML = renderCover(
+        { ...draft, headline: draft.headline.trim() || album.title },
+        coverArtOf(album, albumEntries(album, sortEntries(deps.getEntries()))),
+      );
     });
 
     root.addEventListener('change', (event) => {
@@ -816,6 +872,40 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       m.root.querySelector('#ja-create')!.addEventListener('click', () => { void submit(); });
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void submit(); } });
     });
+  }
+
+  /**
+   * Write the designed cover onto the album.
+   *
+   * The headline is stored exactly as typed — empty means "keep following the
+   * album's title", so renaming the album keeps renaming its cover.
+   */
+  async function saveCover(): Promise<void> {
+    const edit = state.coverEdit;
+    if (!edit) return;
+    const draft = edit.draft;
+    state.coverEdit = null;
+    deps.requestRender();
+    await journalAlbumStore.update(edit.albumId, {
+      cover: { ...draft, lines: draft.lines.map((l) => l.trim()).filter(Boolean) },
+    });
+  }
+
+  /** The cover's text fields, read straight off the input as it is typed. */
+  function syncCoverField(el: HTMLInputElement): boolean {
+    const edit = state.coverEdit;
+    if (!edit) return false;
+    if (el.hasAttribute('data-cover-headline')) { edit.draft.headline = el.value; return true; }
+    if (el.hasAttribute('data-cover-kicker')) { edit.draft.kicker = el.value; return true; }
+    if (el.hasAttribute('data-cover-focal')) { edit.draft.focalY = Number(el.value) / 100; return true; }
+    const lineAt = el.dataset.coverLine;
+    if (lineAt !== undefined) {
+      const lines = [...edit.draft.lines];
+      lines[Number(lineAt)] = el.value;
+      edit.draft.lines = lines;
+      return true;
+    }
+    return false;
   }
 
   function renameAlbum(albumId: string): void {

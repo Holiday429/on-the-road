@@ -1,0 +1,67 @@
+/* ==========================================================================
+   On the Road · Journal albums — designing the cover
+   Markup: scenes/album-cover-edit.ts. A live proof beside the choices.
+   ========================================================================== */
+
+.jce {
+  display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: var(--sp-5);
+  padding: var(--sp-5);
+  background: var(--paper-grain), var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── The proof ───────────────────────────────────────────────────────────── */
+.jce-proof { display: flex; flex-direction: column; gap: var(--sp-3); }
+.jce-proof-art { box-shadow: var(--shadow-md); }
+.jce-focal { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); color: var(--ink-muted); }
+.jce-focal input { flex: 1; accent-color: var(--accent); }
+.jce-hint { margin: 0; font-size: var(--fs-xs); color: var(--ink-faint); }
+
+/* ── The choices ─────────────────────────────────────────────────────────── */
+.jce-controls { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.jce-group { display: flex; flex-direction: column; gap: var(--sp-2); }
+.jce-label {
+  margin: 0; font-family: var(--font-data); font-size: var(--fs-2xs);
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint);
+}
+
+/* Template miniatures — the choice is shown, not described. */
+.jce-chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-2); }
+.jce-chip {
+  display: flex; flex-direction: column; gap: 4px; padding: 5px;
+  border: 1.5px solid var(--rule); border-radius: var(--r-md);
+  background: var(--surface); cursor: pointer;
+  transition: border-color var(--dur-fast), background var(--dur-fast);
+}
+.jce-chip:hover { background: var(--surface-3); }
+.jce-chip.is-on { border-color: var(--accent); background: var(--amber-50); }
+.jce-chip-art { display: block; pointer-events: none; }
+.jce-chip-name {
+  font-family: var(--font-ui); font-size: var(--fs-2xs); color: var(--ink-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.jce-chip.is-on .jce-chip-name { color: var(--ink); }
+
+/* Tones: the colour itself is the swatch. */
+.jce-tones { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.jce-tone {
+  width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+  border: 1.5px solid var(--rule);
+  background: var(--jc-paper);
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur-fast);
+}
+.jce-tone:hover { transform: scale(1.08); }
+.jce-tone.is-on { border-color: var(--accent); border-width: 2.5px; transform: scale(1.1); }
+.jce-chip:focus-visible, .jce-tone:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+
+.jce-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: auto; }
+
+@media (max-width: 860px) {
+  .jce { grid-template-columns: minmax(0, 1fr); }
+  .jce-proof-art { max-width: 260px; margin-inline: auto; }
+  .jce-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jce-tone { transition: none; }
+}

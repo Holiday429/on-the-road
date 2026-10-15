@@ -1,5 +1,6 @@
 import type { TemplateId } from '../templates.ts';
 import type { TidySuggestions } from '../ai-classify.ts';
+import type { JournalAlbumCover } from '../../../data/schema.ts';
 
 /** Places and Map are one view: the map, the line of places and their entries. */
 export type CaptureView = 'feed' | 'places' | 'albums' | 'gallery' | 'calendar';
@@ -64,6 +65,8 @@ export interface CaptureState {
   selection: string[] | null;
   /** Album whose contents are being viewed, or null for the album grid. */
   openAlbumId: string | null;
+  /** The cover being designed: the album's id and the unsaved draft, or null when closed. */
+  coverEdit: { albumId: string; draft: JournalAlbumCover } | null;
   /** AI tidy pass: suggestions awaiting the user's yes/no, plus its in-flight flag. */
   tidy: TidySuggestions | null;
   tidyLoading: boolean;

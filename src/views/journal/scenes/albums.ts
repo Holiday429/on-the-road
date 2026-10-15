@@ -16,6 +16,9 @@ import { escHtml, entryCover, moodEmoji, prettyDate, titleFor } from '../shared/
 import { hashId } from './feed-plan.ts';
 import { stampDate } from './feed.ts';
 import { clampSpread, paginate, type Leaf } from './album-pages.ts';
+import { coverOf, renderCover } from './album-cover.ts';
+import { t } from '../../../core/i18n.ts';
+import '../styles/album-cover.css';
 
 export { clampSpread } from './album-pages.ts';
 
@@ -23,25 +26,22 @@ const TONES = 6;
 export function bookTone(id: string): number { return hashId(id) % TONES; }
 export function bookLean(id: string): number { return ((hashId(id) >> 3) % 7 - 3) * 0.8; }
 
+/** Entries of an album, in the album's order, skipping ones since deleted. */
+export function albumEntries(album: StoredJournalAlbum, all: StoredJournalEntry[]): StoredJournalEntry[] {
+  return album.entryIds
+    .map((id) => all.find((e) => e.id === id))
+    .filter((e): e is StoredJournalEntry => Boolean(e));
+}
+
 /* ── The shelf ───────────────────────────────────────────────────────────── */
 
 export function renderBooklet(album: StoredJournalAlbum, entries: StoredJournalEntry[]): string {
-  const coverEntry = entries.find((e) => e.id === album.coverEntryId && entryCover(e)) ?? entries.find((e) => entryCover(e));
-  const cover = coverEntry ? entryCover(coverEntry) : '';
-  const kind = cover ? 'zine' : 'notebook';
+  const art = coverArtOf(album, entries);
   return `
-    <button class="jb-book jb-book--${kind} " data-tone="${bookTone(album.id)}" data-open-album="${escHtml(album.id)}" style="--lean:${bookLean(album.id)}deg" type="button">
+    <button class="jb-book" data-open-album="${escHtml(album.id)}" style="--lean:${bookLean(album.id)}deg" type="button">
       <span class="jb-pages" aria-hidden="true"></span>
-      <span class="jb-cover">
-        ${cover ? `<img class="jb-cover-img" src="${escHtml(cover)}" alt="" loading="lazy" draggable="false">` : '<span class="jb-band" aria-hidden="true"></span>'}
-        <span class="jb-spine" aria-hidden="true"></span>
-        <span class="jb-label">
-          <span class="jb-emoji">${escHtml(album.emoji)}</span>
-          <span class="jb-title">${escHtml(album.title)}</span>
-        </span>
-        <span class="jb-count">${entries.length} ${entries.length === 1 ? 'page' : 'pages'}</span>
-        <span class="jb-ribbon" aria-hidden="true"></span>
-      </span>
+      ${renderCover(coverOf(album), art)}
+      <span class="jb-spine" aria-hidden="true"></span>
     </button>`;
 }
 
@@ -89,17 +89,30 @@ function entryLeaf(leaf: Leaf, albumId: string, side: 'l' | 'r'): string {
     </section>`;
 }
 
+/** The cover art an album prints, drawn from its entries. */
+export function coverArtOf(album: StoredJournalAlbum, entries: StoredJournalEntry[]) {
+  const coverEntry = entries.find((e) => e.id === album.coverEntryId && entryCover(e)) ?? entries.find((e) => entryCover(e));
+  const dates = entries.map((e) => e.happenedOn).filter(Boolean).sort();
+  return {
+    photo: coverEntry ? entryCover(coverEntry) : '',
+    count: entries.length,
+    newest: dates[dates.length - 1] ?? '',
+    suggested: entries.map((e) => titleFor(e)).filter(Boolean).slice(0, 2),
+  };
+}
+
+/** The album's own cover, printed full size as the book's first page. */
 function titleLeaf(album: StoredJournalAlbum, entries: StoredJournalEntry[]): string {
   const dates = entries.map((e) => e.happenedOn).sort();
   const span = dates.length ? (dates[0] === dates[dates.length - 1] ? prettyDate(dates[0]) : `${prettyDate(dates[0])} → ${prettyDate(dates[dates.length - 1])}`) : '';
   return `
     <section class="jb-page jb-page--left jb-page--title">
-      <span class="jb-title-emoji" aria-hidden="true">${escHtml(album.emoji)}</span>
-      <h2 class="jb-book-title">${escHtml(album.title)}</h2>
+      <div class="jb-title-cover">${renderCover(coverOf(album), coverArtOf(album, entries))}</div>
       <p class="jb-book-meta">${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}${span ? ` · ${escHtml(span)}` : ''}</p>
       <div class="jb-book-actions">
-        <button class="jb-chip" data-album-rename="${escHtml(album.id)}" type="button">Rename</button>
-        <button class="jb-chip is-danger" data-album-delete="${escHtml(album.id)}" type="button">Delete album</button>
+        <button class="jb-chip" data-album-cover="${escHtml(album.id)}" type="button">${escHtml(t('journal.cover.design'))}</button>
+        <button class="jb-chip" data-album-rename="${escHtml(album.id)}" type="button">${escHtml(t('journal.cover.rename'))}</button>
+        <button class="jb-chip is-danger" data-album-delete="${escHtml(album.id)}" type="button">${escHtml(t('journal.cover.deleteAlbum'))}</button>
       </div>
     </section>`;
 }

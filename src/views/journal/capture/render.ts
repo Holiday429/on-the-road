@@ -6,8 +6,9 @@ import { t } from '../../../core/i18n.ts';
 import { renderFeedGrid } from '../scenes/feed.ts';
 import { renderGallery } from '../scenes/gallery.ts';
 import { renderPlaces } from '../scenes/places.ts';
-import { renderBook, renderShelf } from '../scenes/albums.ts';
+import { albumEntries, renderBook, renderShelf } from '../scenes/albums.ts';
 import { renderReadSpread, renderWriteSpread } from '../scenes/spread.ts';
+import { renderCoverEditor } from '../scenes/album-cover-edit.ts';
 import type { PlaceStop } from '../scenes/places-model.ts';
 import {
   escHtml,
@@ -243,6 +244,15 @@ function renderReaderAlbums(entry: StoredJournalEntry, albums: StoredJournalAlbu
  * albums.
  */
 function renderAlbumsView(model: CaptureRenderModel): string {
+  // Designing a cover takes the whole view: the proof needs the room, and there
+  // is nothing useful to do behind it.
+  const designing = model.state.coverEdit
+    ? model.albums.find((a) => a.id === model.state.coverEdit!.albumId)
+    : undefined;
+  if (designing && model.state.coverEdit) {
+    return renderCoverEditor(designing, albumEntries(designing, model.allEntries), model.state.coverEdit.draft);
+  }
+
   const open = model.state.openAlbumId
     ? model.albums.find((a) => a.id === model.state.openAlbumId)
     : undefined;
@@ -317,13 +327,6 @@ function renderTidySuggestions(model: CaptureRenderModel): string {
       `).join('')}
     </section>
   `;
-}
-
-/** Entries of an album, in the album's order, skipping ones since deleted. */
-function albumEntries(album: StoredJournalAlbum, all: StoredJournalEntry[]): StoredJournalEntry[] {
-  return album.entryIds
-    .map((id) => all.find((e) => e.id === id))
-    .filter((e): e is StoredJournalEntry => Boolean(e));
 }
 
 /** An album opened in the Dashboard drawer: back arrow, title and count on one line, then

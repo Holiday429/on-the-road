@@ -65,6 +65,28 @@ export type JournalTemplate = z.infer<typeof JournalTemplateSchema>;
 // album is an ordered list the user arranges, and an entry can sit in several
 // albums at once — both are awkward to express from the entry side. Same shape
 // as JournalStory.entryIds, which already works this way.
+/**
+ * The printed cover of an album.
+ *
+ * `template` picks the layout; everything else is the copy set into it. All of it
+ * is optional — a missing field falls back to the album's own title/photos — so a
+ * cover can be designed a field at a time.
+ */
+export const JournalAlbumCoverSchema = z.object({
+  template: z.enum(['wordmark', 'masthead', 'banner', 'frame']).default('wordmark'),
+  /** The big name on the cover. Empty = use the album's title. */
+  headline: z.string().default(''),
+  /** The line under (or over) the headline. */
+  kicker: z.string().default(''),
+  /** Up to three cover lines, the way a magazine bills its features. */
+  lines: z.array(z.string()).max(3).default([]),
+  /** Which palette the cover prints in. */
+  tone: z.enum(['paper', 'ink', 'amber', 'sky', 'sage', 'coral']).default('paper'),
+  /** Vertical focus of the cover photo, 0 (top) … 1 (bottom). */
+  focalY: z.number().min(0).max(1).default(0.5),
+});
+export type JournalAlbumCover = z.infer<typeof JournalAlbumCoverSchema>;
+
 export const JournalAlbumSchema = doc({
   tripId: z.string().nullable().default(null),
   title: z.string(),
@@ -75,6 +97,10 @@ export const JournalAlbumSchema = doc({
   entryIds: z.array(z.string()).default([]),
   visibility: z.enum(['private', 'public']).default('private'),
   slug: z.string().default(''),
+  // How the album's cover is printed. Optional: an album saved before covers
+  // existed (or by an older client) falls back to the default template, so this
+  // never has to be backfilled. See views/journal/scenes/album-cover.ts.
+  cover: JournalAlbumCoverSchema.optional(),
 });
 export type JournalAlbum = z.infer<typeof JournalAlbumSchema>;
 

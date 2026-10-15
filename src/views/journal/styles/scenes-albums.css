@@ -6,21 +6,17 @@
 
 /* ── The shelf ───────────────────────────────────────────────────────────── */
 .jb-rack {
-  display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-8) var(--sp-6); padding: var(--sp-8) var(--sp-6) var(--sp-5);
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-8) var(--sp-6);
+  padding: var(--sp-8) var(--sp-6) var(--sp-8);
   border-radius: var(--r-xl); border: 1px solid var(--rule);
-  background: linear-gradient(180deg, var(--surface-3) 0 84%, var(--surface-4) 84% 100%);
+  /* The shelf edge is a fixed strip at the foot, so it does not depend on how
+     tall the covers happen to be. */
+  background: var(--surface-3) linear-gradient(180deg, transparent calc(100% - 18px), var(--surface-4) calc(100% - 18px));
 }
 .jb-book {
-  --jb-c: color-mix(in srgb, var(--amber-500) 78%, var(--scale-glass));
-  --lit: white;
-  position: relative; width: 168px; height: 216px; padding: 0; border: 0; background: none; cursor: pointer; perspective: 900px;
+  position: relative; width: 168px; padding: 0; border: 0; background: none; cursor: pointer; perspective: 900px;
   transform: rotate(var(--lean, 0deg)); transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1);
 }
-.jb-book[data-tone='1'] { --jb-c: color-mix(in srgb, var(--sky-500) 72%, var(--scale-glass)); }
-.jb-book[data-tone='2'] { --jb-c: color-mix(in srgb, var(--sage-500) 72%, var(--scale-glass)); }
-.jb-book[data-tone='3'] { --jb-c: color-mix(in srgb, var(--coral-500) 70%, var(--scale-glass)); }
-.jb-book[data-tone='4'] { --jb-c: color-mix(in srgb, var(--ink-muted) 60%, var(--scale-glass)); }
-.jb-book[data-tone='5'] { --jb-c: color-mix(in srgb, var(--amber-700) 62%, var(--scale-glass)); }
 .jb-book:hover, .jb-book:focus-visible { transform: translateY(-10px) rotate(0deg); }
 .jb-book:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 6px; border-radius: var(--r-md); }
 
@@ -29,34 +25,23 @@
   position: absolute; inset: 4px 0 4px 8px; border-radius: 2px 6px 6px 2px; background: var(--surface);
   background-image: repeating-linear-gradient(180deg, transparent 0 6px, var(--rule) 6px 7px); box-shadow: var(--shadow-sm);
 }
-.jb-cover {
-  position: absolute; inset: 0; overflow: hidden; border-radius: 3px 9px 9px 3px; background: var(--jb-c); color: var(--lit);
-  box-shadow: var(--shadow-md); transform-origin: left center; transition: transform 480ms var(--ease-out), box-shadow 480ms;
+/* The printed cover (styles/album-cover.css) IS the board: it hinges at the spine. */
+.jb-book > .jc {
+  position: relative; border-radius: 3px 9px 9px 3px; box-shadow: var(--shadow-md);
+  transform-origin: left center; transition: transform 480ms var(--ease-out), box-shadow 480ms;
 }
-.jb-book:hover .jb-cover, .jb-book:focus-visible .jb-cover { transform: rotateY(-24deg); box-shadow: var(--shadow-lg); }
-.jb-spine { position: absolute; left: 0; top: 0; bottom: 0; width: 14px; background: linear-gradient(90deg, color-mix(in srgb, var(--scale-glass) 38%, transparent), transparent); border-right: 1px solid color-mix(in srgb, var(--lit) 14%, transparent); }
-.jb-count {
-  position: absolute; right: var(--sp-3); bottom: var(--sp-3); font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .14em; text-transform: uppercase;
-  color: color-mix(in srgb, var(--lit) 82%, transparent);
+.jb-book:hover > .jc, .jb-book:focus-visible > .jc { transform: rotateY(-24deg); box-shadow: var(--shadow-lg); }
+.jb-spine {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 14px; z-index: 2; pointer-events: none;
+  border-radius: 3px 0 0 3px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .18), rgba(0, 0, 0, .04) 60%, transparent);
 }
-.jb-ribbon { position: absolute; left: 34px; bottom: -3px; width: 12px; height: 44px; background: var(--coral-400); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%); box-shadow: var(--shadow-sm); }
 
-/* zine: the photo is the cover */
-.jb-cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.jb-book--zine .jb-cover::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, color-mix(in srgb, var(--scale-glass) 80%, transparent) 0%, transparent 58%); pointer-events: none; }
-.jb-book--zine .jb-label { position: absolute; left: var(--sp-5); right: var(--sp-3); bottom: calc(var(--sp-3) + 22px); z-index: 1; display: flex; flex-direction: column; gap: 2px; text-align: left; }
-.jb-book--zine .jb-count { z-index: 1; }
-
-/* notebook: coloured board, elastic band, a paper label */
-.jb-band { position: absolute; right: 22px; top: 0; bottom: 0; width: 10px; background: color-mix(in srgb, var(--scale-glass) 42%, transparent); }
-.jb-book--notebook .jb-label {
-  position: absolute; left: 26px; right: 38px; top: 34px; padding: var(--sp-2) var(--sp-3); display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center;
-  background: var(--paper-grain), var(--surface); color: var(--ink); border-radius: 2px; box-shadow: var(--shadow-sm); transform: rotate(-1.5deg);
+.jb-book--new {
+  width: 168px; aspect-ratio: 3 / 4; background: transparent;
+  border: 2px dashed var(--rule-2, var(--rule)); border-radius: 3px 9px 9px 3px; color: var(--ink-faint);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-2);
 }
-.jb-emoji { font-size: 22px; line-height: 1; }
-.jb-title { font-family: var(--font-display); font-size: var(--fs-md); font-weight: var(--fw-semibold); letter-spacing: -.015em; line-height: 1.15; text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-
-.jb-book--new { background: transparent; border: 2px dashed var(--rule-2, var(--rule)); border-radius: 3px 9px 9px 3px; color: var(--ink-faint); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-2); }
 .jb-book--new:hover { border-color: var(--accent); color: var(--accent-deep); }
 .jb-new-plus { font-size: 28px; line-height: 1; }
 .jb-new-label { font-size: var(--fs-sm); }

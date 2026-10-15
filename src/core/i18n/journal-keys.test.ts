@@ -17,6 +17,8 @@ const FILES = Object.keys(SOURCES).filter((f) => !f.endsWith('.test.ts'));
 
 const EXPANSIONS: Record<string, string[]> = {
   'journal.view.${id}': ['feed', 'places', 'albums', 'gallery', 'calendar'].map((x) => `journal.view.${x}`),
+  'journal.cover.tpl.${template}': ['wordmark', 'masthead', 'banner', 'frame'].map((x) => `journal.cover.tpl.${x}`),
+  'journal.cover.tone.${tone}': ['paper', 'ink', 'amber', 'sky', 'sage', 'coral'].map((x) => `journal.cover.tone.${x}`),
 };
 
 function keysIn(src: string): string[] {
