@@ -15,7 +15,8 @@
    ========================================================================== */
 
 /** Every kind of fastener the kit draws. */
-export type FastenerKind = 'tape' | 'corner' | 'pin' | 'safety' | 'clip' | 'bulldog';
+/** `corner` tapes the top-left corner, `cornerR` the top-right. */
+export type FastenerKind = 'tape' | 'corner' | 'cornerR' | 'pin' | 'safety' | 'clip' | 'bulldog';
 
 /** Thumbtack / clip colours — matte accents, never a literal hex. */
 const PIN_COLOURS = ['var(--coral-500)', 'var(--sky-500)', 'var(--sage-500)', 'var(--amber-500)'];
@@ -77,7 +78,7 @@ export function renderFastener(kind: FastenerKind, opts: FastenerOpts = {}): str
 export function renderFastenerFor(id: string, opts: FastenerOpts = {}): string {
   const kind = fastenerFor(id);
   const h = hashKey(id);
-  const palette = kind === 'tape' || kind === 'corner' ? TAPE_COLOURS : PIN_COLOURS;
+  const palette = kind === 'tape' || kind === 'corner' || kind === 'cornerR' ? TAPE_COLOURS : PIN_COLOURS;
   return renderFastener(kind, {
     colour: palette[(h >> 3) % palette.length],
     // Tape and clips slide along the edge; pins stay where their kind puts them.

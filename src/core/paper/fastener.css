@@ -20,7 +20,8 @@
 
 /* ── Tape: a torn-edged strip, across the top edge or over a corner ───────── */
 .fst--tape,
-.fst--corner {
+.fst--corner,
+.fst--cornerR {
   width: 62px;
   height: 22px;
   background:
@@ -43,6 +44,17 @@
   transform: rotate(calc(-45deg + var(--fst-tilt)));
   background:
     repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--surface) 22%, transparent) 5px 6px),
+    color-mix(in srgb, var(--fst-colour) 38%, transparent);
+}
+
+/* The mirror of .fst--corner, over the top-right corner. */
+.fst--cornerR {
+  top: 4px;
+  right: -14px;
+  width: 58px;
+  transform: rotate(calc(45deg + var(--fst-tilt)));
+  background:
+    repeating-linear-gradient(45deg, transparent 0 5px, color-mix(in srgb, var(--surface) 22%, transparent) 5px 6px),
     color-mix(in srgb, var(--fst-colour) 38%, transparent);
 }
 

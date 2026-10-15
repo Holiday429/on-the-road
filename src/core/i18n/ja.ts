@@ -189,4 +189,5 @@ export const ja: StringTable = {
   'journal.new':           '書く',
   'journal.save':          '保存',
   'journal.cancel':        'キャンセル',
+  'journal.export': '書き出す',
 };

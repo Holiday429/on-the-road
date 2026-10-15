@@ -1602,4 +1602,5 @@ export const en: StringTable = {
   'journal.cover.tone.sky': 'Sky',
   'journal.cover.tone.sage': 'Sage',
   'journal.cover.tone.coral': 'Coral',
+  'journal.export': 'Export',
 };

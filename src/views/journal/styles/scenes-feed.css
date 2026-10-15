@@ -7,12 +7,14 @@
 
 .jf-wrap { container-type: inline-size; container-name: jfeed; }
 .jf-grid {
-  --jf-gap: var(--sp-3);
+  /* Room between the cards, so the hardware has somewhere to sit and the wall
+     breathes; the column maths below uses the same gap, so rows stay square. */
+  --jf-gap: clamp(18px, 2vw, 28px);
   display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
   /* Rows are a little shorter than columns are wide, so a 3x3 block reads as a landscape card. */
   grid-auto-rows: calc((100cqw - 11 * var(--jf-gap)) / 12 * 0.86);
   grid-auto-flow: row dense; gap: var(--jf-gap);
-  padding: var(--sp-3) var(--sp-2) var(--sp-8);
+  padding: var(--sp-5) var(--sp-3) var(--sp-8);
 }
 
 /* The card itself does not clip: its fastener overhangs the top edge. The paper

@@ -1587,4 +1587,5 @@ export const zh: StringTable = {
   'journal.cover.tone.sky': '天蓝',
   'journal.cover.tone.sage': '鼠尾草',
   'journal.cover.tone.coral': '珊瑚',
+  'journal.export': '导出',
 };

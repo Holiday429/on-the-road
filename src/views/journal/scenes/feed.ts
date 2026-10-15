@@ -33,30 +33,40 @@ function badges(e: StoredJournalEntry, photos: number): string {
 /**
  * What holds each kind of card down.
  *
- * One fastener per card, chosen by what the card *is* rather than at random: a
- * cover story is taped at the corner, a postcard pinned, a polaroid taped across
- * the top, a ticket clipped at its perforation, a note under a bulldog clip. The
- * id then picks the colour and the exact lean, so it is stable across renders.
+ * Each kind of card has a few fasteners that suit it — tape across the top or
+ * over either corner, a thumbtack, a safety pin, a clip — and the entry id picks
+ * one. The feed then makes sure no card shares its hardware with the card before
+ * it, so the wall reads as a pinboard rather than a row of identical stickers.
  */
-const FASTENER_BY_VARIANT: Record<FeedBlock['variant'], FastenerKind> = {
-  cover: 'corner',
-  postcard: 'pin',
-  polaroid: 'tape',
-  ticket: 'clip',
-  quote: 'bulldog',
+const FASTENERS_BY_VARIANT: Record<FeedBlock['variant'], FastenerKind[]> = {
+  cover: ['corner', 'cornerR', 'tape'],
+  polaroid: ['tape', 'corner', 'cornerR', 'safety'],
+  postcard: ['pin', 'safety', 'cornerR', 'corner'],
+  ticket: ['clip', 'safety', 'tape'],
+  quote: ['bulldog', 'tape', 'safety', 'pin'],
 };
 
 const TAPE_TINTS = ['var(--amber-300)', 'var(--sky-400)', 'var(--sage-400)', 'var(--coral-400)'];
 const PIN_TINTS = ['var(--coral-500)', 'var(--sky-500)', 'var(--sage-500)', 'var(--amber-500)'];
 
-function fastenerFor(b: FeedBlock): string {
-  const kind = FASTENER_BY_VARIANT[b.variant];
+/** The fastener a card gets, avoiding whatever the card before it used. */
+export function pickFastener(b: FeedBlock, previous: FastenerKind | null): FastenerKind {
+  const options = FASTENERS_BY_VARIANT[b.variant];
+  const start = hashId(b.entry.id) % options.length;
+  for (let i = 0; i < options.length; i++) {
+    const kind = options[(start + i) % options.length];
+    if (kind !== previous) return kind;
+  }
+  return options[start];
+}
+
+function fastenerMarkup(b: FeedBlock, kind: FastenerKind): string {
   const h = hashId(b.entry.id);
-  const tinted = kind === 'tape' || kind === 'corner';
+  const taped = kind === 'tape' || kind === 'corner' || kind === 'cornerR';
   return renderFastener(kind, {
-    colour: (tinted ? TAPE_TINTS : PIN_TINTS)[(h >> 3) % 4],
-    // Tape and clips slide along the edge; a thumbtack stays where its kind puts it.
-    at: kind === 'pin' ? undefined : 0.26 + ((h >> 5) % 48) / 100,
+    colour: (taped ? TAPE_TINTS : PIN_TINTS)[(h >> 3) % 4],
+    // Strips of tape and clips slide along the top edge; the rest know their own place.
+    at: kind === 'tape' || kind === 'clip' || kind === 'bulldog' ? 0.24 + ((h >> 5) % 52) / 100 : undefined,
     tilt: ((h >> 7) % 9) - 4,
   });
 }
@@ -123,13 +133,19 @@ function textBlock(b: FeedBlock): string {
     ${badges(e, 0)}`;
 }
 
-export function renderBlock(b: FeedBlock, readingId: string | null): string {
+export function renderBlock(b: FeedBlock, readingId: string | null, fastener: FastenerKind = pickFastener(b, null)): string {
   const open = b.entry.id === readingId;
   // The fastener sits outside the card's clipped body, so it can overhang the edge.
-  return `<article class="jf-block jf-block--${b.kind} jf-v-${b.variant}${open ? ' is-open' : ''}" style="--tilt:${b.tilt}deg;grid-column:span ${b.cols};grid-row:span ${b.rows}" data-open-entry="${escHtml(b.entry.id)}" role="button" tabindex="0">${fastenerFor(b)}<span class="jf-body">${b.hasPhoto ? photoBlock(b) : textBlock(b)}</span></article>`;
+  return `<article class="jf-block jf-block--${b.kind} jf-v-${b.variant}${open ? ' is-open' : ''}" style="--tilt:${b.tilt}deg;grid-column:span ${b.cols};grid-row:span ${b.rows}" data-open-entry="${escHtml(b.entry.id)}" role="button" tabindex="0">${fastenerMarkup(b, fastener)}<span class="jf-body">${b.hasPhoto ? photoBlock(b) : textBlock(b)}</span></article>`;
 }
 
 /** The whole feed: an editorial grid of planned blocks (see feed-plan.ts). */
 export function renderFeedGrid(entries: StoredJournalEntry[], readingId: string | null): string {
-  return `<div class="jf-wrap"><div class="jf-grid">${planFeed(entries).map((b) => renderBlock(b, readingId)).join('')}</div></div>`;
+  let previous: FastenerKind | null = null;
+  const blocks = planFeed(entries).map((b) => {
+    const kind = pickFastener(b, previous);
+    previous = kind;
+    return renderBlock(b, readingId, kind);
+  });
+  return `<div class="jf-wrap"><div class="jf-grid">${blocks.join('')}</div></div>`;
 }

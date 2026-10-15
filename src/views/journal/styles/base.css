@@ -18,6 +18,7 @@
    Everything the journal needs on one row: the view tabs on the left, then the
    scope toggle, Portrait, the ⋯ menu and the new-entry button. */
 .journal-topbar {
+  --jt-h: 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -30,11 +31,11 @@
 
 /* Quiet square controls (Portrait, ⋯) — the amber button is the only loud one. */
 .journal-tool-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: var(--ctl-h, 34px); padding: 0 var(--sp-3);
+  display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box;
+  height: var(--jt-h, 36px); padding: 0 14px;
   border: 1px solid var(--rule); border-radius: var(--r-full);
   background: var(--surface); color: var(--ink-soft);
-  font-family: var(--font-ui); font-size: var(--fs-sm); cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: 1; cursor: pointer;
   transition: background var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
 }
 .journal-tool-btn:hover { background: var(--surface-3); color: var(--ink); }
@@ -43,20 +44,21 @@
 
 /* The one filled button on the page. */
 .journal-new-btn {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: var(--ctl-h, 34px); padding: 0 var(--sp-4);
+  /* Same box as every other control on the bar — only the fill says "primary". */
+  display: inline-flex; align-items: center; gap: 6px; box-sizing: border-box;
+  height: var(--jt-h, 36px); padding: 0 14px;
   border: 1px solid var(--accent); border-radius: var(--r-full);
   background: var(--accent); color: var(--on-accent);
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold);
-  box-shadow: var(--shadow-sm); cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: 1;
+  cursor: pointer;
   transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-fast);
 }
-.journal-new-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.journal-new-btn:hover { background: color-mix(in srgb, var(--accent) 88%, var(--ink)); }
 .journal-new-btn:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
 
 /* ⋯ menu — export lives here instead of on the page. */
 .journal-menu { position: relative; }
-.journal-menu-toggle { list-style: none; justify-content: center; min-width: 36px; }
+.journal-menu-toggle { list-style: none; }
 .journal-menu-toggle::-webkit-details-marker { display: none; }
 .journal-menu-sheet {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 30;
@@ -99,18 +101,22 @@
 /* This trip / All memories scope toggle */
 .journal-scope {
   display: inline-flex;
-  align-items: center;
+  align-items: stretch;
   gap: 2px;
   flex-shrink: 0;
+  height: var(--jt-h, 36px);
+  box-sizing: border-box;
   padding: 3px;
   border-radius: var(--r-full);
   background: var(--surface);
   border: 1px solid var(--rule);
 }
 .journal-scope-btn {
+  display: inline-flex;
+  align-items: center;
   border: none;
   background: none;
-  padding: 5px 12px;
+  padding: 0 12px;
   border-radius: var(--r-full);
   font-family: var(--font-ui);
   font-size: var(--fs-sm);

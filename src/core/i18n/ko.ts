@@ -186,4 +186,5 @@ export const ko: StringTable = {
   'journal.new':           '한 줄 쓰기',
   'journal.save':          '저장',
   'journal.cancel':        '취소',
+  'journal.export': '내보내기',
 };

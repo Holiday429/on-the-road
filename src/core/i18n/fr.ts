@@ -186,4 +186,5 @@ export const fr: StringTable = {
   'journal.new':           'Nouvelle note',
   'journal.save':          'Enregistrer',
   'journal.cancel':        'Annuler',
+  'journal.export': 'Exporter',
 };

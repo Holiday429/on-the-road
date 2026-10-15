@@ -53,10 +53,16 @@ interface Live {
 let live: Live | null = null;
 let building = 0;
 
-/** Bigger bubble for a place with more to read; the chosen one is larger still. */
-export function pinRadius(count: number, selected: boolean): number {
-  const base = 8 + Math.min(5, Math.max(0, count - 1));
-  return selected ? base + 3 : base;
+/**
+ * A place written about, as a map pin (the teardrop with a hole), tip on the spot.
+ * Every pin is the same size: Places shows WHERE you wrote, not how much — the
+ * count lives in the place chips beside the map.
+ */
+export const PLACE_PIN_PATH = 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z';
+
+/** The chosen place's pin stands a little taller than the rest. */
+export function pinScale(selected: boolean): number {
+  return selected ? 1.9 : 1.45;
 }
 
 function readModel(el: HTMLElement): PlacesMapModel {
@@ -77,14 +83,10 @@ function restylePins(l: Live): void {
   const c = mapColors();
   l.pinSeries.dataItems.forEach((item: Am5Obj) => {
     const ctx = item.dataContext as MapPin;
-    const circle = item.bullets?.[0]?.get('sprite')?.children.getIndex(0);
-    if (!circle) return;
+    const pin = item.bullets?.[0]?.get('sprite');
+    if (!pin) return;
     const on = ctx.key === l.model.key;
-    circle.setAll({
-      radius: pinRadius(ctx.count, on),
-      fill: am5.color(on ? c.hover : c.ink),
-      strokeWidth: on ? 3 : 2,
-    });
+    pin.setAll({ scale: pinScale(on), fill: am5.color(on ? c.hover : c.ink) });
   });
 }
 
@@ -126,7 +128,7 @@ export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Prom
     const rerouted = JSON.stringify(live.model.route) !== JSON.stringify(model.route);
     live.json = json;
     live.model = model;
-    live.layer.update(model.route, { focusIso: model.iso || null, pins: true });
+    live.layer.update(model.route, { focusIso: model.iso || null, pins: 'dots' });
     live.pinSeries.data.setAll(pinsOf(model).map(toDatum));
     restylePins(live);
     if (rerouted) fitRoute(live, true);
@@ -161,27 +163,28 @@ export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Prom
     if (id && live && live.model.isos.includes(id)) deps.onPick(countryKey(id));
   });
 
-  const layer = createRouteLayer(r, chart, world, todayIso(), model.route, { focusIso: model.iso || null, pins: true });
+  const layer = createRouteLayer(r, chart, world, todayIso(), model.route, { focusIso: model.iso || null, pins: 'dots' });
 
   // The journal's own pins: one per place written about inside the focused country.
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(r, {}));
   pinSeries.bullets.push((root2: Am5Obj, _s: Am5Obj, item: Am5Obj) => {
     const ctx = item.dataContext as MapPin;
-    const box = am5.Container.new(root2, { cursorOverStyle: 'pointer', tooltipText: '{label} · {count}' });
-    box.children.push(am5.Circle.new(root2, { radius: pinRadius(ctx.count, false), fill: am5.color(mapColors().ink), stroke: am5.color(worldPalette().ocean), strokeWidth: 2 }));
-    box.children.push(am5.Label.new(root2, {
-      text: String(ctx.count), fontSize: 10, fontWeight: '700', fill: am5.color(worldPalette().ocean),
-      centerX: am5.percent(50), centerY: am5.percent(50), interactive: false,
-    }));
-    box.events.on('click', () => deps.onPick(ctx.key));
-    return am5.Bullet.new(root2, { sprite: box });
+    const pin = am5.Graphics.new(root2, {
+      svgPath: PLACE_PIN_PATH,
+      // tip of the teardrop on the point, not its middle
+      centerX: am5.p50, centerY: am5.p100,
+      fill: am5.color(mapColors().ink), stroke: am5.color(worldPalette().ocean), strokeWidth: 1.4,
+      scale: pinScale(false), cursorOverStyle: 'pointer', tooltipText: '{label}',
+    });
+    pin.events.on('click', () => deps.onPick(ctx.key));
+    return am5.Bullet.new(root2, { sprite: pin });
   });
 
   const next: Live = { el, root: r, chart, pinSeries, layer, model, json, off: () => {} };
   live = next;
   next.off = onMapRepaint(() => { layer.repaint(); restylePins(next); });
   // The world series validates its data asynchronously; paint once it has polygons.
-  world.events.on('datavalidated', () => layer.update(next.model.route, { focusIso: next.model.iso || null, pins: true }));
+  world.events.on('datavalidated', () => layer.update(next.model.route, { focusIso: next.model.iso || null, pins: 'dots' }));
   pinSeries.data.setAll(pinsOf(model).map(toDatum));
   chart.events.once('boundschanged', () => {
     requestAnimationFrame(() => { restylePins(next); fitRoute(next, false); });

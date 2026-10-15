@@ -34,8 +34,12 @@ export interface RouteStop {
 export interface RouteLayerOpts {
   /** Light only this country and grey the other route countries. Null = light them all. */
   focusIso?: string | null;
-  /** Draw the numbered stop pins. Off for the small Places map, which has its own place pins. */
-  pins?: boolean;
+  /**
+   * How the stops are marked: numbered postmark pins (the default), plain dots
+   * (Places, whose own place pins sit on top and must not be read as counts), or
+   * not at all.
+   */
+  pins?: boolean | 'dots';
 }
 
 export interface RouteLayer {
@@ -117,7 +121,17 @@ export function createRouteLayer(
   let opts = initialOpts;
 
   pinSeries.bullets.push((bRoot: Am5Obj, _s: Am5Obj, item: Am5Obj) => {
-    const ctx = item.dataContext as { index: number; planned: boolean };
+    const ctx = item.dataContext as { index: number; planned: boolean; dot: boolean };
+    if (ctx.dot) {
+      // A stop, unnumbered: filled once reached, hollow while still ahead.
+      return am5.Bullet.new(bRoot, {
+        sprite: am5.Circle.new(bRoot, {
+          radius: 4, strokeWidth: 1.5,
+          fill: am5.color(ctx.planned ? worldPalette().land : C().route),
+          stroke: am5.color(ctx.planned ? worldPalette().border : C().route),
+        }),
+      });
+    }
     return am5.Bullet.new(bRoot, { sprite: postmarkPin(bRoot, ctx.index + 1, ctx.planned) });
   });
 
@@ -159,6 +173,7 @@ export function createRouteLayer(
       geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
       index,
       planned: legVisitState(s, today) === 'planned',
+      dot: opts.pins === 'dots',
     })));
     paintLines();
     paintCountries();
@@ -176,7 +191,14 @@ export function createRouteLayer(
       paintLines();
       paintCountries();
       pinSeries.dataItems.forEach((di: Am5Obj) => di.bullets?.forEach((b: Am5Obj) => {
-        repaintPostmarkPin(b.get('sprite'), (di.dataContext as { planned: boolean }).planned);
+        const ctx = di.dataContext as { planned: boolean; dot: boolean };
+        const sprite = b.get('sprite');
+        if (ctx.dot) {
+          sprite?.setAll({
+            fill: am5.color(ctx.planned ? worldPalette().land : C().route),
+            stroke: am5.color(ctx.planned ? worldPalette().border : C().route),
+          });
+        } else repaintPostmarkPin(sprite, ctx.planned);
       }));
     },
   };

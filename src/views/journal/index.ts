@@ -126,18 +126,18 @@ function renderToolbar(): string {
         `).join('')}
       </div>
       <div class="journal-topbar-right">
-        <div class="journal-scope">
+        <div class="journal-scope journal-tool-group">
           <button class="journal-scope-btn ${entryScope === 'trip' ? 'active' : ''}" data-journal-scope="trip" type="button">${esc(t('journal.scope.trip'))}</button>
           <button class="journal-scope-btn ${entryScope === 'all' ? 'active' : ''}" data-journal-scope="all" type="button">${esc(t('journal.scope.all'))}</button>
         </div>
         <button class="journal-tool-btn" data-journal-mode="recap" type="button"
           ${enough ? '' : `disabled title="${esc(t('journal.portrait.need', { n: short }))}"`}>🃏 ${esc(t('journal.mode.portrait'))}</button>
         <details class="journal-menu">
-          <summary class="journal-tool-btn journal-menu-toggle" title="${esc(t('journal.more'))}" aria-label="${esc(t('journal.more'))}">⋯</summary>
+          <summary class="journal-tool-btn journal-menu-toggle" title="${esc(t('journal.export.hint'))}">⬇ ${esc(t('journal.export'))}</summary>
           <div class="journal-menu-sheet">
             <span class="journal-menu-hint">${esc(t('journal.export.hint'))}</span>
-            <button class="journal-menu-item" data-journal-export="md" type="button">⬇ ${esc(t('journal.export.md'))}</button>
-            <button class="journal-menu-item" data-journal-export="json" type="button">⬇ ${esc(t('journal.export.json'))}</button>
+            <button class="journal-menu-item" data-journal-export="md" type="button">Markdown</button>
+            <button class="journal-menu-item" data-journal-export="json" type="button">JSON</button>
           </div>
         </details>
         <button class="journal-new-btn" data-journal-new type="button">✍️ ${esc(t('journal.new'))}</button>
