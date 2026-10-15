@@ -4,7 +4,7 @@ import { closeWeighIn, openWeighIn } from './weigh-scale.ts';
 import type { BagWeighIn } from '../pack/weigh-in.ts';
 
 const row = (id: string, weightG: number, limitG: number): BagWeighIn => ({
-  id, label: id, kind: 'suitcase', weightG, limitG,
+  id, label: id, kind: 'suitcase', tone: 0, size: 'M', weightG, limitG,
   verdict: !limitG ? 'nolimit' : weightG > limitG ? 'over' : 'pass',
   diffG: limitG ? limitG - weightG : 0,
 });

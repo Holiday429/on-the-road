@@ -477,7 +477,7 @@ describe('Prepare landing — create flows via the shared modal', () => {
     await vi.waitFor(() => expect(pkZone().classList.contains('is-hidden')).toBe(false));
     goBack();
     expect(document.querySelector<HTMLElement>('.prep-floor')!.dataset.openPk).toBeTruthy();
-    expect(document.querySelector('.prep-scene--pk')!.textContent).toContain('Cabin bag');   // its name on the switcher-less scene's label
+    expect(document.querySelector('.prep-scene--pk .prep-scene-label')).toBeNull();   // a single list needs no name tag on the scene
   });
 
   it('survives a store refresh while "Save as Template" is open', async () => {

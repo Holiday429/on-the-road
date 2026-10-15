@@ -9,6 +9,7 @@
 
 import type { PackList, PackContainer } from '../../data/schema.ts';
 import { containerWeight } from './pack-helpers.ts';
+import { bagLook, type BagSize } from '../../core/paper/luggage.ts';
 
 export type Verdict = 'pass' | 'over' | 'nolimit';
 
@@ -16,6 +17,9 @@ export interface BagWeighIn {
   id: string;
   label: string;
   kind: PackContainer['kind'];
+  /** How the bag looks — the user's colour and size, so the scale shows the bag they drew. */
+  tone: number;
+  size: BagSize;
   /** Items inside + the empty bag. */
   weightG: number;
   /** 0 = no limit set. */
@@ -33,7 +37,7 @@ export function weighIn(list: PackList, onlyId?: string): BagWeighIn[] {
       const weightG = containerWeight(list, c);
       const limitG = c.limitG > 0 ? c.limitG : 0;
       const verdict: Verdict = !limitG ? 'nolimit' : weightG > limitG ? 'over' : 'pass';
-      return { id: c.id, label: c.label, kind: c.kind, weightG, limitG, verdict, diffG: limitG ? limitG - weightG : 0 };
+      return { id: c.id, label: c.label, kind: c.kind, ...bagLook(c), weightG, limitG, verdict, diffG: limitG ? limitG - weightG : 0 };
     });
 }
 

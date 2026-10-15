@@ -63,6 +63,9 @@ const CLIP_SVG = `
     <rect x="30" y="15" width="30" height="3" rx="1.5" class="m5"/>
   </svg>`;
 
+/** What clicking the scene does, written under its frame (shown on hover). */
+const cta = (text: string) => `<div class="prep-scene-cta" aria-hidden="true">${escHtml(text)}</div>`;
+
 const clipRow = (p: { text: string; done: boolean }) => `
   <div class="prep-clip-row${p.done ? ' is-done' : ''}">
     <span class="prep-clip-box" aria-hidden="true">${p.done ? '✓' : ''}</span>
@@ -85,7 +88,7 @@ export function clipLines(preview: { text: string; done: boolean }[], left: numb
 }
 
 function clipboard(opts: {
-  attrs: string; aria: string; head: string; lines: string; bar: number; stamp?: boolean; backs?: number; hint?: string; cta: string; ghost?: boolean;
+  attrs: string; aria: string; head: string; lines: string; bar: number; stamp?: boolean; backs?: number; hint?: string; ghost?: boolean;
 }): string {
   const backs = Math.min(2, opts.backs ?? 0);
   return `
@@ -101,7 +104,6 @@ function clipboard(opts: {
             ${opts.stamp ? `<span class="paper-stamp paper-stamp--good prep-clip-stamp">${escHtml(t('prep.allDone'))}</span>` : ''}
             <div class="prep-clip-bar"><span style="width:${opts.bar}%"></span></div>
           </div>
-          <span class="prep-scene-cta">${escHtml(opts.cta)}</span>
         </div>
       </div>`;
 }
@@ -114,9 +116,9 @@ export function renderClipboardScene(s: ClipScene | null, switcher = ''): string
       ${clipboard({
         attrs: 'data-act="new-cl"', aria: t('prep.clEmptyTitle'), ghost: true, bar: 0,
         head: `<div class="prep-clip-head"><span class="prep-clip-name">${escHtml(t('prep.clEmptyTitle'))}</span></div>`,
-        lines: clipLines([], 0), hint: t('prep.clEmptyHint'), cta: t('prep.clEmptyCta'),
+        lines: clipLines([], 0), hint: t('prep.clEmptyHint'),
       })}
-    </div>`;
+    </div>${cta(t('prep.clEmptyCta'))}`;
   }
   const complete = s.total > 0 && s.left === 0;
   return `
@@ -127,9 +129,8 @@ export function renderClipboardScene(s: ClipScene | null, switcher = ''): string
         head: `<div class="prep-clip-head"><span class="prep-clip-name">${escHtml(s.name)}</span><span class="prep-clip-count">${s.done}/${s.total}</span></div>`,
         lines: clipLines(s.preview, s.left), bar: s.pct, stamp: complete, backs: s.behind,
         hint: s.total === 0 ? t('prep.clipEmptyList') : undefined,
-        cta: t('prep.sceneOpenChecklist'),
       })}
-    </div>`;
+    </div>${cta(t('prep.sceneOpenChecklist'))}`;
 }
 
 /** The bags shown on the floor: the heaviest few, kept in list order, plus how many are left out. */
@@ -156,19 +157,17 @@ export function renderPackScene(p: PackScene | null, fmt: (g: number) => string,
     const attrs = noList ? 'data-act="new-pk"' : `data-open-pk="${escHtml(p.id)}"`;
     return `
     <div class="prep-scene prep-scene--pk is-empty" data-scene="pk">
-      ${switcher || (p ? `<div class="prep-scene-label">${escHtml(p.name)}</div>` : '')}
+      ${switcher}
       <div class="prep-floor" role="button" tabindex="0" ${attrs}
            aria-label="${escHtml(noList ? t('prep.pkEmptyTitle') : t('prep.packNoBagsTitle'))}">
         <div class="prep-bag prep-bag--ghost" style="flex-basis:${bagWidth('suitcase', true)}px">
           <div class="prep-bag-art">${renderBag('suitcase', { loadPct: 0, uid: `ghost-${p?.id ?? 'none'}`, tone: 0, ghost: true })}</div>
         </div>
         <div class="prep-scene-hint">${escHtml(noList ? t('prep.pkEmptyHint') : t('pack.noBagsYet'))}</div>
-        <span class="prep-scene-cta">${escHtml(noList ? t('prep.pkEmptyCta') : t('prep.sceneOpenPack'))}</span>
       </div>
       ${shelf(null, fmt(0))}
-    </div>`;
+    </div>${cta(noList ? t('prep.pkEmptyCta') : t('prep.sceneOpenPack'))}`;
   }
-  const label = switcher || `<div class="prep-scene-label">${escHtml(p.name)}</div>`;
   const { shown, hidden } = floorBags(p.bags);
   const bagHtml = shown.map((b) => `
     <div class="prep-bag" data-over="${b.over}" style="flex:0 1 ${Math.round(bagWidth(b.kind, true, b.size) * 1.6)}px">
@@ -177,13 +176,12 @@ export function renderPackScene(p: PackScene | null, fmt: (g: number) => string,
     </div>`).join('');
   return `
     <div class="prep-scene prep-scene--pk" data-scene="pk">
-      ${label}
+      ${switcher}
       <div class="prep-floor" role="button" tabindex="0" data-open-pk="${escHtml(p.id)}"
            aria-label="${escHtml(`${t('prep.sceneOpenPack')} ${p.name}`)}">
         ${bagHtml}
         ${hidden > 0 ? `<div class="prep-bag-tag" title="${escHtml(t('prep.sceneMore', { n: hidden }))}"><span class="prep-bag-tag-hole" aria-hidden="true"></span><span>+${hidden}</span></div>` : ''}
-        <span class="prep-scene-cta">${escHtml(t('prep.sceneOpenPack'))}</span>
       </div>
       ${shelf(p.id, p.totalLabel)}
-    </div>`;
+    </div>${cta(t('prep.sceneOpenPack'))}`;
 }

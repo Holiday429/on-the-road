@@ -51,7 +51,7 @@ import { renderBanner, wireBanner, startBannerClock, type BannerData } from './d
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
 import { resolveHomeTimezone } from '../../data/home-timezone.ts';
 
-import { WIDGET_ICON, EXPENSE_ICON } from '../../core/icons.ts';
+import { WIDGET_ICON } from '../../core/icons.ts';
 import { STAY_ICON } from '../../core/icons.ts';
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
@@ -326,7 +326,7 @@ function renderRatePopover(): string {
 
 /* ── Spend widget ─────────────────────────────────────────────────────────── */
 // Drawn as the Expenses page's till: one LCD (VFD in dark) holding the day's status bar, the
-// last item scanned, the trip total against its budget, the category soft keys and the amount;
+// a ready-to-scan line, the trip total against its budget, the category soft keys and the amount;
 // the note and SCAN sit on the plastic body below. Same markup hooks as before (.td-quickadd-*).
 function renderSpendWidget(): string {
   const today     = todayIso();
@@ -340,13 +340,6 @@ function renderSpendWidget(): string {
   const day       = daySpend(rows, today, inBase);
   const dayStamp  = new Date(`${today}T00:00:00`).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' }).toUpperCase();
   const dayLabel  = `${asOf ? '' : `${t('expenses.mart.today')} · `}${dayStamp}`;
-
-  // The line the next product label slides across: what was scanned last, or the greeting.
-  const last = [...rows].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
-  const lastIcon = last ? KEY_CATEGORIES.find(k => k.id === last.category)?.icon ?? EXPENSE_ICON.misc : '';
-  const lastLine = last
-    ? `${lastIcon} ${last.description.trim() || t('dash.spend.unlabelled')} · ${fmt(inBase(last))}${last.date === today ? '' : ` · ${new Date(`${last.date}T00:00:00`).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' })}`}`
-    : t('expenses.mart.welcome');
 
   // "Left" always means the whole-trip budget minus everything spent, the same
   // number the Expenses page shows. While you're travelling, the current
@@ -391,7 +384,7 @@ function renderSpendWidget(): string {
             <span class="td-lcd-today" title="${esc(t('dash.spend.today'))}">${fmt(todaySpend)}</span>
             <span class="td-lcd-led" aria-hidden="true"></span>
           </div>
-          <div class="td-lcd-scan"><span class="td-lcd-last" title="${esc(lastLine)}">${esc(lastLine)}</span><span class="td-lcd-caret" aria-hidden="true">_</span></div>
+          <div class="td-lcd-scan"><span class="td-lcd-last">${esc(t('expenses.mart.ready'))}</span><span class="td-lcd-caret" aria-hidden="true">_</span></div>
           <div class="td-lcd-tot">
             <button type="button" class="td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><span class="td-lcd-cap">${esc(t('expenses.mart.total'))}</span><span class="td-spend-big">${fmt(total)}</span></button>
             ${budgetLine}

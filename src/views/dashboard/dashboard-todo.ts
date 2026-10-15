@@ -5,8 +5,8 @@
    one, a row with a + in front where you just type the next to-do (Enter saves).
    While you type, a 📅 for the due date and a 🔔 for a reminder appear on the row
    (native pickers behind an icon). The corner ring counts the shown day's own
-   to-dos: done / due that day. Drawn as a pad of sticky notes — the same paper as
-   the Prepare checklist board (--note-0..5), one note per to-do, a blank one to write on.
+   to-dos: done / due that day. The whole card is a sticky note — the same paper, tape,
+   checkbox and dashed rules as a note on the Prepare checklist board.
    ========================================================================== */
 
 import { escHtml as esc } from '../../core/utils.ts';
@@ -14,7 +14,8 @@ import { t, getLocale } from '../../core/i18n.ts';
 import type { StoredTodo } from '../../data/stores/todo-store.ts';
 import { openTodosFor } from '../../data/todo-order.ts';
 import { todoStore } from '../../data/stores/todo-store.ts';
-import { noteVar } from '../../data/palette.ts';
+import { renderFastener } from '../../core/paper/fastener.ts';
+import '../../core/paper/fastener.css';
 import { scheduleAllNotifications } from '../../core/notifications.ts';
 
 import { WIDGET_ICON } from '../../core/icons.ts';
@@ -28,8 +29,6 @@ let _remind = '';
 
 /** New trip / re-init. */
 export function resetTodoAdd(): void { _due = undefined; _remind = ''; }
-const R = 9;
-const C = 2 * Math.PI * R;
 
 function shortDate(iso: string): string {
   try { return new Date(iso + 'T00:00:00').toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' }); }
@@ -49,18 +48,15 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
   const dayTodos = todos.filter((td) => td.dueDate === selected);
   const dayTotal = dayTodos.length;
   const dayDone = dayTodos.filter((td) => td.done).length;
-  const frac = dayTotal ? dayDone / dayTotal : 0;
   // 3 rows + the add row keeps the card short.
   const shown = open.slice(0, SHOWN - 1);
   const more = open.length - shown.length;
 
-  // Each to-do is a sticky note: its paper colour follows its place on the pad (neighbours differ,
-  // see noteVar), and the due date is scribbled in the corner rather than set on a second line.
-  const rows = shown.map((td, i) => {
+  const rows = shown.map((td) => {
     const due = dueLabel(td.dueDate, today);
     const onSel = !!td.dueDate && td.dueDate === selected && selected !== today;
     return `
-      <div class="td-todo-row td-note${onSel ? ' is-sel' : ''}" style="--note-bg:${noteVar(i)}">
+      <div class="td-todo-row${onSel ? ' is-sel' : ''}">
         <button type="button" class="td-todo-check" data-toggle-todo="${esc(td.id)}:false" title="${esc(t('dash.todo.markDone'))}" aria-label="${esc(t('dash.todo.markDone'))}"></button>
         <span class="td-todo-label">${esc(td.text)}</span>
         ${due.text ? `<span class="td-todo-due ${due.overdue ? 'is-overdue' : ''}"${due.overdue ? ` title="${esc(t('dash.todo.overdue'))}"` : ''}>${esc(due.text)}</span>` : ''}
@@ -87,18 +83,13 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
   const empty = !shown.length
     ? `<div class="td-todo-empty"><div class="td-todo-empty-title">${esc(t('dash.todo.empty'))}</div></div>` : '';
 
+  // The whole card is one note, drawn like a note on the Prepare checklist board.
   return `
     <div class="td-widget td-w-todo">
+      ${renderFastener('tape')}
       <div class="td-widget-header">
         <div class="td-widget-label">${WIDGET_ICON.todo} ${esc(t('dash.widget.todo'))}</div>
-        ${dayTotal ? `
-          <div class="td-ring" title="${esc(t('dash.todo.progress', { done: dayDone, total: dayTotal }))}" role="img" aria-label="${esc(t('dash.todo.progress', { done: dayDone, total: dayTotal }))}">
-            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-              <circle class="td-ring-track" cx="12" cy="12" r="${R}" />
-              <circle class="td-ring-arc" cx="12" cy="12" r="${R}" stroke-dasharray="${(C * frac).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 12 12)" />
-            </svg>
-            <span class="td-ring-n">${dayDone}/${dayTotal}</span>
-          </div>` : ''}
+        ${dayTotal ? `<span class="td-todo-badge" title="${esc(t('dash.todo.progress', { done: dayDone, total: dayTotal }))}">${dayDone}/${dayTotal}</span>` : ''}
       </div>
       <div class="td-todo-list">${rows}${newRow}${empty}</div>
       ${more > 0 ? `<button type="button" class="td-link td-todo-more" data-nav="agenda">${esc(t('dash.todo.more', { n: more }))}</button>` : ''}
