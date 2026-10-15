@@ -45,6 +45,7 @@
   background-image: repeating-linear-gradient(
     to bottom, transparent 0 calc(var(--jsp-rule) - 1px),
     color-mix(in srgb, var(--sky-400) 20%, transparent) calc(var(--jsp-rule) - 1px) var(--jsp-rule));
+  /* On dark paper the same blue rules read as bright stripes: pull them back. */
   background-position: 0 calc(var(--sp-5) - 1px);
   background-repeat: repeat-x;
 }
@@ -222,6 +223,12 @@
   .jsp-page--right { padding-left: var(--sp-4); border-top: 1px dashed var(--rule); }
   .jsp-photos.is-many .jsp-photo { width: calc(50% - var(--sp-2)); }
   .jsp-close { top: var(--sp-2); right: var(--sp-2); }
+}
+
+[data-theme='dark'] .jsp-page--right {
+  background-image: repeating-linear-gradient(
+    to bottom, transparent 0 calc(var(--jsp-rule) - 1px),
+    color-mix(in srgb, var(--sky-400) 10%, transparent) calc(var(--jsp-rule) - 1px) var(--jsp-rule));
 }
 
 @media (prefers-reduced-motion: reduce) {
