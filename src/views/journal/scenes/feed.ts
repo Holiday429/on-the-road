@@ -10,6 +10,8 @@
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { escHtml, entryImages, excerpt, moodEmoji, titleFor } from '../shared/utils.ts';
 import { planFeed, hashId, type FeedBlock } from './feed-plan.ts';
+import { renderFastener, type FastenerKind } from '../../../core/paper/fastener.ts';
+import '../../../core/paper/fastener.css';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -26,6 +28,37 @@ function whereOf(e: StoredJournalEntry): string {
 
 function badges(e: StoredJournalEntry, photos: number): string {
   return `${photos > 1 ? `<span class="jf-count" title="${photos} photos">▦ ${photos}</span>` : ''}${e.favorite ? '<span class="jf-pin" title="Pinned">📌</span>' : ''}`;
+}
+
+/**
+ * What holds each kind of card down.
+ *
+ * One fastener per card, chosen by what the card *is* rather than at random: a
+ * cover story is taped at the corner, a postcard pinned, a polaroid taped across
+ * the top, a ticket clipped at its perforation, a note under a bulldog clip. The
+ * id then picks the colour and the exact lean, so it is stable across renders.
+ */
+const FASTENER_BY_VARIANT: Record<FeedBlock['variant'], FastenerKind> = {
+  cover: 'corner',
+  postcard: 'pin',
+  polaroid: 'tape',
+  ticket: 'clip',
+  quote: 'bulldog',
+};
+
+const TAPE_TINTS = ['var(--amber-300)', 'var(--sky-400)', 'var(--sage-400)', 'var(--coral-400)'];
+const PIN_TINTS = ['var(--coral-500)', 'var(--sky-500)', 'var(--sage-500)', 'var(--amber-500)'];
+
+function fastenerFor(b: FeedBlock): string {
+  const kind = FASTENER_BY_VARIANT[b.variant];
+  const h = hashId(b.entry.id);
+  const tinted = kind === 'tape' || kind === 'corner';
+  return renderFastener(kind, {
+    colour: (tinted ? TAPE_TINTS : PIN_TINTS)[(h >> 3) % 4],
+    // Tape and clips slide along the edge; a thumbtack stays where its kind puts it.
+    at: kind === 'pin' ? undefined : 0.26 + ((h >> 5) % 48) / 100,
+    tilt: ((h >> 7) % 9) - 4,
+  });
 }
 
 function photoBlock(b: FeedBlock): string {
@@ -57,7 +90,6 @@ function photoBlock(b: FeedBlock): string {
   }
   // polaroid
   return `
-    <span class="jf-tape" aria-hidden="true"></span>
     <div class="jf-photo">${img}</div>
     <div class="jf-strip">
       <h3 class="jf-title jf-hand">${escHtml(title)}</h3>
@@ -93,7 +125,8 @@ function textBlock(b: FeedBlock): string {
 
 export function renderBlock(b: FeedBlock, readingId: string | null): string {
   const open = b.entry.id === readingId;
-  return `<article class="jf-block jf-block--${b.kind} jf-v-${b.variant}${open ? ' is-open' : ''}" style="--tilt:${b.tilt}deg;grid-column:span ${b.cols};grid-row:span ${b.rows}" data-open-entry="${escHtml(b.entry.id)}" role="button" tabindex="0">${b.hasPhoto ? photoBlock(b) : textBlock(b)}</article>`;
+  // The fastener sits outside the card's clipped body, so it can overhang the edge.
+  return `<article class="jf-block jf-block--${b.kind} jf-v-${b.variant}${open ? ' is-open' : ''}" style="--tilt:${b.tilt}deg;grid-column:span ${b.cols};grid-row:span ${b.rows}" data-open-entry="${escHtml(b.entry.id)}" role="button" tabindex="0">${fastenerFor(b)}<span class="jf-body">${b.hasPhoto ? photoBlock(b) : textBlock(b)}</span></article>`;
 }
 
 /** The whole feed: an editorial grid of planned blocks (see feed-plan.ts). */

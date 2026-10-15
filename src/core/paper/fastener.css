@@ -1,0 +1,108 @@
+/* ==========================================================================
+   On the Road · Paper kit · fasteners
+   --------------------------------------------------------------------------
+   Washi tape, a corner strip, a thumbtack, a safety pin, a paperclip and a
+   bulldog clip. Markup: core/paper/fastener.ts.
+
+   Each kind places itself against the card it sits in (which must be
+   `position: relative`); the caller only decides which one. Colours are tokens
+   via `--fst-colour`, so dark mode and the matte palette carry over.
+   ========================================================================== */
+
+.fst {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  --fst-colour: var(--amber-300);
+  --fst-at: 50%;
+  --fst-tilt: 0deg;
+}
+
+/* ── Tape: a torn-edged strip, across the top edge or over a corner ───────── */
+.fst--tape,
+.fst--corner {
+  width: 62px;
+  height: 22px;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--surface) 22%, transparent) 5px 6px),
+    color-mix(in srgb, var(--fst-colour) 58%, transparent);
+  /* the nicked, hand-torn ends */
+  clip-path: polygon(0 8%, 4% 0, 8% 10%, 12% 0, 88% 0, 92% 10%, 96% 0, 100% 8%, 100% 92%, 96% 100%, 92% 90%, 88% 100%, 12% 100%, 8% 90%, 4% 100%, 0 92%);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));
+}
+.fst--tape {
+  top: -11px;
+  left: var(--fst-at);
+  margin-left: -31px;
+  transform: rotate(var(--fst-tilt));
+}
+.fst--corner {
+  top: 4px;
+  left: -14px;
+  width: 58px;
+  transform: rotate(calc(-45deg + var(--fst-tilt)));
+  background:
+    repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--surface) 22%, transparent) 5px 6px),
+    color-mix(in srgb, var(--fst-colour) 38%, transparent);
+}
+
+/* ── Thumbtack: a glossy head casting its own shadow on the paper ─────────── */
+.fst--pin {
+  top: -8px;
+  left: calc(50% - 10px);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.65) 0 11%, transparent 26%),
+    radial-gradient(circle at 50% 50%, var(--fst-colour) 0 62%, color-mix(in srgb, var(--fst-colour) 60%, #000) 100%);
+  box-shadow: 2px 4px 4px rgba(0, 0, 0, 0.28), 0 0 0 1px color-mix(in srgb, var(--fst-colour) 55%, #000);
+}
+
+/* ── Safety pin, pinned across the top-right corner ───────────────────────── */
+.fst--safety {
+  top: -4px;
+  right: 14px;
+  width: 58px;
+  height: 24px;
+  transform: rotate(calc(-18deg + var(--fst-tilt)));
+  filter: drop-shadow(1px 2px 1px rgba(0, 0, 0, 0.25));
+}
+
+/* ── Paperclip, hooked over the top edge ──────────────────────────────────── */
+.fst--clip {
+  top: -9px;
+  left: var(--fst-at);
+  width: 15px;
+  height: 36px;
+  transform: rotate(var(--fst-tilt));
+  filter: drop-shadow(1px 2px 1px rgba(0, 0, 0, 0.22));
+}
+
+/* ── Bulldog clip, biting the top edge ────────────────────────────────────── */
+.fst--bulldog {
+  top: -15px;
+  left: var(--fst-at);
+  width: 46px;
+  height: 30px;
+  margin-left: -23px;
+  transform: rotate(var(--fst-tilt));
+  filter: drop-shadow(1px 3px 2px rgba(0, 0, 0, 0.26));
+}
+
+.fst svg { display: block; width: 100%; height: 100%; }
+/* Wire-drawn fasteners share one metal stroke; the bulldog's jaw is filled. */
+.fst--safety path,
+.fst--safety circle,
+.fst--clip path,
+.fst--bulldog .fst-bulldog-arm {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink) 38%, var(--surface-4));
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+.fst--bulldog .fst-bulldog-jaw {
+  fill: color-mix(in srgb, var(--fst-colour) 70%, var(--ink));
+  stroke: color-mix(in srgb, var(--ink) 30%, transparent);
+  stroke-width: 1;
+}

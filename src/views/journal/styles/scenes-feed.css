@@ -15,11 +15,16 @@
   padding: var(--sp-3) var(--sp-2) var(--sp-8);
 }
 
+/* The card itself does not clip: its fastener overhangs the top edge. The paper
+   and everything printed on it live in .jf-body, which does. */
 .jf-block {
-  position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; cursor: pointer;
-  background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: var(--r-md);
-  box-shadow: var(--shadow-sm); transform: rotate(var(--tilt, 0deg));
+  position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; cursor: pointer;
+  border-radius: var(--r-md); box-shadow: var(--shadow-sm); transform: rotate(var(--tilt, 0deg));
   transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1), box-shadow var(--dur-mid) var(--ease-out);
+}
+.jf-body {
+  position: relative; display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; overflow: hidden;
+  background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: inherit;
 }
 .jf-block:hover, .jf-block:focus-visible { transform: rotate(0deg) translateY(-5px) scale(1.015); box-shadow: var(--shadow-lg); z-index: 2; }
 .jf-block:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 3px; }
@@ -66,24 +71,20 @@
 .jf-postmark span { max-width: 40px; overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .jf-v-postcard .jf-count { top: auto; bottom: var(--sp-2); }
 
-/* Polaroid: thick white border, a hand-written caption, a strip of tape */
-.jf-v-polaroid { padding: var(--sp-2) var(--sp-2) 0; border-radius: 3px; background: var(--paper-grain), var(--surface); }
+/* Polaroid: thick white border, a hand-written caption, taped down */
+.jf-v-polaroid .jf-body { padding: var(--sp-2) var(--sp-2) 0; border-radius: 3px; background: var(--paper-grain), var(--surface); }
 .jf-v-polaroid .jf-strip { padding: var(--sp-2) var(--sp-1) var(--sp-3); display: flex; flex-direction: column; gap: 2px; }
 .jf-hand { font-family: var(--font-hand); font-weight: var(--fw-regular, 400); font-size: var(--fs-md); letter-spacing: 0; line-height: 1.05; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.jf-tape {
-  position: absolute; left: 50%; top: -7px; z-index: 3; width: 52px; height: 14px; transform: translateX(-50%) rotate(-2.5deg);
-  background: color-mix(in srgb, var(--amber-400) 55%, transparent); border-inline: 1px dashed color-mix(in srgb, var(--ink) 14%, transparent);
-}
 .jf-v-polaroid .jf-count { top: calc(var(--sp-2) + var(--sp-2)); }
 .jf-v-polaroid .jf-pin { top: calc(var(--sp-2) + var(--sp-2)); }
 
 /* Pull-quote: words are the picture */
-.jf-v-quote { justify-content: center; gap: var(--sp-2); padding: var(--sp-4); background: var(--paper-grain), var(--amber-50); border-color: var(--amber-200); }
+.jf-v-quote .jf-body { justify-content: center; gap: var(--sp-2); padding: var(--sp-4); background: var(--paper-grain), var(--amber-50); border-color: var(--amber-200); }
 .jf-quote-mark { font-family: var(--font-display); font-size: 38px; line-height: .6; color: var(--amber-300); }
 .jf-quote-text { margin: 0; font-family: var(--font-display); font-size: clamp(var(--fs-sm), 1.3cqw, var(--fs-lg)); font-weight: var(--fw-medium); line-height: 1.3; letter-spacing: -.015em; text-wrap: pretty; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Ticket stub */
-.jf-v-ticket { flex-direction: row; min-height: 0; border-radius: var(--r-sm); background: var(--paper-grain), var(--surface-2); border-color: var(--rule); }
+.jf-v-ticket .jf-body { flex-direction: row; min-height: 0; border-radius: var(--r-sm); background: var(--paper-grain), var(--surface-2); border-color: var(--rule); }
 /* A ticket in a tall band: the stub runs the full height, the words stay at the top of it. */
 .jf-v-ticket .jf-ticket-main { justify-content: flex-start; }
 .jf-ticket-main { flex: 1; min-width: 0; padding: var(--sp-2) var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
