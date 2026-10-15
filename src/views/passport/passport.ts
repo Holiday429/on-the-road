@@ -317,7 +317,9 @@ function fitStage(): void {
   if (!side || narrow()) { stage.style.transform = ''; return; }
   const w = side.el.offsetWidth;
   const room = desk.clientWidth - w - 28;
-  const scale = Math.max(0.5, Math.min(1, room / stage.offsetWidth));
+  // The card beside it is what the traveller is reading now, so the book steps back a little even when it
+  // would still fit — then shrinks further if the room beside the card is genuinely tight.
+  const scale = Math.max(0.5, Math.min(0.86, room / stage.offsetWidth));
   stage.style.transform = `translateX(${_drawer ? -w / 2 : w / 2}px) scale(${scale.toFixed(3)})`;
 }
 
@@ -581,7 +583,7 @@ async function shareNow(btn: HTMLButtonElement): Promise<void> {
     // Loaded on demand: the picture code and the QR library are not needed to read the book.
     const { sharePassport } = await import('./share.ts');
     const c = ctx();
-    await sharePassport({ nickname: c.nickname, uid: c.uid, issued: c.issued, data: _feed, pressed: state().pressed }, restore);
+    await sharePassport({ nickname: c.nickname, uid: c.uid, issued: c.issued, nationality: c.nationality, cover: c.cover, data: _feed, pressed: state().pressed }, restore);
   } catch (err) {
     console.error('Passport share failed:', err);
     const { toast } = await import('../journal/recap/export/ui.ts');

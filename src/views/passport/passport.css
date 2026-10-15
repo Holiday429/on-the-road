@@ -26,8 +26,10 @@
 
 /* ── Book ────────────────────────────────────────────────────────────────── */
 .pp-stage {
-  /* Half the spread: never wider than the page allows, never taller than the desk's own room. */
-  --pw: min(var(--pp-half, 44vw), 560px, calc(var(--pp-room, 60vh) * .714));
+  /* Half the spread. The book is a thing on a desk, not a wall: it takes the room it needs and leaves the
+     rest, so it never crowds the controls under it however large the window is. The cap is what stops it
+     growing with the screen; --pp-room only ever makes it SMALLER when the window is short. */
+  --pw: min(var(--pp-half, 44vw), var(--pp-cap, 400px), calc(var(--pp-room, 60vh) * .714));
   --pp-accent: color-mix(in srgb, var(--danger) 76%, var(--amber-500));
   position: relative; width: calc(var(--pw) * 2); height: calc(var(--pw) * 1.4); perspective: 2600px;
   touch-action: pan-y; user-select: none;
@@ -382,7 +384,11 @@
 .pp-drawer-titles { min-width: 0; }
 /* The memory card's head is a picture of the place, like the itinerary's cards. */
 .pp-drawer-head.pp-hero {
-  position: relative; display: flex; align-items: flex-end; min-height: 156px; padding: var(--sp-3) var(--sp-5) var(--sp-3); overflow: hidden; border-bottom: 0; background: none; color: #fff;
+  /* The country's name starts level with the close button, so the two read as one line across the picture;
+     the date and the first-entry note hang under it. */
+  position: relative; display: flex; align-items: flex-start; min-height: 132px;
+  padding: var(--sp-3) calc(var(--sp-5) + 44px) var(--sp-4) var(--sp-5);
+  overflow: hidden; border-bottom: 0; background: none; color: #fff;
 }
 .pp-hero-img, .pp-hero-fallback { position: absolute; inset: 0; width: 100%; height: 100%; }
 .pp-hero-img { object-fit: cover; }
@@ -393,8 +399,10 @@
     linear-gradient(135deg, color-mix(in srgb, var(--ink-c, var(--select-bg)) 72%, #1c1a17), color-mix(in srgb, var(--ink-c, var(--select-bg)) 46%, #1c1a17));
 }
 .pp-hero-fallback span { opacity: .4; filter: saturate(.8); }
-.pp-hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .3) 0, transparent 36%, rgba(0, 0, 0, .66) 100%); }
-.pp-hero .pp-drawer-titles { position: relative; z-index: 1; text-shadow: 0 1px 8px rgba(0, 0, 0, .35); }
+/* The words sit at the top now, so the picture is darkened there rather than along its foot. */
+.pp-hero-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0, 0, 0, .62) 0, rgba(0, 0, 0, .28) 52%, rgba(0, 0, 0, .34) 100%); }
+.pp-hero .pp-drawer-titles { position: relative; z-index: 1; text-shadow: 0 1px 8px rgba(0, 0, 0, .45); }
+.pp-hero .pp-drawer-title { margin-top: -2px; }
 .pp-hero .pp-drawer-kicker, .pp-hero .pp-drawer-sub { color: rgba(255, 255, 255, .84); }
 .pp-hero .pp-drawer-btns { position: absolute; top: var(--sp-3); right: var(--sp-4); z-index: 2; }
 .pp-hero .pp-round { background: rgba(255, 255, 255, .2); border-color: rgba(255, 255, 255, .5); color: #fff; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }

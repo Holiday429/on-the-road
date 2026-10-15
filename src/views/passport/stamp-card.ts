@@ -57,7 +57,7 @@ function polaroids(m: CountryMemory): string {
   const shots = m.photos.map((p) => ({ ...p, url: safeUrl(p.url) })).filter((p) => p.url);
   if (shots.length === 0) return '';
   const label = (p: { city: string; title: string; date: string }) => p.city || p.title || m.stamp.country;
-  return `<section><h3 class="pp-drawer-h">${esc(t('passport.card.photos'))}</h3>
+  return `<section>
     <div class="pp-polaroids">${shots.map((p, i) => `
       <figure class="pp-polaroid" style="--tilt:${TILT[i % TILT.length]}deg"><span class="pp-tape" aria-hidden="true"></span>
         <div class="pp-polaroid-pic"><img src="${p.url}" alt="${esc(label(p))}" loading="lazy" referrerpolicy="no-referrer" draggable="false"></div>
@@ -120,19 +120,18 @@ function receipt(m: CountryMemory, locale: string): string {
 }
 
 /** The inside of the drawer for one stamp. */
-export function drawerHtml(m: CountryMemory, locale: string, pos: { i: number; n: number }): string {
+export function drawerHtml(m: CountryMemory, locale: string, _pos: { i: number; n: number }): string {
   const s = m.stamp;
-  const sub = [s.tripName, dateRange(m.trip.dateFrom, m.trip.dateTo)].filter(Boolean).join(' · ');
+  // The picture says where this is; the words under it only have to say when. The trip's name is on the
+  // page the stamp came from, and the arrows that used to sit up here are the book's own job.
+  const sub = dateRange(m.trip.dateFrom, m.trip.dateTo);
   return `<header class="pp-drawer-head pp-hero${m.hero && safeUrl(m.hero.url) ? ' has-cover' : ''}">
       ${heroArt(m)}
       <div class="pp-hero-shade"></div>
       <div class="pp-drawer-btns">
-        <button type="button" class="pp-round" data-pp-card-step="-1" aria-label="${esc(t('passport.card.prev'))}"${pos.n < 2 ? ' disabled' : ''}>←</button>
-        <button type="button" class="pp-round" data-pp-card-step="1" aria-label="${esc(t('passport.card.next'))}"${pos.n < 2 ? ' disabled' : ''}>→</button>
         <button type="button" class="pp-round is-close" data-pp-card-close aria-label="${esc(t('common.close'))}">✕</button>
       </div>
       <div class="pp-drawer-titles">
-        <div class="pp-drawer-kicker">${esc(t('passport.card.kicker'))} · ${pos.i + 1} / ${pos.n}</div>
         <h2 class="pp-drawer-title">${esc(s.country)}</h2>
         <div class="pp-drawer-sub">${esc(sub)}${s.orphan ? ` · ${esc(t('passport.deletedTrip'))}` : ''}</div>
         ${s.firstEver ? `<div class="pp-drawer-first"><i>★</i> ${esc(t('passport.card.first', { c: s.country, y: year(s.date) }))}</div>` : ''}
@@ -181,10 +180,7 @@ export function openMemoryDrawer(host: HTMLElement, a: CardActions): DrawerHandl
   };
   document.addEventListener('keydown', onKey, true);
   el.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement;
-    const step = target.closest<HTMLElement>('[data-pp-card-step]');
-    if (step) { a.onStep(Number(step.dataset.ppCardStep) > 0 ? 1 : -1); return; }
-    if (target.closest('[data-pp-card-close]')) close();
+    if ((e.target as HTMLElement).closest('[data-pp-card-close]')) close();
   });
   scrim.addEventListener('click', close);
   // A photo that cannot be fetched is dropped, leaving the tinted frame — never the browser's broken-image icon.

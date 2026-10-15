@@ -4,9 +4,11 @@
    One button on the passport turns it into a picture (share-image.ts) and
    shows it to the traveller first (share-sheet.ts); from there it goes to the
    phone's share sheet, or downloads. The picture carries only what the passport
-   itself shows — name, totals, the visited countries, EVERY stamp pressed — and
-   an invitation to the site, never a link to this passport. The stamps are the
-   point of sharing it, so the picture grows as tall as it must to hold them all.
+   itself shows — nickname, totals, the visited countries, EVERY stamp pressed —
+   and an invitation to the site, never a link to this passport. It is drawn as
+   the open passport it is, landscape and one fixed size: a fuller passport means
+   smaller stamps, never a taller picture. No legal name, document number or date
+   of birth ever goes into it, whatever the traveller keeps on their own page.
    Reuses the journal recap's delivery and QR code.
    ========================================================================== */
 
@@ -15,8 +17,10 @@ import type { PassportData, PassportStamp } from '../../data/passport.ts';
 import { ensureCardFonts } from '../journal/card/card-fonts.ts';
 import { previewShare } from './share-sheet.ts';
 import { SITE_URL } from '../journal/recap/export/qr.ts';
-import { passportNumber, travelLevel } from './bio.ts';
-import { SHARE_W, drawPassportShare, shareHeight, type ShareInput } from './share-image.ts';
+import { mrz, passportNumber, travelLevel } from './bio.ts';
+import { nationalityLabel } from '../../data/nationalities.ts';
+import type { PassportCover } from '../../data/schema.ts';
+import { SHARE_H, SHARE_W, drawPassportShare, type ShareInput } from './share-image.ts';
 import { stampImage } from './stamp-raster.ts';
 
 const FILENAME = 'on-the-road-passport.png';
@@ -25,6 +29,10 @@ export interface ShareSource {
   nickname: string;
   uid: string;
   issued: string;
+  /** ISO alpha-2 the traveller travels as; '' when unsaid. */
+  nationality?: string;
+  /** How they dressed the booklet; the picture's cloth follows it. */
+  cover?: PassportCover;
   data: PassportData;
   /** The stamps pressed onto pages, in book order. */
   pressed: PassportStamp[];
@@ -62,12 +70,17 @@ export async function renderPassportImage(src: ShareSource): Promise<HTMLCanvasE
     nickname: src.nickname,
     passportNo: passportNumber(src.uid),
     issued: src.issued,
+    nationality: src.nationality ?? '',
+    nationalityLabel: src.nationality ? nationalityLabel(src.nationality) : '',
+    coverColor: src.cover?.color,
+    mrz: mrz({ nickname: src.nickname, nationality: src.nationality ?? '', uid: src.uid }, src.issued),
     level: t(`passport.level.${travelLevel(src.data.countries)}`),
     stats: { countries: src.data.countries, cities: src.data.cities, nights: src.data.nights, trips: src.data.trips },
     words: {
       title: t('passport.cover.title'), issued: t('passport.bio.issued'),
       countries: t('passport.stat.countries'), cities: t('passport.stat.cities'), nights: t('passport.stat.nights'), trips: t('passport.stat.trips'),
       visited: t('passport.record.visited'), more: extra > 0 ? t('passport.share.more', { n: extra }) : '', invite: t('passport.share.invite'),
+      nickname: t('passport.bio.nickname'), nationality: t('passport.bio.nationality'), level: t('passport.level'), stamps: t('passport.stamps.title'),
     },
     isos: src.data.stamps.map((s) => s.iso),
     stamps: shown.map((s, i) => ({ image: images[i], rotation: s.rotation })),
@@ -76,7 +89,7 @@ export async function renderPassportImage(src: ShareSource): Promise<HTMLCanvasE
   };
   const canvas = document.createElement('canvas');
   canvas.width = SHARE_W;
-  canvas.height = shareHeight(shown.length);
+  canvas.height = SHARE_H;
   drawPassportShare(canvas.getContext('2d')!, input);
   return canvas;
 }

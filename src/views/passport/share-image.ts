@@ -1,14 +1,18 @@
 /* ==========================================================================
    On the Road · Passport share image — drawing (pure)
    --------------------------------------------------------------------------
-   The passport as one picture, drawn as the open book itself reads: a navy
-   cover frames a spread of two cream pages either side of a spine shadow —
-   the left page is the data page (whose it is, what it adds up to, the
-   dotted world), the right is a stamps page, every stamp pressed on it.
-   Portrait overall (1080 wide, tall enough for the stamps, 3:4 at the
-   shortest) so it shares well, but the spread inside it is unmistakably a
-   passport, not a stat card. Always cream paper, ink and navy cloth,
-   whatever theme the app is in — it leaves the app.
+   The passport as one picture, in the shape a passport actually is: an open
+   book, landscape, a cover of cloth around two cream pages either side of a
+   spine. The left page is the data page the traveller's own book opens on —
+   the portrait frame, the guilloche, the nickname and the machine-readable
+   lines — carrying NOTHING real: no legal name, no document number, no date
+   of birth, whatever the traveller keeps in their own passport page. The
+   right page is a stamps page, every stamp pressed onto it.
+
+   The picture is a fixed 3:2 spread. More stamps make the stamps smaller and
+   the grid wider; they never make the picture taller, because a passport is
+   not a scroll. Always cream paper and ink whatever theme the app is in — it
+   leaves the app.
 
    The context is passed in rather than created, so the layout is tested against
    a recording fake with no canvas. Stamps arrive already rasterised
@@ -17,23 +21,23 @@
 
 import { drawQr } from '../journal/recap/export/qr.ts';
 import { FONT } from '../journal/recap/export/draw.ts';
-import { DOT_COLS, dotMapCells } from '../../data/dot-map.ts';
+import { DOT_COLS, DOT_ROWS, dotMapCells } from '../../data/dot-map.ts';
 import { SHARE } from './share-palette.ts';
 
-export const SHARE_W = 1080;
-const MARGIN = 56;
-/** The navy cover's own border, outside the pages. */
-const COVER_PAD = 26;
-/** Header above the book: the word on the cover, the number, a rule. */
-const HEAD_H = 118;
-/** Footer below the book: a rule, the invitation and the QR code. */
-const FOOT_H = 168;
-/** Gap between the header/footer bands and the book itself. */
-const BAND_GAP = 36;
-/** The shortest the picture can be — a passport with a stamp or two still reads as a 3:4 card. */
-export const SHARE_MIN_H = 1440;
-/** Kept for the layout's old name; the picture is no longer capped at this. @deprecated */
-export const SHARE_H = SHARE_MIN_H;
+/** An open passport, landscape: two pages side by side, near enough 3:2. */
+export const SHARE_W = 1600;
+export const SHARE_H = 1080;
+/** Kept for the name the old portrait layout used. @deprecated the picture is one fixed size now. */
+export const SHARE_MIN_H = SHARE_H;
+
+/** The desk the book lies on, outside the cover. */
+const MARGIN = 54;
+/** The cover's own border, outside the pages. */
+const COVER_PAD = 30;
+/** The gutter between the two pages. */
+const SPINE_W = 26;
+/** The strip under the book: the invitation and the QR code. */
+const FOOT_H = 128;
 
 const MONO = '"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace';
 
@@ -50,12 +54,21 @@ export interface ShareInput {
   issued: string;
   /** The traveller's title ("Wanderer"), already in their language. */
   level: string;
+  /** ISO alpha-2, for the machine-readable lines; '' when they have not said. */
+  nationality?: string;
+  /** The country they travel as, in words — never a document, just what the cover page shows. */
+  nationalityLabel?: string;
+  /** The cloth colour of the traveller's own cover; the default navy when they have not dressed it. */
+  coverColor?: string;
   stats: { countries: number; cities: number; nights: number; trips: number };
   /** Words, already translated. */
   words: {
     title: string; issued: string; countries: string; cities: string; nights: string; trips: string;
     visited: string; more: string; invite: string;
+    nickname: string; nationality: string; level: string; stamps: string;
   };
+  /** The two machine-readable lines, already built (bio.ts) — decoration, no real document in them. */
+  mrz: [string, string];
   /** ISO codes of every visited country. */
   isos: string[];
   stamps: ShareStamp[];
@@ -65,66 +78,75 @@ export interface ShareInput {
 
 export interface StampSlot { cx: number; cy: number; size: number }
 
-/** How wide the right-hand page is: the book's own width minus the left page and the spine. */
-function pageW(): number {
-  const bookW = SHARE_W - MARGIN * 2 - COVER_PAD * 2;
-  const spine = 18;
-  return (bookW - spine) / 2;
+/** The book's own box on the picture. */
+function bookBox(): { x: number; y: number; w: number; h: number } {
+  const x = MARGIN;
+  const y = MARGIN;
+  const w = SHARE_W - MARGIN * 2;
+  const h = SHARE_H - MARGIN - FOOT_H;
+  return { x, y, w, h };
 }
 
-/** How the stamps are laid out for `n` of them on the right page: a grid wide enough to keep them legible. */
+/** One page's box. `side` 0 = left (data), 1 = right (stamps). */
+export function pageBox(side: 0 | 1): { x: number; y: number; w: number; h: number } {
+  const b = bookBox();
+  const w = (b.w - COVER_PAD * 2 - SPINE_W) / 2;
+  const x = b.x + COVER_PAD + (side === 1 ? w + SPINE_W : 0);
+  return { x, y: b.y + COVER_PAD, w, h: b.h - COVER_PAD * 2 };
+}
+
+/**
+ * How the stamps are laid out for `n` of them on the right page. The page is a fixed size, so a fuller
+ * passport means a wider grid and smaller stamps — never a taller picture.
+ */
 export function stampGrid(n: number): { cols: number; rows: number; size: number; rowH: number } {
   const count = Math.max(0, n);
-  const avail = pageW() - 32;
-  // Few stamps stay large; many go into a wider grid so they still fit side by side on the one page.
-  const cols = count <= 2 ? Math.max(1, count) : count <= 6 ? 2 : count <= 12 ? 3 : 4;
-  const rows = Math.ceil(count / cols) || 0;
-  const cell = avail / cols;
-  const size = Math.round(Math.min(cell * 0.92, count <= 2 ? 220 : 170));
-  // Rows overlap a little, the way stamps crowd a real page.
-  const rowH = Math.round(size * (cols >= 3 ? 0.8 : 0.86));
-  return { cols, rows, size, rowH };
+  const page = pageBox(1);
+  const availW = page.w - 48;
+  const availH = page.h - 96;
+  // Start from the squarest grid that holds them, then widen until the rows fit the page's height too.
+  let cols = Math.max(1, Math.ceil(Math.sqrt(count * (availW / Math.max(1, availH)))));
+  let rows = Math.ceil(count / cols) || 0;
+  let size = 0;
+  for (; cols <= Math.max(1, count); cols++) {
+    rows = Math.ceil(count / cols) || 0;
+    const byW = availW / cols;
+    // Rows overlap a little, the way stamps crowd a real page.
+    const byH = rows > 0 ? availH / (0.84 * (rows - 1) + 1) : availH;
+    size = Math.min(byW * 0.94, byH, 260);
+    if (rows === 0 || 0.84 * (rows - 1) * size + size <= availH) break;
+  }
+  size = Math.round(Math.max(44, size));
+  return { cols, rows, size, rowH: Math.round(size * 0.84) };
 }
 
-/** How tall the stamps page's own field is, for `n` stamps — the block of rows, with room to breathe. */
-function stampsBlockH(n: number): number {
-  const { rows, size, rowH } = stampGrid(n);
-  if (rows === 0) return 0;
-  return rowH * (rows - 1) + size;
+/** The picture is one fixed size — the signature stays for the callers that ask how tall to make the canvas. */
+export function shareHeight(_n = 0): number {
+  return SHARE_H;
 }
 
-/** The left (data) page's fixed content height: name, line, totals, map. Grows no further for more stamps. */
-const LEFT_CONTENT_H = 1030;
-
-/** How tall the whole picture is for `n` stamps: the book is as tall as the data page needs, or the stamps — whichever is more — plus the fixed header and footer. */
-export function shareHeight(n: number): number {
-  const stampsH = 100 + stampsBlockH(n) + (n > 0 ? 60 : 0);
-  const bookH = Math.max(LEFT_CONTENT_H, stampsH) + COVER_PAD * 2;
-  return Math.max(SHARE_MIN_H, Math.round(HEAD_H + BAND_GAP + bookH + BAND_GAP + FOOT_H));
-}
-
-/** Where each of `n` stamps goes on the right page, in picture coordinates. Every stamp gets a slot. */
+/** Where each of `n` stamps goes on the right page. Every stamp gets a slot. */
 export function stampSlots(n: number): StampSlot[] {
   const count = Math.max(0, n);
   if (count === 0) return [];
   const { cols, rows, size, rowH } = stampGrid(count);
-  const H = shareHeight(count);
-  const bookTop = HEAD_H + BAND_GAP;
-  const bookH = H - HEAD_H - BAND_GAP - BAND_GAP - FOOT_H;
-  const pageX = MARGIN + COVER_PAD + pageW() + 18;      // the spine's far edge: where the right page starts
-  const pageTop = bookTop + COVER_PAD;
+  const page = pageBox(1);
+  const availW = page.w - 48;
+  const cell = availW / cols;
   const block = rowH * (rows - 1) + size;
-  const top = pageTop + (bookH - COVER_PAD * 2 - block) / 2 + size / 2;
-  const avail = pageW() - 32;
-  const cell = avail / cols;
+  // Below the page's own heading, centred in what is left.
+  const fieldTop = page.y + 72;
+  const fieldH = page.y + page.h - 24 - fieldTop;
+  const top = fieldTop + Math.max(0, (fieldH - block) / 2) + size / 2;
   const slots: StampSlot[] = [];
   for (let r = 0; r < rows; r++) {
     const inRow = Math.min(cols, count - r * cols);
-    const left = pageX + 16 + (avail - inRow * cell) / 2 + cell / 2;
+    const left = page.x + 24 + (availW - inRow * cell) / 2 + cell / 2;
     for (let c = 0; c < inRow; c++) {
       // A little offset, fixed by position, so the stamps look pressed by hand rather than set on a grid.
-      const jx = ((r * 3 + c * 5) % 7 - 3) * 3;
-      const jy = ((r * 5 + c * 3) % 5 - 2) * 3;
+      const jitter = Math.min(6, size * 0.04);
+      const jx = ((r * 3 + c * 5) % 7 - 3) * jitter;
+      const jy = ((r * 5 + c * 3) % 5 - 2) * jitter;
       slots.push({ cx: left + c * cell + jx, cy: top + r * rowH + jy, size });
     }
   }
@@ -160,7 +182,7 @@ function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: numb
 /** The biggest size ≤ `max` at which `text` fits `width`, never below `min`. */
 function fitFont(ctx: Ctx, text: string, weight: number, family: string, max: number, min: number, width: number): number {
   let size = max;
-  for (; size > min; size -= 4) {
+  for (; size > min; size -= 2) {
     ctx.font = `${weight} ${size}px ${family}`;
     if (ctx.measureText(text).width <= width) break;
   }
@@ -169,171 +191,210 @@ function fitFont(ctx: Ctx, text: string, weight: number, family: string, max: nu
 
 export function drawPassportShare(ctx: Ctx, input: ShareInput): void {
   const w = input.words;
-  const H = shareHeight(input.stamps.length);
 
-  // The picture's own paper, behind everything — the margin around the book reads as the desk, not a page.
-  ctx.fillStyle = SHARE.paper;
-  ctx.fillRect(0, 0, SHARE_W, H);
+  // The desk the book lies on.
+  ctx.fillStyle = SHARE.desk;
+  ctx.fillRect(0, 0, SHARE_W, SHARE_H);
 
-  /* ── Header: the word on the cover, the number, a rule ──────────────────── */
+  /* ── The cover: cloth, with the foil rule of the real one ───────────────── */
+  const b = bookBox();
+  ctx.save();
+  roundRect(ctx, b.x, b.y, b.w, b.h, 18);
+  ctx.clip();
+  ctx.fillStyle = input.coverColor || SHARE.cover;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+  const sheen = ctx.createLinearGradient(b.x, b.y, b.x + b.w, b.y);
+  sheen.addColorStop(0, 'rgba(255,255,255,0.06)');
+  sheen.addColorStop(0.5, 'rgba(0,0,0,0.16)');
+  sheen.addColorStop(1, 'rgba(255,255,255,0.06)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, b.x, b.y, b.w, b.h, 18);
+  ctx.stroke();
+
+  /* ── The two pages ──────────────────────────────────────────────────────── */
+  const L = pageBox(0);
+  const R = pageBox(1);
+  for (const p of [L, R]) {
+    roundRect(ctx, p.x, p.y, p.w, p.h, 6);
+    ctx.fillStyle = SHARE.paper;
+    ctx.fill();
+  }
+
+  // The spine: a shadowed gutter between the two, so the spread reads as one open book.
+  const gutter = ctx.createLinearGradient(L.x + L.w, 0, R.x, 0);
+  gutter.addColorStop(0, 'rgba(0,0,0,0)');
+  gutter.addColorStop(0.45, 'rgba(0,0,0,0.2)');
+  gutter.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+  gutter.addColorStop(0.55, 'rgba(0,0,0,0.2)');
+  gutter.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gutter;
+  ctx.fillRect(L.x + L.w, L.y, SPINE_W, L.h);
+  // A whisper of shade at the inner edge of each page, as if it curved into the spine.
+  const shadeL = ctx.createLinearGradient(L.x + L.w - 44, 0, L.x + L.w, 0);
+  shadeL.addColorStop(0, 'rgba(0,0,0,0)');
+  shadeL.addColorStop(1, 'rgba(0,0,0,0.09)');
+  ctx.fillStyle = shadeL;
+  ctx.fillRect(L.x + L.w - 44, L.y, 44, L.h);
+  const shadeR = ctx.createLinearGradient(R.x, 0, R.x + 44, 0);
+  shadeR.addColorStop(0, 'rgba(0,0,0,0.09)');
+  shadeR.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = shadeR;
+  ctx.fillRect(R.x, R.y, 44, R.h);
+
+  drawDataPage(ctx, input, L);
+  drawStampsPage(ctx, input, R);
+
+  /* ── Under the book: an invitation, not a link to this passport ─────────── */
+  const footTop = SHARE_H - FOOT_H;
+  const qr = 84;
+  drawQr(ctx, input.url, SHARE_W - MARGIN - qr, footTop + 22, qr, SHARE.ink);
+  let textX = MARGIN;
+  if (input.logo) {
+    ctx.drawImage(input.logo, MARGIN, footTop + 30, 56, 56);
+    textX = MARGIN + 72;
+  }
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = SHARE.ink;
+  ctx.font = `600 28px ${FONT.ui}`;
+  ctx.fillText(w.invite, textX, footTop + 58);
+  ctx.fillStyle = SHARE.inkMuted;
+  ctx.font = `500 22px ${MONO}`;
+  ctx.fillText(input.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), textX, footTop + 90);
+}
+
+/* ── The left page: the data page, with nothing real on it ──────────────────── */
+function drawDataPage(ctx: Ctx, input: ShareInput, p: { x: number; y: number; w: number; h: number }): void {
+  const pad = 34;
+  const w = input.words;
+  const inner = p.w - pad * 2;
+
+  ctx.save();
+  roundRect(ctx, p.x, p.y, p.w, p.h, 6);
+  ctx.clip();
+
+  // Security-print linework, the same faint guilloche the real page carries.
+  ctx.strokeStyle = SHARE.ink;
+  ctx.globalAlpha = 0.07;
+  ctx.lineWidth = 1;
+  const gcx = p.x + p.w * 0.72;
+  const gcy = p.y + p.h * 0.26;
+  for (let i = 0; i < 18; i++) {
+    ctx.save();
+    ctx.translate(gcx, gcy);
+    ctx.rotate((i * Math.PI) / 18);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.w * 0.38, p.w * 0.17, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  /* Head: the word on the cover, and the booklet's own serial. */
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
   ctx.fillStyle = SHARE.ink;
-  ctx.font = `600 32px ${FONT.ui}`;
-  spacing(ctx, 10);
-  ctx.fillText(w.title.toUpperCase(), MARGIN, 58);
+  ctx.font = `600 26px ${FONT.ui}`;
+  spacing(ctx, 8);
+  ctx.fillText(w.title.toUpperCase(), p.x + pad, p.y + pad + 22);
   spacing(ctx, 0);
   ctx.textAlign = 'right';
   ctx.fillStyle = SHARE.inkSoft;
-  ctx.font = `500 24px ${MONO}`;
-  ctx.fillText(`N° ${input.passportNo}`, SHARE_W - MARGIN, 56);
-  line(ctx, MARGIN, 84, SHARE_W - MARGIN, 84, 2, SHARE.rule);
+  ctx.font = `500 20px ${MONO}`;
+  ctx.fillText(`N° ${input.passportNo}`, p.x + p.w - pad, p.y + pad + 21);
+  const headRule = p.y + pad + 38;
+  line(ctx, p.x + pad, headRule, p.x + p.w - pad, headRule, 2, SHARE.ink);
 
-  /* ── The book: a navy cover framing two cream pages either side of a spine ─ */
-  const bookTop = HEAD_H + BAND_GAP;
-  const bookH = H - HEAD_H - BAND_GAP - BAND_GAP - FOOT_H;
-  const bookW = SHARE_W - MARGIN * 2;
-  const bookX = MARGIN;
-
-  ctx.save();
-  roundRect(ctx, bookX, bookTop, bookW, bookH, 22);
-  ctx.clip();
-  ctx.fillStyle = SHARE.cover;
-  ctx.fillRect(bookX, bookTop, bookW, bookH);
-  // A soft sheen, the way the cloth cover catches light near its spine.
-  const sheen = ctx.createLinearGradient(bookX, bookTop, bookX + bookW, bookTop);
-  sheen.addColorStop(0, 'rgba(255,255,255,0.05)');
-  sheen.addColorStop(0.5, 'rgba(0,0,0,0.12)');
-  sheen.addColorStop(1, 'rgba(255,255,255,0.05)');
-  ctx.fillStyle = sheen;
-  ctx.fillRect(bookX, bookTop, bookW, bookH);
-  ctx.restore();
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  /* The portrait frame and the fields beside it. */
+  const photoW = Math.round(inner * 0.27);
+  const photoH = Math.round(photoW * 1.28);
+  const photoX = p.x + pad;
+  const photoY = headRule + 30;
+  const grad = ctx.createLinearGradient(photoX, photoY, photoX + photoW, photoY + photoH);
+  grad.addColorStop(0, SHARE.photoTop);
+  grad.addColorStop(1, SHARE.photoBottom);
+  roundRect(ctx, photoX, photoY, photoW, photoH, 8);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = SHARE.rule;
   ctx.lineWidth = 1.5;
-  roundRect(ctx, bookX, bookTop, bookW, bookH, 22);
+  roundRect(ctx, photoX, photoY, photoW, photoH, 8);
   ctx.stroke();
-
-  const pw = pageW();
-  const leftX = bookX + COVER_PAD;
-  const rightX = leftX + pw + 18;
-  const pageY = bookTop + COVER_PAD;
-  const pageH = bookH - COVER_PAD * 2;
-  const r = 6;
-
-  // Left (data) page.
-  roundRect(ctx, leftX, pageY, pw, pageH, r);
-  ctx.fillStyle = SHARE.paper;
+  // The traveller's initial stands in for the portrait — a shared picture carries no face.
+  const initial = [...input.nickname.trim()][0]?.toUpperCase() ?? '?';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(42, 37, 32, 0.4)';
+  ctx.font = `700 ${Math.round(photoW * 0.52)}px ${FONT.ui}`;
+  ctx.fillText(initial, photoX + photoW / 2, photoY + photoH / 2 + photoW * 0.19);
+  // The small ghost portrait under it, as the real page has.
+  const ghostW = Math.round(photoW * 0.46);
+  const ghostH = Math.round(ghostW * 1.32);
+  const ghostY = photoY + photoH + 14;
+  roundRect(ctx, photoX, ghostY, ghostW, ghostH, 5);
+  ctx.fillStyle = SHARE.photoGhost;
   ctx.fill();
-  // Right (stamps) page.
-  roundRect(ctx, rightX, pageY, pw, pageH, r);
-  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(42, 37, 32, 0.26)';
+  ctx.font = `700 ${Math.round(ghostW * 0.5)}px ${FONT.ui}`;
+  ctx.fillText(initial, photoX + ghostW / 2, ghostY + ghostH / 2 + ghostW * 0.18);
 
-  // The spine: a shadowed gutter between the two pages, so the spread reads as one open book.
-  const spineX = leftX + pw;
-  const spineW = rightX - spineX;
-  const gutter = ctx.createLinearGradient(spineX, 0, rightX, 0);
-  gutter.addColorStop(0, 'rgba(0,0,0,0)');
-  gutter.addColorStop(0.45, 'rgba(0,0,0,0.16)');
-  gutter.addColorStop(0.5, 'rgba(255,255,255,0.1)');
-  gutter.addColorStop(0.55, 'rgba(0,0,0,0.16)');
-  gutter.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = gutter;
-  ctx.fillRect(spineX, pageY, spineW, pageH);
-  // A whisper of shade at the inner edge of each page, as if it curved slightly into the spine.
-  const shadeL = ctx.createLinearGradient(spineX - 34, 0, spineX, 0);
-  shadeL.addColorStop(0, 'rgba(0,0,0,0)');
-  shadeL.addColorStop(1, 'rgba(0,0,0,0.08)');
-  ctx.fillStyle = shadeL;
-  ctx.fillRect(spineX - 34, pageY, 34, pageH);
-  const shadeR = ctx.createLinearGradient(rightX, 0, rightX + 34, 0);
-  shadeR.addColorStop(0, 'rgba(0,0,0,0.08)');
-  shadeR.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = shadeR;
-  ctx.fillRect(rightX, pageY, 34, pageH);
-
-  drawDataPage(ctx, input, leftX, pageY, pw);
-  drawStampsPage(ctx, input, rightX, pageY, pw, pageH);
-
-  /* ── Footer: an invitation, not a link to this passport ─────────────────── */
-  const footTop = H - FOOT_H;
-  line(ctx, MARGIN, footTop, SHARE_W - MARGIN, footTop, 1.5, SHARE.rule);
-  const qr = 92;
-  drawQr(ctx, input.url, SHARE_W - MARGIN - qr, footTop + 24, qr, SHARE.ink);
-  let textX = MARGIN;
-  if (input.logo) {
-    ctx.drawImage(input.logo, MARGIN, footTop + 36, 60, 60);
-    textX = MARGIN + 78;
-  }
-  ctx.textAlign = 'left';
-  ctx.fillStyle = SHARE.ink;
-  ctx.font = `600 29px ${FONT.ui}`;
-  ctx.fillText(w.invite, textX, footTop + 66);
-  ctx.fillStyle = SHARE.inkMuted;
-  ctx.font = `500 23px ${MONO}`;
-  ctx.fillText(input.url.replace(/^https?:\/\//, '').replace(/\/$/, ''), textX, footTop + 100);
-}
-
-/* ── The left page: whose it is, what it adds up to, the dotted world ───────── */
-function drawDataPage(ctx: Ctx, input: ShareInput, x: number, y: number, pw: number): void {
-  const pad = 32;
-  const inner = pw - pad * 2;
-  const w = input.words;
-
-  ctx.textAlign = 'left';
-  ctx.fillStyle = SHARE.ink;
-  const nameSize = fitFont(ctx, input.nickname, 700, FONT.ui, 62, 30, inner);
-  ctx.font = `700 ${nameSize}px ${FONT.ui}`;
-  ctx.fillText(input.nickname, x + pad, y + pad + nameSize * 0.78);
-  const nameBottom = y + pad + nameSize * 0.78 + 16;
-  ctx.fillStyle = SHARE.inkMuted;
-  ctx.font = `500 19px ${MONO}`;
-  ctx.fillText(`${w.issued} ${input.issued}`, x + pad, nameBottom + 24);
-  ctx.fillStyle = SHARE.accent;
-  ctx.font = `600 19px ${MONO}`;
-  ctx.fillText(input.level, x + pad, nameBottom + 50);
-
-  // What it adds up to — a 2×2 grid, since the page is narrower than the old single strip.
-  const statsTop = nameBottom + 86;
-  line(ctx, x + pad, statsTop, x + pw - pad, statsTop, 1.5, SHARE.rule);
-  const cols: Array<[number, string]> = [
-    [input.stats.countries, w.countries], [input.stats.cities, w.cities], [input.stats.nights, w.nights], [input.stats.trips, w.trips],
-  ];
-  const colW = inner / 2;
-  const rowH = 118;
-  cols.forEach(([n, label], i) => {
-    const col = i % 2;
-    const row = Math.floor(i / 2);
-    const cx = x + pad + colW * col + colW / 2;
-    const cy = statsTop + 30 + row * rowH;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = SHARE.ink;
-    ctx.font = `700 52px ${MONO}`;
-    ctx.fillText(n.toLocaleString(), cx, cy + 44);
+  /* The fields: a nickname and what they have earned. Nothing a document would carry. */
+  const fx = photoX + photoW + 30;
+  const fw = p.x + p.w - pad - fx;
+  let fy = photoY + 6;
+  const field = (label: string, value: string, big = false) => {
+    ctx.textAlign = 'left';
     ctx.fillStyle = SHARE.inkMuted;
-    ctx.font = `500 17px ${MONO}`;
+    ctx.font = `500 15px ${MONO}`;
     spacing(ctx, 3);
-    ctx.fillText(label.toUpperCase(), cx, cy + 74);
+    ctx.fillText(label.toUpperCase(), fx, fy);
     spacing(ctx, 0);
-  });
-  line(ctx, x + pad + colW, statsTop + 16, x + pad + colW, statsTop + rowH * 2 - 16, 1.5, SHARE.rule);
-  const mapTop = statsTop + rowH * 2 + 14;
-  line(ctx, x + pad, mapTop, x + pw - pad, mapTop, 1.5, SHARE.rule);
+    ctx.fillStyle = SHARE.ink;
+    if (big) {
+      const size = fitFont(ctx, value, 700, FONT.ui, 46, 24, fw);
+      ctx.font = `700 ${size}px ${FONT.ui}`;
+      ctx.fillText(value, fx, fy + size * 0.82 + 6);
+      fy += size * 0.82 + 40;
+    } else {
+      const size = fitFont(ctx, value, 600, MONO, 23, 15, fw);
+      ctx.font = `600 ${size}px ${MONO}`;
+      ctx.fillText(value, fx, fy + 28);
+      fy += 62;
+    }
+  };
+  field(w.nickname, input.nickname, true);
+  if (input.nationalityLabel) field(w.nationality, input.nationalityLabel.toUpperCase());
+  field(w.level, input.level.toUpperCase());
+  field(w.issued, input.issued);
 
-  // The dotted world, the visited countries lit.
+  /* The dotted world, in whatever room the page has left between the portrait and the totals. The map keeps its
+     own proportions, so it is sized to the smaller of the width and the height on offer — never drawn under the
+     totals. */
+  const mrzTop = p.y + p.h - 64;
+  const statsTop = mrzTop - 86;
+  const mapTop = Math.max(fy + 6, ghostY + ghostH + 22);
+  line(ctx, p.x + pad, mapTop, p.x + p.w - pad, mapTop, 1.5, SHARE.rule);
   ctx.textAlign = 'left';
   ctx.fillStyle = SHARE.inkMuted;
-  ctx.font = `500 17px ${MONO}`;
+  ctx.font = `500 15px ${MONO}`;
   spacing(ctx, 3);
-  ctx.fillText(w.visited.toUpperCase(), x + pad, mapTop + 30);
+  ctx.fillText(w.visited.toUpperCase(), p.x + pad, mapTop + 26);
   spacing(ctx, 0);
   ctx.textAlign = 'right';
   ctx.fillStyle = SHARE.accent;
-  ctx.font = `600 17px ${MONO}`;
-  ctx.fillText(String(input.stats.countries), x + pw - pad, mapTop + 30);
-  const mapW = inner;
-  const cell = mapW / DOT_COLS;
-  const mapX = x + pad;
-  const mapY = mapTop + 48;
+  ctx.font = `600 15px ${MONO}`;
+  ctx.fillText(String(input.stats.countries), p.x + p.w - pad, mapTop + 26);
+
+  const mapAreaTop = mapTop + 40;
+  const mapAreaH = Math.max(40, statsTop - 14 - mapAreaTop);
+  const cell = Math.min(inner / DOT_COLS, mapAreaH / DOT_ROWS);
+  const mapW = cell * DOT_COLS;
+  const mapX = p.x + pad + (inner - mapW) / 2;
+  const mapY = mapAreaTop + (mapAreaH - cell * DOT_ROWS) / 2;
   const cells = dotMapCells(input.isos);
   ctx.fillStyle = SHARE.dot;
   for (const c of cells) {
@@ -349,18 +410,60 @@ function drawDataPage(ctx: Ctx, input: ShareInput, x: number, y: number, pw: num
     ctx.arc(mapX + c.x * cell + cell / 2, mapY + c.y * cell + cell / 2, cell * 0.46, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  /* What it adds up to, in a row above the machine-readable lines. */
+  const cols: Array<[number, string]> = [
+    [input.stats.countries, w.countries], [input.stats.cities, w.cities], [input.stats.nights, w.nights], [input.stats.trips, w.trips],
+  ];
+  line(ctx, p.x + pad, statsTop, p.x + p.w - pad, statsTop, 1.5, SHARE.rule);
+  const colW = inner / cols.length;
+  cols.forEach(([n, label], i) => {
+    const cx = p.x + pad + colW * i + colW / 2;
+    if (i > 0) line(ctx, p.x + pad + colW * i, statsTop + 14, p.x + pad + colW * i, statsTop + 70, 1.5, SHARE.rule);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = SHARE.ink;
+    ctx.font = `700 34px ${MONO}`;
+    ctx.fillText(n.toLocaleString(), cx, statsTop + 48);
+    ctx.fillStyle = SHARE.inkMuted;
+    ctx.font = `500 14px ${MONO}`;
+    spacing(ctx, 2);
+    ctx.fillText(label.toUpperCase(), cx, statsTop + 70);
+    spacing(ctx, 0);
+  });
+
+  /* The machine-readable lines: decoration, built from the nickname and the made-up serial. */
+  ctx.fillStyle = SHARE.mrzBand;
+  ctx.fillRect(p.x, mrzTop, p.w, p.y + p.h - mrzTop);
+  line(ctx, p.x, mrzTop, p.x + p.w, mrzTop, 1.5, SHARE.rule);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = SHARE.inkSoft;
+  const mrzSize = Math.min(19, Math.floor((inner / 44) * 1.72));
+  ctx.font = `500 ${mrzSize}px ${MONO}`;
+  ctx.fillText(input.mrz[0], p.x + pad, mrzTop + 26);
+  ctx.fillText(input.mrz[1], p.x + pad, mrzTop + 50);
+
+  ctx.restore();
 }
 
 /* ── The right page: the stamps, pressed on the paper ────────────────────────── */
-function drawStampsPage(ctx: Ctx, input: ShareInput, x: number, y: number, pw: number, ph: number): void {
-  const pad = 20;
+function drawStampsPage(ctx: Ctx, input: ShareInput, p: { x: number; y: number; w: number; h: number }): void {
+  const pad = 26;
+  ctx.save();
+  roundRect(ctx, p.x, p.y, p.w, p.h, 6);
+  ctx.clip();
+
+  ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
   ctx.fillStyle = SHARE.inkMuted;
-  ctx.font = `500 17px ${MONO}`;
+  ctx.font = `500 15px ${MONO}`;
   spacing(ctx, 3);
-  ctx.fillText('STAMPS', x + pad, y + pad + 16);
+  ctx.fillText(input.words.stamps.toUpperCase(), p.x + pad, p.y + pad + 20);
   spacing(ctx, 0);
-  line(ctx, x + pad, y + pad + 30, x + pw - pad, y + pad + 30, 1.5, SHARE.rule);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = SHARE.accent;
+  ctx.font = `600 15px ${MONO}`;
+  ctx.fillText(String(input.stamps.length), p.x + p.w - pad, p.y + pad + 20);
+  line(ctx, p.x + pad, p.y + pad + 34, p.x + p.w - pad, p.y + pad + 34, 1.5, SHARE.rule);
 
   const slots = stampSlots(input.stamps.length);
   input.stamps.slice(0, slots.length).forEach((s, i) => {
@@ -378,7 +481,8 @@ function drawStampsPage(ctx: Ctx, input: ShareInput, x: number, y: number, pw: n
   if (input.words.more) {
     ctx.textAlign = 'right';
     ctx.fillStyle = SHARE.inkMuted;
-    ctx.font = '600 28px Caveat, "DM Sans", cursive';
-    ctx.fillText(input.words.more, x + pw - pad, y + ph - pad);
+    ctx.font = '600 26px Caveat, "DM Sans", cursive';
+    ctx.fillText(input.words.more, p.x + p.w - pad, p.y + p.h - pad);
   }
+  ctx.restore();
 }
