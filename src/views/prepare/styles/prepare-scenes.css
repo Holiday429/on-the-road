@@ -10,22 +10,13 @@
 /* ── Scene frame (same size in both panels, whatever they hold) ──────────── */
 .prep-scene { position: relative; height: clamp(360px, 50vh, 440px); box-sizing: border-box; border: 1px solid var(--rule); border-radius: var(--r-xl); overflow: hidden; }
 .prep-scene-cta {
-  position: absolute; left: 50%; bottom: var(--sp-3); z-index: 3; transform: translate(-50%, 6px);
-  padding: 4px var(--sp-3); border-radius: var(--r-full); background: var(--ink); color: var(--surface);
-  box-shadow: var(--shadow-md); font-size: var(--fs-xs); white-space: nowrap; opacity: 0; pointer-events: none;
+  margin-top: var(--sp-2); text-align: center; font-size: var(--fs-sm); color: var(--ink-muted);
+  opacity: 0; transform: translateY(-4px); pointer-events: none;
   transition: opacity var(--dur-fast), transform var(--dur-fast) var(--ease-out);
 }
-.prep-clip:hover .prep-scene-cta, .prep-clip:focus-visible .prep-scene-cta,
-.prep-floor:hover .prep-scene-cta, .prep-floor:focus-visible .prep-scene-cta { opacity: 1; transform: translate(-50%, 0); }
+.prep-scene:hover + .prep-scene-cta, .prep-scene:focus-within + .prep-scene-cta { opacity: 1; transform: none; }
 /* A line of explanation drawn on the object itself (empty states). */
 .prep-scene-hint { padding: var(--sp-2) 0; text-align: center; font-size: var(--fs-sm); color: var(--ink-faint); }
-
-/* The list's name, where the switcher would be (a panel with one list). */
-.prep-scene-label {
-  position: absolute; top: var(--sp-3); left: var(--sp-3); z-index: 4; max-width: calc(100% - var(--sp-6)); padding: 4px var(--sp-3);
-  border: 1px solid var(--rule); border-radius: var(--r-full); background: var(--surface); box-shadow: var(--shadow-sm);
-  font-size: var(--fs-xs); font-weight: var(--fw-semibold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
 
 /* ── Switcher: how a panel moves between its lists ───────────────────────── */
 .prep-switch {
@@ -78,15 +69,15 @@
    are, so the panel matches the Checklist's whatever the list holds. */
 .prep-scene--pk {
   display: grid; grid-template-rows: 1fr auto; padding: 0;
-  background: var(--surface-2);
+  background: var(--surface-3);
 }
 .prep-floor {
   position: relative; min-width: 0; min-height: 0;
-  display: flex; align-items: flex-end; justify-content: center; gap: var(--sp-4);
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-4);
   padding: var(--sp-6) var(--sp-5) var(--sp-4); cursor: pointer;
 }
 /* The bags themselves take the floor's height, so a short list still fills it. */
-.prep-floor .prep-bag-art { display: flex; align-items: flex-end; justify-content: center; }
+.prep-floor .prep-bag-art { display: flex; align-items: center; justify-content: center; }
 .prep-floor .prep-bag-art .lg-bag { max-height: 100%; }
 .prep-floor:focus-visible { outline: 2px solid var(--select-bg); outline-offset: -3px; border-radius: var(--r-md); }
 .prep-bag-art { width: 100%; }
@@ -98,10 +89,10 @@
 .prep-bag-kg.is-over { color: var(--coral-500); border-color: var(--coral-400); }
 .prep-bag--ghost { flex-basis: 108px; opacity: .35; }
 
-/* The shelf: the scale, centred, with its invitation beside it. */
+/* The shelf: the scale, centred, with room beneath it. */
 .prep-shelf {
   display: flex; align-items: center; justify-content: center; gap: var(--sp-4);
-  padding: var(--sp-2) var(--sp-5) var(--sp-3);
+  padding: var(--sp-2) var(--sp-5) var(--sp-8);
 }
 .prep-scale-obj { flex: none; width: 190px; padding: 0; border: 0; background: transparent; cursor: pointer; transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1); }
 .prep-scale-obj:hover { transform: translateY(-4px); }
@@ -138,7 +129,7 @@
 
 /* Luggage tag: "+N more bags". */
 .prep-bag-tag {
-  align-self: flex-end; margin-bottom: 42px; position: relative; flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px 8px 22px;
+  align-self: center; position: relative; flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 12px 8px 22px;
   border: 1px solid var(--rule); border-radius: 4px 10px 10px 4px; background: var(--paper-grain), var(--amber-50);
   box-shadow: var(--shadow-sm); transform: rotate(-4deg); font-family: var(--font-data); font-weight: var(--fw-semibold); color: var(--ink-soft);
 }

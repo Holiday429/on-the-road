@@ -52,7 +52,7 @@
 
 /* Every bag gets the same slot — wide enough for the biggest (a large duffel, 124px) — and sits centred in
    it, so the frames line up whatever the bags' sizes. */
-.pkd-bag-art { flex: none; width: 124px; display: flex; justify-content: center; cursor: grab; touch-action: none; user-select: none; transition: transform var(--dur-fast) var(--ease-out); }
+.pkd-bag-art { flex: none; width: 124px; align-self: stretch; display: flex; justify-content: center; align-items: center; cursor: grab; touch-action: none; user-select: none; transition: transform var(--dur-fast) var(--ease-out); }
 .pkd-bag-art:hover { transform: translateY(-3px) rotate(-1deg); }
 .pkd-bag-art:active { cursor: grabbing; }
 .pkd-bag-art:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 4px; border-radius: var(--r-md); }
