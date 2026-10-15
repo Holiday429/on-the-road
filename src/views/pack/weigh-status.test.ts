@@ -3,7 +3,7 @@ import { ago, makeSlip, mergeRecord, slipCode, weighStatus } from './weigh-statu
 import type { BagWeighIn } from './weigh-in.ts';
 
 const bag = (id: string, weightG: number, limitG = 7000): BagWeighIn => ({
-  id, label: id, kind: 'suitcase', weightG, limitG,
+  id, label: id, kind: 'suitcase', tone: 0, size: 'M', weightG, limitG,
   verdict: !limitG ? 'nolimit' : weightG > limitG ? 'over' : 'pass', diffG: limitG ? limitG - weightG : 0,
 });
 

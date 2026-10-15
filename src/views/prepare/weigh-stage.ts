@@ -18,7 +18,7 @@ import '../../core/paper/luggage.css';
 import './styles/weigh-stage.css';
 import { t } from '../../core/i18n.ts';
 import { escHtml } from '../../core/utils.ts';
-import { renderBag, renderScale, bagTone, bagWidth } from '../../core/paper/luggage.ts';
+import { renderBag, renderScale, bagWidth } from '../../core/paper/luggage.ts';
 import type { BagWeighIn, Verdict } from '../pack/weigh-in.ts';
 
 /** Timings (ms) and easings — shared with the iOS port. */
@@ -156,10 +156,10 @@ export function createWeighStage(opts: StageOptions): WeighStage {
 
   function showBag(row: BagWeighIn): void {
     const pct = row.limitG > 0 ? Math.min(100, (row.weightG / row.limitG) * 100) : 55;
-    const w = Math.round(bagWidth(row.kind, true) * 0.9);
+    const w = Math.round(bagWidth(row.kind, true, row.size) * 0.9);
     bagEl.style.width = `${w}px`;
     // eslint-disable-next-line no-restricted-syntax -- audited: renderBag escapes its uid
-    bagEl.innerHTML = renderBag(row.kind, { loadPct: pct, over: row.verdict === 'over', uid: `st-${row.id}`, tone: bagTone(row.id) });
+    bagEl.innerHTML = renderBag(row.kind, { loadPct: pct, over: row.verdict === 'over', uid: `st-${row.id}`, tone: row.tone });
     bagEl.style.opacity = '1';
     nameEl.textContent = row.label;
     const cap = ledCap();
