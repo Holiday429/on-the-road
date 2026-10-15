@@ -11,7 +11,7 @@
 import type { PassportStamp } from './passport.ts';
 import type { FootprintLeg } from './footprint.ts';
 import { legIso } from './footprint.ts';
-import { buildCountryExtras, type CityPhoto, type EntryLine, type ExtrasData, type JournalPhoto, type SpendLine } from '../views/atlas/country-extras.ts';
+import { buildCountryExtras, type CityPhoto, type EntryLine, type ExtrasData, type JournalPhoto, type SpendCategoryLine, type SpendLine } from '../views/atlas/country-extras.ts';
 import type { PlottedLeg } from '../views/map/map-stats.ts';
 
 /** The picture at the head of a stamp's memory card, and where in it the crop is centred (0 top – 1 bottom). */
@@ -35,6 +35,8 @@ export interface CountryMemory {
   covers: string[];
   /** Spend on this trip in this country, in the trip's own currency (never mixed across currencies). */
   spend: SpendLine[];
+  /** This trip's spend in this country, broken down by category — the receipt's line items. */
+  spendByCategory: SpendCategoryLine[];
 }
 
 /** Legs as the Map's per-country rules want them (no coordinates needed for matching). */
@@ -77,5 +79,6 @@ export function countryMemory(
     photos: fromJournal ? extras.photos.slice(1) : extras.photos,
     covers: extras.covers,
     spend: extras.spend.filter((l) => l.tripId === (stamp.tripId === '_' ? '' : stamp.tripId)),
+    spendByCategory: extras.spendByCategory.filter((l) => l.tripId === (stamp.tripId === '_' ? '' : stamp.tripId)),
   };
 }

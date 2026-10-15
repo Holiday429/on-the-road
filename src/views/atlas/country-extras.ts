@@ -16,7 +16,7 @@ import { isoForCountry } from '../../data/geo-index.ts';
 import type { PlottedLeg } from '../map/map-stats.ts';
 
 export interface JournalRow { destination?: string; happenedOn: string; tripId?: string | null; images?: string[]; coverImage?: string; title?: string; body?: string }
-export interface ExpenseRow { country?: string; baseAmount?: number; baseCurrency?: string; tripId?: string | null }
+export interface ExpenseRow { country?: string; baseAmount?: number; baseCurrency?: string; tripId?: string | null; category?: string; description?: string }
 export interface NomadRow { country?: string }
 export interface IntelRow {
   country?: string;
@@ -31,6 +31,9 @@ export interface ExtrasData {
 }
 
 export interface SpendLine { tripId: string; currency: string; total: number; count: number }
+
+/** Spend on one category, within one trip and currency — the receipt's own line items. */
+export interface SpendCategoryLine { tripId: string; currency: string; category: string; total: number; count: number }
 
 /** One journal entry as a line: its title (or the start of its text), the day and a short excerpt. */
 export interface EntryLine { title: string; date: string; excerpt: string }
@@ -52,6 +55,8 @@ export interface CountryExtras {
   /** Up to three of the newest photos from this country's entries. */
   covers: string[];
   spend: SpendLine[];
+  /** Spend broken down by category (Stay, Food, …), within each trip and currency — the receipt's line items. */
+  spendByCategory: SpendCategoryLine[];
   /** One figure for the whole country, only when every line shares a currency. */
   spendTotal: { currency: string; total: number } | null;
   nomadCount: number;
@@ -144,6 +149,7 @@ export function buildCountryExtras(iso: string, legs: PlottedLeg[], data: Extras
   }
 
   const lines = new Map<string, SpendLine>();
+  const catLines = new Map<string, SpendCategoryLine>();
   for (const x of data.expenses) {
     if (!x.country || isoForCountry(x.country) !== iso) continue;
     const currency = x.baseCurrency || '';
@@ -153,8 +159,16 @@ export function buildCountryExtras(iso: string, legs: PlottedLeg[], data: Extras
     line.total += x.baseAmount || 0;
     line.count += 1;
     lines.set(key, line);
+
+    const category = x.category || '';
+    const ckey = `${key}|${category}`;
+    const cline = catLines.get(ckey) ?? { tripId, currency, category, total: 0, count: 0 };
+    cline.total += x.baseAmount || 0;
+    cline.count += 1;
+    catLines.set(ckey, cline);
   }
   const spend = [...lines.values()];
+  const spendByCategory = [...catLines.values()];
   const currencies = new Set(spend.map((l) => l.currency));
   const spendTotal = spend.length && currencies.size === 1
     ? { currency: spend[0].currency, total: spend.reduce((n, l) => n + l.total, 0) }
@@ -168,6 +182,7 @@ export function buildCountryExtras(iso: string, legs: PlottedLeg[], data: Extras
     photos: all,
     covers,
     spend,
+    spendByCategory,
     spendTotal,
     nomadCount: data.nomad.filter((n) => n.country && isoForCountry(n.country) === iso).length,
     guideCount: data.intel

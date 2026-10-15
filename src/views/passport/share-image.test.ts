@@ -22,6 +22,7 @@ function fakeCtx(): { ctx: CanvasRenderingContext2D; rec: Rec } {
         case 'fillText': return (text: string) => { rec.texts.push(text); };
         case 'drawImage': return () => { rec.images += 1; if (state.globalCompositeOperation === 'multiply') rec.multiplied += 1; };
         case 'arc': return () => { rec.arcs += 1; };
+        case 'createLinearGradient': return () => ({ addColorStop: () => {} });
         default: return () => {};
       }
     },
@@ -59,16 +60,16 @@ describe('stampSlots', () => {
     }
   });
 
-  it('a lone stamp sits in the middle; a second row sits below the first', () => {
+  it('a lone stamp sits on the stamps page (the right half of the book), well clear of the data page', () => {
     const [one] = stampSlots(1);
-    expect(Math.abs(one.cx - SHARE_W / 2)).toBeLessThan(12);
+    expect(one.cx).toBeGreaterThan(SHARE_W / 2);
     const two = stampSlots(8);
-    expect(two[4].cy).toBeGreaterThan(two[0].cy + 100);
+    expect(two[4].cy).toBeGreaterThan(two[0].cy + 60);
   });
 
-  it('many stamps go into a wider grid, so they stay a usable size', () => {
+  it('many stamps go into a wider grid, so they stay a legible size even on one page', () => {
     expect(stampGrid(8).cols).toBeLessThan(stampGrid(40).cols);
-    expect(stampGrid(40).size).toBeGreaterThan(100);
+    expect(stampGrid(40).size).toBeGreaterThan(60);
   });
 });
 

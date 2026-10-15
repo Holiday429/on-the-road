@@ -9,8 +9,14 @@
    ========================================================================== */
 
 /* The view is the desk plus the bar under it, and together they fill what is left of the window: the book takes
-   every pixel the bar does not need, so there is no dead space under the controls. */
-.pp-body { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); min-height: calc(100dvh - var(--pp-chrome, 150px)); padding-bottom: var(--sp-3); }
+   every pixel the bar does not need, so there is no dead space under the controls. Both bounds are set (not just
+   min-height) so a stale --pp-room from before a resize settles can never push the controls off the bottom of
+   the window — the body simply cannot grow past what is actually on screen. */
+.pp-body {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);
+  min-height: calc(100dvh - var(--pp-chrome, 150px)); max-height: calc(100dvh - var(--pp-chrome, 150px));
+  padding-bottom: var(--sp-3); overflow: hidden;
+}
 
 /* ── Desk ─────────────────────────────────────────────────────────────────
    No table top, no frame: the book sits on the page itself, and its own drop

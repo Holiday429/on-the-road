@@ -4,8 +4,10 @@
    Tap a stamp and a memory card slides in from the right while the book moves
    over to make room: a picture of the place across the top (the itinerary's cover
    for the stop, else a journal photo, else the country's colour and flag), the
-   stamp large, a receipt for the stay (cities, nights, what was spent), the
-   journal's photos taped down as polaroids. Nothing more: it is a card to glance
+   stamp large, a receipt for the stay (cities, nights, what was spent — one
+   line per category, Stay / Food / …, the same words and icons the Expenses
+   page's own till slip uses), the journal's photos taped down as polaroids.
+   Nothing more: it is a card to glance
    at, not a page to scroll. It holds only what the passport knows — nothing here leads
    away from the book. Previous / next walk through the pressed stamps without
    closing it. All numbers come from data/country-memory.ts.
@@ -18,6 +20,7 @@ import { renderStamp } from '../../core/paper/stamp.ts';
 import { stampDate } from '../../core/paper/stamp-base.ts';
 import { paperReceipt, type PaperRow } from '../../core/paper/paper.ts';
 import { currencySymbol } from '../../data/rates.ts';
+import { BUILTIN_CATEGORIES } from '../expenses/expense-defaults.ts';
 import { nationalityFlag } from '../../data/nationalities.ts';
 import type { CountryMemory } from '../../data/country-memory.ts';
 
@@ -72,12 +75,38 @@ function heroArt(m: CountryMemory): string {
   return `<div class="pp-hero-fallback" aria-hidden="true"><span>${esc(nationalityFlag(m.stamp.iso))}</span></div>`;
 }
 
+/** A category's icon and label, the way the Expenses page's own till slip shows it (same list, same words). */
+function categoryLine(id: string): { icon: string; label: string } {
+  const known = BUILTIN_CATEGORIES.find((c) => c.id === id);
+  return known ?? { icon: '🏷️', label: t('passport.card.otherSpend') };
+}
+
 function receipt(m: CountryMemory, locale: string): string {
   const rows: PaperRow[] = [];
   // A long list of cities wraps onto its own lines; a price never does, so only this row is let loose.
   if (m.trip.cities.length) rows.push({ label: t('passport.card.cities'), value: m.trip.cities.join(' · '), className: 'pp-row-wrap' });
   rows.push({ label: t('passport.card.nights'), value: String(m.trip.nights) });
   if (m.total.trips > 1) rows.push({ label: t('passport.card.total'), value: t('passport.card.totalValue', { n: m.total.nights, k: m.total.trips }) });
+
+  // One currency reads as a till slip — a line per category, biggest first; several currencies fall back to
+  // one line per currency, the way the card did before categories, since mixed amounts are never added together.
+  const currencies = new Set(m.spendByCategory.map((l) => l.currency));
+  if (m.spendByCategory.length && currencies.size === 1) {
+    const [currency] = currencies;
+    const byCat = [...m.spendByCategory].sort((a, b) => b.total - a.total);
+    for (const l of byCat) {
+      const { icon, label } = categoryLine(l.category);
+      rows.push({ label, icon, value: money(l.currency, l.total, locale) });
+    }
+    const total = byCat.reduce((n, l) => n + l.total, 0);
+    return paperReceipt({
+      title: t('passport.card.stub'),
+      rows,
+      total: { label: t('passport.card.spent'), value: money(currency, total, locale) },
+      zigzag: true,
+      className: 'pp-card-receipt',
+    });
+  }
   // One currency reads as the receipt's total; several are never added together.
   const one = m.spend.length === 1 ? m.spend[0] : null;
   if (!one) for (const l of m.spend) rows.push({ label: t('passport.card.spent'), value: money(l.currency, l.total, locale) });

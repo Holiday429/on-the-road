@@ -39,9 +39,9 @@ describe('buildCountryExtras', () => {
       { destination: 'Berlin', happenedOn: '2026-06-06', images: ['x'] },
     ],
     expenses: [
-      { country: 'Denmark', baseAmount: 100, baseCurrency: 'EUR', tripId: 'a' },
-      { country: 'Denmark', baseAmount: 50, baseCurrency: 'EUR', tripId: 'a' },
-      { country: 'Denmark', baseAmount: 900, baseCurrency: 'CNY', tripId: 'b' },
+      { country: 'Denmark', baseAmount: 100, baseCurrency: 'EUR', tripId: 'a', category: 'food' },
+      { country: 'Denmark', baseAmount: 50, baseCurrency: 'EUR', tripId: 'a', category: 'food' },
+      { country: 'Denmark', baseAmount: 900, baseCurrency: 'CNY', tripId: 'b', category: 'accommodation' },
       { country: 'Germany', baseAmount: 7, baseCurrency: 'EUR', tripId: 'a' },
       { country: 'Narnia', baseAmount: 1, baseCurrency: 'EUR', tripId: 'a' },
     ],
@@ -63,6 +63,17 @@ describe('buildCountryExtras', () => {
       { tripId: 'b', currency: 'CNY', total: 900, count: 1 },
     ]);
   });
+  it('also sums spend by category, within each trip and currency — the receipt\'s own line items', () => {
+    expect(dk.spendByCategory).toEqual([
+      { tripId: 'a', currency: 'EUR', category: 'food', total: 150, count: 2 },
+      { tripId: 'b', currency: 'CNY', category: 'accommodation', total: 900, count: 1 },
+    ]);
+  });
+  it('an expense with no category sums under the empty-string category', () => {
+    expect(buildCountryExtras('DE', legs, data).spendByCategory).toEqual([
+      { tripId: 'a', currency: 'EUR', category: '', total: 7, count: 1 },
+    ]);
+  });
   it('never adds different currencies: no grand total when they differ', () => {
     expect(dk.spendTotal).toBeNull();
   });
@@ -75,7 +86,7 @@ describe('buildCountryExtras', () => {
     expect(dk.guideCount).toBe(5);
   });
   it('is all zeros for a country with nothing recorded', () => {
-    expect(buildCountryExtras('JP', legs, empty)).toEqual({ journalCount: 0, entries: [], cityPhotos: [], photos: [], covers: [], spend: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
+    expect(buildCountryExtras('JP', legs, empty)).toEqual({ journalCount: 0, entries: [], cityPhotos: [], photos: [], covers: [], spend: [], spendByCategory: [], spendTotal: null, nomadCount: 0, guideCount: 0 });
   });
 });
 

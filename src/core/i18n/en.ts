@@ -666,6 +666,7 @@ export const en: StringTable = {
   'passport.card.total': 'All trips',
   'passport.card.totalValue': '{n} nights over {k} trips',
   'passport.card.spent': 'Spent',
+  'passport.card.otherSpend': 'Other',
   'passport.deletedTrip': 'trip deleted',
   'passport.edit.title': 'Your passport page',
   'passport.edit.open': 'Edit',

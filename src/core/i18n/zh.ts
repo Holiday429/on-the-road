@@ -659,6 +659,7 @@ export const zh: StringTable = {
   'passport.card.total': '历次合计',
   'passport.card.totalValue': '{k} 次旅程共 {n} 晚',
   'passport.card.spent': '花费',
+  'passport.card.otherSpend': '其他',
   'passport.deletedTrip': '行程已删除',
   'passport.edit.title': '编辑护照资料页',
   'passport.edit.open': '编辑',
