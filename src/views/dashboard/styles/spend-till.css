@@ -1,0 +1,166 @@
+/* ==========================================================================
+   On the Road · Dashboard — Spend widget as the Expenses till
+   --------------------------------------------------------------------------
+   The same machine as the Expenses page (expenses/styles/machine.css), small: one screen —
+   a reflective LCD in light mode, a glowing green VFD in dark — holding the day's status bar,
+   the last item scanned, the trip total against its budget, the category soft keys and the
+   amount; the note and SCAN sit on the body beneath. Colours come from site tokens, figures
+   are --font-data. Markup: renderSpendWidget in dashboard.ts.
+   ========================================================================== */
+
+.td-till {
+  /* screen: LCD */
+  --scr-bg: color-mix(in srgb, var(--sage-400) 22%, var(--amber-100));
+  --scr-ink: #1f2a22;
+  --scr-dim: color-mix(in srgb, var(--scr-ink) 55%, transparent);
+  --scr-line: color-mix(in srgb, var(--scr-ink) 24%, transparent);
+  --scr-ring: color-mix(in srgb, var(--surface-4) 78%, #000);
+  --scr-err: #8a2f38;
+  --scr-glow: none;
+  --ck-hi: rgba(255,255,255,.75);
+  display: flex; flex-direction: column; gap: var(--sp-2); flex: 1 1 auto; min-height: 0;
+}
+:root[data-theme='dark'] .td-till {
+  /* screen: VFD */
+  --scr-bg: #0f1512;
+  --scr-ink: var(--scale-led-ok);
+  --scr-dim: color-mix(in srgb, var(--scale-led-ok) 55%, transparent);
+  --scr-line: color-mix(in srgb, var(--scale-led-ok) 24%, transparent);
+  --scr-ring: #080a09;
+  --scr-err: var(--scale-led-over);
+  --scr-glow: 0 0 6px color-mix(in srgb, var(--scale-led-ok) 45%, transparent);
+  --ck-hi: rgba(255,255,255,.07);
+}
+
+/* ── The screen ──────────────────────────────────────────────────────────── */
+.td-lcd {
+  position: relative; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-between; gap: 4px;
+  margin: 4px 4px 1px; padding: 6px 11px 7px; border-radius: 9px;
+  color: var(--scr-ink); font-family: var(--font-data);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--scr-bg) 92%, #fff), var(--scr-bg) 40%, color-mix(in srgb, var(--scr-bg) 90%, #000));
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.26), inset 0 0 0 1px rgba(0,0,0,.2),
+              0 0 0 4px var(--scr-ring), 0 0 0 5px rgba(0,0,0,.22), 0 1px 0 5px var(--ck-hi), 0 6px 10px -5px rgba(36,33,29,.45);
+}
+.td-lcd::after {   /* glass: a diagonal sheen over the LCD, scanlines on the VFD */
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(115deg, rgba(255,255,255,.12) 0 24%, transparent 24.4%);
+}
+:root[data-theme='dark'] .td-lcd::after { background: repeating-linear-gradient(180deg, rgba(0,0,0,.30) 0 1px, transparent 1px 3px); opacity: .6; }
+.td-lcd :is(span, b, button, input) { text-shadow: var(--scr-glow); }
+
+/* status bar: day · items … today's spend */
+.td-lcd-status { display: flex; align-items: baseline; gap: 2px var(--sp-3); padding-right: 12px; font-size: 10px; letter-spacing: .1em; white-space: nowrap; }
+.td-lcd-status b { font-weight: 500; }
+.td-lcd-today { margin-left: auto; font-size: 17px; font-weight: 700; letter-spacing: .01em; }
+.td-lcd-led { position: absolute; right: 8px; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--scr-line); box-shadow: inset 0 0 2px rgba(0,0,0,.5); }
+
+/* the scan line: the last thing scanned (or the greeting) */
+.td-lcd-scan {
+  display: flex; align-items: center; min-width: 0; height: 20px; font-size: 12px; font-weight: 500; letter-spacing: .05em; white-space: nowrap;
+  border-top: 1px dashed var(--scr-line); border-bottom: 1px dashed var(--scr-line);
+}
+.td-lcd-last { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.td-lcd-caret { animation: td-lcd-blink .9s steps(1) infinite; }
+@keyframes td-lcd-blink { 50% { opacity: 0; } }
+
+/* trip total · budget bar (LED segments) · what's left */
+.td-lcd-tot { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; flex-wrap: wrap; }
+.td-spend-total { display: inline-flex; align-items: baseline; gap: 6px; flex: none; padding: 0; background: none; color: inherit; text-align: left; cursor: pointer; border-radius: 4px; }
+.td-spend-total:hover { filter: brightness(1.15); }
+.td-spend-total:focus-visible { outline: 2px solid var(--scr-ink); outline-offset: 3px; }
+.td-lcd-cap { font-size: 9px; letter-spacing: .16em; color: var(--scr-dim); }
+.td-spend-big { font-size: 21px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; color: inherit; }
+.td-lcd-budget { flex: 1 1 110px; min-width: 0; display: flex; align-items: center; gap: var(--sp-2); }
+.td-lcd-bar {
+  flex: 1; height: 7px; min-width: 24px; background: color-mix(in srgb, var(--scr-ink) 14%, transparent); border-radius: 1px;
+  -webkit-mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 7px); mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 7px);
+}
+.td-lcd-bar > span { display: block; height: 100%; background: var(--scr-ink); transition: width var(--dur-slow) var(--ease-out); }
+.td-lcd-left { flex: none; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.td-lcd-budget.is-over { color: var(--scr-err); }
+.td-lcd-budget.is-over .td-lcd-bar > span { background: var(--scr-err); }
+.td-lcd-budget.is-warn .td-lcd-left { font-weight: 700; }
+.td-lcd-country { flex: 0 0 100%; display: flex; justify-content: space-between; gap: var(--sp-2); font-size: 9.5px; letter-spacing: .06em; color: var(--scr-dim); }
+.td-lcd-country.is-over { color: var(--scr-err); }
+
+/* ── Soft keys: every category, one row ──────────────────────────────────── */
+.td-keys { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 1px; }
+.td-key {
+  --tile: color-mix(in srgb, var(--kc, var(--scr-bg)) 62%, var(--scr-bg));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; height: 30px;
+  padding: 2px 2px 1px; border-radius: 6px; cursor: pointer; font: inherit; color: var(--scr-ink);
+  background: var(--tile); border: 1px solid var(--scr-line); border-bottom: 3px solid color-mix(in srgb, var(--kc, var(--scr-line)) 100%, #000 22%);
+  transition: transform .06s, background .1s, box-shadow .1s;
+}
+.td-key:hover { transform: translateY(-1px); }
+.td-key:active { transform: translateY(1px); }
+.td-key:focus-visible { outline: 2px solid var(--amber-400); outline-offset: 2px; }
+.td-key-emoji { font-size: 14px; line-height: 1; text-shadow: none; }
+.td-key-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: 7.5px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; line-height: 1.1; }
+/* Chosen: the key's own colour at full strength with a ring — never a dark fill on the light LCD. */
+.td-key.is-on {
+  background: color-mix(in srgb, var(--kc, var(--scr-ink)) 100%, var(--scr-bg));
+  border-color: color-mix(in srgb, var(--kc, var(--scr-ink)) 55%, var(--scr-ink));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--kc, var(--scr-ink)) 55%, var(--scr-ink));
+  transform: translateY(1px); border-bottom-width: 1px;
+}
+.td-key.is-on .td-key-label { font-weight: 700; }
+:root[data-theme='dark'] .td-key.is-on { background: var(--scr-ink); color: var(--scr-bg); text-shadow: none; border-color: var(--scr-ink); box-shadow: none; }
+
+/* ── Amount: converter chip on the left, currency + amount on the right ──── */
+.td-lcd-amt { position: relative; display: flex; align-items: center; gap: var(--sp-2); padding-top: 5px; border-top: 1px dashed var(--scr-line); }
+.td-lcd-amt:focus-within { box-shadow: 0 1px 0 var(--scr-ink); }
+.td-rate-anchor { flex: 1 1 0; min-width: 0; }
+.td-rate-line {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 2px 5px; border-radius: 4px; cursor: pointer;
+  background: none; border: 1px solid transparent; color: var(--scr-dim); font: inherit; font-size: 9.5px; letter-spacing: .04em; text-align: left;
+  transition: border-color var(--dur-fast), color var(--dur-fast);
+}
+.td-rate-line:hover, .td-rate-line.is-open { border-color: var(--scr-line); color: var(--scr-ink); }
+.td-rate-line:focus-visible { outline: 2px solid var(--scr-ink); outline-offset: 1px; }
+.td-rate-ico { flex: none; font-size: 11px; line-height: 1; }
+.td-rate-eq { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-rate-line strong { color: var(--scr-ink); font-weight: 700; }
+.td-rate-line em { font-style: normal; }
+.td-rate-flag { text-shadow: none; }
+.td-rate-cta { flex: none; display: inline-flex; align-items: center; gap: 2px; text-transform: uppercase; }
+.td-rate-cta-t { display: none; }   /* the caret says it opens; the tooltip says what */
+.td-rate-caret { font-size: 1.1em; line-height: 1; transition: transform var(--dur-fast); }
+.td-rate-line.is-open .td-rate-caret { transform: rotate(180deg); }
+/* the converter drops over the body, as its own light card — not in screen colours */
+.td-rate-pop { top: calc(100% + 10px); color: var(--ink); text-shadow: none; font-family: var(--font-ui); letter-spacing: normal; }
+.td-rate-pop * { text-shadow: none; }
+.td-quickadd-cur {
+  position: relative; flex: none; display: inline-flex; align-items: baseline; gap: 2px; cursor: pointer; font-size: 16px; color: var(--scr-dim);
+  border-radius: 4px; padding: 0 2px; transition: color var(--dur-fast);
+}
+.td-quickadd-cur:hover, .td-quickadd-cur:focus-within { color: var(--scr-ink); }
+.td-quickadd-sym { pointer-events: none; user-select: none; }
+.td-quickadd-curpick { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.td-quickadd-amt {
+  flex: 0 1 46%; width: 0; min-width: 70px; padding: 0; border: 0; outline: 0; background: transparent; text-align: right;
+  font-family: var(--font-data); font-size: 22px; font-weight: 700; line-height: 1.1; color: var(--scr-ink); text-shadow: var(--scr-glow); -moz-appearance: textfield;
+}
+.td-quickadd-amt::-webkit-inner-spin-button, .td-quickadd-amt::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.td-quickadd-amt::placeholder { color: var(--scr-ink); opacity: .22; }
+
+/* ── On the body: the note and SCAN ──────────────────────────────────────── */
+.td-till-body { display: flex; align-items: center; gap: var(--sp-2); }
+.td-quickadd-desc {
+  flex: 1 1 0; min-width: 0; box-sizing: border-box; height: 32px; padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--r-md); outline: none; color: var(--ink);
+  background: color-mix(in srgb, var(--surface) 88%, var(--surface-3)); box-shadow: inset 0 1px 3px rgba(36,33,29,.16), 0 1px 0 var(--ck-hi);   /* a slot cut into the body */
+  font-family: var(--font-data); font-size: 12px; letter-spacing: .02em; transition: border-color var(--dur-fast);
+}
+.td-quickadd-desc:focus { border-color: var(--amber-400); }
+.td-quickadd-save {
+  flex: 0 0 auto; min-width: 108px; height: 32px; padding: 0 14px; border-radius: 10px; cursor: pointer; border: 1px solid var(--amber-500);
+  background: linear-gradient(180deg, var(--amber-300), var(--amber-400)); color: var(--on-accent);
+  font-family: var(--font-display); font-weight: 700; font-size: 12px; letter-spacing: .22em; white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 3px 0 var(--amber-500); transition: transform .07s, box-shadow .07s, filter .14s;
+}
+.td-quickadd-save:hover { filter: brightness(1.04); }
+.td-quickadd-save:active { transform: translateY(2px); box-shadow: inset 0 2px 5px rgba(122,85,24,.3); }
+.td-quickadd-save:focus-visible { outline: 2px solid var(--amber-400); outline-offset: 2px; }
+.td-w-spend { gap: var(--sp-2); }
+
+@media (prefers-reduced-motion: reduce) { .td-lcd-caret { animation: none; } .td-key, .td-lcd-bar > span { transition: none; } }

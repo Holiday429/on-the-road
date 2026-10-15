@@ -91,19 +91,44 @@
 .td-whereto-empty { font-size: var(--fs-xs); color: var(--ink-muted); line-height: 1.5; }
 
 /* ── Pack widget ─────────────────────────────────────────────────────────── */
-.td-pk-weight {
-  font-family: var(--font-data); font-size: 28px; font-weight: var(--fw-bold); line-height: 1.1; color: var(--ink);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.04em;
+/* The floor: the Prepare page's bags in small, each with its weight on a pill; the scale reads the total. */
+.td-pk-floor { flex: 1 1 auto; min-height: 0; display: flex; align-items: flex-end; justify-content: center; gap: var(--sp-2); padding-top: var(--sp-1); }
+.td-pk-bag {
+  position: relative; flex: 0 1 62px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 0; background: none; border-radius: var(--r-md); cursor: default;
+  transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1);
 }
-.td-pk-weight small { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-muted); }
-.td-pk-weight.is-over { color: var(--coral-500); }
-.td-pk-bar { height: 7px; border-radius: var(--r-full); background: var(--surface-3); overflow: hidden; }
-.td-pk-bar span { display: block; height: 100%; background: var(--sage-500); border-radius: var(--r-full); transition: width var(--dur-mid) var(--ease-out); }
-.td-pk-bar span.is-warn { background: var(--amber-400); }
-.td-pk-bar span.is-over { background: var(--coral-500); }
+button.td-pk-bag { cursor: pointer; }
+button.td-pk-bag:hover { transform: translateY(-3px); }
+button.td-pk-bag:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 3px; }
+.td-pk-bag-art { display: flex; align-items: flex-end; justify-content: center; width: 100%; height: var(--bag-h, 56px); }
+.td-pk-bag-art .lg-bag { width: auto; max-width: 100%; height: 100%; }
+.td-pk-bag-kg {
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .04em; padding: 1px var(--sp-2);
+  border: 1px solid var(--rule); border-radius: var(--r-full); background: var(--surface); color: var(--ink-soft);
+  transition: background var(--dur-fast), border-color var(--dur-fast);
+}
+.td-pk-bag-kg.is-over { color: var(--coral-500); border-color: var(--coral-400); }
+/* picked: the bag lifts and its pill lights, so it is clear what Bought / Lost will act on */
+.td-pk-bag.is-sel { transform: translateY(-5px); }
+.td-pk-bag.is-sel .td-pk-bag-kg { background: var(--amber-100); border-color: var(--amber-400); color: var(--ink); }
+.td-pk-bag.is-sel::after {
+  content: ''; position: absolute; left: 12%; right: 12%; bottom: -7px; height: 3px; border-radius: 2px; background: var(--amber-400);
+}
+.td-pk-tag {
+  position: relative; flex: none; align-self: center; display: flex; align-items: center; padding: 6px 9px 6px 17px; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: 3px 8px 8px 3px; background: var(--paper-grain), var(--amber-50); box-shadow: var(--shadow-sm); transform: rotate(-4deg);
+  font-family: var(--font-data); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink-soft);
+}
+.td-pk-tag-hole { position: absolute; left: 6px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--surface-3); box-shadow: inset 0 1px 1px color-mix(in srgb, var(--ink) 30%, transparent); }
+/* the shelf: the scale and what its reading means */
+.td-pk-shelf { display: flex; align-items: center; gap: var(--sp-3); min-height: 0; }
+.td-pk-scale { flex: 0 0 52%; min-width: 0; }
+.td-pk-notes { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .td-pk-allowance { font-size: var(--fs-xs); color: var(--ink-muted); }
-.td-pk-over { color: var(--coral-500); }
+.td-pk-limit { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink-soft); }
+.td-pk-dest { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-pk-limit.is-over { color: var(--coral-500); }
 .td-pk-recent { display: flex; flex-wrap: wrap; gap: 5px; }
 .td-pk-chip {
   display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -261,17 +286,7 @@
 .td-sim-note { margin-top: var(--sp-4); font-size: var(--fs-xs); }
 @media (max-width: 560px) { .td-sim-main { max-width: 150px; overflow: hidden; text-overflow: ellipsis; } }
 
-/* Pack: an icon per bag, then the Bought / Lost buttons */
-.td-pk-bagicons { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-2); margin-top: auto; }
-.td-pk-bagicon {
-  display: inline-flex; flex-direction: column; align-items: center; gap: 1px; min-width: 52px; padding: 6px 8px; border-radius: var(--r-md);
-  background: var(--surface-3); cursor: pointer; transition: background var(--dur-fast), transform var(--dur-fast);
-}
-.td-pk-bagicon:hover { background: var(--amber-50); }
-.td-pk-bagicon.is-sel { background: var(--amber-50); box-shadow: inset 0 0 0 1.5px var(--amber-400); }
-.td-pk-bagicon:active { transform: scale(0.97); }
-.td-pk-bagicon-glyph { font-size: 22px; line-height: 1; }
-.td-pk-bagicon-kg { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+/* Pack: the Bought / Lost buttons */
 .td-pk-actions { display: flex; gap: var(--sp-2); padding-top: var(--sp-1); }
 .td-pk-act { flex: 1; justify-content: center; padding: 6px 10px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); white-space: nowrap; }
 .td-pk-bagbtns { display: inline-flex; gap: 4px; flex-shrink: 0; }
@@ -284,7 +299,6 @@
 .td-mini:active { transform: scale(0.92); }
 .td-mini--minus { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--rule); color: var(--ink-soft); }
 .td-mini--minus:hover { background: var(--amber-50); }
-.td-pk-unassigned { font-size: var(--fs-xs); color: var(--ink-muted); padding: 0 var(--sp-1) 6px; }
 
 /* Pack drawer: the Pack page's bag card on top (~70%), its Unassigned panel below (~30%).
    Card / tag / panel styling comes from the Pack page's own stylesheet. */

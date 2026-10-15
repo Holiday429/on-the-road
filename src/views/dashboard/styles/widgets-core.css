@@ -49,45 +49,6 @@
   text-align: right; white-space: nowrap; flex-shrink: 0;
 }
 
-/* ── Spend ────────────────────────────────────────────────────────────────── */
-.td-spend-top { display: flex; align-items: flex-end; justify-content: space-between; }
-.td-spend-label { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-muted); }
-.td-spend-big { font-family: var(--font-data); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); color: var(--ink); line-height: 1.05; letter-spacing: -0.04em; }
-.td-spend-mid { font-family: var(--font-data); font-size: var(--fs-xl); font-weight: var(--fw-semibold); color: var(--ink-soft); }
-.td-spend-today { text-align: right; }
-.td-spend-bar-track { height: 6px; background: var(--surface-3); border-radius: var(--r-full); overflow: hidden; }
-.td-spend-bar-fill  { height: 100%; border-radius: var(--r-full); transition: width var(--dur-slow) var(--ease-out); }
-.td-spend-bar-foot  { display: flex; align-items: center; justify-content: space-between; }
-.td-remain { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--success); }
-.td-over   { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--coral-500); }
-.td-pct    { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-muted); }
-
-/* Vertical quickadd form */
-.td-quickadd.td-quickadd-v { display: flex; flex-direction: column; gap: var(--sp-2); }
-.td-quickadd-row2 { display: flex; align-items: center; gap: var(--sp-2); }
-/* Row 1: currency badge · amount · category — the amount and category boxes are identical
-   (same height, same flex share). Row 2: optional note · Save. */
-.td-quickadd-cur {
-  position: relative; flex: 0 0 38px; height: 38px; display: grid; place-items: center; border-radius: 50%;
-  background: var(--surface-3); border: 1.5px solid var(--surface-4); cursor: pointer;
-  font-family: var(--font-ui); font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink-soft);
-  transition: border-color var(--dur-fast), background var(--dur-fast);
-}
-.td-quickadd-cur:hover, .td-quickadd-cur:focus-within { border-color: var(--amber-400); background: var(--amber-50); }
-.td-quickadd-sym { pointer-events: none; user-select: none; }
-.td-quickadd-curpick { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.td-quickadd-amt, .td-quickadd-cat, .td-quickadd-desc {
-  box-sizing: border-box; height: 38px; min-width: 0; flex: 1 1 0; padding: 0 10px;
-  border: 1.5px solid var(--surface-4); border-radius: var(--r-md); outline: none; background: var(--surface); color: var(--ink);
-  font-family: var(--font-ui); font-size: var(--fs-sm); transition: border-color var(--dur-fast);
-}
-.td-quickadd-amt { font-weight: var(--fw-semibold); font-size: var(--fs-md); -moz-appearance: textfield; }
-.td-quickadd-amt::-webkit-inner-spin-button,
-.td-quickadd-amt::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.td-quickadd-amt:focus, .td-quickadd-cat:focus, .td-quickadd-desc:focus { border-color: var(--accent); }
-.td-quickadd-hint { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-faint); }
-.td-quickadd-save { flex: 0 0 auto; height: 38px; padding: 0 18px; font-size: var(--fs-sm); white-space: nowrap; }
-
 /* ── Map ──────────────────────────────────────────────────────────────────── */
 .td-w-map { display: flex; flex-direction: column; }
 .td-map-wrap {
@@ -142,28 +103,6 @@
 
 /* ── Currency line + dropdown (inside the Spend widget) ───────────────────── */
 .td-w-spend { position: relative; }
-.td-rate-anchor { position: relative; }
-/* The rate row reads as a control: same box as the inputs below it, a 💱 in front and a
-   "Convert ▾" tab at the end that says it opens something */
-.td-rate-line {
-  display: flex; align-items: center; gap: 8px; width: 100%; box-sizing: border-box; min-height: 34px;
-  padding: 0 4px 0 10px; border-radius: var(--r-md);
-  background: var(--surface); border: 1.5px solid var(--surface-4);
-  font-family: var(--font-ui); font-size: var(--fs-sm); color: var(--ink-soft); text-align: left; cursor: pointer;
-  transition: border-color var(--dur-fast), background var(--dur-fast);
-}
-.td-rate-line:hover, .td-rate-line.is-open { border-color: var(--amber-400); background: var(--amber-50); }
-.td-rate-line:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
-.td-rate-ico { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-3); color: var(--ink-soft); font-size: 13px; font-weight: var(--fw-semibold); line-height: 1; }
-.td-rate-eq { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.td-rate-line strong { color: var(--ink); font-weight: var(--fw-semibold); }
-.td-rate-line em { font-style: normal; color: var(--amber-700); }
-.td-rate-cta {
-  flex-shrink: 0; display: inline-flex; align-items: center; gap: 3px; padding: 4px 10px; border-radius: var(--r-sm);
-  background: var(--amber-100); color: var(--amber-800, var(--ink)); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
-}
-.td-rate-caret { font-size: 1.1em; line-height: 1; transition: transform var(--dur-fast); }
-.td-rate-line.is-open .td-rate-caret { transform: rotate(180deg); }
 .td-rate-pop {
   position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 6px);
   display: flex; flex-direction: column; gap: var(--sp-3);
@@ -172,11 +111,6 @@
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
 }
 .td-rate-pop .td-cur-rates { flex-direction: row; flex-wrap: wrap; justify-content: flex-start; gap: var(--sp-2) var(--sp-5); }
-
-/* ── Spend: tappable total, one-line quick-add ────────────────────────────── */
-.td-spend-total { background: none; padding: 0; text-align: left; cursor: pointer; border-radius: var(--r-md); }
-.td-spend-total:hover .td-spend-big { color: var(--accent-deep); }
-.td-spend-total:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* Spend drawer */
 .td-spf { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-4); }
@@ -213,21 +147,6 @@
 .dm-pin--stay { color: inherit; }
 .dm-pin--city { background: #a8a29e; font-size: var(--fs-sm); }
 
-/* One reserved line summarising the day's spending, so the card is the same height with or without entries. */
-.td-spend-day {
-  min-height: 1.3em; font-size: var(--fs-xs); color: var(--ink-muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-
 /* Analysis drawer: the panel's own title repeats the drawer's */
 .td-sp-analysis .exp-form-title { display: none; }
 .td-sp-analysis .exp-breakdown { padding: 0; border: 0; box-shadow: none; background: none; }
-
-/* Spend: each amount with its caption at its lower right, amounts bottom-aligned */
-.td-spend-top { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-3); }
-.td-spend-fig { display: inline-flex; align-items: flex-end; gap: 6px; background: none; padding: 0; text-align: left; }
-.td-spend-cap { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-muted); line-height: 1; padding-bottom: 5px; white-space: nowrap; }
-.td-w-spend { gap: var(--sp-2); }
-.td-spend-country { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: 1px dashed var(--rule); font-size: var(--fs-xs); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
-.td-spend-country.is-over { color: var(--danger); }
-.td-spend-country-name { font-weight: var(--fw-medium); color: var(--ink-soft); }

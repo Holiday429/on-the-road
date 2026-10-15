@@ -1,9 +1,10 @@
 /* ==========================================================================
    On the Road · Dashboard — Pack widget
    --------------------------------------------------------------------------
-   Always on. Near a flight with a baggage limit it shows weight vs limit;
-   otherwise what you're carrying. Below it, an icon per bag (suitcase, backpack…)
-   with its weight — tap one to pick it — and, at the bottom, the Bought / Lost buttons,
+   Always on. Drawn like the Prepare page's pack scene: the bags themselves (their own
+   colour and size, filled to their load) with a weight pill beneath — tap one to pick it —
+   and the scale that reads what you carry (green / red against the flight's limit, with
+   what's left beside it). At the bottom, the Bought / Lost buttons,
    which then put something into / take something out of the picked bag. Only the corner
    expand button opens the side drawer, drawn like the
    Pack page itself: a bag card (name, kind, weight meter, category-coloured item
@@ -16,13 +17,16 @@ import { escHtml as esc } from '../../core/utils.ts';
 import { t } from '../../core/i18n.ts';
 import type { PackList } from '../../data/schema.ts';
 import type { StoredLeg } from '../../data/stores/route-store.ts';
-import { packSummary, packContents, type PackChange } from '../../data/pack-summary.ts';
+import { packSummary, packContents, type PackChange, type ContainerContents } from '../../data/pack-summary.ts';
 import { formatKg, itemWeightG } from '../../data/packing-formula.ts';
 import { categoryColor, categoryLabel, displayWeight, kindLabel, priRank, PRIORITIES, type WeightUnit } from '../pack/pack-helpers.ts';
 import type { PackContainer, PackItem } from '../../data/schema.ts';
 import { openPackBagChangeModal } from './dashboard-modals.ts';
 
 import { WIDGET_ICON, bagIcon } from '../../core/icons.ts';
+import { renderBag, renderScale, bagLook, type BagSize, type ScaleVerdict } from '../../core/paper/luggage.ts';
+import '../../core/paper/luggage.css';
+import { FLOOR_BAGS } from '../prepare/prepare-scenes.ts';
 /* The bag picked on the card (container id): Bought / Lost then act on that bag. Lives here
    because the dashboard re-renders wholesale. A second tap on the bag un-picks it. */
 let _bag: string | null = null;
@@ -56,46 +60,78 @@ export function renderPackWidget(list: PackList | null | undefined, legs: Stored
   const details = `<button type="button" class="td-expand" data-pk-details title="${esc(t('dash.pack.details'))}" aria-label="${esc(t('dash.pack.details'))}">⤢</button>`;
   const contents = packContents(list!, legs, today);
   if (_bag && !contents.containers.some((c) => c.container.id === _bag)) _bag = null;
-  const bags = !legs.length ? '' : `
-    <div class="td-pk-bagicons">
-      ${contents.containers.map((c) => `
-        <button type="button" class="td-pk-bagicon${c.container.id === _bag ? ' is-sel' : ''}" data-pk-bag="${esc(c.container.id)}" aria-pressed="${c.container.id === _bag}" title="${esc(c.container.label)} · ${kg(c.weightG)} kg" aria-label="${esc(c.container.label)}">
-          <span class="td-pk-bagicon-glyph" aria-hidden="true">${bagIcon(c.container.kind)}</span>
-          <span class="td-pk-bagicon-kg">${kg(c.weightG)}</span>
-        </button>`).join('')}
-      ${contents.unassigned.length ? `<span class="td-pk-unassigned">${esc(t('dash.pack.unassignedN', { n: contents.unassigned.length }))}</span>` : ''}
+
+  // The Prepare page's floor in small: each bag drawn as an object (its own colour and size, filled to
+  // its load) with its weight on a pill beneath — red when over — and the heaviest few if there are many.
+  const { shown, hidden } = onFloor(contents.containers);
+  const bags = !contents.containers.length ? '' : `
+    <div class="td-pk-floor">
+      ${shown.map((c) => bagOnFloor(c, legs.length > 0)).join('')}
+      ${hidden > 0 ? `<button type="button" class="td-pk-tag" data-pk-details title="${esc(t('prep.sceneMore', { n: hidden }))}"><span class="td-pk-tag-hole" aria-hidden="true"></span>+${hidden}</button>` : ''}
     </div>`;
   const actions = legs.length ? `
     <div class="td-pk-actions">
       <button type="button" class="btn btn-primary td-pk-act" data-pk-action="acquired" ${_bag ? `data-pk-container="${esc(_bag)}"` : ''}>+ ${esc(t('dash.pack.boughtIn'))}</button>
       <button type="button" class="btn btn-ghost td-pk-act" data-pk-action="left" ${_bag ? `data-pk-container="${esc(_bag)}"` : ''}>－ ${esc(t('dash.pack.lostIn'))}</button>
     </div>` : '';
-  let body: string;
+
+  // The shelf: the scale reads the weight you carry (green under the limit, red over it);
+  // beside it, what the reading means.
+  let verdict: ScaleVerdict = null;
+  let notes: string;
   if (s.kind === 'near') {
-    const barClass = s.over ? 'is-over' : s.pct > 85 ? 'is-warn' : '';
-    body = `
-      <div class="td-pk-weight${s.over ? ' is-over' : ''}">${kg(s.carriedG)}<small> / ${kg(s.limitG)} kg</small></div>
-      <div class="td-pk-bar"><span class="${barClass}" style="width:${s.pct.toFixed(0)}%"></span></div>
-      <div class="td-pk-allowance">
-        ${esc(`${s.leg.flag || ''} ${t('dash.pack.flightTo', { city: s.leg.city })}`.trim())}
-        · ${s.over
-          ? `<strong class="td-pk-over">${esc(t('dash.pack.overBy', { kg: kg(-s.remainG) }))}</strong>`
-          : esc(t('dash.pack.left', { kg: kg(s.remainG) }))}
-      </div>`;
+    verdict = s.over ? 'over' : 'pass';
+    notes = `
+      <div class="td-pk-allowance td-pk-dest" title="${esc(t('dash.pack.flightTo', { city: s.leg.city }))}">${esc(`${s.leg.flag || ''} ${s.leg.city}`.trim())}</div>
+      <div class="td-pk-limit${s.over ? ' is-over' : ''}">${s.over
+        ? esc(t('dash.pack.overBy', { kg: kg(-s.remainG) }))
+        : esc(t('dash.pack.left', { kg: kg(s.remainG) }))}</div>
+      <div class="td-pk-allowance">${esc(`${t('dash.pack.limit')} ${kg(s.limitG)} kg`)}</div>`;
   } else {
-    body = `
-      <div class="td-pk-weight">${kg(s.carriedG)}<small> kg</small></div>
+    notes = `
       <div class="td-pk-allowance">${esc(piecesLabel(s.pieces))}</div>
+      ${contents.unassigned.length ? `<div class="td-pk-limit">${esc(t('dash.pack.unassignedN', { n: contents.unassigned.length }))}</div>` : ''}
       ${!contents.containers.length && s.recent.length ? `<div class="td-pk-recent">${s.recent.map(chip).join('')}</div>` : ''}`;
   }
+  const carried = s.kind === 'near' || s.kind === 'idle' ? s.carriedG : 0;
 
   return `
     <div class="td-widget td-w-pack">
       ${head(details)}
-      ${body}
       ${bags}
+      <div class="td-pk-shelf${s.kind === 'near' && s.over ? ' is-over' : ''}">
+        <div class="td-pk-scale" role="img" aria-label="${esc(formatKg(carried))}">${renderScale({ reading: formatKg(carried), verdict })}</div>
+        <div class="td-pk-notes">${notes}</div>
+      </div>
       ${actions}
     </div>`;
+}
+
+/** How tall a bag stands on the floor (px) at size M, and what S / L make of it. */
+const BAG_H = 56;
+const BAG_SIZE: Record<BagSize, number> = { S: 0.86, M: 1, L: 1.1 };
+
+/** The bags that fit on the floor: the heaviest few, kept in list order, plus how many are left out. */
+function onFloor(all: ContainerContents[]): { shown: ContainerContents[]; hidden: number } {
+  if (all.length <= FLOOR_BAGS) return { shown: all, hidden: 0 };
+  const keep = new Set([...all].sort((a, b) => b.weightG - a.weightG).slice(0, FLOOR_BAGS).map((c) => c.container.id));
+  return { shown: all.filter((c) => keep.has(c.container.id)), hidden: all.length - FLOOR_BAGS };
+}
+
+/** One bag on the floor — a button when Bought / Lost can act on it. */
+function bagOnFloor(c: ContainerContents, pickable: boolean): string {
+  const { container: b, weightG } = c;
+  const over = b.limitG > 0 && weightG > b.limitG;
+  const loadPct = b.limitG ? Math.min(100, Math.round((weightG / b.limitG) * 100)) : Math.min(100, Math.round(weightG / 100));
+  const look = bagLook(b);
+  const on = b.id === _bag;
+  const inner = `
+    <span class="td-pk-bag-art">${renderBag(b.kind, { loadPct, over, uid: `dpk-${b.id}`, tone: look.tone })}</span>
+    <span class="td-pk-bag-kg${over ? ' is-over' : ''}">${kg(weightG)}</span>`;
+  const style = `style="--bag-h:${Math.round(BAG_H * BAG_SIZE[look.size])}px"`;
+  return pickable
+    ? `<button type="button" class="td-pk-bag${on ? ' is-sel' : ''}" ${style} data-pk-bag="${esc(b.id)}" aria-pressed="${on}" title="${esc(b.label)} · ${kg(weightG)} kg" aria-label="${esc(b.label)}">${inner}</button>`
+    : `<span class="td-pk-bag" ${style} title="${esc(b.label)} · ${kg(weightG)} kg">${inner}</span>`;
 }
 
 /** The Pack page's own unit preference (kg / g / lb / 斤). */
@@ -228,10 +264,10 @@ export function wirePack(body: HTMLElement, get: () => { list: PackList | null |
       x.setAttribute('aria-pressed', String(on));
     });
   }));
-  // Only the corner ⤢ opens the drawer.
-  body.querySelector<HTMLElement>('[data-pk-details]')?.addEventListener('click', (e) => {
+  // The corner ⤢ (and the +N tag for bags that don't fit on the floor) opens the drawer.
+  body.querySelectorAll<HTMLElement>('[data-pk-details]').forEach((b) => b.addEventListener('click', (e) => {
     e.stopPropagation();
     const { list, legs, today } = get();
     if (list) void openPackDrawer(list, legs, today, e.currentTarget as HTMLElement);
-  });
+  }));
 }

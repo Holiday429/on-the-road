@@ -5,7 +5,8 @@
    one, a row with a + in front where you just type the next to-do (Enter saves).
    While you type, a 📅 for the due date and a 🔔 for a reminder appear on the row
    (native pickers behind an icon). The corner ring counts the shown day's own
-   to-dos: done / due that day.
+   to-dos: done / due that day. Drawn as a pad of sticky notes — the same paper as
+   the Prepare checklist board (--note-0..5), one note per to-do, a blank one to write on.
    ========================================================================== */
 
 import { escHtml as esc } from '../../core/utils.ts';
@@ -13,6 +14,7 @@ import { t, getLocale } from '../../core/i18n.ts';
 import type { StoredTodo } from '../../data/stores/todo-store.ts';
 import { openTodosFor } from '../../data/todo-order.ts';
 import { todoStore } from '../../data/stores/todo-store.ts';
+import { noteVar } from '../../data/palette.ts';
 import { scheduleAllNotifications } from '../../core/notifications.ts';
 
 import { WIDGET_ICON } from '../../core/icons.ts';
@@ -37,7 +39,7 @@ function shortDate(iso: string): string {
 function dueLabel(due: string | null | undefined, today: string): { text: string; overdue: boolean } {
   if (!due) return { text: '', overdue: false };
   if (due === today) return { text: t('dash.todo.today'), overdue: false };
-  if (due < today) return { text: `${t('dash.todo.overdue')} · ${shortDate(due)}`, overdue: true };
+  if (due < today) return { text: shortDate(due), overdue: true };   // red pen says "overdue"; the date is all a small note has room for
   return { text: shortDate(due), overdue: false };
 }
 
@@ -52,16 +54,16 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
   const shown = open.slice(0, SHOWN - 1);
   const more = open.length - shown.length;
 
-  const rows = shown.map((td) => {
+  // Each to-do is a sticky note: its paper colour follows its place on the pad (neighbours differ,
+  // see noteVar), and the due date is scribbled in the corner rather than set on a second line.
+  const rows = shown.map((td, i) => {
     const due = dueLabel(td.dueDate, today);
     const onSel = !!td.dueDate && td.dueDate === selected && selected !== today;
     return `
-      <div class="td-todo-row${onSel ? ' is-sel' : ''}">
+      <div class="td-todo-row td-note${onSel ? ' is-sel' : ''}" style="--note-bg:${noteVar(i)}">
         <button type="button" class="td-todo-check" data-toggle-todo="${esc(td.id)}:false" title="${esc(t('dash.todo.markDone'))}" aria-label="${esc(t('dash.todo.markDone'))}"></button>
-        <div class="td-todo-text">
-          <span class="td-todo-label">${esc(td.text)}</span>
-          ${due.text ? `<span class="td-todo-due ${due.overdue ? 'is-overdue' : ''}">${esc(due.text)}</span>` : ''}
-        </div>
+        <span class="td-todo-label">${esc(td.text)}</span>
+        ${due.text ? `<span class="td-todo-due ${due.overdue ? 'is-overdue' : ''}"${due.overdue ? ` title="${esc(t('dash.todo.overdue'))}"` : ''}>${esc(due.text)}</span>` : ''}
       </div>`;
   }).join('');
 

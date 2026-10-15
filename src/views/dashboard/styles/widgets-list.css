@@ -1,52 +1,58 @@
-/* ── To-do ────────────────────────────────────────────────────────────────── */
+/* ── To-do · a pad of sticky notes ───────────────────────────────────────── */
+/* Same paper as the Prepare checklist board: grain, a soft top-light over --note-bg (--note-0..5),
+   a lifted corner. One note per to-do, then a blank note to write the next one on. */
 .td-w-todo { justify-content: space-between; }
-.td-todo-list { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.td-todo-list { display: flex; flex-direction: column; gap: 6px; flex: 1; padding: 3px 3px 0; }
 .td-todo-row {
-  display: flex; align-items: center; gap: var(--sp-3);
-  padding: 4px var(--sp-3);
-  border-radius: var(--r-md); background: var(--surface-3);
-  transition: background var(--dur-fast);
+  position: relative; display: flex; align-items: center; gap: var(--sp-2);
+  min-height: 32px; padding: 3px var(--sp-3) 3px 9px;
+  border-radius: 2px 2px 3px 3px;
+  transition: transform var(--dur-mid) var(--ease-out), box-shadow var(--dur-mid) var(--ease-out);
 }
-.td-todo-row:hover { background: var(--surface-4); }
+.td-note {
+  background:
+    var(--paper-grain),
+    linear-gradient(180deg, color-mix(in srgb, var(--ink) 6%, transparent), transparent 24%, color-mix(in srgb, var(--ink) 3%, transparent)),
+    var(--note-bg, var(--note-0));
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  box-shadow: 0 1px 1px rgba(0,0,0,0.07), 1px 3px 6px rgba(0,0,0,0.08), 2px 7px 12px -4px rgba(0,0,0,0.12);
+}
+/* the corner lifting off the pad */
+.td-note::after {
+  content: ''; position: absolute; right: 8px; bottom: 0; width: 38%; height: 8px; z-index: -1; pointer-events: none;
+  box-shadow: 3px 8px 7px rgba(0,0,0,0.12); transform: rotate(2.5deg);
+}
+/* a pad is never quite straight */
+.td-todo-list > :nth-child(3n+1) { transform: rotate(-0.7deg); }
+.td-todo-list > :nth-child(3n+2) { transform: rotate(0.5deg); }
+.td-todo-list > :nth-child(3n)   { transform: rotate(-0.3deg); }
+.td-note:hover { transform: rotate(0deg) translateY(-1px); box-shadow: 0 2px 3px rgba(0,0,0,0.08), 2px 6px 10px rgba(0,0,0,0.10), 3px 12px 18px -5px rgba(0,0,0,0.16); }
 .td-todo-check {
-  width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--surface-4);
-  flex-shrink: 0; background: transparent;
-  transition: background var(--dur-fast), border-color var(--dur-fast); cursor: pointer;
+  position: relative; width: 17px; height: 17px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
+  background: color-mix(in srgb, var(--surface) 45%, transparent); border: 1.5px solid color-mix(in srgb, var(--ink) 42%, transparent);
+  transition: background var(--dur-fast), border-color var(--dur-fast);
 }
-.td-todo-check:hover { border-color: var(--sage-500); background: var(--amber-50); }
-.td-todo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.td-todo-check::after {   /* the tick you are about to draw */
+  content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-hand);
+  font-size: 17px; line-height: 1; color: var(--sage-700, var(--success)); opacity: 0; transform: translateY(1px) rotate(-8deg); transition: opacity var(--dur-fast);
+}
+.td-todo-check:hover { border-color: var(--sage-500); background: var(--surface); }
+.td-todo-check:hover::after { opacity: .8; }
 .td-todo-label {
-  font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-soft); line-height: 1.3;
+  flex: 1; min-width: 0; font-family: var(--font-hand); font-size: 18px; font-weight: var(--fw-medium); color: var(--ink); line-height: 1;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
 }
-.td-todo-due { font-size: var(--fs-2xs); color: var(--ink-faint); }
-.td-todo-due.is-overdue { color: var(--coral-500); font-weight: var(--fw-medium); }
+/* the date, scribbled in the corner in pen */
+.td-todo-due {
+  flex: none; font-family: var(--font-hand); font-size: 16px; line-height: 1; color: var(--ink-muted);
+  transform: rotate(-3deg); white-space: nowrap;
+}
+.td-todo-due.is-overdue { color: var(--coral-500); font-weight: var(--fw-semibold); text-decoration: underline wavy color-mix(in srgb, var(--coral-500) 55%, transparent); text-underline-offset: 3px; }
 .td-todo-empty {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-2);
   text-align: center; padding: var(--sp-4) var(--sp-2);
 }
 .td-todo-empty-title { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink-soft); }
-.td-todo-add { display: flex; align-items: center; gap: var(--sp-2); }
-.td-todo-add-cal {
-  flex-shrink: 0; font-size: 16px; line-height: 1;
-  width: 28px; height: 28px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: var(--r-md);
-  opacity: 0.6;
-  transition: opacity var(--dur-fast);
-  cursor: pointer;
-}
-.td-todo-add-cal:hover { opacity: 1; }
-.td-todo-add-input {
-  flex: 1; min-width: 0; padding: 6px 10px;
-  border: 1.5px solid var(--surface-4); border-radius: var(--r-md);
-  font-size: var(--fs-sm); outline: none; background: var(--surface); color: var(--ink);
-}
-.td-todo-add-input:focus { border-color: var(--accent); }
-/* Placeholder runs a touch smaller so "+ Quick add task…" fits the narrow
-   field without truncating; typed text keeps the normal --fs-sm size. */
-.td-todo-add-input::placeholder { font-size: var(--fs-xs); }
-.td-todo-add-btn { flex-shrink: 0; padding: 6px 12px; font-size: var(--fs-sm); }
 
 /* ── Journal quick-entry ──────────────────────────────────────────────────── */
 .td-jq-btn {
@@ -126,7 +132,7 @@
 .td-ring-track { fill: none; stroke: var(--rule-soft); stroke-width: 3; }
 .td-ring-arc { fill: none; stroke: var(--sage-500); stroke-width: 3; stroke-linecap: round; }
 .td-ring-n { font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--ink-muted); font-variant-numeric: tabular-nums; }
-.td-todo-row.is-sel { background: color-mix(in srgb, var(--amber-400, var(--accent)) 14%, var(--surface-3)); }
+.td-todo-row.is-sel { box-shadow: 0 0 0 2px var(--amber-400), 1px 3px 6px rgba(0,0,0,0.08); }
 .td-todo-more { align-self: flex-start; }
 
 /* Corner expand button (opens the card's detail view in the side drawer) */
@@ -140,19 +146,22 @@
 .td-expand:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 .td-plus--lg { width: 40px; height: 40px; font-size: 22px; }
 
-/* The add row: a + where the tick goes, then a bare input; the date / reminder icons show while typing */
-.td-todo-newrow { background: transparent; border: 1.5px dashed var(--rule); flex-wrap: wrap; align-items: flex-start; row-gap: 4px; }
-.td-todo-newrow:focus-within { border-color: var(--amber-400); background: var(--surface); }
+/* The add row: a blank note — a + where the tick goes, then handwriting; the date / reminder icons show while typing */
+.td-todo-newrow {
+  background: color-mix(in srgb, var(--surface) 55%, transparent); border: 1.5px dashed color-mix(in srgb, var(--ink) 22%, transparent);
+  flex-wrap: wrap; align-items: flex-start; row-gap: 4px;
+}
+.td-todo-newrow:focus-within { border-color: var(--amber-400); background: var(--surface); transform: rotate(0deg); }
 .td-todo-plus {
-  flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  flex-shrink: 0; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center;
   background: var(--amber-400, var(--accent)); color: var(--on-accent); font-weight: var(--fw-semibold); font-size: var(--fs-base); line-height: 1;
 }
 .td-todo-newrow .td-todo-add-input {
   flex: 1; min-width: 0; height: auto; min-height: 20px; padding: 0; margin: 0; border: 0; background: transparent; outline: none;
-  font-family: inherit; font-size: var(--fs-sm); line-height: 1.35; color: var(--ink); resize: none; overflow-y: auto; display: block;
+  font-family: var(--font-hand); font-size: 18px; line-height: 1.05; color: var(--ink); resize: none; overflow-y: auto; display: block;
 }
 .td-todo-newrow .td-todo-plus { margin-top: 1px; }
-.td-todo-newrow .td-todo-add-input::placeholder { font-size: var(--fs-sm); color: var(--ink-faint); }
+.td-todo-newrow .td-todo-add-input::placeholder { font-size: 18px; color: var(--ink-faint); }
 .td-todo-new-tools { display: none; align-items: center; gap: 4px; flex: 0 0 100%; justify-content: flex-end; box-sizing: border-box; position: relative; }
 .td-todo-newrow:focus-within .td-todo-new-tools,
 .td-todo-newrow:has(.td-todo-add-input:not(:placeholder-shown)) .td-todo-new-tools,

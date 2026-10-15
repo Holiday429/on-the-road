@@ -16,7 +16,8 @@ import {
   tripPhase as sharedTripPhase, currentLeg as sharedCurrentLeg,
 } from '../../data/trip-phase.ts';
 import { expenseSlip } from '../expenses/expense-slip.ts';
-import { addExpenseWithDefaults, defaultPlace, defaultCurrency, suggestedCurrency, BUILTIN_CATEGORIES as EXPENSE_CATEGORIES } from '../expenses/expense-defaults.ts';
+import { addExpenseWithDefaults, defaultPlace, defaultCurrency, suggestedCurrency } from '../expenses/expense-defaults.ts';
+import { BUILTIN_CATEGORIES as KEY_CATEGORIES, categoryDisplayColor } from '../expenses/expense-helpers.ts';
 import { currencySymbol, getRateTable, peekRateTable, type RateTable, allCurrencies, currencyFlag, isKnownCurrency, isApproxCurrency } from '../../data/rates.ts';
 import { currencyForCountry } from '../../data/country-currency.ts';
 import { navigateTo, type ViewId, type NavIntent, openTripSwitcher } from '../../core/app.ts';
@@ -46,12 +47,11 @@ import { expensesAsOf, todosAsOf, daySpend } from '../../data/as-of.ts';
 // which Dashboard shouldn't eagerly load just to wire up a click handler.
 import { packStore, type StoredPackList } from '../../data/stores/pack-store.ts';
 import { openAddPlanModal } from './dashboard-modals.ts';
-import { budgetBarColor } from '../../data/budget-tone.ts';
 import { renderBanner, wireBanner, startBannerClock, type BannerData } from './dashboard-banner.ts';
 import { userPrefsStore } from '../../data/stores/user-prefs-store.ts';
 import { resolveHomeTimezone } from '../../data/home-timezone.ts';
 
-import { WIDGET_ICON } from '../../core/icons.ts';
+import { WIDGET_ICON, EXPENSE_ICON } from '../../core/icons.ts';
 import { STAY_ICON } from '../../core/icons.ts';
 /* ── State ───────────────────────────────────────────────────────────────── */
 let _legs: StoredLeg[] = [];
@@ -268,7 +268,7 @@ function renderRateLine(): string {
     <button type="button" class="td-rate-line${_rateOpen ? ' is-open' : ''}" data-rate-toggle aria-expanded="${_rateOpen}" title="${esc(t('dash.spend.convertHint'))}">
       <span class="td-rate-ico" aria-hidden="true">⇄</span>
       <span class="td-rate-eq">${eq}${known && isApproxCurrency(right) ? ` <em title="${esc(t('currency.approx'))}">≈</em>` : ''}</span>
-      <span class="td-rate-cta">${esc(t('dash.spend.convert'))} <span class="td-rate-caret" aria-hidden="true">▾</span></span>
+      <span class="td-rate-cta"><span class="td-rate-cta-t">${esc(t('dash.spend.convert'))}</span> <span class="td-rate-caret" aria-hidden="true">▾</span></span>
     </button>`;
 }
 
@@ -325,6 +325,9 @@ function renderRatePopover(): string {
 }
 
 /* ── Spend widget ─────────────────────────────────────────────────────────── */
+// Drawn as the Expenses page's till: one LCD (VFD in dark) holding the day's status bar, the
+// last item scanned, the trip total against its budget, the category soft keys and the amount;
+// the note and SCAN sit on the plastic body below. Same markup hooks as before (.td-quickadd-*).
 function renderSpendWidget(): string {
   const today     = todayIso();
   // Looking back at a day: spend counts up to and on that day only.
@@ -335,10 +338,15 @@ function renderSpendWidget(): string {
   const budget    = tripBudget();
   const curCode   = _quickCur || defaultCurrency(_legs, today);
   const day       = daySpend(rows, today, inBase);
-  const dayLine   = day.count
-    ? `${t(day.count === 1 ? 'dash.spend.entry1' : 'dash.spend.entries', { n: day.count })} · ${day.top.map(c => `${EXPENSE_CATEGORIES.find(k => k.id === c.category)?.icon ?? '💶'} ${fmt(c.amount)}`).join(' · ')}`
-    : t('dash.spend.dayNone');
-  const dayLabel  = asOf ? new Date(`${today}T00:00:00`).toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' }) : t('dash.spend.today');
+  const dayStamp  = new Date(`${today}T00:00:00`).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' }).toUpperCase();
+  const dayLabel  = `${asOf ? '' : `${t('expenses.mart.today')} · `}${dayStamp}`;
+
+  // The line the next product label slides across: what was scanned last, or the greeting.
+  const last = [...rows].sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
+  const lastIcon = last ? KEY_CATEGORIES.find(k => k.id === last.category)?.icon ?? EXPENSE_ICON.misc : '';
+  const lastLine = last
+    ? `${lastIcon} ${last.description.trim() || t('dash.spend.unlabelled')} · ${fmt(inBase(last))}${last.date === today ? '' : ` · ${new Date(`${last.date}T00:00:00`).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' })}`}`
+    : t('expenses.mart.welcome');
 
   // "Left" always means the whole-trip budget minus everything spent, the same
   // number the Expenses page shows. While you're travelling, the current
@@ -353,18 +361,17 @@ function renderSpendWidget(): string {
     const pct  = Math.min(100, Math.round((total / budget) * 100));
     const over = total > budget;
     budgetLine = `
-      <div class="td-spend-bar-track"><div class="td-spend-bar-fill" style="width:${pct}%;background:${budgetBarColor(pct)}"></div></div>
-      <div class="td-spend-bar-foot">
-        <span class="${over ? 'td-over' : 'td-remain'}">${over ? `${fmt(total-budget)} ${esc(t('expenses.over'))}` : `${fmt(budget-total)} ${esc(t('expenses.left'))}`}</span>
-        <span class="td-pct">${esc(t('dash.spend.pctOf', { pct, total: fmt(budget) }))}</span>
+      <div class="td-lcd-budget${over ? ' is-over' : pct > 85 ? ' is-warn' : ''}" title="${esc(t('dash.spend.pctOf', { pct, total: fmt(budget) }))}">
+        <span class="td-lcd-bar"><span style="width:${pct}%"></span></span>
+        <span class="td-lcd-left">${over ? `${fmt(total-budget)} ${esc(t('expenses.over'))}` : `${fmt(budget-total)} ${esc(t('expenses.left'))}`}</span>
       </div>`;
   }
   if (countryCap) {
     const spent = rows.filter(e => e.country === curCountry).reduce((s, e) => s + inBase(e), 0);
     const pct  = Math.min(100, Math.round((spent / countryCap) * 100));
     budgetLine += `
-      <div class="td-spend-country ${spent > countryCap ? 'is-over' : ''}">
-        <span class="td-spend-country-name">${esc(currentLeg()?.flag ?? "")} ${esc(curCountry)}</span>
+      <div class="td-lcd-country${spent > countryCap ? ' is-over' : ''}">
+        <span>${esc(currentLeg()?.flag ?? "")} ${esc(curCountry)}</span>
         <span>${fmt(spent)} / ${fmt(countryCap)} · ${pct}%</span>
       </div>`;
   }
@@ -375,33 +382,44 @@ function renderSpendWidget(): string {
         <div class="td-widget-label">${WIDGET_ICON.spend} ${esc(t('dash.widget.spend'))}</div>
         <button type="button" class="td-expand" data-spend-analysis title="${esc(t('dash.spend.analysis'))}" aria-label="${esc(t('dash.spend.analysis'))}">⤢</button>
       </div>
-      <div class="td-spend-top">
-        <button type="button" class="td-spend-fig td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><span class="td-spend-big">${fmt(total)}</span><span class="td-spend-cap">${esc(t('dash.spend.total'))}</span></button>
-        <div class="td-spend-fig td-spend-today"><span class="td-spend-mid">${fmt(todaySpend)}</span><span class="td-spend-cap">${esc(dayLabel)}</span></div>
-      </div>
-      ${budgetLine}
-      <div class="td-spend-day" title="${esc(dayLine)}">${esc(dayLine)}</div>
-      <div class="td-rate-anchor">
-        ${renderRateLine()}
-        ${_rateOpen ? renderRatePopover() : ''}
-      </div>
-      <form class="td-quickadd td-quickadd-v" data-quickadd>
-        <div class="td-quickadd-row2">
-          <label class="td-quickadd-cur" title="${esc(t('dash.spend.currency'))}">
-            <span class="td-quickadd-sym">${esc(currencySymbol(curCode))}</span>
-            <select class="td-quickadd-curpick" aria-label="${esc(t('dash.spend.currency'))}">${currencyOptions(curCode)}</select>
-          </label>
-          <input class="td-quickadd-amt" type="text" inputmode="decimal" placeholder="0.00" aria-label="${esc(t('dash.agenda.spendAmount'))}" required>
-          <select class="td-quickadd-cat select" aria-label="${esc(t('dash.agenda.spendCategory'))}">
-            <option value="">${esc(t('dash.agenda.spendCategory'))}…</option>
-            ${EXPENSE_CATEGORIES.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('')}
-          </select>
+      <div class="td-till" data-till>
+        <form id="td-quickadd" data-quickadd hidden></form>
+        <div class="td-lcd">
+          <div class="td-lcd-status">
+            <span>${esc(dayLabel)}</span>
+            <span>${esc(t('expenses.mart.items'))} <b>${String(day.count).padStart(2, '0')}</b></span>
+            <span class="td-lcd-today" title="${esc(t('dash.spend.today'))}">${fmt(todaySpend)}</span>
+            <span class="td-lcd-led" aria-hidden="true"></span>
+          </div>
+          <div class="td-lcd-scan"><span class="td-lcd-last" title="${esc(lastLine)}">${esc(lastLine)}</span><span class="td-lcd-caret" aria-hidden="true">_</span></div>
+          <div class="td-lcd-tot">
+            <button type="button" class="td-spend-total" data-spend-open="list" title="${esc(t('dash.spend.recent'))}"><span class="td-lcd-cap">${esc(t('expenses.mart.total'))}</span><span class="td-spend-big">${fmt(total)}</span></button>
+            ${budgetLine}
+          </div>
+          <div class="td-keys" role="group" aria-label="${esc(t('expenses.mart.keys'))}">
+            ${KEY_CATEGORIES.map(c => `
+              <button type="button" class="td-key" data-key="${c.id}" aria-pressed="false" title="${esc(c.label)}" style="--kc:${categoryDisplayColor(c.color)}">
+                <span class="td-key-emoji" aria-hidden="true">${c.icon}</span><span class="td-key-label">${esc(c.label)}</span>
+              </button>`).join('')}
+            <input type="hidden" class="td-quickadd-cat" form="td-quickadd" value="">
+          </div>
+          <div class="td-lcd-amt">
+            <div class="td-rate-anchor">
+              ${renderRateLine()}
+              ${_rateOpen ? renderRatePopover() : ''}
+            </div>
+            <label class="td-quickadd-cur" title="${esc(t('dash.spend.currency'))}">
+              <span class="td-quickadd-sym">${esc(currencySymbol(curCode))}</span>
+              <select class="td-quickadd-curpick" form="td-quickadd" aria-label="${esc(t('dash.spend.currency'))}">${currencyOptions(curCode)}</select>
+            </label>
+            <input class="td-quickadd-amt" form="td-quickadd" type="text" inputmode="decimal" placeholder="0.00" aria-label="${esc(t('dash.agenda.spendAmount'))}" required>
+          </div>
         </div>
-        <div class="td-quickadd-row2">
-          <input class="td-quickadd-desc" type="text" placeholder="${esc(t('dash.spend.note'))}" aria-label="${esc(t('dash.spend.note'))}">
-          <button class="td-quickadd-save btn btn-primary" type="submit">${esc(t('common.save'))}</button>
+        <div class="td-till-body">
+          <input class="td-quickadd-desc" form="td-quickadd" type="text" placeholder="${esc(t('dash.spend.note'))}" aria-label="${esc(t('dash.spend.note'))}">
+          <button class="td-quickadd-save" form="td-quickadd" type="submit">${esc(t('expenses.mart.scan'))}</button>
         </div>
-      </form>
+      </div>
     </div>`;
 }
 
@@ -570,18 +588,31 @@ function wire(body: HTMLElement): void {
     if (sym) sym.textContent = currencySymbol(_quickCur);
   });
 
-  // Quick-add spend form.
+  // Category soft keys: tap one to choose it (tap again to clear) — it rides along in the hidden field.
+  const till = body.querySelector<HTMLElement>('[data-till]');
+  const catField = till?.querySelector<HTMLInputElement>('.td-quickadd-cat');
+  const keys = [...(till?.querySelectorAll<HTMLElement>('.td-key') ?? [])];
+  const showKey = (id: string) => keys.forEach((k) => { const on = k.dataset.key === id; k.classList.toggle('is-on', on); k.setAttribute('aria-pressed', String(on)); });
+  if (catField) showKey(catField.value);          // the choice survives a re-render (see captureUiState)
+  keys.forEach((k) => k.addEventListener('click', () => {
+    if (!catField) return;
+    catField.value = catField.value === k.dataset.key ? '' : k.dataset.key ?? '';
+    showKey(catField.value);
+  }));
+
+  // Quick-add spend: the till's fields are tied to the empty <form> by their form attribute, so the
+  // converter popover (inside the till too) never submits it on Enter.
   body.querySelector<HTMLFormElement>('[data-quickadd]')?.addEventListener('submit', e => {
     e.preventDefault();
-    const form = e.currentTarget as HTMLFormElement;
-    const amt  = parseFloat((form.querySelector('.td-quickadd-amt') as HTMLInputElement).value);
-    const desc = (form.querySelector('.td-quickadd-desc') as HTMLInputElement)?.value.trim() ?? '';
-    const cat  = (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value;
+    if (!till) return;
+    const amtEl  = till.querySelector<HTMLInputElement>('.td-quickadd-amt')!;
+    const descEl = till.querySelector<HTMLInputElement>('.td-quickadd-desc');
+    const amt  = parseFloat(amtEl.value);
+    const desc = descEl?.value.trim() ?? '';
     if (!Number.isFinite(amt) || amt <= 0) return;
-    quickAddSpend(amt, desc, cat);
-    (form.querySelector('.td-quickadd-amt') as HTMLInputElement).value  = '';
-    (form.querySelector('.td-quickadd-cat') as HTMLSelectElement).value = '';
-    const descEl = form.querySelector('.td-quickadd-desc') as HTMLInputElement | null;
+    quickAddSpend(amt, desc, catField?.value ?? '');
+    amtEl.value = '';
+    if (catField) { catField.value = ''; showKey(''); }
     if (descEl) descEl.value = '';
   });
 

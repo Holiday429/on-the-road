@@ -1,14 +1,14 @@
 /* ==========================================================================
    On the Road · Dashboard — Journal card
    --------------------------------------------------------------------------
-   Square city thumbnails (name + entry count bottom-left), three at a time —
-   with more than three they rotate. A + to their right opens the real composer;
+   City photos as Polaroid prints (the place written on the white strip in hand, entry
+   count beneath), three at a time — with more than three they rotate. A + to their right opens the real composer;
    the corner expand button opens the album view in the side drawer. Tapping a
    thumbnail opens that city's photos and entries. With no photos yet it falls
    back to the latest entries as rows.
 
    Looking back at a day (time travel): the same card shows what was written on
-   that day instead — one tile per entry (photo, or a mood/text tile) — and a
+   that day instead — one print per entry (photo, or a mood/text print) — and a
    quiet note when there was none. Same size either way.
    ========================================================================== */
 
@@ -27,6 +27,10 @@ function entriesLabel(n: number): string {
   return n === 1 ? t('dash.journal.entry1') : t('dash.journal.entries', { n });
 }
 
+/** Each print hangs a little off true, in a fixed pattern (so a re-render never re-shuffles them). */
+const TILTS = [-1.8, 1.3, -0.9, 1.7, -1.3];
+const tiltFor = (i: number) => TILTS[i % TILTS.length];
+
 /** Three tiles are visible at a time; with more the track slides (see wireJournal). */
 function carousel(tiles: string[]): string {
   return `<div class="jr-carousel" data-jr-carousel${tiles.length > TILE_COUNT ? ' data-rotates' : ''}><div class="jr-track">${tiles.join('')}</div></div>`;
@@ -39,9 +43,8 @@ function renderTiles(groups: PlaceGroup[]): string {
     const g = tile.group;
     const place = [g.flag, g.city].filter(Boolean).join(' ');
     return `
-      <button type="button" class="jr-tile" data-jr-place="${groups.indexOf(g)}" aria-label="${esc(place)}">
-        <img src="${esc(tile.image)}" alt="" loading="lazy" decoding="async">
-        <span class="jr-shade"></span>
+      <button type="button" class="jr-tile" data-jr-place="${groups.indexOf(g)}" aria-label="${esc(place)}" style="--tilt:${tiltFor(i)}deg">
+        <span class="jr-photo-win"><img src="${esc(tile.image)}" alt="" loading="lazy" decoding="async"></span>
         <span class="jr-cap">
           ${place ? `<span class="jr-place">${esc(place)}</span>` : ''}
           ${!single || i === 0 ? `<span class="jr-sub">${esc(entriesLabel(g.entries.length))}</span>` : ''}
@@ -77,16 +80,15 @@ function renderDayTiles(day: StoredJournalEntry[], iso: string): string {
     const when = new Date(`${iso}T00:00:00`).toLocaleDateString(getLocale(), { month: 'short', day: 'numeric' });
     return `<div class="jr-day-empty">${esc(t('dash.journal.dayNone', { date: when }))}</div>`;
   }
-  return carousel(day.map((e) => {
+  return carousel(day.map((e, i) => {
     const cover = safeUrl(entryCover(e));
     const title = e.title.trim() ? titleFor(e) : excerpt(e.body, 40) || titleFor(e);
     const face = cover
       ? `<img src="${cover}" alt="" loading="lazy" decoding="async">`
       : `<span class="jr-face"><span class="jr-face-emoji">${esc(moodEmoji(e.mood) || '📖')}</span><span class="jr-face-text">${esc(excerpt(e.body, 70))}</span></span>`;
     return `
-      <button type="button" class="jr-tile" data-jr-entry="${esc(e.id)}" aria-label="${esc(title)}">
-        ${face}
-        <span class="jr-shade"></span>
+      <button type="button" class="jr-tile" data-jr-entry="${esc(e.id)}" aria-label="${esc(title)}" style="--tilt:${tiltFor(i)}deg">
+        <span class="jr-photo-win">${face}</span>
         <span class="jr-cap"><span class="jr-place">${esc(title)}</span>${e.destination ? `<span class="jr-sub">${esc(e.destination)}</span>` : ''}</span>
       </button>`;
   }));
