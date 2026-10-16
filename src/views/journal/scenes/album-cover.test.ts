@@ -8,7 +8,7 @@ const album = (over: Partial<StoredJournalAlbum> = {}): StoredJournalAlbum => ({
   ...over,
 } as StoredJournalAlbum);
 
-const art = { photo: 'https://x.test/p.jpg', count: 7, newest: '2026-09-14', suggested: ['A long walk'] };
+const art = { photo: 'https://x.test/p.jpg', count: 7, newest: '2026-09-14' };
 
 describe('coverOf', () => {
   it('prints the default cover for an album saved before covers existed', () => {
@@ -20,13 +20,13 @@ describe('coverOf', () => {
   });
 
   it('falls back to the title when the headline is blank or only spaces', () => {
-    expect(coverOf(album({ cover: { template: 'banner', headline: '   ', kicker: '', lines: [], tone: 'ink', focalY: 0.5 } })).headline)
+    expect(coverOf(album({ cover: { template: 'banner', headline: '   ', kicker: '', lines: [], tone: 'ink', focalY: 0.5, photo: '' } })).headline)
       .toBe('Lisbon days');
   });
 
   it('keeps what the designer set', () => {
-    const c = coverOf(album({ cover: { template: 'frame', headline: 'PORTO', kicker: 'three days', lines: ['a', 'b'], tone: 'sage', focalY: 0.2 } }));
-    expect(c).toMatchObject({ template: 'frame', headline: 'PORTO', kicker: 'three days', tone: 'sage', focalY: 0.2 });
+    const c = coverOf(album({ cover: { template: 'frame', headline: 'PORTO', kicker: 'three days', lines: ['a', 'b'], tone: 'sage', focalY: 0.2, photo: '' } }));
+    expect(c).toMatchObject({ template: 'frame', headline: 'PORTO', kicker: 'three days', tone: 'sage', focalY: 0.2, photo: '' });
   });
 });
 
@@ -47,7 +47,7 @@ describe('renderCover', () => {
   it('draws every template and tone without losing the headline', () => {
     for (const template of COVER_TEMPLATES) {
       for (const tone of COVER_TONES) {
-        const html = renderCover({ template, tone, headline: 'Lisbon', kicker: '', lines: [], focalY: 0.5 }, art);
+        const html = renderCover({ template, tone, headline: 'Lisbon', kicker: '', lines: [], focalY: 0.5, photo: '' }, art);
         expect(html, `${template}/${tone}`).toContain('Lisbon');
         expect(html).toContain(`jc--${template}`);
         expect(html).toContain(`jc-tone--${tone}`);
@@ -57,25 +57,33 @@ describe('renderCover', () => {
 
   it('escapes what the user typed', () => {
     const html = renderCover(
-      { template: 'wordmark', tone: 'paper', headline: '<img src=x onerror=alert(1)>', kicker: '', lines: ['"quoted"'], focalY: 0.5 },
+      { template: 'wordmark', tone: 'paper', headline: '<img src=x onerror=alert(1)>', kicker: '', lines: ['"quoted"'], focalY: 0.5, photo: '' },
       art,
     );
     expect(html).not.toContain('<img src=x');
     expect(html).toContain('&lt;img');
   });
 
-  it('offers the entries own headlines as billings only until the designer writes their own', () => {
-    const suggested = renderCover({ template: 'wordmark', tone: 'paper', headline: 'X', kicker: '', lines: [], focalY: 0.5 }, art);
-    expect(suggested).toContain('A long walk');
-    const own = renderCover({ template: 'wordmark', tone: 'paper', headline: 'X', kicker: '', lines: ['Mine'], focalY: 0.5 }, art);
+  it('prints no billings the designer did not write: nothing is made up from the entries', () => {
+    const none = renderCover({ template: 'wordmark', tone: 'paper', headline: 'X', kicker: '', lines: [], focalY: 0.5, photo: '' }, art);
+    expect(none).not.toContain('jc-lines');
+    const own = renderCover({ template: 'wordmark', tone: 'paper', headline: 'X', kicker: '', lines: ['Mine'], focalY: 0.5, photo: '' }, art);
     expect(own).toContain('Mine');
-    expect(own).not.toContain('A long walk');
+  });
+
+  it('prints the picture uploaded for the cover in preference to an entry\'s photo', () => {
+    const base = { template: 'banner' as const, tone: 'ink' as const, headline: 'X', kicker: '', lines: [] as string[], focalY: 0.5 };
+    expect(renderCover({ ...base, photo: 'https://x.test/mine.jpg' }, art)).toContain('mine.jpg');
+    expect(renderCover({ ...base, photo: 'https://x.test/mine.jpg' }, art)).not.toContain('p.jpg');
+    expect(renderCover({ ...base, photo: '' }, art)).toContain('p.jpg');
+    expect(coverOf(album({ cover: { ...base, photo: 'https://x.test/mine.jpg' } })).photo).toContain('mine.jpg');
+    expect(coverOf(album()).photo).toBe('');
   });
 
   it('carries the focal point onto the photo, and copes with an album that has none', () => {
-    expect(renderCover({ template: 'banner', tone: 'ink', headline: 'X', kicker: '', lines: [], focalY: 0.25 }, art))
+    expect(renderCover({ template: 'banner', tone: 'ink', headline: 'X', kicker: '', lines: [], focalY: 0.25, photo: '' }, art))
       .toContain('object-position:50% 25%');
-    const noPhoto = renderCover({ template: 'frame', tone: 'amber', headline: 'X', kicker: '', lines: [], focalY: 0.5 }, { ...art, photo: '' });
+    const noPhoto = renderCover({ template: 'frame', tone: 'amber', headline: 'X', kicker: '', lines: [], focalY: 0.5, photo: '' }, { ...art, photo: '' });
     expect(noPhoto).toContain('jc-photo--none');
     expect(noPhoto).not.toContain('<img');
   });

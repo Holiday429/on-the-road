@@ -16,14 +16,18 @@
    the browser can say, so a template asks for them (`headHeight`,
    `quoteHeight`) rather than assuming.
 
-   Ten page shapes — the five that open or fill an article:
+   Nine page shapes — the five that open or fill an article:
      opener-land · opener-port · opener-text · text-2col · photo-pair
-   and the five that give the book its pace:
+   and the four that give the book its pace:
      photo-side-text   a tall picture takes a column, the words the other
      full-bleed        one wide picture across the whole page, a caption, nothing else
-     grid              three or four of one orientation, set together
+     grid              three or four of one orientation, set above the words
      pull-quote        a sentence from the piece, set large between two blocks of text
-   (the tenth, article-break, is not a whole page: see breakTail.)
+
+   An article always begins on a page of its own — two notes never share a page.
+   Pictures with no words left to set are laid out together as rows (`justify`),
+   as many as fill the page well, so the end of an article is not a lone small
+   photograph on a blank page.
    ========================================================================== */
 
 import { BODY_H, BODY_W, PAGE_W, photoRatio, type PhotoRef } from './magazine-model.ts';
@@ -35,7 +39,7 @@ export type TemplateId =
 export interface Box { x: number; y: number; w: number; h: number }
 /** `bleed`: x and w are page coordinates (0–600), not body coordinates — it runs to the edges. */
 export interface PhotoBox extends Box { bleed?: boolean }
-export interface FrameSlot extends Box { cols: 1 | 2; dropcap?: boolean }
+export interface FrameSlot extends Box { cols: 1 | 2; lead?: boolean }
 export interface HeadSlot extends Box { size: 'm' | 'l' }
 /** A caption line: where it sits and how wide. */
 export interface CaptionSlot { x: number; y: number; w: number }
@@ -63,6 +67,8 @@ export interface TemplateCtx {
   textRemains: boolean;
   /** 0 or 1, from the page's place in the article: which side a picture takes. */
   parity: 0 | 1;
+  /** The whole article is a few lines with no picture: its opener sets them large. */
+  shortNote?: boolean;
 }
 
 export interface Template {
@@ -92,8 +98,8 @@ const COL_W = (BODY_W - COL_GAP) / 2;      // 236
 const h = (w: number, p: PhotoRef) => Math.round(w / photoRatio(p));
 /** Where text may start under a picture with a caption. */
 const under = (y: number, ph: number) => y + ph + CAP + AFTER_CAP;
-const frame = (x: number, y: number, w: number, hh: number, cols: 1 | 2, dropcap = false): FrameSlot[] =>
-  hh >= MIN_FRAME_H && w >= MIN_FRAME_W ? [{ x, y, w, h: Math.floor(hh), cols, dropcap }] : [];
+const frame = (x: number, y: number, w: number, hh: number, cols: 1 | 2, lead = false): FrameSlot[] =>
+  hh >= MIN_FRAME_H && w >= MIN_FRAME_W ? [{ x, y, w, h: Math.floor(hh), cols, lead }] : [];
 const centred = (w: number) => Math.round((BODY_W - w) / 2);
 
 /** Wide first picture, set across the top; heading under it; two columns. */
@@ -107,7 +113,7 @@ const openerLand: Template = {
     return {
       photos: [{ x: 0, y: 0, w: BODY_W, h: photoH }], head,
       captions: [{ x: 0, y: photoH + 5, w: BODY_W }],
-      frames: frame(0, top, BODY_W, BODY_H - top, 2, true),
+      frames: frame(0, top, BODY_W, BODY_H - top, 2),
     };
   },
 };
@@ -128,7 +134,7 @@ const openerPort: Template = {
       photos: [{ x: 0, y: 0, w: photoW, h: photoH }], head,
       captions: [{ x: 0, y: photoH + 5, w: photoW }],
       frames: [
-        ...frame(sideX, besideTop, sideW, photoH + CAP - besideTop, 1, true),
+        ...frame(sideX, besideTop, sideW, photoH + CAP - besideTop, 1),
         ...frame(0, below, BODY_W, BODY_H - below, 2),
       ],
     };
@@ -139,10 +145,11 @@ const openerPort: Template = {
 const openerText: Template = {
   id: 'opener-text', opener: true, pictureLed: false,
   applies: () => true, take: () => 0,
-  layout: ({ headHeight }) => {
+  layout: ({ headHeight, shortNote }) => {
     const head: HeadSlot = { x: 0, y: 0, w: BODY_W, h: headHeight(BODY_W, 'l'), size: 'l' };
     const top = head.h + GAP;
-    return { photos: [], head, captions: [], frames: frame(0, top, BODY_W, BODY_H - top, 2, true) };
+    // A short note is set large in a single column: a few big lines, not a thin strip of small ones.
+    return { photos: [], head, captions: [], frames: frame(0, top, BODY_W, BODY_H - top, shortNote ? 1 : 2, !!shortNote) };
   },
 };
 
@@ -153,41 +160,103 @@ const text2col: Template = {
   layout: () => ({ photos: [], captions: [], frames: frame(0, 0, BODY_W, BODY_H, 2) }),
 };
 
+/* ── Pictures set together as rows ───────────────────────────────────────── */
+
+/** The smallest a picture may be set on a page of pictures, px on its short side. */
+const MIN_SIDE = 150;
+/** A page of pictures is worth printing when the pictures reach this far down the body. */
+const MIN_FILL = 0.55;
+
+export interface Justified { boxes: Box[]; /** Height of the whole group. */ height: number; rows: number }
+
+/**
+ * Set `photos` (in order) as rows that fill `width`: each row is one height,
+ * every picture in it keeps its own shape, and the rows are stacked. All the
+ * ways of cutting the list into consecutive rows are tried and the one that
+ * lets the pictures be largest wins; if the stack is taller than `maxH` it is
+ * scaled down (still every picture its own shape) and centred.
+ */
+export function justify(photos: PhotoRef[], width: number, maxH: number, gap = PHOTO_GAP): Justified {
+  const n = photos.length;
+  let best: Justified = { boxes: [], height: 0, rows: 0 };
+  let bestArea = -1;
+  for (let mask = 0; mask < 1 << Math.max(0, n - 1); mask++) {
+    // bit i set: a new row starts before photo i+1
+    const rows: PhotoRef[][] = [[photos[0]]];
+    for (let i = 1; i < n; i++) {
+      if (mask & (1 << (i - 1))) rows.push([photos[i]]); else rows[rows.length - 1].push(photos[i]);
+    }
+    const heights = rows.map((r) => (width - gap * (r.length - 1)) / r.reduce((sum, p) => sum + photoRatio(p), 0));
+    const total = heights.reduce((a, b) => a + b, 0) + gap * (rows.length - 1);
+    const k = Math.min(1, maxH / total);
+    const boxes: Box[] = [];
+    let y = 0;
+    rows.forEach((r, ri) => {
+      const rowH = heights[ri] * k;
+      const rowW = (width - gap * (r.length - 1)) * k + gap * (r.length - 1);
+      let x = (width - rowW) / 2;
+      for (const p of r) {
+        const w = rowH * photoRatio(p);
+        boxes.push({ x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(rowH) });
+        x += w + gap;
+      }
+      y += rowH + gap;
+    });
+    const area = boxes.reduce((sum, b) => sum + b.w * b.h, 0);
+    if (area > bestArea) { bestArea = area; best = { boxes, height: Math.round(total * k), rows: rows.length }; }
+  }
+  return best;
+}
+
+/**
+ * How many of the next pictures to put together on a page of pictures alone:
+ * as many as still fill the page well (up to four), without leaving a single
+ * picture to sit alone on the next one if it can be helped.
+ */
+export function pictureCount(next: PhotoRef[]): number {
+  const maxH = BODY_H - CAP;
+  const ok = (n: number) => {
+    const j = justify(next.slice(0, n), BODY_W, maxH);
+    return j.height >= maxH * MIN_FILL && j.boxes.every((b) => Math.min(b.w, b.h) >= MIN_SIDE);
+  };
+  let n = Math.min(4, next.length);
+  while (n > 1 && !ok(n)) n--;
+  if (n > 2 && next.length - n === 1) n--;
+  return n;
+}
+
 /**
  * One or two photographs, then whatever words are left. With words to follow,
  * two are only taken together when they are the same shape, so they line up:
  * portraits side by side, landscapes one above the other. With none left the
- * pictures are the page, and any two go together.
+ * pictures are the page: several are set together as rows, centred (`justify`).
  */
 const photoPair: Template = {
   id: 'photo-pair', opener: false, pictureLed: true,
   applies: (next) => next.length > 0,
-  take: (next, textRemains) => (next.length >= 2 && (!textRemains || next[0].ratio === next[1].ratio) ? 2 : 1),
+  take: (next, textRemains) => (!textRemains ? pictureCount(next) : next.length >= 2 && next[0].ratio === next[1].ratio ? 2 : 1),
   layout: ({ photos, textRemains }) => {
-    const budget = textRemains ? 400 : BODY_H - CAP;
-    const [a, b] = photos;
-    const portrait = a.orient === 'portrait';
-
-    if (b && !textRemains && a.ratio !== b.ratio) {
-      // two different shapes and nothing else on the page: one above the other, each as tall as half the page
-      const each = (BODY_H - CAP - PHOTO_GAP) / 2;
-      const wa = Math.min(BODY_W, Math.floor(each * photoRatio(a)));
-      const wb = Math.min(BODY_W, Math.floor(each * photoRatio(b)));
-      const ha = h(wa, a);
-      const hb = h(wb, b);
+    if (!textRemains) {
+      const maxH = BODY_H - CAP;
+      const j = justify(photos, BODY_W, maxH);
+      const top = Math.max(0, Math.round((maxH - j.height) / 2));
       return {
-        photos: [{ x: centred(wa), y: 0, w: wa, h: ha }, { x: centred(wb), y: ha + PHOTO_GAP, w: wb, h: hb }],
-        captions: [{ x: centred(wb), y: ha + PHOTO_GAP + hb + 5, w: wb }],
+        photos: j.boxes.map((b) => ({ ...b, y: b.y + top })),
+        captions: [{ x: 0, y: top + j.height + 5, w: BODY_W }],
         frames: [],
       };
     }
+    const budget = 400;
+    const [a, b] = photos;
+    const portrait = a.orient === 'portrait';
+
     if (b && portrait) {
       const w = (BODY_W - PHOTO_GAP) / 2;
       const ph = Math.min(h(w, a), budget);
       return {
         photos: [{ x: 0, y: 0, w, h: ph }, { x: w + PHOTO_GAP, y: 0, w, h: ph }],
         captions: [{ x: 0, y: ph + 5, w: BODY_W }],
-        frames: textRemains ? frame(0, under(0, ph), BODY_W, BODY_H - under(0, ph), 2) : [],
+        frames: frame(0, under(0, ph), BODY_W, BODY_H - under(0, ph), 2),
       };
     }
     if (b) {
@@ -199,7 +268,7 @@ const photoPair: Template = {
       return {
         photos: [{ x, y: 0, w: wide, h: ph }, { x, y: ph + PHOTO_GAP, w: wide, h: ph }],
         captions: [{ x, y: end + 5, w: wide }],
-        frames: textRemains ? frame(0, under(0, end), BODY_W, BODY_H - under(0, end), 2) : [],
+        frames: frame(0, under(0, end), BODY_W, BODY_H - under(0, end), 2),
       };
     }
     // a single photograph, as large as the page allows
@@ -208,7 +277,7 @@ const photoPair: Template = {
     return {
       photos: [{ x: centred(w), y: 0, w, h: ph }],
       captions: [{ x: centred(w), y: ph + 5, w }],
-      frames: textRemains ? frame(0, under(0, ph), BODY_W, BODY_H - under(0, ph), 2) : [],
+      frames: frame(0, under(0, ph), BODY_W, BODY_H - under(0, ph), 2),
     };
   },
 };
@@ -234,10 +303,10 @@ const photoSideText: Template = {
   },
 };
 
-/** One wide picture across the whole page, to the edges, a caption under it. Dark plate. */
+/** One wide picture across the whole page, to the edges, a caption under it. Dark plate. Only for the last picture or two. */
 const fullBleed: Template = {
   id: 'full-bleed', opener: false, pictureLed: true,
-  applies: (next, textRemains) => !textRemains && !!next[0] && next[0].orient !== 'portrait',
+  applies: (next, textRemains) => !textRemains && next.length <= 2 && !!next[0] && next[0].orient !== 'portrait',
   take: () => 1,
   layout: ({ photos }) => {
     const ph = Math.min(h(PAGE_W, photos[0]), 540);
@@ -257,39 +326,26 @@ const sameOrientation = (next: PhotoRef[]) => {
 };
 
 /**
- * Three or four pictures of one orientation, set together as a single piece.
- * With words to follow it is a compact block above them; with none it is the
- * page, so it is set as large as the page allows.
+ * Three or four pictures of one orientation, set together in a compact block
+ * above the words that follow.
  */
 const grid: Template = {
   id: 'grid', opener: false, pictureLed: true,
-  // Four tall pictures can fill a page alone (two by two); three cannot, and are paired off instead.
-  applies: (next, textRemains) => {
-    const n = next.length >= 3 ? sameOrientation(next) : 0;
-    if (n < 3) return false;
-    return textRemains || next[0].orient !== 'portrait' || n === 4;
-  },
+  applies: (next, textRemains) => textRemains && next.length >= 3 && sameOrientation(next) >= 3,
   take: (next) => sameOrientation(next),
-  layout: ({ photos, textRemains }) => {
-    const budget = textRemains ? 400 : BODY_H - CAP;
+  layout: ({ photos }) => {
+    const budget = 400;
     const n = photos.length;
     const boxes: PhotoBox[] = [];
     let bottom: number;
 
-    if (photos[0].orient === 'portrait' && textRemains) {
+    if (photos[0].orient === 'portrait') {
       // tall pictures in a row: each as wide as the row allows, none cropped into a wider shape
       const w = Math.floor((BODY_W - (n - 1) * 12) / n);
       const ph = Math.min(Math.max(...photos.map((p) => h(w, p))), budget);
       photos.forEach((_, i) => boxes.push({ x: i * (w + 12), y: 0, w, h: ph }));
       bottom = ph;
-    } else if (photos[0].orient === 'portrait') {
-      // four tall pictures and nothing else: two by two, each as tall as half the page allows, shape kept
-      const rowH = Math.floor((budget - PHOTO_GAP) / 2);
-      const w = Math.min(Math.floor((BODY_W - PHOTO_GAP) / 2), Math.floor(rowH * photoRatio(photos[0])));
-      const left = Math.round((BODY_W - (2 * w + PHOTO_GAP)) / 2);
-      photos.forEach((p, i) => boxes.push({ x: left + (i % 2) * (w + PHOTO_GAP), y: Math.floor(i / 2) * (h(w, p) + PHOTO_GAP), w, h: h(w, p) }));
-      bottom = 2 * h(w, photos[0]) + PHOTO_GAP;
-    } else if (textRemains && n === 4) {
+    } else if (n === 4) {
       const w = (BODY_W - PHOTO_GAP) / 2;
       const rowH = Math.min(Math.max(...photos.map((p) => h(w, p))), Math.floor((budget - PHOTO_GAP) / 2));
       photos.forEach((_, i) => boxes.push({ x: (i % 2) * (w + PHOTO_GAP), y: Math.floor(i / 2) * (rowH + PHOTO_GAP), w, h: rowH }));
@@ -307,7 +363,7 @@ const grid: Template = {
     return {
       photos: boxes,
       captions: [{ x: 0, y: bottom + 5, w: BODY_W }],
-      frames: textRemains ? frame(0, under(0, bottom), BODY_W, BODY_H - under(0, bottom), 2) : [],
+      frames: frame(0, under(0, bottom), BODY_W, BODY_H - under(0, bottom), 2),
     };
   },
 };
@@ -345,30 +401,4 @@ export const TEMPLATES: Record<TemplateId, Template> = {
 export function openerFor(first: PhotoRef | undefined): Template {
   if (!first) return openerText;
   return first.orient === 'portrait' ? openerPort : openerLand;
-}
-
-/* ── article-break ───────────────────────────────────────────────────────── */
-
-/** The least free height on a page at which the next article may begin on it. */
-export const BREAK_MIN_FREE = 300;
-
-export interface Tail {
-  /** A thin rule across the page, then the next article's heading, then its words. */
-  rule: { x: number; y: number; w: number };
-  head: HeadSlot;
-  frames: FrameSlot[];
-}
-
-/**
- * The lower part of a page that the previous article left empty, given to the
- * next one: a rule, its heading, its words in two columns. `usedBottom` is how
- * far down the page the previous article got.
- */
-export function breakTail(usedBottom: number, headHeight: (w: number, size: 'm' | 'l') => number): Tail | null {
-  const ruleY = Math.round(usedBottom + GAP + 6);
-  const head: HeadSlot = { x: 0, y: ruleY + 18, w: BODY_W, h: headHeight(BODY_W, 'm'), size: 'm' };
-  const top = head.y + head.h + AFTER_CAP;
-  const frames = frame(0, top, BODY_W, BODY_H - top, 2, true);
-  if (!frames.length) return null;
-  return { rule: { x: 0, y: ruleY, w: BODY_W }, head, frames };
 }

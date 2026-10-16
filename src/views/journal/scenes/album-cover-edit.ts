@@ -39,7 +39,7 @@ export function renderCoverEditor(album: StoredJournalAlbum, entries: StoredJour
     <div class="jce" data-cover-editor="${escHtml(album.id)}">
       <div class="jce-proof">
         <div class="jce-proof-art">${renderCover(shown, art)}</div>
-        ${art.photo ? `
+        ${draft.photo || art.photo ? `
           <label class="jce-focal">
             <span>${escHtml(t('journal.cover.focal'))}</span>
             <input type="range" min="0" max="100" value="${Math.round(draft.focalY * 100)}" data-cover-focal>
@@ -47,6 +47,18 @@ export function renderCoverEditor(album: StoredJournalAlbum, entries: StoredJour
       </div>
 
       <div class="jce-controls">
+        <section class="jce-group">
+          <h4 class="jce-label">${escHtml(t('journal.cover.photo'))}</h4>
+          <div class="jce-photo">
+            <label class="btn btn-ghost jce-upload">
+              ${escHtml(t(draft.photo ? 'journal.cover.photoChange' : 'journal.cover.photoUpload'))}
+              <input type="file" accept="image/*" data-cover-photo-input hidden>
+            </label>
+            ${draft.photo ? `<button class="btn btn-ghost" data-cover-photo-clear type="button">${escHtml(t('journal.cover.photoClear'))}</button>` : ''}
+          </div>
+          <p class="jce-hint">${escHtml(t(draft.photo ? 'journal.cover.photoOwn' : 'journal.cover.photoAuto'))}</p>
+        </section>
+
         <section class="jce-group">
           <h4 class="jce-label">${escHtml(t('journal.cover.template'))}</h4>
           <div class="jce-chips">${COVER_TEMPLATES.map((x) => templateChip(draft, album, entries, x)).join('')}</div>
@@ -70,7 +82,7 @@ export function renderCoverEditor(album: StoredJournalAlbum, entries: StoredJour
         <section class="jce-group">
           <h4 class="jce-label">${escHtml(t('journal.cover.lines'))}</h4>
           ${lines.map((line, i) => `
-            <input class="input" data-cover-line="${i}" maxlength="40" placeholder="${escHtml(art.suggested[i] ?? t('journal.cover.lineHint'))}" value="${escHtml(line)}">`).join('')}
+            <input class="input" data-cover-line="${i}" maxlength="40" placeholder="${escHtml(t('journal.cover.lineHint'))}" value="${escHtml(line)}">`).join('')}
         </section>
 
         <div class="jce-actions">

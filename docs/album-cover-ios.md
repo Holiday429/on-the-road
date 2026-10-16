@@ -11,15 +11,16 @@ Web `main`. One **optional** field was added to the journal album document; noth
 | `template` | `wordmark \| masthead \| banner \| frame` | `wordmark` | Which cover layout is printed. |
 | `headline` | string | `''` | The big name. **Empty means "use the album's `title`"** — so renaming an album keeps renaming its cover. Store what the user typed, not the resolved value. |
 | `kicker` | string | `''` | One line under (or over) the headline. |
-| `lines` | string[] (max 3) | `[]` | Cover billings, the way a magazine lists its features. Empty = the web shows the first entries' titles as a *suggestion*; it does not write them. |
+| `lines` | string[] (max 3) | `[]` | Cover billings, the way a magazine lists its features. Empty = none are printed (the web no longer suggests entry titles). |
 | `tone` | `paper \| ink \| amber \| sky \| sage \| coral` | `paper` | Which palette the cover prints in. |
 | `focalY` | number 0–1 | `0.5` | Vertical focus of the cover photo (0 = top, 1 = bottom), i.e. CSS `object-position: 50% {focalY*100}%`. |
+| `photo` | string (Storage URL) | `''` | A picture the traveller uploaded for the cover (`users/{uid}/journal/…`). **Non-empty wins over the entry photo below**; empty = the entry photo. |
 
 Schema: `src/data/schema/journal.ts` (`JournalAlbumCoverSchema`). Writers should omit `cover` entirely rather than writing an object of empty defaults.
 
 ## The cover picture
 
-Not part of `cover`. It is still the existing `coverEntryId`'s photo, falling back to the first entry that has one — unchanged from before, so iOS needs no new lookup.
+Unless `cover.photo` is set, it is the existing `coverEntryId`'s photo, falling back to the first entry that has one — unchanged from before, so iOS needs no new lookup.
 
 ## The four templates
 
@@ -40,7 +41,7 @@ Derived, never stored: `VOL.{count, 2 digits} · {MMM YYYY of the newest entry, 
 
 | Piece | Web | Notes |
 |---|---|---|
-| Cover | `scenes/album-cover.ts` `renderCover(cover, art)` | `art = { photo, count, newest, suggested }`. Pure; no state. |
+| Cover | `scenes/album-cover.ts` `renderCover(cover, art)` | `art = { photo, count, newest }`. Pure; no state. |
 | Resolved cover | `coverOf(album)` | Fills every default, including headline → album title. Use this for display, the raw field for editing. |
 | Editor | `scenes/album-cover-edit.ts` | Live proof + template miniatures + tone swatches + copy fields. |
 

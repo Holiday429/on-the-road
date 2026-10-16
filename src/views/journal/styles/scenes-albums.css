@@ -7,34 +7,27 @@
 /* ── The shelf ───────────────────────────────────────────────────────────── */
 .jb-rack {
   display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-8) var(--sp-6);
-  padding: var(--sp-8) var(--sp-6) var(--sp-8);
-  border-radius: var(--r-xl); border: 1px solid var(--rule);
-  /* The shelf edge is a fixed strip at the foot, so it does not depend on how
-     tall the covers happen to be. */
-  background: var(--surface-3) linear-gradient(180deg, transparent calc(100% - 18px), var(--surface-4) calc(100% - 18px));
+  padding: var(--sp-4) var(--sp-2) var(--sp-8);
 }
 .jb-book {
-  position: relative; width: 168px; padding: 0; border: 0; background: none; cursor: pointer; perspective: 900px;
-  transform: rotate(var(--lean, 0deg)); transition: transform var(--dur-mid) cubic-bezier(.34, 1.56, .64, 1);
+  position: relative; width: 168px; padding: 0; border: 0; background: none; cursor: pointer;
+  transform: rotate(var(--lean, 0deg)); transition: transform var(--dur-mid) var(--ease-out);
 }
-.jb-book:hover, .jb-book:focus-visible { transform: translateY(-10px) rotate(0deg); }
+/* Picked up off the shelf: it lifts and squares up. Nothing swings open, so nothing behind it shows. */
+.jb-book:hover, .jb-book:focus-visible { transform: translateY(-8px) rotate(0deg); }
 .jb-book:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 6px; border-radius: var(--r-md); }
 
-/* the stack of paper that shows when the cover lifts */
-.jb-pages {
-  position: absolute; inset: 4px 0 4px 8px; border-radius: 2px 6px 6px 2px; background: var(--surface);
-  background-image: repeating-linear-gradient(180deg, transparent 0 6px, var(--rule) 6px 7px); box-shadow: var(--shadow-sm);
-}
-/* The printed cover (styles/album-cover.css) IS the board: it hinges at the spine. */
+/* The printed cover (styles/album-cover.css) IS the book. */
 .jb-book > .jc {
   position: relative; border-radius: 3px 9px 9px 3px; box-shadow: var(--shadow-md);
-  transform-origin: left center; transition: transform 480ms var(--ease-out), box-shadow 480ms;
+  transition: box-shadow var(--dur-mid) var(--ease-out);
 }
-.jb-book:hover > .jc, .jb-book:focus-visible > .jc { transform: rotateY(-24deg); box-shadow: var(--shadow-lg); }
+.jb-book:hover > .jc, .jb-book:focus-visible > .jc { box-shadow: var(--shadow-lg), 0 14px 28px color-mix(in srgb, black 16%, transparent); }
+/* The crease along the spine. */
 .jb-spine {
   position: absolute; left: 0; top: 0; bottom: 0; width: 14px; z-index: 2; pointer-events: none;
   border-radius: 3px 0 0 3px;
-  background: linear-gradient(90deg, rgba(0, 0, 0, .18), rgba(0, 0, 0, .04) 60%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, black 20%, transparent), color-mix(in srgb, black 4%, transparent) 60%, transparent);
 }
 
 .jb-book--new {

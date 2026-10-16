@@ -11,7 +11,7 @@
      frame     a wide paper margin with the photo held in the middle
 
    Pure markup over `JournalAlbumCover`; every field is optional and falls back
-   to the album's own title and photos, so an album saved before covers existed
+   to the album's own title and photos (a picture uploaded for the cover first), so an album saved before covers existed
    prints the default and nothing has to be backfilled.
    ========================================================================== */
 
@@ -35,6 +35,7 @@ export function coverOf(album: StoredJournalAlbum): JournalAlbumCover {
     lines: c?.lines ?? [],
     tone: c?.tone ?? 'paper',
     focalY: c?.focalY ?? 0.5,
+    photo: c?.photo ?? '',
   };
 }
 
@@ -53,14 +54,12 @@ export function issueLine(count: number, newestIso: string, locale = 'en-US'): s
 }
 
 export interface CoverArt {
-  /** The cover photo, or '' for a cover with no picture. */
+  /** The photo of an entry the cover falls back to, or '' for none. A photo uploaded for the cover wins over it. */
   photo: string;
   /** How many entries the album holds. */
   count: number;
   /** ISO date of the newest entry, for the issue line. */
   newest: string;
-  /** Headlines of a few entries, offered as the cover billings when none are set. */
-  suggested: string[];
 }
 
 /**
@@ -71,9 +70,11 @@ export interface CoverArt {
  * album is open, without a second set of styles.
  */
 export function renderCover(cover: JournalAlbumCover, art: CoverArt, opts: { interactive?: boolean } = {}): string {
-  const lines = (cover.lines.length ? cover.lines : art.suggested).filter(Boolean).slice(0, 3);
-  const photo = art.photo
-    ? `<img class="jc-photo" src="${escHtml(art.photo)}" alt="" loading="lazy" draggable="false" style="object-position:50% ${Math.round(cover.focalY * 100)}%">`
+  // Only words the traveller wrote are printed: a cover with no billings has none.
+  const lines = cover.lines.filter(Boolean).slice(0, 3);
+  const src = cover.photo || art.photo;
+  const photo = src
+    ? `<img class="jc-photo" src="${escHtml(src)}" alt="" loading="lazy" draggable="false" style="object-position:50% ${Math.round(cover.focalY * 100)}%">`
     : '<span class="jc-photo jc-photo--none" aria-hidden="true"></span>';
   const issue = issueLine(art.count, art.newest);
   const body = TEMPLATES[cover.template](cover, { photo, issue, lines });

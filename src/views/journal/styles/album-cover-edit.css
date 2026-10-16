@@ -16,6 +16,8 @@
 .jce-proof-art { box-shadow: var(--shadow-md); }
 .jce-focal { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); color: var(--ink-muted); }
 .jce-focal input { flex: 1; accent-color: var(--accent); }
+.jce-photo { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.jce-upload { cursor: pointer; }
 .jce-hint { margin: 0; font-size: var(--fs-xs); color: var(--ink-faint); }
 
 /* ── The choices ─────────────────────────────────────────────────────────── */

@@ -7,7 +7,7 @@ import { renderFeedGrid } from '../scenes/feed.ts';
 import { renderGallery } from '../scenes/gallery.ts';
 import { renderPlaces } from '../scenes/places.ts';
 import { buildStops, countryName, type PlaceStop } from '../scenes/places-model.ts';
-import { albumEntries, renderShelf } from '../scenes/albums.ts';
+import { albumEntries, magazineEntries, renderShelf } from '../scenes/albums.ts';
 import { renderMagazine } from '../scenes/magazine.ts';
 import { cachedBook } from '../scenes/magazine-measure.ts';
 import { renderReadLetter, renderWriteLetter } from '../scenes/letter.ts';
@@ -269,7 +269,7 @@ function renderAlbumsView(model: CaptureRenderModel): string {
     return model.albumDrawer
       ? renderAlbumFeed(open, model.allEntries, model.state.readingId)
       : (() => {
-        const entries = albumEntries(open, model.allEntries);
+        const entries = magazineEntries(open, model.allEntries);
         const countries = magazineCountries(entries, model.legs);
         return renderMagazine(open, entries, cachedBook(open, entries), {
           leaf: model.state.albumLeaf, turn: model.state.albumTurn, dir: model.state.albumDir,

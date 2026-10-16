@@ -21,13 +21,11 @@
   color: var(--ink);
   text-align: justify; line-break: strict; overflow-wrap: anywhere; text-wrap: pretty;
 }
-.mag-text p { margin: 0; text-indent: 2em; }
-.mag-text p.is-cont, .mag-text.has-dropcap > p:first-child { text-indent: 0; }
-/* The first letter of an article, sunk into the lines. */
-.mag-text.has-dropcap > p:first-child::first-letter {
-  float: left; font-size: 3.5em; line-height: .84; font-weight: var(--fw-semibold);
-  padding: .04em .1em 0 0; color: var(--ink);
-}
+.mag-text p { margin: 0; }
+/* Paragraphs are told apart by a little space, not by indenting the first line. */
+.mag-text p + p { margin-top: .7em; }
+/* A very short note, set larger. */
+.mag-text.is-lead { font-size: 1.25rem; line-height: 1.85; }
 
 .mag-head { position: absolute; font-family: var(--font-serif); }
 .mag-kicker {
@@ -52,8 +50,6 @@
   font-family: var(--font-serif); font-size: 1.5rem; line-height: 1.4; font-style: italic; text-align: center; color: var(--ink);
   text-wrap: balance; overflow-wrap: anywhere;
 }
-/* Where the next article begins on the same page. */
-.mag-rule { position: absolute; margin: 0; height: 0; border: 0; border-top: 1px solid var(--ink); }
 /* The running head, in the outer top margin. */
 .mag-run {
   position: absolute; top: 28px; z-index: 6; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -140,11 +136,40 @@
 /* ── Cover and back ──────────────────────────────────────────────────────── */
 .mag-page.is-cover { background: none; }
 .mag-cover .jc { width: 600px; height: 800px; }
+
+/* The inside back cover: what was in this issue. */
+.mag-colophon {
+  position: absolute; left: 48px; right: 48px; top: 56px; bottom: 64px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center;
+}
+.mag-colophon-mark { font-family: var(--font-display); font-size: 1.5rem; font-weight: var(--fw-bold); letter-spacing: -.02em; }
+.mag-colophon-issue { font-family: var(--font-data); font-size: .6875rem; letter-spacing: .16em; color: var(--ink-muted); }
+.mag-colophon-rule { width: 48px; margin: 14px 0; border: 0; border-top: 1px solid var(--ink); }
+.mag-colophon-line { margin: 0; font-family: var(--font-serif); font-size: 1.125rem; }
+.mag-colophon-places { margin: 0; max-width: 360px; font-family: var(--font-serif); font-size: .9375rem; font-style: italic; line-height: 1.7; color: var(--ink-soft); }
+.mag-colophon-small { margin: 28px 0 0; font-family: var(--font-data); font-size: .625rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+
+/* The back cover, in the cover's own colours: the line, the issue, a code to scan, a barcode, a price. */
 .mag-page.is-back { background: var(--jc-paper); color: var(--jc-ink); }
-.mag-back { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 0 64px; }
-.mag-back-name { font-family: var(--font-display); font-size: 2rem; font-weight: var(--fw-bold); letter-spacing: -.02em; }
-.mag-back-title { font-family: var(--font-serif); font-size: 1.125rem; font-style: italic; opacity: .85; }
-.mag-back-issue { margin-top: 20px; font-family: var(--font-data); font-size: .6875rem; letter-spacing: .16em; opacity: .7; }
+.mag-back { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 64px 56px 56px; }
+.mag-back::before { content: ''; position: absolute; inset: 20px; border: 1px solid color-mix(in srgb, var(--jc-ink) 28%, transparent); pointer-events: none; }
+.mag-back-top { display: flex; flex-direction: column; gap: 10px; }
+.mag-back-name { font-family: var(--font-display); font-size: 2.25rem; font-weight: var(--fw-bold); letter-spacing: -.03em; line-height: 1; }
+.mag-back-tag { font-family: var(--font-serif); font-size: 1.0625rem; font-style: italic; opacity: .8; }
+.mag-back-mid { display: flex; flex-direction: column; gap: 8px; }
+.mag-back-title { font-family: var(--font-serif); font-size: 1.5rem; font-weight: var(--fw-semibold); line-height: 1.2; overflow-wrap: anywhere; }
+.mag-back-issue { font-family: var(--font-data); font-size: .6875rem; letter-spacing: .16em; opacity: .75; }
+.mag-back-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+/* Printed codes are dark on a light tile in either theme, or they would not scan. */
+.mag-qr { display: flex; align-items: flex-end; gap: 14px; }
+.mag-qr-tile { width: 112px; height: 112px; padding: 4px; background: color-mix(in srgb, white 97%, transparent); border-radius: 3px; }
+.mag-qr-svg { display: block; width: 100%; height: 100%; fill: var(--scale-glass); }
+.mag-qr-note { font-family: var(--font-data); font-size: .5625rem; letter-spacing: .08em; line-height: 1.6; text-transform: uppercase; opacity: .85; }
+.mag-barcode { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.mag-barcode-tile { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 10px 5px; background: color-mix(in srgb, white 97%, transparent); border-radius: 3px; }
+.mag-barcode-svg { display: block; width: 130px; height: 46px; fill: var(--scale-glass); }
+.mag-barcode-digits { font-family: var(--font-data); font-size: .5625rem; letter-spacing: .12em; color: var(--scale-glass); }
+.mag-price { font-family: var(--font-data); font-size: .625rem; letter-spacing: .16em; text-transform: uppercase; opacity: .85; }
 
 /* ── Contents ────────────────────────────────────────────────────────────── */
 .mag-toc-title { margin: 0 0 28px; font-family: var(--font-serif); font-size: 2.125rem; font-weight: var(--fw-semibold); }

@@ -10,17 +10,11 @@ export function fakeMeasurer(): Measurer {
     fit(text: string, f: FrameSpec) {
       const colW = f.cols === 2 ? (f.w - 24) / 2 : f.w;
       const perCol = Math.floor(f.h / LINE_H) * Math.floor(colW / CHAR_W);
-      const room = Math.max(0, f.cols * perCol - (f.dropcap ? 6 : 0));
+      const room = Math.max(0, Math.floor((f.cols * perCol) / (f.lead ? 1.8 : 1)));
       return Math.min(text.length, room);
     },
     quote(text, w) {
       return Math.ceil((text.length * 22) / w) * 30 + 40;
-    },
-    used(text, f) {
-      const colW = f.cols === 2 ? (f.w - 24) / 2 : f.w;
-      const lines = Math.ceil(text.length / Math.max(1, Math.floor(colW / CHAR_W)));
-      // the last frame's columns are balanced, so two columns share the lines
-      return Math.min(f.h, Math.ceil(lines / f.cols) * LINE_H);
     },
     head(a, w, size) {
       const per = Math.max(1, Math.floor(w / (size === 'l' ? 26 : 20)));

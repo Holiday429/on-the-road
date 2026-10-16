@@ -41,8 +41,7 @@ export function createDomMeasurer(): DomMeasurer {
   const textEl = document.createElement('div');
   const headEl = document.createElement('div');
   const quoteEl = document.createElement('blockquote');
-  const usedEl = document.createElement('div');
-  host.append(textEl, headEl, quoteEl, usedEl);
+  host.append(textEl, headEl, quoteEl);
   document.body.appendChild(host);
 
   return {
@@ -51,7 +50,7 @@ export function createDomMeasurer(): DomMeasurer {
       textEl.style.cssText = `width:${f.w}px;height:${f.h}px;columns:${columnsOf(f.cols)}`;
       const fits = (n: number) => {
         // eslint-disable-next-line no-restricted-syntax -- audited: textHtml escapes every character of the traveller's text
-        textEl.innerHTML = textHtml(text.slice(0, n), f);
+        textEl.innerHTML = textHtml(text.slice(0, n));
         return f.cols > 1 ? textEl.scrollWidth <= textEl.clientWidth + 1 : textEl.scrollHeight <= textEl.clientHeight + 1;
       };
       // No frame holds more characters than its area allows (even narrow Latin letters take ~90 px²
@@ -72,15 +71,6 @@ export function createDomMeasurer(): DomMeasurer {
       quoteEl.style.cssText = `width:${w}px`;
       quoteEl.textContent = text;
       return Math.ceil(quoteEl.offsetHeight);
-    },
-    used(text, f) {
-      // The frame that ends an article has its columns balanced (see `balanced` in magazine.ts),
-      // so what it uses is the height of the balanced columns.
-      usedEl.className = textClass(f);
-      usedEl.style.cssText = `width:${f.w}px;height:auto;columns:${columnsOf(f.cols)};column-fill:balance`;
-      // eslint-disable-next-line no-restricted-syntax -- audited: textHtml escapes
-      usedEl.innerHTML = textHtml(text, f);
-      return Math.min(f.h, Math.ceil(usedEl.offsetHeight));
     },
     head(a, w, size) {
       headEl.className = `mag-head${size === 'l' ? ' is-l' : ''}`;

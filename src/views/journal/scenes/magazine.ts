@@ -29,6 +29,7 @@ import {
 } from './magazine-model.ts';
 import type { Page } from './magazine-paginate.ts';
 import { headHtml, textClass, textHtml } from './magazine-text.ts';
+import { issueFacts, renderBackCover, renderColophon } from './magazine-back.ts';
 import { columnsOf } from './magazine-measure.ts';
 import '../styles/album-cover.css';
 
@@ -80,9 +81,8 @@ function pageBody(page: Page, book: Book, folio: number, side: 'verso' | 'recto'
   const article = book.articles.find((a) => a.id === page.articleId)!;
   const text = book.texts[page.articleId] ?? '';
   // The frame that ends an article balances its columns, so a few lines are set as two even columns, not one long one.
-  const frames = (list: Page['frames'], src: string) => list.map((f) => `
-      <div class="${textClass(f)}" style="${box(f)};columns:${columnsOf(f.cols)}${f.to >= src.length ? ';column-fill:balance' : ''}">${textHtml(src.slice(f.from, f.to), f)}</div>`).join('');
-  const tailArticle = page.tail ? book.articles.find((a) => a.id === page.tail!.articleId) : undefined;
+  const frames = page.frames.map((f) => `
+      <div class="${textClass(f)}" style="${box(f)};columns:${columnsOf(f.cols)}${f.to >= text.length ? ';column-fill:balance' : ''}">${textHtml(text.slice(f.from, f.to))}</div>`).join('');
   return `
     ${page.photos.map((p) => `
       <figure class="mag-photo${p.bleed ? ' is-bleed' : ''}" style="${box(p.bleed ? { ...p, x: p.x - bodyLeft(side) } : p)}">
@@ -91,11 +91,7 @@ function pageBody(page: Page, book: Book, folio: number, side: 'verso' | 'recto'
     ${page.captions.map((c) => `<span class="mag-cap" style="${box({ x: c.x, y: c.y, w: c.w })}">${escHtml(article.caption)}</span>`).join('')}
     ${page.head ? `<div class="mag-head${page.head.size === 'l' ? ' is-l' : ''}" style="${box(page.head)}">${headHtml(article)}</div>` : ''}
     ${page.quote && article.quote ? `<blockquote class="mag-quote" style="${box(page.quote)}">${escHtml(article.quote)}</blockquote>` : ''}
-    ${frames(page.frames, text)}
-    ${page.tail && tailArticle ? `
-      <hr class="mag-rule" style="${box(page.tail.rule)}">
-      <div class="mag-head" style="${box(page.tail.head)}">${headHtml(tailArticle)}</div>
-      ${frames(page.tail.frames, book.texts[tailArticle.id] ?? '')}` : ''}
+    ${frames}
     ${page.continues ? `<span class="mag-cont">${escHtml(t('journal.mag.continued', { n: folio + 1 }))}</span>` : ''}`;
 }
 
@@ -125,17 +121,13 @@ function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalA
   if (leaf.kind === 'cover') {
     return `<section class="${cls} is-cover" aria-label="${escHtml(album.title)}"><div class="mag-cover">${renderCover(coverOf(album), coverArtOf(album, entries))}</div></section>`;
   }
+  if (leaf.kind === 'colophon') {
+    const facts = issueFacts(entries);
+    return `<section class="${cls} is-colophon"><span class="mag-run">${escHtml(coverOf(album).headline)}</span>${renderColophon(facts, issueLine(facts.notes, facts.newest))}<span class="mag-folio">${folio}</span></section>`;
+  }
   if (leaf.kind === 'back') {
     const cover = coverOf(album);
-    const art = coverArtOf(album, entries);
-    return `
-      <section class="${cls} is-back jc-tone--${cover.tone}">
-        <div class="mag-back">
-          <span class="mag-back-name">On the Road</span>
-          <span class="mag-back-title">${escHtml(cover.headline)}</span>
-          <span class="mag-back-issue">${escHtml(issueLine(art.count, art.newest))}</span>
-        </div>
-      </section>`;
+    return `<section class="${cls} is-back jc-tone--${cover.tone}">${renderBackCover(cover, album.id, issueFacts(entries))}</section>`;
   }
   if (leaf.kind === 'toc') {
     return `
@@ -146,7 +138,7 @@ function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalA
   }
   const page = book.pages[leaf.page];
   // The running head: the magazine's name and, when it can be worked out, the country the page is about.
-  const country = countries[page.tail ? page.tail.articleId : page.articleId];
+  const country = countries[page.articleId];
   const run = [coverOf(album).headline, country].filter(Boolean).join(' · ');
   return `
     <section class="${cls}${page.plate ? ' is-plate' : ''}">

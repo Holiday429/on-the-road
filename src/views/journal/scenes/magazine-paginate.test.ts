@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { article, fakeMeasurer, photo } from './magazine-test-kit.ts';
-import { adjustCut, contentsOf, paginateArticle, paginateBook, startsArticle, TAIL_MIN } from './magazine-paginate.ts';
+import { adjustCut, contentsOf, paginateArticle, paginateBook, SHORT_NOTE, TAIL_MIN } from './magazine-paginate.ts';
 import { articleText, BODY_H, BODY_W } from './magazine-model.ts';
 import { assembleBook } from './magazine-book.ts';
-import { BREAK_MIN_FREE, TEMPLATES } from './magazine-templates.ts';
+import { textClass, textHtml } from './magazine-text.ts';
+import { justify, pictureCount, TEMPLATES } from './magazine-templates.ts';
 
 const m = fakeMeasurer();
 
@@ -27,7 +28,7 @@ describe('paginateArticle — the words', () => {
     for (const page of paginateArticle(a, m)) {
       for (const f of page.frames) {
         const n = f.to - f.from;
-        expect(n).toBeLessThanOrEqual(m.fit(articleText(a).slice(f.from), { w: f.w, h: f.h, cols: f.cols, dropcap: f.dropcap, continued: f.continued }) + 0);
+        expect(n).toBeLessThanOrEqual(m.fit(articleText(a).slice(f.from), { w: f.w, h: f.h, cols: f.cols, lead: f.lead }) + 0);
       }
     }
   });
@@ -49,13 +50,22 @@ describe('paginateArticle — the words', () => {
     expect(empty[0].frames).toEqual([]);
   });
 
-  it('sets a drop cap on the first frame only, and marks a page that begins mid-paragraph', () => {
+  it('sets no drop cap and no indent: the markup and the frames carry neither', () => {
     const { pages } = printed(article({ chars: 2400 }));
-    const frames = pages.flatMap((p) => p.frames);
-    expect(frames.filter((f) => f.dropcap)).toHaveLength(1);
-    expect(frames[0].dropcap).toBe(true);
-    expect(frames[0].from).toBe(0);
-    expect(frames.slice(1).some((f) => f.continued)).toBe(true);
+    for (const f of pages.flatMap((p) => p.frames)) expect(Object.keys(f)).not.toContain('dropcap');
+    expect(textHtml('一段。\n二段。')).toBe('<p>一段。</p><p>二段。</p>');
+    expect(textClass({})).toBe('mag-text');
+  });
+
+  it('sets a very short note large, in one column, and a longer one in two', () => {
+    const [short] = paginateArticle(article({ chars: 100 }), m);
+    expect(short.frames[0].lead).toBe(true);
+    expect(short.frames[0].cols).toBe(1);
+    const [longer] = paginateArticle(article({ chars: SHORT_NOTE + 200 }), m);
+    expect(longer.frames[0].lead).toBe(false);
+    expect(longer.frames[0].cols).toBe(2);
+    // a note with a picture is not "short": it has its opener
+    expect(paginateArticle(article({ chars: 100, photos: [photo('3:2')] }), m)[0].frames.every((f) => !f.lead)).toBe(true);
   });
 
   it('never lets a page begin with a closing mark or full stop', () => {
@@ -199,7 +209,7 @@ describe('the book', () => {
       const leaf = book.leaves[leafIndex];
       expect(leaf.kind).toBe('page');
       const page = book.pages[(leaf as { page: number }).page];
-      expect(startsArticle(page, row.articleId), `article ${row.articleId} starts there`).toBe(true);
+      expect(page.first && page.articleId === row.articleId, `article ${row.articleId} starts there`).toBe(true);
     }
   });
 
@@ -215,7 +225,7 @@ describe('the book', () => {
     expect(book.toc[0].folio).toBe(4);
     for (const row of book.toc) {
       const leaf = book.leaves[row.folio - 1];
-      expect(leaf.kind === 'page' && startsArticle(book.pages[leaf.page], row.articleId)).toBe(true);
+      expect(leaf.kind === 'page' && book.pages[leaf.page].first && book.pages[leaf.page].articleId === row.articleId).toBe(true);
     }
   });
 
@@ -227,16 +237,31 @@ describe('the book', () => {
     expect(assembleBook([], m, 'alb', 'k').leaves.map((l) => l.kind)).toEqual(['cover', 'toc', 'back']);
   });
 
+  it('always binds the back cover onto a right-hand page with something facing it, whatever the page count', () => {
+    for (let n = 0; n < 9; n++) {
+      const many = Array.from({ length: n }, () => article({ chars: 100 }));
+      const book = assembleBook(many, m, 'alb', 'k');
+      const last = book.leaves.length - 1;
+      expect(last % 2, `${n} articles`).toBe(0);                                 // even index: a recto
+      expect(book.leaves[last].kind).toBe('back');
+      expect(book.leaves[last - 1].kind).not.toBe('back');                        // and a page faces it
+      expect(book.leaves.filter((l) => l.kind === 'colophon').length).toBeLessThanOrEqual(1);
+    }
+  });
+
   it('paginates the same way every time, whatever the order of calls', () => {
     const a = JSON.stringify(paginateBook(articles, m, 'alb'));
     paginateBook([articles[0]], m, 'other');
     expect(JSON.stringify(paginateBook(articles, m, 'alb'))).toBe(a);
   });
 
-  it('every article starts somewhere: on a page of its own, or under the article before it', () => {
+  it('every article starts on a page of its own: no page ever holds two notes', () => {
     const { pages, firstPage } = paginateBook(articles, m, 'alb');
-    articles.forEach((a, i) => expect(startsArticle(pages[firstPage[i]], a.id), a.id).toBe(true));
-    expect(pages.filter((p) => p.first).length + pages.filter((p) => p.tail).length).toBe(articles.length);
+    articles.forEach((a, i) => { expect(pages[firstPage[i]].first && pages[firstPage[i]].articleId === a.id, a.id).toBe(true); });
+    expect(pages.filter((p) => p.first)).toHaveLength(articles.length);
+    // each page belongs to one article, and an article's pages are consecutive
+    const order = pages.map((p) => p.articleId);
+    expect(order.join()).toBe([...order].sort((x, y) => order.indexOf(x) - order.indexOf(y)).join());
   });
 
   it('contentsOf matches the assembled book', () => {
@@ -246,76 +271,46 @@ describe('the book', () => {
 });
 
 
-describe('article-break: the next article begins on the half page the last one left', () => {
-  const short = () => article({ chars: 260 });          // one short page, mostly empty
-  const later = () => article({ chars: 1500 });
+describe('pages of pictures with no words left', () => {
+  const ph = (...ratios: Array<'3:2' | '3:4' | '16:9' | '2:3' | '4:3'>) => ratios.map((r, i) => photo(r, i));
 
-  it('starts the second article under the first when enough of the page is free', () => {
-    const [a, b] = [short(), later()];
-    const { pages, firstPage } = paginateBook([a, b], m, 'alb');
-    const shared = pages[firstPage[1]];
-    expect(shared.articleId).toBe(a.id);
-    expect(shared.tail?.articleId).toBe(b.id);
-    expect(firstPage[1]).toBe(firstPage[0]);               // both are on the same page, so the contents says the same page number
-    expect(shared.tail!.head.y).toBeGreaterThan(shared.frames[0].y);
+  it('justify keeps every picture its own shape, inside the width, and scales down to the height', () => {
+    const photos = ph('3:4', '3:4', '3:4', '3:2');
+    const j = justify(photos, BODY_W, BODY_H - 18);
+    expect(j.boxes).toHaveLength(4);
+    j.boxes.forEach((b, i) => {
+      const want = { '3:4': 0.75, '3:2': 1.5 }[photos[i].ratio as string]!;
+      expect(Math.abs(Math.log(b.w / b.h / want))).toBeLessThan(0.03);
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.w).toBeLessThanOrEqual(BODY_W + 1);
+      expect(b.y + b.h).toBeLessThanOrEqual(BODY_H - 18 + 1);
+    });
+    expect(j.height).toBeLessThanOrEqual(BODY_H - 18);
   });
 
-  it('keeps every word of both articles', () => {
-    const [a, b] = [short(), later()];
-    const { pages } = paginateBook([a, b], m, 'alb');
-    const text = (art: typeof a) => {
-      const full = articleText(art);
-      const frames = pages.flatMap((p) => [
-        ...(p.articleId === art.id ? p.frames : []),
-        ...(p.tail?.articleId === art.id ? p.tail.frames : []),
-      ]);
-      return frames.map((f) => full.slice(f.from, f.to)).join('').replace(/\n/g, '');
-    };
-    expect(text(a)).toBe(articleText(a).replace(/\n/g, ''));
-    expect(text(b)).toBe(articleText(b).replace(/\n/g, ''));
+  it('four photographs from the owner\'s screenshot (3 tall, 1 wide) go on one page and fill most of it', () => {
+    const photos = ph('3:4', '3:4', '3:4', '3:2');
+    expect(pictureCount(photos)).toBe(4);
+    const pages = paginateArticle(article({ chars: 0, paragraphs: [], photos }), m);
+    const last = pages[pages.length - 1];
+    expect(last.photos.length).toBeGreaterThanOrEqual(3);
+    const bottom = Math.max(...last.photos.map((p) => p.y + p.h));
+    expect(bottom).toBeGreaterThan(BODY_H * 0.55);
   });
 
-  it('keeps the tail inside the page and below the first article', () => {
-    const { pages } = paginateBook([short(), later()], m, 'alb');
-    const t = pages[0].tail!;
-    for (const f of t.frames) expect(f.y + f.h).toBeLessThanOrEqual(BODY_H + 0.5);
-    expect(t.rule.y).toBeGreaterThan(0);
-    expect(t.head.y).toBeGreaterThan(t.rule.y);
+  it('does not leave a lone picture for the next page when the count can be shared out', () => {
+    expect(pictureCount(ph('3:2', '3:2', '3:2', '3:2', '3:2'))).toBe(3);
+    expect(pictureCount(ph('3:2', '3:2'))).toBe(2);
+    expect(pictureCount(ph('3:2'))).toBe(1);
   });
 
-  it('begins under the last article only where at least BREAK_MIN_FREE of the page was left; otherwise on a page of its own', () => {
-    let broke = 0;
-    let fresh = 0;
-    for (let chars = 100; chars <= 4400; chars += 97) {
-      const a = article({ chars });
-      const b = later();
-      const { pages, firstPage } = paginateBook([a, b], m, 'alb');
-      const host = pages.filter((p) => p.articleId === a.id).pop()!;
-      if (host.tail) {
-        broke++;
-        expect(BODY_H - host.tail.rule.y, `chars=${chars}`).toBeGreaterThanOrEqual(BREAK_MIN_FREE - 30);   // the rule sits a little under the last line
-        expect(firstPage[1]).toBe(pages.indexOf(host));
-      } else {
-        fresh++;
-        expect(pages[firstPage[1]].first, `chars=${chars}`).toBe(true);
-      }
-    }
-    expect(broke).toBeGreaterThan(0);
-    expect(fresh).toBeGreaterThan(0);
-  });
-
-  it('does not break onto a plate, or when the next article has no words', () => {
-    const plated = paginateBook([article({ chars: 0, photos: [photo('3:2')] , paragraphs: [] }), article({ chars: 600 })], m, 'alb');
-    expect(plated.pages.every((p) => !p.tail || !p.plate)).toBe(true);
-    const wordless = paginateBook([short(), article({ paragraphs: [], photos: [photo('3:4')] })], m, 'alb');
-    expect(wordless.pages.some((p) => p.tail)).toBe(false);
-  });
-
-  it('a short second article can fit entirely in the tail, adding no page of its own', () => {
-    const { pages } = paginateBook([short(), article({ chars: 150 })], m, 'alb');
-    expect(pages).toHaveLength(1);
-    expect(pages[0].tail).toBeTruthy();
-    expect(pages[0].continues).toBe(false);
+  it('centres the pictures on the page rather than hanging them from the top', () => {
+    const pages = paginateArticle(article({ chars: 0, paragraphs: [], photos: ph('3:4', '3:4') }), m);
+    const p = pages[pages.length - 1];
+    const top = Math.min(...p.photos.map((x) => x.y));
+    const bottom = Math.max(...p.photos.map((x) => x.y + x.h));
+    expect(top).toBeGreaterThan(0);
+    expect(Math.abs(top - (BODY_H - 18 - bottom))).toBeLessThanOrEqual(2);
   });
 });
 
@@ -328,23 +323,16 @@ describe('the other page shapes', () => {
     ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].flatMap((album) => paginateArticle(a, m, album).filter((p) => p.template === id));
 
   it('sets three or four photographs of one orientation together as a grid', () => {
-    for (const photos of [landscapes(4), landscapes(3), portraits(4)]) {
-      const grids = withTemplate(article({ chars: 0, paragraphs: [], photos: [photo('3:2', 9), ...photos] }), 'grid');
+    for (const photos of [landscapes(4), landscapes(3), portraits(4), portraits(3)]) {
+      const grids = withTemplate(article({ chars: 3000, photos: [photo('3:2', 9), ...photos] }), 'grid');
       expect(grids.length, photos.length + photos[0].orient).toBeGreaterThanOrEqual(1);
       expect(grids[0].photos.length).toBeGreaterThanOrEqual(3);
     }
   });
 
-  it('does not grid three tall pictures with nothing else to set: they are paired instead', () => {
+  it('only grids when words follow: with none left the pictures are set together as rows instead', () => {
     expect(TEMPLATES.grid.applies(portraits(3), false)).toBe(false);
     expect(TEMPLATES.grid.applies(portraits(3), true)).toBe(true);
-    expect(TEMPLATES.grid.applies(portraits(4), false)).toBe(true);
-  });
-
-  it('sets a page of photographs and no words as large as the page allows', () => {
-    const [g] = withTemplate(article({ chars: 0, paragraphs: [], photos: [photo('3:2', 9), ...landscapes(4)] }), 'grid');
-    const bottom = Math.max(...g.photos.map((p) => p.y + p.h));
-    expect(bottom).toBeGreaterThan(BODY_H * 0.6);
   });
 
   it('never grids photographs of mixed orientation', () => {
@@ -353,12 +341,9 @@ describe('the other page shapes', () => {
   });
 
   it('a row of tall pictures is a row, not squares: each stays tall', () => {
-    for (const textRemains of [true, false]) {
-      const a = textRemains ? article({ chars: 3000, photos: [photo('3:2', 9), ...portraits(4)] }) : article({ chars: 0, paragraphs: [], photos: [photo('3:2', 9), ...portraits(4)] });
-      const [g] = withTemplate(a, 'grid');
-      expect(g, `text=${textRemains}`).toBeTruthy();
-      for (const p of g.photos) expect(p.h).toBeGreaterThan(p.w);
-    }
+    const [g] = withTemplate(article({ chars: 3000, photos: [photo('3:2', 9), ...portraits(4)] }), 'grid');
+    expect(g).toBeTruthy();
+    for (const p of g.photos) expect(p.h).toBeGreaterThan(p.w);
   });
 
   it('puts a wide picture across a whole dark page only when there are no words left to set', () => {

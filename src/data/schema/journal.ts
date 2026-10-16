@@ -89,6 +89,8 @@ export const JournalAlbumCoverSchema = z.object({
   tone: z.enum(['paper', 'ink', 'amber', 'sky', 'sage', 'coral']).default('paper'),
   /** Vertical focus of the cover photo, 0 (top) … 1 (bottom). */
   focalY: z.number().min(0).max(1).default(0.5),
+  /** A cover picture the traveller uploaded (a Storage URL). Empty = use an entry's photo. */
+  photo: z.string().default(''),
 });
 export type JournalAlbumCover = z.infer<typeof JournalAlbumCoverSchema>;
 
