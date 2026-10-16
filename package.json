@@ -32,5 +32,8 @@
     "leaflet": "^1.9.4",
     "qrcode-generator": "^2.0.4",
     "zod": "^4.4.3"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.4"
   }
 }
