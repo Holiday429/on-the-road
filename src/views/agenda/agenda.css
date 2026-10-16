@@ -222,8 +222,8 @@
 .cal-panel {
   position: relative; display: flex; flex-direction: column; gap: var(--sp-3); padding: 0 0 var(--sp-5); border-radius: 4px 4px 6px 6px;
   background:
-    radial-gradient(circle at 20px 14px, var(--paper-ground, var(--surface-2)) 0 4px, transparent 5px),
-    radial-gradient(circle at calc(100% - 20px) 14px, var(--paper-ground, var(--surface-2)) 0 4px, transparent 5px),
+    radial-gradient(circle at 18px 9px, var(--paper-ground, var(--surface-2)) 0 3.5px, transparent 4.5px),
+    radial-gradient(circle at calc(100% - 18px) 9px, var(--paper-ground, var(--surface-2)) 0 3.5px, transparent 4.5px),
     var(--cal-weave),
     var(--paper-grain),
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 30%, transparent), transparent 30%),
@@ -236,23 +236,23 @@
     0 6px 0 -2px var(--pp-paper-edge), 0 7px 1px -2px rgba(0,0,0,0.06),
     0 16px 28px -10px rgba(0,0,0,0.24);
 }
-.cal-panel-head { position: relative; display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-6) var(--sp-5) 0; }
+.cal-panel-head { position: relative; display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-5) 0; }
 .cal-bigday {
-  flex-shrink: 0; min-width: 1.1ch; font-family: var(--font-display); font-size: 60px; font-weight: var(--fw-medium); letter-spacing: -0.04em; line-height: 0.95;
+  flex-shrink: 0; min-width: 1.1ch; font-family: var(--font-display); font-size: 46px; font-weight: var(--fw-medium); letter-spacing: -0.04em; line-height: 0.95;
   font-variant-numeric: lining-nums; color: var(--ink);
 }
-.cal-panel-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.cal-panel-id { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .cal-panel-date { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 var(--sp-2); font-family: var(--font-display); font-size: var(--fs-md, 15px); font-weight: var(--fw-semibold); color: var(--cal-red); }
 /* The month and year, on the same line as the weekday — the sheet has no header of its own. */
 .cal-panel-month { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-muted); }
 .cal-panel-where { font-size: var(--fs-sm); color: var(--ink-soft); }
 .cal-panel-hint { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--amber-700); }
 .cal-today-stamp {
-  position: absolute; top: 14px; right: var(--sp-5); padding: 1px 8px; border: 2px solid var(--cal-red); border-radius: 3px; opacity: 0.85;
+  position: absolute; top: 10px; right: var(--sp-5); padding: 0 7px; border: 2px solid var(--cal-red); border-radius: 3px; opacity: 0.85;
   font-family: var(--font-display); font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.1em; text-transform: uppercase; color: var(--cal-red); transform: rotate(7deg);
 }
 /* The tear line under the date (.paper-perf from the kit). */
-.cal-perf { position: relative; height: 0; margin: var(--sp-1) 0 0; border-top: 1.5px dashed var(--paper-perf); }
+.cal-perf { position: relative; height: 0; margin: -2px 0 -4px; border-top: 1.5px dashed var(--paper-perf); }
 .cal-perf::before, .cal-perf::after {
   content: ''; position: absolute; top: -9px; width: 16px; height: 16px; border-radius: 50%;
   background: var(--paper-ground, var(--surface-2)); border: 1px solid var(--rule);
@@ -399,7 +399,7 @@
   .cal-cell-note-tx { -webkit-line-clamp: 1; font-size: 9px; }
   .cal-hdr { font-size: 10px; }
   .cal-stats { gap: var(--sp-1) var(--sp-4); }
-  .cal-bigday { font-size: 56px; }
+  .cal-bigday { font-size: 42px; }
   .cal-today-stamp { right: var(--sp-4); }
   .cal-panel-head { padding-left: var(--sp-4); padding-right: var(--sp-4); }
   .cal-items, .cal-sec, .cal-empty-day { margin-left: var(--sp-4); margin-right: var(--sp-4); }
