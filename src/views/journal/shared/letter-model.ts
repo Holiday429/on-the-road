@@ -3,7 +3,7 @@
    --------------------------------------------------------------------------
    An entry is read as a letter with postcards: the words on the paper, each
    photo a card beside it. Everything here is arithmetic and string-making, so
-   it can be tested without a DOM: how a card is framed from its photo's shape,
+   it can be tested without a DOM: which of the two card sizes a photo gets,
    how the pile of cards is fanned, how the date line reads, and the small
    stable "randomness" (lean, offset) that comes from the entry id and never
    from Math.random(), so a re-render never reshuffles the desk.
@@ -12,7 +12,7 @@
    ========================================================================== */
 
 import { hashId } from '../scenes/feed-plan.ts';
-import { ratioValue, snapRatio } from './photo-ratio.ts';
+import { orientationOf } from './photo-ratio.ts';
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -42,41 +42,34 @@ export function postcardTilt(key: string, index: number): number {
 }
 
 export interface CardFrame {
-  /** Width ÷ height the card's picture area is cut to. */
+  /** Width ÷ height of the card's picture area: always LANDSCAPE or PORTRAIT. */
   ratio: number;
-  /** False until the photo has been measured; the card shows it uncropped meanwhile. */
-  known: boolean;
+  orientation: 'landscape' | 'portrait';
 }
 
-/** Within this factor of a standard shape a photo is framed as that shape. */
-const SNAP_TOLERANCE = 1.06;
-const UNMEASURED: CardFrame = { ratio: 3 / 2, known: false };
-
 /**
- * The shape to cut a card's picture area to.
- *
- * A measured 1.52 is a 3:2 and is framed 3:2, so cards in a pile line up. But
- * snapping is only ever a few percent: a panorama or an odd crop keeps its own
- * shape (within sane limits) instead of being forced into the nearest standard
- * one — the point of a postcard is that the photograph is not cropped.
+ * A postcard comes in two sizes, one wide and one tall, like the real thing.
+ * Photos that are not exactly that shape are cropped to it (centred); the whole
+ * photograph is in the Gallery. Wide = 3:2, tall = 2:3, so the common 4:3 / 3:2 /
+ * 16:9 and 3:4 / 2:3 photos lose little or a modest slice.
  */
+export const LANDSCAPE_RATIO = 3 / 2;
+export const PORTRAIT_RATIO = 2 / 3;
+
+/** Which of the two sizes a photo gets. Square, and a photo not measured yet, are wide. */
 export function postcardFrame(measured: number | undefined): CardFrame {
-  if (typeof measured !== 'number' || !Number.isFinite(measured) || measured <= 0) return UNMEASURED;
-  const snapped = ratioValue(snapRatio(measured));
-  if (Math.abs(Math.log(measured / snapped)) < Math.log(SNAP_TOLERANCE)) return { ratio: snapped, known: true };
-  return { ratio: Math.min(2.6, Math.max(0.4, measured)), known: true };
+  const tall = typeof measured === 'number' && Number.isFinite(measured) && measured > 0 && orientationOf(measured) === 'portrait';
+  return tall ? { ratio: PORTRAIT_RATIO, orientation: 'portrait' } : { ratio: LANDSCAPE_RATIO, orientation: 'landscape' };
 }
 
 /** White margin around the picture, px. */
 export const CARD_BORDER = 12;
-/** Roughly the same amount of paper whatever the shape: a tall card is narrower than a wide one. */
-const CARD_AREA = 100_000;
-const CARD_MIN_W = 200;
-const CARD_MAX_W = 340;
+/** Outer width of each size, px. */
+const CARD_W = { landscape: 340, portrait: 240 } as const;
 
-/** Outer width of a card for a picture shaped `ratio`, px. */
-export function cardWidth(ratio: number): number {
-  return Math.min(CARD_MAX_W, Math.max(CARD_MIN_W, Math.round(Math.sqrt(CARD_AREA * ratio))));
+/** Outer width of a card, px. */
+export function cardWidth(frame: CardFrame): number {
+  return CARD_W[frame.orientation];
 }
 
 export interface PileCard {
@@ -106,12 +99,12 @@ const PILE_MAX_STEP = 76;
 /**
  * Fan `ratios` (one per photo) into a pile: each card a step lower than the one
  * before and nudged to alternate sides, so the corner of every card stays within
- * reach of a click. Sizes come from the photos' shapes; nothing is random.
+ * reach of a click. Size is wide or tall by the photo's orientation; nothing is random.
  */
 export function pilePlan(key: string, ratios: Array<number | undefined>): Pile {
   const frames = ratios.map(postcardFrame);
   const sizes = frames.map((f) => {
-    const w = cardWidth(f.ratio);
+    const w = cardWidth(f);
     return { w, h: Math.round((w - 2 * CARD_BORDER) / f.ratio + 2 * CARD_BORDER) };
   });
   const tallest = Math.max(0, ...sizes.map((s) => s.h));

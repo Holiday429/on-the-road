@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  CARD_BORDER, PILE_WIDTH, cardWidth, envelopeTitle, hasLetter, letterDate, photoLean, pilePlan, postcardFrame, postcardTilt, stampParts,
+  CARD_BORDER, LANDSCAPE_RATIO, PILE_WIDTH, PORTRAIT_RATIO, cardWidth, envelopeTitle, hasLetter, letterDate, photoLean, pilePlan, postcardFrame, postcardTilt, stampParts,
 } from './letter-model.ts';
 
 describe('stampParts', () => {
@@ -57,36 +57,27 @@ describe('postcardTilt', () => {
 });
 
 describe('postcardFrame', () => {
-  it('frames a photo as the standard shape it is within a few percent of', () => {
-    expect(postcardFrame(1.52)).toEqual({ ratio: 1.5, known: true });
-    expect(postcardFrame(0.74)).toEqual({ ratio: 0.75, known: true });
-    expect(postcardFrame(1.78)).toMatchObject({ ratio: 16 / 9, known: true });
+  it('gives a wide photo the wide card and a tall photo the tall card', () => {
+    for (const r of [4 / 3, 3 / 2, 16 / 9, 2.4]) expect(postcardFrame(r)).toEqual({ ratio: LANDSCAPE_RATIO, orientation: 'landscape' });
+    for (const r of [3 / 4, 2 / 3, 9 / 16, 0.4]) expect(postcardFrame(r)).toEqual({ ratio: PORTRAIT_RATIO, orientation: 'portrait' });
   });
 
-  it('keeps an odd shape rather than cropping it to a standard one', () => {
-    // a 2.2:1 panorama is not a 16:9
-    expect(postcardFrame(2.2)).toEqual({ ratio: 2.2, known: true });
-    // 1.15 sits between square and 4:3 and is neither
-    expect(postcardFrame(1.15).ratio).toBe(1.15);
+  it('treats a square photo as wide', () => {
+    expect(postcardFrame(1).orientation).toBe('landscape');
+    expect(postcardFrame(0.95).orientation).toBe('landscape');
   });
 
-  it('limits extreme shapes', () => {
-    expect(postcardFrame(5).ratio).toBe(2.6);
-    expect(postcardFrame(0.1).ratio).toBe(0.4);
-  });
-
-  it('shows an unmeasured photo as 3:2, flagged unknown', () => {
-    expect(postcardFrame(undefined)).toEqual({ ratio: 1.5, known: false });
-    expect(postcardFrame(NaN).known).toBe(false);
-    expect(postcardFrame(0).known).toBe(false);
+  it('shows a photo not measured yet as wide', () => {
+    expect(postcardFrame(undefined).orientation).toBe('landscape');
+    expect(postcardFrame(NaN).orientation).toBe('landscape');
+    expect(postcardFrame(0).orientation).toBe('landscape');
   });
 });
 
 describe('cardWidth', () => {
-  it('gives a tall card less width than a wide one, within limits', () => {
-    expect(cardWidth(0.75)).toBeLessThan(cardWidth(1.5));
-    expect(cardWidth(16 / 9)).toBe(340);
-    expect(cardWidth(0.4)).toBeGreaterThanOrEqual(200);
+  it('is one width for wide cards and a narrower one for tall cards', () => {
+    expect(cardWidth(postcardFrame(1.5))).toBe(340);
+    expect(cardWidth(postcardFrame(0.75))).toBe(240);
   });
 });
 
@@ -97,7 +88,9 @@ describe('pilePlan', () => {
     expect(pilePlan('j14', ratios)).toEqual(pilePlan('j14', ratios));
   });
 
-  it('keeps each card the shape of its photo, border included', () => {
+  it('uses just two card sizes, whatever shapes the photos are', () => {
+    const sizes = new Set(pilePlan('j14', ratios).cards.map((c) => `${c.w}x${c.h}`));
+    expect(sizes.size).toBe(2);
     for (const card of pilePlan('j14', ratios).cards) {
       const picture = (card.w - 2 * CARD_BORDER) / (card.h - 2 * CARD_BORDER);
       expect(picture).toBeCloseTo(card.frame.ratio, 1);
@@ -131,7 +124,7 @@ describe('pilePlan', () => {
   });
 
   it('lays out an unmeasured photo too', () => {
-    expect(pilePlan('x', [undefined]).cards[0].frame.known).toBe(false);
+    expect(pilePlan('x', [undefined]).cards[0].frame.orientation).toBe('landscape');
   });
 });
 

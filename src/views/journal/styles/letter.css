@@ -228,11 +228,10 @@
   border-radius: 2px; box-shadow: var(--shadow-md), 0 0 0 1px var(--rule-soft);
 }
 .ltr-pc-front { padding: var(--b); }
-/* The picture area is cut to the photo's own shape, so there is nothing to crop. */
+/* The picture fills the card's picture area; a photo of another shape is cropped to it. */
 .ltr-pc-front img {
   display: block; width: 100%; aspect-ratio: var(--ar); object-fit: cover; background: var(--surface-3);
 }
-.ltr-pc-front img.is-unmeasured { object-fit: contain; }
 
 /* The back: message on the left, the address side on the right. */
 .ltr-pc-back {

@@ -83,12 +83,13 @@ describe('renderReadLetter', () => {
     expect(dom(opts(entry(), { dir: 'prev' })).querySelector('.ltr')?.className).toMatch(/is-fading-b/);
   });
 
-  it('frames each card from its photo, and marks one still unmeasured', () => {
+  it('gives a tall photo the tall card and anything else the wide one', () => {
     const d = dom(opts(entry(), { ratios: [0.75, undefined] }));
     const cards = [...d.querySelectorAll<HTMLElement>('[data-postcard]')];
-    expect(cards[0].getAttribute('style')).toContain('--ar:0.75');
     expect(cards[0].dataset.orient).toBe('portrait');
-    expect(cards[1].querySelector('img')?.classList.contains('is-unmeasured')).toBe(true);
+    expect(cards[0].getAttribute('style')).toContain('--w:240px');
+    expect(cards[1].dataset.orient).toBe('landscape');
+    expect(cards[1].getAttribute('style')).toContain('--w:340px');
   });
 
   it('brings the picked card to the front and turns over the flipped ones', () => {
