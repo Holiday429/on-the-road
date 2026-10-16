@@ -116,8 +116,6 @@
 .mag-page.is-recto::before { left: 0; background: linear-gradient(270deg, transparent, color-mix(in srgb, var(--ink) 11%, transparent)); }
 .mag-page.is-void { background: none; box-shadow: none; }
 /* A plate: one picture, edge to edge, on a dark page. */
-.mag-page.is-plate { background: var(--ink); }
-.mag-page.is-plate .mag-cap, .mag-page.is-plate .mag-run, .mag-page.is-plate .mag-folio { color: color-mix(in srgb, var(--surface) 62%, transparent); }
 .mag-photo.is-bleed { box-shadow: none; }
 .mag-body { position: absolute; }
 
@@ -158,6 +156,34 @@
 .mag-dots { flex: 1; min-width: 20px; border-bottom: 2px dotted color-mix(in srgb, var(--ink) 30%, transparent); transform: translateY(-4px); }
 .mag-toc-no { font-family: var(--font-data); font-size: .8125rem; color: var(--ink-muted); }
 
+/* ── The turning sheet (scenes/magazine-flip.ts) ───────────────────────────── */
+.mag-spread { user-select: none; -webkit-user-select: none; touch-action: pan-y; }
+.mag-flip-slot { position: absolute; inset: 0; pointer-events: none; z-index: 8; }
+.mag-flip { position: absolute; inset: 0; perspective: 2600px; --shade: 0; }
+/* What lies under the sheet: the page that will be there when it has gone over. */
+.mag-flip-under { position: absolute; top: 0; width: 600px; height: 800px; }
+.mag-flip-under::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, color-mix(in srgb, black 45%, transparent), transparent 60%); opacity: var(--shade);
+}
+.mag-flip.is-backward .mag-flip-under::after { background: linear-gradient(270deg, color-mix(in srgb, black 45%, transparent), transparent 60%); }
+.mag-flip.is-single .mag-flip-under::after { display: none; }
+.mag-flip.is-single { perspective: 6000px; }
+.mag-sheet { position: absolute; top: 0; width: 600px; height: 800px; transform-style: preserve-3d; }
+.mag-sheet.is-right { transform-origin: 0 50%; }
+.mag-sheet.is-left { transform-origin: 100% 50%; }
+.mag-flip.is-single .mag-sheet { transform-origin: 0 50%; }
+.mag-sheet-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; }
+.mag-sheet-face .mag-page { position: absolute; inset: 0; box-shadow: none; }
+/* The back of the sheet is the other page of the same leaf: seen from behind, so turned half a circle. */
+.mag-sheet-face.is-back { transform: rotateY(180deg); }
+.mag-sheet-face.is-blank { background: var(--paper-grain), var(--surface); }
+/* Paper in shadow as it stands on edge. */
+.mag-sheet-shade {
+  position: absolute; inset: 0; z-index: 9; pointer-events: none; background: color-mix(in srgb, black 55%, transparent);
+  opacity: var(--shade); backface-visibility: hidden; -webkit-backface-visibility: hidden;
+}
+
 /* ── Turning ─────────────────────────────────────────────────────────────── */
 .mag-turn {
   position: absolute; top: 50%; z-index: 4; width: 40px; height: 40px; margin-top: -20px; display: grid; place-items: center;
@@ -179,3 +205,27 @@
 @media (prefers-reduced-motion: reduce) {
   .mag-spread, .mag-binding { animation: none; }
 }
+
+/* ── Dark ────────────────────────────────────────────────────────────────── */
+/* --ink flips light in dark mode, so every shadow and plate that was drawn from it is drawn from black instead. */
+:root[data-theme='dark'] .mag-page.is-verso { box-shadow: -2px 4px 18px color-mix(in srgb, black 55%, transparent); }
+:root[data-theme='dark'] .mag-page.is-recto { box-shadow: 2px 4px 18px color-mix(in srgb, black 55%, transparent); }
+:root[data-theme='dark'] .mag-page.is-verso::after { background: linear-gradient(90deg, transparent, color-mix(in srgb, black 28%, transparent)); }
+:root[data-theme='dark'] .mag-page.is-recto::before { background: linear-gradient(270deg, transparent, color-mix(in srgb, black 28%, transparent)); }
+/* A plate is a dark page in both themes: its picture is all there is. */
+.mag-page.is-plate { background: var(--scale-glass); }
+.mag-page.is-plate .mag-cap, .mag-page.is-plate .mag-run, .mag-page.is-plate .mag-folio { color: color-mix(in srgb, white 58%, transparent); }
+/* Photographs are not dimmed by the theme, but their paper edge should not glow. */
+:root[data-theme='dark'] .mag-photo { box-shadow: 0 0 0 1px color-mix(in srgb, white 8%, transparent); }
+:root[data-theme='dark'] .mag-quote { border-color: color-mix(in srgb, var(--ink) 55%, transparent); }
+
+/* ── One page at a time (a phone) ────────────────────────────────────────── */
+/* There is no spine to curl towards, so a lone page has no gutter shade and square outer corners. */
+.mag-fit[data-mode='single'] .mag-page { border-radius: 3px; box-shadow: var(--shadow-md); }
+.mag-fit[data-mode='single'] .mag-page::before, .mag-fit[data-mode='single'] .mag-page::after { display: none; }
+.mag-fit[data-mode='single'] .mag-run { left: 48px; right: auto; }
+.mag-fit[data-mode='single'] .mag-folio { left: 0; right: 0; text-align: center; }
+/* The arrows sit in the page's lower corners, clear of the text, not across its middle. */
+.mag-fit[data-mode='single'] .mag-turn { top: auto; bottom: 10px; margin-top: 0; width: 36px; height: 36px; opacity: .92; }
+.mag-fit[data-mode='single'] .mag-turn--prev { left: 6px; }
+.mag-fit[data-mode='single'] .mag-turn--next { right: 6px; }

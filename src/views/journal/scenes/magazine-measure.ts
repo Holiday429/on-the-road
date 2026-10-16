@@ -27,6 +27,9 @@ import type { Measurer } from './magazine-paginate.ts';
  * second column on the right instead of overflowing downwards, and a height check would
  * wrongly say it fits. One column is therefore no `columns` at all.
  */
+/** The least area one character can take in a printed frame, px². */
+export const FRAME_PX_PER_CHAR = 90;
+
 export const columnsOf = (cols: 1 | 2): string => (cols > 1 ? '2' : 'auto');
 
 export interface DomMeasurer extends Measurer { dispose(): void }
@@ -51,9 +54,13 @@ export function createDomMeasurer(): DomMeasurer {
         textEl.innerHTML = textHtml(text.slice(0, n), f);
         return f.cols > 1 ? textEl.scrollWidth <= textEl.clientWidth + 1 : textEl.scrollHeight <= textEl.clientHeight + 1;
       };
-      if (fits(text.length)) return text.length;
+      // No frame holds more characters than its area allows (even narrow Latin letters take ~90 px²
+      // at this size), so the search never has to set — and lay out — thousands of characters
+      // that cannot fit. Capping errs only toward a page with a little less on it, never an overflow.
+      const cap = Math.min(text.length, Math.ceil((f.w * f.h) / FRAME_PX_PER_CHAR));
+      if (fits(cap)) return cap;
       let lo = 0;
-      let hi = text.length;
+      let hi = cap;
       while (lo < hi) {
         const mid = Math.ceil((lo + hi) / 2);
         if (fits(mid)) lo = mid; else hi = mid - 1;

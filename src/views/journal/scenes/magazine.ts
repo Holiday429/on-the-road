@@ -60,7 +60,8 @@ export function syncMagazineView(root: ParentNode): boolean {
   if (!width) return false;
   const mode: ViewMode = width < SINGLE_BELOW ? 'single' : 'spread';
   const across = mode === 'single' ? PAGE_W : PAGE_W * 2;
-  const room = Math.max(360, window.innerHeight - fit.getBoundingClientRect().top - 28);
+  // On a phone the app's tab bar sits over the foot of the screen; the page must end above it.
+  const room = Math.max(360, window.innerHeight - fit.getBoundingClientRect().top - (mode === 'single' ? 96 : 28));
   const k = Math.max(0.2, Math.min(width / across, room / PAGE_H));
   view.k = k;
   fit.style.setProperty('--k', String(k));
@@ -212,6 +213,7 @@ export function renderMagazine(
         <div class="mag-stage">
           <div class="mag-spread${fade}" style="width:${single ? PAGE_W : PAGE_W * 2}px;height:${PAGE_H}px">
             ${shown.map((i) => leafHtml(i === null ? null : book.leaves[i], i, album, entries, book, countries)).join('')}
+            <div class="mag-flip-slot" data-morph-keep></div>
           </div>
           <button class="mag-turn mag-turn--prev" data-album-page="prev" type="button" aria-label="${escHtml(t('journal.mag.prev'))}" ${atStart ? 'disabled' : ''}>‹</button>
           <button class="mag-turn mag-turn--next" data-album-page="next" type="button" aria-label="${escHtml(t('journal.mag.next'))}" ${atEnd ? 'disabled' : ''}>›</button>

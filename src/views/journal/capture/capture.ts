@@ -8,7 +8,8 @@ import { syncPlacesMap, disposePlacesMap } from '../scenes/places-map.ts';
 import { syncGalleryFlow, stopGalleryFlow } from '../scenes/gallery-flow.ts';
 import { coverDraftFor } from '../scenes/album-cover-edit.ts';
 import { albumEntries, coverArtOf } from '../scenes/albums.ts';
-import { currentMode, syncMagazineView } from '../scenes/magazine.ts';
+import { currentMode, renderMagazine, syncMagazineView } from '../scenes/magazine.ts';
+import { beginFlip, dragDirection, shouldCommit, turnProgress, type Flip, type FlipDir } from '../scenes/magazine-flip.ts';
 import { bookIsLoading, cachedBook, loadBook } from '../scenes/magazine-measure.ts';
 import { turnTo } from '../scenes/magazine-model.ts';
 import { renderCover } from '../scenes/album-cover.ts';
@@ -24,7 +25,7 @@ import {
 import { inferTemplate } from '../classify.ts';
 import { exportEntries } from '../export.ts';
 import { suggestTidy, type AlbumSuggestion } from '../ai-classify.ts';
-import { renderCapture, type CalendarCell, type TagGroup } from './render.ts';
+import { magazineCountries, renderCapture, type CalendarCell, type TagGroup } from './render.ts';
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import { uploadJournalImage } from '../../../firebase/storage.ts';
@@ -141,6 +142,11 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     // Only attach listeners once per root element to prevent accumulation across re-renders.
     if (_boundRoot === root) return;
     _boundRoot = root;
+
+    root.addEventListener('pointerdown', (e) => dragDown(e));
+    root.addEventListener('pointermove', (e) => dragMove(e, root));
+    root.addEventListener('pointerup', (e) => { void dragUp(e, root); });
+    root.addEventListener('pointercancel', (e) => { void dragUp(e, root); });
 
     window.addEventListener('resize', () => {
       if (state.openAlbumId && syncMagazineView(root)) deps.requestRender();
@@ -271,7 +277,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const albumPageBtn = target.closest<HTMLElement>('[data-album-page]');
       if (albumPageBtn) {
-        turnAlbumPage(albumPageBtn.dataset.albumPage === 'prev' ? -1 : 1);
+        void turnAlbumPage(albumPageBtn.dataset.albumPage === 'prev' ? -1 : 1);
         return;
       }
 
@@ -576,8 +582,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     root.addEventListener('keydown', (event) => {
       const keyEvent = event as KeyboardEvent;
       if (state.openAlbumId && state.view === 'albums' && !(keyEvent.target instanceof HTMLInputElement) && !(keyEvent.target instanceof HTMLTextAreaElement)) {
-        if (keyEvent.key === 'ArrowRight') { keyEvent.preventDefault(); turnAlbumPage(1); return; }
-        if (keyEvent.key === 'ArrowLeft') { keyEvent.preventDefault(); turnAlbumPage(-1); return; }
+        if (keyEvent.key === 'ArrowRight') { keyEvent.preventDefault(); void turnAlbumPage(1); return; }
+        if (keyEvent.key === 'ArrowLeft') { keyEvent.preventDefault(); void turnAlbumPage(-1); return; }
       }
       // Enter / Space on a focused card, page or tile opens it (they are buttons in spirit)
       if ((keyEvent.key === 'Enter' || keyEvent.key === ' ') && keyEvent.target instanceof HTMLElement
@@ -734,16 +740,106 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     }).catch((error) => console.error('Binding the album failed:', error));
   }
 
-  /** ‹ › in the open album: a spread at a time (a page at a time on a phone), clamped to the book. */
-  function turnAlbumPage(delta: 1 | -1) {
+  /** The pages of the spread (or page) at `leaf`, drawn the way the book will draw it, from a detached copy. */
+  function pagesAt(leaf: number): HTMLElement[] {
     const o = openBook();
-    if (!o?.book) return;
-    const next = turnTo(state.albumLeaf, delta, o.book.leaves.length, currentMode());
-    if (next === state.albumLeaf) return;
-    state.albumLeaf = next;
-    state.albumDir = delta > 0 ? 'next' : 'prev';
+    if (!o?.book) return [];
+    const html = renderMagazine(o.album, o.entries, o.book, { leaf, turn: false, dir: '' }, magazineCountries(o.entries, deps.getLegs()));
+    const tmp = document.createElement('div');
+    // eslint-disable-next-line no-restricted-syntax -- audited: renderMagazine escapes every field
+    tmp.innerHTML = html;
+    return [...tmp.querySelectorAll<HTMLElement>('.mag-spread > .mag-page')];
+  }
+
+  /** The turn is real: the book is on the new leaf and drawn there. */
+  function commitTurn(to: number, delta: FlipDir, fade: boolean) {
+    state.albumLeaf = to;
+    state.albumDir = fade ? (delta > 0 ? 'next' : 'prev') : '';
     state.albumTurn = !state.albumTurn;
     deps.requestRender();
+  }
+
+  /** The one turn in flight (a click's animation, or a drag), so a second cannot start under it. */
+  let turning = false;
+
+  /** ‹ › in the open album: the page swings over; a spread at a time (a page on a phone), clamped to the book. */
+  async function turnAlbumPage(delta: FlipDir) {
+    if (turning) return;
+    const o = openBook();
+    if (!o?.book) return;
+    const mode = currentMode();
+    const next = turnTo(state.albumLeaf, delta, o.book.leaves.length, mode);
+    if (next === state.albumLeaf) return;
+    const spread = document.querySelector<HTMLElement>('.mag-spread');
+    const flip = spread ? beginFlip(spread, mode, delta, pagesAt(next)) : null;
+    if (!flip) { commitTurn(next, delta, true); return; }      // reduced motion: a fade, as before
+    turning = true;
+    try {
+      await flip.settle(1);
+      commitTurn(next, delta, false);
+    } finally {
+      flip.destroy();
+      turning = false;
+    }
+  }
+
+  /* ── Dragging a page ─────────────────────────────────────────────────────
+   * The same sheet, followed by the finger: grab the right page and pull it left
+   * to turn forward, the left page and pull right to turn back (a phone: either
+   * way). Let go past a third of the way, or with a flick, and it lands; short of
+   * that it goes back and the book has not changed. */
+  interface Drag { id: number; x0: number; t0: number; dir: FlipDir | 0; flip: Flip | null; to: number; pageW: number; spineX: number; progress: number }
+  let drag: Drag | null = null;
+
+  function dragDown(event: PointerEvent) {
+    const target = event.target as HTMLElement;
+    if (turning || event.button > 0 || !state.openAlbumId || state.view !== 'albums') return;
+    const spread = target.closest<HTMLElement>('.mag-spread');
+    if (!spread || target.closest('button, a, input, select, textarea')) return;
+    const rect = spread.getBoundingClientRect();
+    const page = spread.querySelector<HTMLElement>('.mag-page')?.getBoundingClientRect();
+    drag = {
+      id: event.pointerId, x0: event.clientX, t0: performance.now(), dir: 0, flip: null, to: state.albumLeaf, progress: 0,
+      pageW: page?.width ?? rect.width / 2,
+      spineX: currentMode() === 'single' ? rect.left : rect.left + rect.width / 2,
+    };
+  }
+
+  function dragMove(event: PointerEvent, root: HTMLElement) {
+    const d = drag;
+    if (!d || event.pointerId !== d.id) return;
+    const mode = currentMode();
+    if (d.dir === 0) {
+      if (Math.abs(event.clientX - d.x0) < 8) return;
+      const dir = dragDirection(d.x0, event.clientX, d.spineX, mode);
+      const o = openBook();
+      const spread = document.querySelector<HTMLElement>('.mag-spread');
+      const to = o?.book ? turnTo(state.albumLeaf, dir || 1, o.book.leaves.length, mode) : state.albumLeaf;
+      const flip = dir && o?.book && spread && to !== state.albumLeaf ? beginFlip(spread, mode, dir, pagesAt(to)) : null;
+      if (!dir || !flip) { drag = null; return; }
+      d.dir = dir; d.flip = flip; d.to = to;
+      try { root.setPointerCapture?.(event.pointerId); } catch { /* a synthetic pointer: nothing to capture */ }
+    }
+    d.progress = turnProgress(event.clientX - d.x0, d.pageW);
+    d.flip!.set(d.progress);
+  }
+
+  async function dragUp(event: PointerEvent, root: HTMLElement) {
+    const d = drag;
+    if (!d || event.pointerId !== d.id) return;
+    drag = null;
+    try { root.releasePointerCapture?.(event.pointerId); } catch { /* not captured */ }
+    if (!d.flip || !d.dir) return;
+    const dt = Math.max(1, performance.now() - d.t0);
+    const commit = shouldCommit(d.progress, Math.abs(event.clientX - d.x0) / dt);
+    turning = true;
+    try {
+      await d.flip.settle(commit ? 1 : 0);
+      if (commit) commitTurn(d.to, d.dir, false);
+    } finally {
+      d.flip.destroy();
+      turning = false;
+    }
   }
 
   function pickPlace(key: string) {

@@ -242,6 +242,16 @@ function renderReader(
  * if they were the user's own organisation. Only tag groups survive, below the
  * albums.
  */
+/** The country of each entry in an album, for the magazine's running head — worked out the way the stamp's is. */
+export function magazineCountries(entries: StoredJournalEntry[], legs: StoredLeg[]): Record<string, string> {
+  const countries: Record<string, string> = {};
+  for (const e of entries) {
+    const iso = buildStops([e], legs)[0]?.iso;
+    if (iso) countries[e.id] = countryName(iso);
+  }
+  return countries;
+}
+
 function renderAlbumsView(model: CaptureRenderModel): string {
   // Designing a cover takes the whole view: the proof needs the room, and there
   // is nothing useful to do behind it.
@@ -260,12 +270,7 @@ function renderAlbumsView(model: CaptureRenderModel): string {
       ? renderAlbumFeed(open, model.allEntries, model.state.readingId)
       : (() => {
         const entries = albumEntries(open, model.allEntries);
-        // The running head names each article's country, worked out the way the stamp's is.
-        const countries: Record<string, string> = {};
-        for (const e of entries) {
-          const iso = buildStops([e], model.legs)[0]?.iso;
-          if (iso) countries[e.id] = countryName(iso);
-        }
+        const countries = magazineCountries(entries, model.legs);
         return renderMagazine(open, entries, cachedBook(open, entries), {
           leaf: model.state.albumLeaf, turn: model.state.albumTurn, dir: model.state.albumDir,
         }, countries);

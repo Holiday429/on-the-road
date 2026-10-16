@@ -433,3 +433,23 @@ describe('the other page shapes', () => {
     }
   });
 });
+
+
+describe('a big album', () => {
+  it('paginates 80 articles of every kind in well under a second, and loses nothing', () => {
+    const shapes = ['3:2', '3:4', '16:9', '2:3', '4:3'] as const;
+    const many = Array.from({ length: 80 }, (_, i) => article({
+      chars: [0, 150, 900, 3600][i % 4],
+      photos: Array.from({ length: (i * 5) % 7 }, (_, k) => photo(shapes[(i + k) % 5], i * 10 + k)),
+    }));
+    const t0 = performance.now();
+    const book = assembleBook(many, m, 'big', 'k');
+    const ms = performance.now() - t0;
+    expect(ms).toBeLessThan(1000);
+    expect(book.toc).toHaveLength(80);
+    // every photograph is on some page, once
+    const placed = book.pages.flatMap((p) => p.photos.map((x) => x.photo.src));
+    expect(new Set(placed).size).toBe(placed.length);
+    expect(placed.length).toBe(many.reduce((n, a) => n + a.photos.length, 0));
+  });
+});
