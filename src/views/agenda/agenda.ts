@@ -1,11 +1,12 @@
 /* ==========================================================================
    On the Road · Agenda view
    --------------------------------------------------------------------------
-   The whole trip, day by day. Left: a month grid with kind-coloured dots, a
-   legend, month totals and the open to-do list. Right: a persistent day panel
-   for the selected date — transport, stays, plan items, to-dos, spend and
-   journal, in the order the day actually happens, each tappable through to its
-   own view (expandable for details).
+   The whole trip, day by day, drawn as a real calendar. Left: a wall calendar —
+   a month page with kind-coloured ink dots, a legend and month totals, hung
+   from a ring binding and turned like paper — over a sticky note with the open
+   to-dos. Right: a tear-off sheet for the selected date — transport, stays,
+   plan items, spend and journal, in the order the day actually happens, each
+   tappable through to its own view (expandable for details).
 
    Aggregation is data/day-agenda.ts, shared with the dashboard agenda widget
    and ported from iOS CalendarStore so both platforms read a day identically.
@@ -13,6 +14,9 @@
    ========================================================================== */
 
 import './agenda.css';
+import '../../core/paper/paper.css';
+import '../../core/paper/fastener.css';
+import '../../core/paper/page-flip.css';
 import '../itinerary/itinerary.css';
 import '../expenses/styles/records.css';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
@@ -25,7 +29,9 @@ import { baseCurrency } from '../../data/trip-context.ts';
 import { currencySymbol, peekRateTable } from '../../data/rates.ts';
 import { navigateTo, consumeNavIntent, type NavIntent, type ViewId } from '../../core/app.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import { t } from '../../core/i18n.ts';
+import { t, getLocale } from '../../core/i18n.ts';
+import { renderFastener } from '../../core/paper/fastener.ts';
+import { attachPageDrag, finishFlip, isFlipping, onFlipIdle, turnPage } from './agenda-flip.ts';
 import { openModal } from '../../core/modal.ts';
 import { scheduleAllNotifications, clearAllNotificationTimers } from '../../core/notifications.ts';
 import { entryCover, excerpt, moodEmoji, titleFor } from '../journal/shared/utils.ts';
@@ -88,22 +94,40 @@ function select(iso: string): void {
 
 const LEGEND: AgendaKind[] = ['transport', 'stay', 'plan', 'journal', 'spend', 'todo'];
 
-/* ── Month grid ──────────────────────────────────────────────────────────── */
-function renderMonthGrid(kinds: Map<string, Set<AgendaKind>>): string {
-  const today = todayIso();
-  const firstDow = (new Date(_year, _month, 1).getDay() + 6) % 7;   // Monday-first
-  const daysInMonth = new Date(_year, _month + 1, 0).getDate();
-  const hdr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => `<div class="cal-hdr">${d}</div>`).join('');
+/* ── Month page ──────────────────────────────────────────────────────────── */
+const RING_COUNT = 14;
+const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];   // Monday-first, as Date.getDay() numbers
 
-  let cells = '<div class="cal-cell cal-empty"></div>'.repeat(firstDow);
-  for (let d = 1; d <= daysInMonth; d++) {
-    const iso = isoDate(_year, _month, d);
+/** One printed month: title, weekday row, six weeks of days, legend and totals. Always six rows, like a real page. */
+function renderMonthPage(year: number, month: number, kinds: Map<string, Set<AgendaKind>>): string {
+  const today = todayIso();
+  const loc = getLocale();
+  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7;   // Monday-first
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const prevDays = new Date(year, month, 0).getDate();
+  const monthName = new Date(year, month, 1).toLocaleString(loc, { month: 'long' });
+  // Weekday names from a known Monday, so they follow the locale.
+  const hdr = WEEKDAYS.map((dow, i) => {
+    const name = new Date(2024, 0, 7 + dow).toLocaleDateString(loc, { weekday: 'short' });
+    return `<div class="cal-hdr${i >= 5 ? ' is-weekend' : ''}">${esc(name)}</div>`;
+  }).join('');
+
+  let cells = '';
+  for (let i = 0; i < 42; i++) {
+    const d = i - firstDow + 1;
+    const weekend = i % 7 >= 5 ? ' is-weekend' : '';
+    if (d < 1 || d > daysInMonth) {
+      // The days of the neighbouring months, printed faint like on a real page.
+      cells += `<div class="cal-cell cal-empty${weekend}" aria-hidden="true"><span class="cal-cell-top"><span class="cal-daynum">${d < 1 ? prevDays + d : d - daysInMonth}</span></span></div>`;
+      continue;
+    }
+    const iso = isoDate(year, month, d);
     const set = kinds.get(iso);
     const dots = set
       ? LEGEND.filter((k) => set.has(k)).map((k) => `<i style="background:${AGENDA_COLORS[k]}"></i>`).join('')
       : '';
     const leg = _legs.find((l) => l.dateFrom <= iso && iso <= l.dateTo);
-    const cls = ['cal-cell', iso === today ? 'is-today' : '', iso === _selected ? 'is-sel' : '', leg ? 'in-leg' : ''].filter(Boolean).join(' ');
+    const cls = ['cal-cell', weekend.trim(), iso === today ? 'is-today' : '', iso === _selected ? 'is-sel' : '', leg ? 'in-leg' : ''].filter(Boolean).join(' ');
     // A new city starts today: just its flag in the cell, the details in a hover tooltip.
     const arriving = _legs.find((l) => l.dateFrom === iso);
     const tip = arriving ? `${arriving.flag} ${arriving.city} · ${shortDate(arriving.dateFrom)} – ${shortDate(arriving.dateTo)}`.trim() : '';
@@ -114,11 +138,30 @@ function renderMonthGrid(kinds: Map<string, Set<AgendaKind>>): string {
         <span class="cal-dots">${dots}</span>
       </button>`;
   }
-  return `<div class="cal-grid">${hdr}${cells}</div>`;
+
+  return `
+    <div class="cal-page" data-ym="${year}-${pad(month + 1)}">
+      <div class="cal-nav">
+        <div class="cal-title">
+          <h2 class="cal-month-title">${esc(monthName)}</h2>
+          <span class="cal-year">${year}</span>
+        </div>
+        <div class="cal-nav-tools">
+          <button type="button" class="cal-nav-btn" data-dir="-1" aria-label="Previous month">‹</button>
+          <button type="button" class="cal-nav-btn" data-dir="1" aria-label="Next month">›</button>
+          <button type="button" class="cal-today-btn" data-go-today>${esc(t('dash.agenda.today'))}</button>
+        </div>
+      </div>
+      <div class="cal-grid">${hdr}${cells}</div>
+      <div class="cal-meta">
+        <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${esc(t(`cal.kind.${k}`))}</span>`).join('')}</div>
+        ${renderStats(year, month)}
+      </div>
+    </div>`;
 }
 
-function renderStats(): string {
-  const prefix = `${_year}-${pad(_month + 1)}`;
+function renderStats(year: number, month: number): string {
+  const prefix = `${year}-${pad(month + 1)}`;
   const tripDays = new Set<string>();
   for (const l of _legs) {
     for (let d = new Date(l.dateFrom + 'T00:00:00'); isoDate(d.getFullYear(), d.getMonth(), d.getDate()) <= l.dateTo; d.setDate(d.getDate() + 1)) {
@@ -209,7 +252,11 @@ function todoRow(td: StoredTodo, today: string): string {
 function renderDayPanel(): string {
   const src = sources();
   const day = agendaForDay(_selected, src);
-  const date = new Date(_selected + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const d = new Date(_selected + 'T00:00:00');
+  const loc = getLocale();
+  const fullDate = d.toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const weekday = d.toLocaleDateString(loc, { weekday: 'long' });
+  const monthYear = d.toLocaleDateString(loc, { month: 'long', year: 'numeric' });
   const where = day.leg
     ? `${esc(day.leg.flag)} ${esc(day.leg.city)}${day.dayInLeg ? ` · ${esc(t('dash.agenda.dayOf', { n: day.dayInLeg.n, total: day.dayInLeg.total }))}` : ''}`
     : '';
@@ -234,13 +281,20 @@ function renderDayPanel(): string {
   const empty = !rows.length && !journal
     ? `<div class="cal-empty-day">${esc(t('dash.agenda.empty'))}</div>` : '';
 
+  // A tear-off sheet: the month on the red header, the day in big print, then the day's lines.
   return `
-    <aside class="cal-panel" id="cal-panel">
+    <aside class="cal-panel" id="cal-panel" aria-label="${esc(fullDate)}">
+      <div class="cal-sheet-top"><span>${esc(monthYear)}</span></div>
       <div class="cal-panel-head">
-        <div class="cal-panel-date">${esc(date)}</div>
-        ${where ? `<div class="cal-panel-where">${where}</div>` : ''}
-        ${hint ? `<div class="cal-panel-hint">${esc(hint)}</div>` : ''}
+        <div class="cal-bigday">${d.getDate()}</div>
+        <div class="cal-panel-id">
+          <div class="cal-panel-date">${esc(weekday)}</div>
+          ${where ? `<div class="cal-panel-where">${where}</div>` : ''}
+          ${hint ? `<div class="cal-panel-hint">${esc(hint)}</div>` : ''}
+        </div>
+        ${_selected === todayIso() ? `<span class="cal-today-stamp" aria-hidden="true">${esc(t('dash.agenda.today'))}</span>` : ''}
       </div>
+      <div class="cal-perf" aria-hidden="true"></div>
       ${rows.length ? `<div class="cal-items">${rows.map(renderItem).join('')}</div>` : ''}
       ${journal ? `<div class="cal-sec"><div class="cal-sec-label">${WIDGET_ICON.journal} ${esc(t('dash.widget.journal'))}</div>${journal}</div>` : ''}
       ${empty}
@@ -260,15 +314,19 @@ function renderTodosPanel(): string {
     return 0;
   });
   const done = _todos.filter((td) => td.done).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)).slice(0, 3);
+  // One sticky note, the same paper and tape as a note on the Prepare checklist board.
   return `
-    <div class="cal-todos-panel" id="cal-todos">
-      <div class="cal-todos-header">
+    <section class="cal-note" id="cal-todos">
+      ${renderFastener('tape')}
+      <div class="cal-note-head">
         <span class="cal-todos-title">${WIDGET_ICON.todo} ${esc(t('dash.widget.todo'))}</span>
-        <button class="cal-todos-add btn btn-ghost" data-add-todo="${today}">+ ${esc(t('cal.addTodo'))}</button>
+        <button type="button" class="cal-todos-add" data-add-todo="${today}">+ ${esc(t('cal.addTodo'))}</button>
       </div>
-      ${pending.length ? pending.map((td) => todoRow(td, today)).join('') : `<div class="cal-todos-empty">${esc(t('cal.noOpenTodos'))}</div>`}
-      ${done.length ? `<div class="cal-todos-section-label">${esc(t('cal.recentlyDone'))}</div>${done.map((td) => todoRow(td, today)).join('')}` : ''}
-    </div>`;
+      <div class="cal-note-list">
+        ${pending.length ? pending.map((td) => todoRow(td, today)).join('') : `<div class="cal-todos-empty">${esc(t('cal.noOpenTodos'))}</div>`}
+        ${done.length ? `<div class="cal-todos-section-label">${esc(t('cal.recentlyDone'))}</div>${done.map((td) => todoRow(td, today)).join('')}` : ''}
+      </div>
+    </section>`;
 }
 
 /* ── Add / Edit todo modal ───────────────────────────────────────────────── */
@@ -328,55 +386,111 @@ function openTodoModal(opts: { mode: 'add'; dueDate: string } | { mode: 'edit'; 
 }
 
 /* ── Render + wire ───────────────────────────────────────────────────────── */
+/** A store changed while a page was turning: draw it once the sheet has landed. */
+let _stale = false;
+onFlipIdle(() => { if (_stale) { _stale = false; render(); } });
+
 function render(): void {
   const body = document.querySelector<HTMLElement>('#view-agenda .cal-body');
   if (!body) return;
+  if (isFlipping()) { _stale = true; return; }
+  _stale = false;
   const kinds = kindsByDate(sources());
-  const monthName = new Date(_year, _month, 1).toLocaleString(undefined, { month: 'long' });
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = `
     <div class="cal-root">
       <div class="cal-main">
-        <div class="cal-nav">
-          <button class="cal-nav-btn" data-dir="-1" aria-label="Previous month">‹</button>
-          <h2 class="cal-month-title">${esc(monthName)} ${_year}</h2>
-          <button class="cal-nav-btn" data-dir="1" aria-label="Next month">›</button>
-          <button class="cal-today-btn" data-go-today>${esc(t('dash.agenda.today'))}</button>
-        </div>
-        ${renderMonthGrid(kinds)}
-        <div class="cal-meta">
-          <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${esc(t(`cal.kind.${k}`))}</span>`).join('')}</div>
-          ${renderStats()}
-        </div>
+        <section class="cal-book">
+          <div class="cal-cap" aria-hidden="true"><span>On the Road</span><span>${_year}</span></div>
+          <div class="cal-stage">${renderMonthPage(_year, _month, kinds)}</div>
+          <div class="cal-rings" aria-hidden="true">${'<i></i>'.repeat(RING_COUNT)}</div>
+        </section>
         ${renderTodosPanel()}
       </div>
-      ${renderDayPanel()}
+      <div class="cal-slot">${renderDayPanel()}</div>
     </div>`;
   wire(body);
 }
 
+/** A detached copy of a month page / the day sheet, for a turn to bring in. */
+function detached(html: string): HTMLElement {
+  const box = document.createElement('div');
+  // eslint-disable-next-line no-restricted-syntax -- audited: html comes from the escaping renderers above
+  box.innerHTML = html.trim();
+  return box.firstElementChild as HTMLElement;
+}
+
+/** Turn to the month `delta` away (the page lifts up for the next one, comes down for the one before). */
+function turnMonth(delta: 1 | -1): void {
+  finishFlip();
+  const total = _year * 12 + _month + delta;
+  const y = Math.floor(total / 12);
+  const m = total - y * 12;
+  const stage = document.querySelector<HTMLElement>('#view-agenda .cal-stage');
+  const live = stage?.querySelector<HTMLElement>('.cal-page');
+  const commit = () => { _year = y; _month = m; render(); };
+  if (!stage || !live) { commit(); return; }
+  turnPage(stage, live, detached(renderMonthPage(y, m, kindsByDate(sources()))), delta, commit);
+}
+
+/** Show another date. Same month: the day sheet is torn over; another month: the page turns to it. */
+function goToDay(iso: string, scroll = false): void {
+  finishFlip();
+  if (iso === _selected && iso.slice(0, 7) === `${_year}-${pad(_month + 1)}`) return;
+  const [y, m] = iso.split('-').map(Number);
+  const prev = _selected;
+  const commit = () => {
+    select(iso);
+    render();
+    // Stacked (narrow) layout: bring the panel into view.
+    if (scroll && window.matchMedia('(max-width: 860px)').matches) {
+      document.getElementById('cal-panel')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  };
+  if (m - 1 !== _month || y !== _year) {
+    const stage = document.querySelector<HTMLElement>('#view-agenda .cal-stage');
+    const live = stage?.querySelector<HTMLElement>('.cal-page');
+    if (!stage || !live) { commit(); return; }
+    const dir = y * 12 + m - 1 > _year * 12 + _month ? 1 : -1;
+    _selected = iso;
+    const target = detached(renderMonthPage(y, m - 1, kindsByDate(sources())));
+    _selected = prev;
+    turnPage(stage, live, target, dir, commit);
+    return;
+  }
+  const slot = document.querySelector<HTMLElement>('#view-agenda .cal-slot');
+  const live = slot?.querySelector<HTMLElement>('.cal-panel');
+  if (!slot || !live) { commit(); return; }
+  _selected = iso;
+  const target = detached(renderDayPanel());
+  _selected = prev;
+  turnPage(slot, live, target, iso > prev ? 1 : -1, commit);
+}
+
 function wire(body: HTMLElement): void {
   body.querySelectorAll<HTMLElement>('[data-dir]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      _month += parseInt(btn.dataset.dir!, 10);
-      if (_month > 11) { _month = 0; _year++; }
-      if (_month < 0)  { _month = 11; _year--; }
-      render();
-    });
+    btn.addEventListener('click', () => turnMonth(parseInt(btn.dataset.dir!, 10) < 0 ? -1 : 1));
   });
-  body.querySelector('[data-go-today]')?.addEventListener('click', () => { select(todayIso()); render(); });
+  body.querySelector('[data-go-today]')?.addEventListener('click', () => goToDay(todayIso()));
 
   body.querySelectorAll<HTMLElement>('[data-day]').forEach((cell) => {
-    cell.addEventListener('click', () => {
-      _selected = cell.dataset.day!;
-      render();
-      // Stacked (narrow) layout: bring the panel into view.
-      if (window.matchMedia('(max-width: 860px)').matches) {
-        document.getElementById('cal-panel')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      }
-    });
+    cell.addEventListener('click', () => goToDay(cell.dataset.day!, true));
   });
+
+  // Pull the page: up for the next month, down for the one before.
+  const stage = body.querySelector<HTMLElement>('.cal-stage');
+  if (stage) {
+    attachPageDrag(stage, {
+      live: () => stage.querySelector<HTMLElement>('.cal-page'),
+      target: (dir) => {
+        const total = _year * 12 + _month + dir;
+        const y = Math.floor(total / 12);
+        return detached(renderMonthPage(y, total - y * 12, kindsByDate(sources())));
+      },
+      commit: (dir) => { const total = _year * 12 + _month + dir; _year = Math.floor(total / 12); _month = total - _year * 12; render(); },
+    });
+  }
 
   // Tap-through on agenda rows / journal cards. Inline controls handle themselves.
   body.querySelectorAll<HTMLElement>('[data-nav]').forEach((el) => {

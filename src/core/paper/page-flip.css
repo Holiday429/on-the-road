@@ -1,0 +1,33 @@
+/* ==========================================================================
+   On the Road · Paper kit · page flip (hinged at the top)
+   --------------------------------------------------------------------------
+   Markup and arithmetic: core/paper/page-flip.ts. The host (a wall-calendar
+   page, a tear-off day sheet) must be `position: relative`; the sheet is laid
+   over it and removed when it has landed.
+   ========================================================================== */
+
+.hf {
+  position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  perspective: 3200px; perspective-origin: 50% 40%;
+  --hf-shade: 0;
+}
+.hf-under { position: absolute; inset: 0; }
+/* The shadow the standing sheet throws on the page beneath it, darkest near the hinge. */
+.hf-under::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(180deg, color-mix(in srgb, black calc(var(--hf-shade) * 120%), transparent), transparent 75%);
+}
+.hf-sheet { position: absolute; inset: 0; transform-origin: 50% 0; transform-style: preserve-3d; will-change: transform, opacity; }
+.hf-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.hf-face > * { position: absolute; top: 0; left: 0; right: 0; margin: 0; transform: none; animation: none; }
+/* The sheet tilting away darkens toward its free edge. */
+.hf-face.is-front::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(0deg, color-mix(in srgb, black calc(var(--hf-shade) * 160%), transparent), transparent 60%);
+}
+/* The back of a sheet is plain paper. */
+.hf-face.is-back {
+  transform: rotateX(180deg);
+  background: var(--paper-grain), var(--hf-back, var(--pp-paper, var(--surface)));
+  border-radius: inherit;
+}
