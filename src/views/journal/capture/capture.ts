@@ -27,6 +27,7 @@ import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import { uploadJournalImage } from '../../../firebase/storage.ts';
 import { openModal } from '../../../core/modal.ts';
+import { playOpen, startPost } from '../scenes/letter-motion.ts';
 import { envelopeTitle } from '../shared/letter-model.ts';
 import { cachedRatio, measureMissing, measureRatio, rememberRatio, storedRatios } from '../shared/ratio-cache.ts';
 import {
@@ -65,6 +66,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     readingId: null,
     readerTurn: '',
     letter: null,
+    opening: false,
+    posting: false,
     calendarMonth: currentMonthKey(),
     gallerySquare: false,
     galleryDrift: true,
@@ -80,6 +83,9 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     tidy: null,
     tidyLoading: false,
   };
+
+  /** A save is in flight (the envelope may or may not be animating). Declared up here: the code below the controller's `return` never runs a `let`. */
+  let saving = false;
 
   function savedGuideCards(): { id: string; title: string; type: string }[] {
     const city = state.draft.destination.trim();
@@ -442,6 +448,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         state.readingId = entryTarget.dataset.openEntry!;
         state.readerTurn = '';
         state.letter = null;
+        state.opening = true;
         deps.requestRender();
         return;
       }
@@ -455,6 +462,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
           state.readingId = id;
           state.readerTurn = back ? 'prev' : 'next';
           state.letter = null;
+          state.opening = false;
           deps.requestRender();
         }
         return;
@@ -622,6 +630,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   function afterRender(root: HTMLElement) {
     measureReading();
     resetReaderScroll();
+    playOpening();
     autosize(document.getElementById('journal-body'));
     void syncPlacesMap(root, {
       onPick: (key) => pickPlace(key),
@@ -661,6 +670,13 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     if (to) to.textContent = envelopeTitle(draft);
     const from = scene.querySelector('.ltr-env-place');
     if (from) from.textContent = draft.destination.trim() || '—';
+  }
+
+  /** The envelope opens once, when an entry is opened from a list — the page is already drawn, so this only animates. */
+  function playOpening() {
+    if (!state.opening || !state.readingId) return;
+    state.opening = false;
+    playOpen(document.querySelector<HTMLElement>('.ltr--read'));
   }
 
   /** Turning to another entry keeps the same scroller (the markup is morphed, not rebuilt), so start it at the top. */
@@ -728,6 +744,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     afterRender,
     dispose,
     currentView: () => state.view,
+    /** The envelope is mid-flight: a redraw now would throw the animation away. */
+    isPosting: () => state.posting,
     openComposer: () => {
       openComposer();
       deps.requestRender();
@@ -735,6 +753,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     /** Open one entry in the reader — used by the recap deck's evidence chips. */
     openEntry: (id: string) => {
       state.readingId = id;
+      state.opening = true;
       deps.requestRender();
     },
   };
@@ -840,6 +859,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   }
 
   async function saveDraft(root: HTMLElement) {
+    if (saving) return;                   // already on its way
     syncDraftFromDom(root);
     // A photo with no words is a complete entry — that's the whole point of the
     // one-tap composer. Only a draft with neither text nor photos is empty.
@@ -870,6 +890,18 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       happenedOn: state.draft.happenedOn || new Date().toISOString().slice(0, 10),
     };
 
+    // The letter starts folding now. The write below starts at the same moment and does
+    // not wait for it; if the write fails the animation is cancelled and the page is as it was.
+    const post = startPost(document.querySelector<HTMLElement>('.ltr--write'));
+    saving = true;
+    state.posting = !!post;
+    const abort = (message: string) => {
+      post?.cancel();
+      saving = false;
+      state.posting = false;
+      toast(message);
+    };
+
     // Upload any locally-picked photos before writing the doc, so the entry
     // only ever references URLs Storage has actually accepted.
     let images: string[];
@@ -877,7 +909,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       images = await uploadDraftImages();
     } catch (error) {
       console.error('Journal image upload failed:', error);
-      toast('Could not upload photos');
+      abort('Could not upload photos');
       return;
     }
 
@@ -901,10 +933,17 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       else await journalStore.save({ ...payload, favorite: false, visibility: 'private', slug: '' });
     } catch (error) {
       console.error('Journal save failed:', error);
-      toast('Could not save');
+      abort('Could not save');
       return;
     }
 
+    // Written. Let the envelope be sealed and sail off before the desk is cleared.
+    if (post) {
+      await post.sealed;
+      await post.fly();
+    }
+    saving = false;
+    state.posting = false;
     resetDraft();
     deps.requestRender();
   }
@@ -1251,7 +1290,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     if (!pendingFiles.some(Boolean)) return images.filter(Boolean);
 
     state.draft.uploading = true;
-    deps.requestRender();
+    if (!state.posting) deps.requestRender();      // the envelope is mid-flight: leave the DOM alone
     try {
       const urls = await Promise.all(images.map(async (current, index) => {
         const file = pendingFiles[index];

@@ -321,10 +321,11 @@ export function renderWriteLetter(o: WriteLetterOpts): string {
   return `
     <article class="ltr ltr--write" data-letter-scene data-layout="letter">
       <div class="ltr-scroll">
-        <div class="ltr-scene ltr-scene--letter has-cards">
+        <div class="ltr-scene ltr-scene--letter has-cards${state.posting ? ' is-posting' : ''}">
           ${envelope(head, o.iso, o.country, false)}
           ${writePaper(o)}
           ${writeCards(o)}
+          <div class="ltr-fold-slot" data-morph-keep></div>
         </div>
       </div>
       <nav class="ltr-bar ltr-bar--write">

@@ -175,4 +175,28 @@ describe('composer save', () => {
     expect(save).toHaveBeenCalledTimes(1);
     expect(save.mock.calls[0][0]).toMatchObject({ body: '今天走了很久的路' });
   });
+
+  it('writes once however many times Save is pressed while the envelope is on its way', async () => {
+    const { root, body } = mount();
+    newEntryButton(root, body).click();
+    const textarea = body.querySelector('#journal-body') as HTMLTextAreaElement;
+    textarea.value = 'twice';
+    const saveBtn = body.querySelector('[data-journal-save]') as HTMLElement;
+    saveBtn.click();
+    saveBtn.click();
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the traveller save again after a write fails', async () => {
+    const { root, body } = mount();
+    newEntryButton(root, body).click();
+    save.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await writeAndSave(body, 'first try');
+    expect(body.querySelector('.ltr--write'), 'the desk is still there to write on').toBeTruthy();
+    await writeAndSave(body, 'second try');
+    expect(save).toHaveBeenCalledTimes(2);
+    err.mockRestore();
+  });
 });

@@ -49,6 +49,7 @@
 
 /* ── The scene: narrow first ─────────────────────────────────────────────── */
 .ltr-scene {
+  position: relative;
   display: grid; grid-template-columns: minmax(0, 1fr);
   row-gap: var(--sp-6);
   max-width: 680px; margin-inline: auto;
@@ -79,12 +80,14 @@
 
 /* The flap, thrown open behind the envelope. */
 .ltr-env-flap {
+  z-index: 2; transform-origin: 50% 100%;
   position: absolute; left: 0; right: 0; bottom: 100%; height: 36%;
   background: color-mix(in srgb, var(--amber-200) 60%, var(--surface));
   clip-path: polygon(0 100%, 50% 0, 100% 100%);
   filter: drop-shadow(0 -1px 1px color-mix(in srgb, black 12%, transparent));
 }
 .ltr-env-body {
+  z-index: 1;
   position: absolute; inset: 0; overflow: hidden;
   border-radius: 2px;
   background: var(--paper-grain), var(--env-paper);
@@ -347,6 +350,26 @@
   .ltr-close { top: var(--sp-2); right: var(--sp-2); }
   .ltr-cards[data-layout='loose'] .ltr-pc { width: min(var(--w), 86%); }
 }
+
+/* ── Posting: the letter folds and goes into the envelope (letter-motion.ts) ─ */
+/* The folded copy lives in this slot, which the morph leaves alone. */
+.ltr-fold-slot { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.ltr-fold { position: absolute; perspective: 1800px; transform-style: preserve-3d; }
+.ltr-fold-part { position: absolute; left: 0; transform-origin: 50% 0; transform-style: preserve-3d; }
+.ltr-fold-face {
+  position: absolute; inset: 0; overflow: hidden;
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  background: var(--paper-grain), var(--surface);
+  box-shadow: 0 0 0 1px var(--rule-soft), var(--shadow-sm);
+}
+.ltr-fold-face.is-back { transform: rotateX(180deg); background: var(--paper-grain), color-mix(in srgb, var(--surface) 95%, var(--ink)); box-shadow: 0 0 0 1px var(--rule), inset 0 -10px 14px -10px color-mix(in srgb, var(--ink) 18%, transparent); }
+.ltr-fold-face .ltr-paper { box-shadow: none; }
+/* While it posts the real paper is hidden (its copy is folding), the envelope is in front, and nothing can be pressed. */
+.ltr-scene.is-posting { pointer-events: none; }
+.ltr-scene.is-posting > .ltr-paper { visibility: hidden; }
+.ltr-scene.is-posting .ltr-env { z-index: 5; }
+.ltr--write:has(.ltr-scene.is-posting) .ltr-bar,
+.ltr--write:has(.ltr-scene.is-posting) .ltr-close { pointer-events: none; opacity: .5; }
 
 /* ── Writing: the same desk, editable ───────────────────────────────────── */
 .ltr-dateline.is-edit {

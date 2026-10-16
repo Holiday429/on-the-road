@@ -51,6 +51,10 @@ export interface CaptureState {
   readerTurn: '' | 'next' | 'prev';
   /** The open entry's postcards: which is on top of the pile, which are turned over. */
   letter: CardFocus | null;
+  /** True just after an entry is opened from a list, so its envelope opens once. */
+  opening: boolean;
+  /** True from the moment Save is pressed until the entry is written and the envelope has gone. */
+  posting: boolean;
   calendarMonth: string;
   gallerySquare: boolean;
   /** Whether the gallery wall is drifting by itself. */

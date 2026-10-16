@@ -217,6 +217,8 @@ export function openJournalComposerOverlay(): void {
 
   function renderOverlay() {
     if (!overlayEl) return;
+    // The envelope is mid-flight; swapping the node would throw the animation away.
+    if (overlayCapture.isPosting()) return;
     const tmp = document.createElement('div');
     // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
     tmp.innerHTML = overlayCapture.render();
