@@ -1,13 +1,15 @@
 /* ==========================================================================
    On the Road · Agenda view
    --------------------------------------------------------------------------
-   A real calendar. Two columns on desktop — a wall calendar (cap, ring binding,
-   a month page) over a sticky note of to-dos | a tear-off sheet for the chosen
-   day — one column below 860px. Kind colours come from AGENDA_COLORS so the
-   dots, the agenda rows and the iOS calendar all agree.
+   A real calendar. Two columns on desktop — a wall calendar (kraft cap, ring
+   binding, a month page) | a desk holding the chosen day's tear-off sheet with
+   the to-do note under it — one column below 980px. Kind colours come from
+   AGENDA_COLORS so the dots, the agenda rows and the iOS calendar all agree.
 
-   Material: the paper kit's (grain, tear line, tape). Pages are --pp-paper like
-   the passport's; red ink is a mix of --coral-500 so it holds in dark mode.
+   Material: the paper kit's (grain, tear line, tape) over a laid-paper weave,
+   the way the passport's pages are built. Everything is the site's own warm
+   palette — kraft board and amber, no imported navy; the one red is a mix of
+   --coral-500 (date stamps, overdue pen) so it holds in dark mode.
    Turning a page is core/paper/page-flip.css; agenda-flip.ts drives it.
    ========================================================================== */
 
@@ -15,29 +17,44 @@
 
 .cal-root {
   --cal-red: color-mix(in srgb, var(--coral-500) 78%, var(--ink));          /* red ink: text, rings, stamps */
-  --cal-red-solid: color-mix(in srgb, var(--coral-500) 86%, black);        /* a red printed band */
   --cal-pen: var(--accent-deep);                                           /* the marker round the chosen day */
   --cal-rule: color-mix(in srgb, var(--ink) 13%, transparent);             /* printed hairlines */
+  /* Paper: a laid weave + the kit's grain + a tint toward the sheet's edge.
+     Three layers is what reads as stock rather than a flat fill (the passport's
+     pages are built the same way). --cal-stock is set per piece. */
+  --cal-weave:
+    repeating-linear-gradient(94deg, transparent 0 2px, color-mix(in srgb, var(--ink) 1.6%, transparent) 2px 3px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
   gap: var(--sp-5);
-  align-items: start;
+  /* One screen: the calendar grows to fill it, and the two pieces on the desk
+     scroll inside themselves. Nothing moves the page itself. */
+  height: calc(100vh - var(--topbar-h) - var(--cal-chrome, 66px));
+  min-height: 560px;
+  align-items: stretch;
 }
-.cal-main {
-  display: flex; flex-direction: column; gap: var(--sp-5); min-width: 0;
-  /* Calendar + note stay put while the day sheet on the right scrolls with the page;
-     the note takes whatever height is left and scrolls inside itself. */
-  position: sticky; top: calc(var(--topbar-h) + var(--sp-3)); max-height: calc(100vh - var(--topbar-h) - 2 * var(--sp-3));
-}
-.cal-main > :not(.cal-note) { flex-shrink: 0; }
-.cal-slot { position: relative; min-width: 0; }
-/* Stacked: calendar → the chosen day → all open to-dos. `contents` lifts
-   .cal-main's children into the root's flex flow so the sheet can slot between. */
-@media (max-width: 860px) {
-  .cal-root { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-5); }
-  .cal-main { display: contents; position: static; max-height: none; }
-  .cal-slot { order: 2; }
-  .cal-note { order: 3; }
+.cal-book { display: flex; flex-direction: column; min-height: 0; }
+.cal-stage { flex: 1; min-height: 0; }
+.cal-page { height: 100%; display: flex; flex-direction: column; }
+/* The grid takes the room the page has left; its rows share it equally. */
+.cal-grid { flex: 1; min-height: 0; grid-template-rows: auto repeat(6, minmax(0, 1fr)); }
+/* The desk: the chosen day, and the note lying below it. Each scrolls itself. */
+.cal-desk { display: flex; flex-direction: column; gap: var(--sp-5); min-width: 0; min-height: 0; }
+.cal-slot { position: relative; min-width: 0; display: flex; flex-direction: column; min-height: 0; flex: 0 1 auto; }
+/* The sheet keeps its header and its button; the day's lines between them scroll. */
+.cal-panel { overflow: hidden; }
+.cal-panel-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-3); }
+/* A page being turned is the size of the slot it turns in, whichever page it is. */
+.cal-root .hf-face > *, .cal-root .hf-under > * { height: 100%; }
+/* The note is the pad the day sheet sits on: it takes whatever the sheet leaves, so the desk always reaches the bottom of the calendar. */
+.cal-note { flex: 1 1 auto; min-height: 150px; overflow-y: auto; }
+/* Stacked: calendar → the chosen day → all open to-dos. */
+@media (max-width: 980px) {
+  .cal-root { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-5); height: auto; min-height: 0; }
+  .cal-stage, .cal-grid, .cal-slot, .cal-note, .cal-panel, .cal-panel-body { flex: none; height: auto; min-height: 0; overflow: visible; }
+  .cal-root .hf-face > *, .cal-root .hf-under > * { height: auto; }
+  .cal-page { height: auto; }
+  .cal-cell { min-height: 62px; }
 }
 
 /* ── The wall calendar: cap, rings, stacked sheets ────────────────────────── */
@@ -50,17 +67,25 @@
 .cal-book::before { left: 5px; right: 5px; bottom: -4px; height: 12px; }
 .cal-book::after  { left: 10px; right: 10px; bottom: -8px; height: 12px; opacity: 0.8; box-shadow: 0 10px 18px -6px rgba(0,0,0,0.28); }
 
-/* The cap the pages hang from: navy cloth board with the hanging hole. */
+/* The cap the pages hang from: kraft board, the site's own warm card stock,
+   with the hanging hole punched through it. */
 .cal-cap {
   position: relative; display: flex; align-items: flex-start; justify-content: space-between; height: 44px; padding: 9px var(--sp-5) 0;
-  border-radius: 8px 8px 0 0;
-  background: var(--paper-grain), linear-gradient(180deg, color-mix(in srgb, var(--pp-cloth) 88%, white), var(--pp-cloth) 55%, var(--pp-cloth-2));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 1px 2px rgba(0,0,0,0.25);
-  font-family: var(--font-stamp); font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--pp-gold);
+  border-radius: 6px 6px 0 0;
+  background:
+    var(--cal-weave), var(--paper-grain),
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--amber-200) 62%, var(--surface-4)),
+      color-mix(in srgb, var(--amber-300) 46%, var(--surface-4)) 62%,
+      color-mix(in srgb, var(--amber-500) 26%, var(--surface-4)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 30%, transparent), 0 1px 2px rgba(0,0,0,0.16);
+  font-family: var(--font-stamp); font-size: 11px; letter-spacing: 0.24em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--amber-700) 82%, var(--ink));
 }
 .cal-cap::before {
   content: ''; position: absolute; left: 50%; top: 8px; width: 34px; height: 10px; margin-left: -17px; border-radius: 6px;
-  background: var(--paper-ground, var(--surface-2)); box-shadow: inset 0 1px 3px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.12);
+  background: var(--paper-ground, var(--surface-2));
+  box-shadow: inset 0 1.5px 3px color-mix(in srgb, var(--ink) 45%, transparent), 0 1px 0 color-mix(in srgb, white 35%, transparent);
 }
 
 /* Wire-o rings: the wire loops over the cap edge and goes down into a punched hole. */
@@ -88,19 +113,21 @@
 
 /* ── A month page ─────────────────────────────────────────────────────────── */
 .cal-page {
-  position: relative; padding: 30px 16px 14px; border-radius: 0 0 4px 4px;
+  position: relative; padding: 28px 14px 12px; border-radius: 0 0 3px 3px;
   background:
+    var(--cal-weave),
     var(--paper-grain),
-    linear-gradient(180deg, rgba(0,0,0,0.10), transparent 26px),                       /* the cap's shadow */
-    linear-gradient(90deg, rgba(0,0,0,0.035), transparent 6%, transparent 94%, rgba(0,0,0,0.035)),
-    var(--pp-paper);
+    linear-gradient(180deg, color-mix(in srgb, var(--ink) 11%, transparent), transparent 26px),   /* the cap's shadow */
+    /* the sheet darkens toward its edges, as paper does */
+    radial-gradient(130% 100% at 50% 0%, transparent 58%, color-mix(in srgb, var(--pp-paper-edge) 42%, transparent)),
+    color-mix(in srgb, var(--pp-paper) 55%, var(--surface));
   box-shadow: inset 0 -1px 0 var(--pp-paper-edge);
 }
 
 .cal-nav { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-2) var(--sp-3); margin-bottom: var(--sp-3); }
 .cal-title { display: flex; align-items: baseline; gap: var(--sp-3); min-width: 0; }
 .cal-month-title {
-  margin: 0; font-family: var(--font-letter); font-size: 36px; font-weight: var(--fw-regular); line-height: 1; letter-spacing: -0.01em; color: var(--ink);
+  margin: 0; font-family: var(--font-letter); font-size: 32px; font-weight: var(--fw-regular); line-height: 1; letter-spacing: -0.01em; color: var(--ink);
 }
 .cal-year { font-family: var(--font-data); font-size: var(--fs-sm); letter-spacing: 0.14em; color: var(--cal-red); }
 .cal-nav-tools { display: flex; align-items: center; gap: var(--sp-2); }
@@ -132,7 +159,7 @@
 .cal-hdr.is-weekend { color: var(--cal-red); }
 .cal-cell {
   position: relative; display: flex; flex-direction: column; align-items: stretch; justify-content: space-between;
-  min-height: 54px; padding: 4px 6px 5px; gap: 2px; margin: 0; border: 0; border-radius: 0; text-align: left; font: inherit; color: inherit;
+  min-height: 76px; padding: 4px 6px 5px; gap: 1px; margin: 0; border: 0; border-radius: 0; text-align: left; font: inherit; color: inherit;
   background: transparent; border-right: 1px solid var(--cal-rule); border-bottom: 1px solid var(--cal-rule);
   cursor: pointer; transition: background var(--dur-fast);
 }
@@ -153,25 +180,29 @@
   flex-shrink: 0; display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 3px; border-radius: 50%;
   font-family: var(--font-display); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; color: var(--ink);
 }
-/* Today is a red date stamp. */
+/* Today is ringed in red pen, the way you'd mark it yourself. */
 .cal-cell.is-today .cal-daynum {
-  background: var(--cal-red-solid); color: var(--on-solid); font-weight: var(--fw-semibold);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 0 0 1px rgba(255,255,255,0.18);
+  color: var(--cal-red); font-weight: var(--fw-semibold);
+  box-shadow: inset 0 0 0 1.5px var(--cal-red);
 }
 .cal-city { margin-left: auto; font-size: 13px; line-height: 1; }
-/* Hover tooltip for a city change. */
-.cal-cell[data-tip]:hover { z-index: 5; }
-.cal-cell[data-tip]::after {
-  content: attr(data-tip);
-  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
-  background: rgba(30,30,30,0.92); color: var(--surface);
-  font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1.45; padding: 5px 9px; border-radius: 4px;
-  white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity var(--dur-fast);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-}
-.cal-cell[data-tip]:hover::after { opacity: 1; }
 /* Ink dots, one per kind of thing that happens that day. */
-.cal-dots { display: flex; gap: 3px; height: 7px; align-items: center; }
+.cal-cell-note {
+  display: flex; align-items: baseline; gap: 3px; min-width: 0; margin-top: 1px;
+  font-size: var(--fs-2xs); line-height: 1.25; color: var(--ink-soft); text-align: left;
+}
+.cal-cell-note-ic { flex-shrink: 0; font-size: 9px; line-height: 1.4; }
+/* Two lines, then it stops — a cell is a cell. The kind tints it. */
+.cal-cell-note-tx {
+  min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow-wrap: normal; word-break: normal; color: color-mix(in srgb, var(--ag-c, var(--ink)) 42%, var(--ink-soft));
+}
+.cal-empty .cal-cell-note { display: none; }
+/* "+2" — what else that day holds. */
+.cal-more {
+  margin-left: auto; flex-shrink: 0; font-family: var(--font-data); font-size: 9px; color: var(--ink-faint);
+}
+.cal-dots { display: flex; gap: 3px; height: 7px; align-items: center; margin-top: auto; }
 .cal-dots i { width: 6px; height: 6px; border-radius: 50%; box-shadow: 0 0 0 1px color-mix(in srgb, var(--pp-paper) 70%, transparent); }
 
 /* Legend and totals, printed along the foot of the page. */
@@ -189,9 +220,11 @@
 .cal-panel {
   position: relative; display: flex; flex-direction: column; gap: var(--sp-3); padding: 0 0 var(--sp-5); border-radius: 4px 4px 6px 6px;
   background:
+    var(--cal-weave),
     var(--paper-grain),
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 30%, transparent), transparent 30%),
-    var(--pp-paper);
+    radial-gradient(130% 100% at 50% 0%, transparent 62%, color-mix(in srgb, var(--pp-paper-edge) 40%, transparent)),
+    color-mix(in srgb, var(--pp-paper) 55%, var(--surface));
   /* the sheets below it in the block */
   box-shadow:
     0 1px 1px rgba(0,0,0,0.08),
@@ -199,14 +232,20 @@
     0 6px 0 -2px var(--pp-paper-edge), 0 7px 1px -2px rgba(0,0,0,0.06),
     0 16px 28px -10px rgba(0,0,0,0.24);
 }
-/* The red header, with the block's two punch holes. */
+/* The block's kraft header, with its two punch holes — the same board as the
+   calendar's cap, so the two pieces read as one set. */
 .cal-sheet-top {
-  display: flex; align-items: center; justify-content: center; height: 32px; border-radius: 4px 4px 0 0;
+  display: flex; align-items: center; justify-content: center; height: 30px; border-radius: 4px 4px 0 0;
   background:
     radial-gradient(circle at 20px 50%, var(--paper-ground, var(--surface-2)) 0 4px, transparent 5px),
     radial-gradient(circle at calc(100% - 20px) 50%, var(--paper-ground, var(--surface-2)) 0 4px, transparent 5px),
-    var(--paper-grain), var(--cal-red-solid);
-  color: var(--on-solid); font-family: var(--font-stamp); font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase;
+    var(--cal-weave), var(--paper-grain),
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--amber-200) 62%, var(--surface-4)),
+      color-mix(in srgb, var(--amber-500) 26%, var(--surface-4)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+  color: color-mix(in srgb, var(--amber-700) 82%, var(--ink));
+  font-family: var(--font-stamp); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
 }
 .cal-panel-head { position: relative; display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-2) var(--sp-5) 0; }
 .cal-bigday {
@@ -230,7 +269,7 @@
 .cal-perf::before { left: -9px;  clip-path: inset(0 0 0 50%); }
 .cal-perf::after  { right: -9px; clip-path: inset(0 50% 0 0); }
 
-.cal-items, .cal-sec, .cal-empty-day, .cal-panel-actions { margin-left: var(--sp-5); margin-right: var(--sp-5); }
+.cal-items, .cal-sec, .cal-empty-day, .cal-panel-actions { flex-shrink: 0; margin-left: var(--sp-5); margin-right: var(--sp-5); }
 .cal-items { display: flex; flex-direction: column; }
 .cal-item { position: relative; border-bottom: 1px dashed var(--cal-rule); }
 .cal-item::before {   /* the kind, as a coloured tab on the margin */
@@ -295,7 +334,9 @@
 .cal-jthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .cal-jexcerpt { font-size: var(--fs-xs); color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cal-empty-day { font-size: var(--fs-sm); color: var(--ink-muted); font-style: italic; padding: var(--sp-3) 0; text-align: center; }
-.cal-panel-actions { display: flex; gap: var(--sp-2); margin-top: auto; padding-top: var(--sp-2); }
+.cal-panel-actions {
+  display: flex; gap: var(--sp-2); margin-top: auto; padding-top: var(--sp-2);
+}
 .cal-panel-actions .btn { flex: 1; justify-content: center; }
 
 /* ── To-dos: one sticky note ──────────────────────────────────────────────── */
@@ -303,15 +344,16 @@
    Dashboard's to-do card: grain + a soft top-light over the note colour, tape on top, a lifted
    corner; rows are its items — a square checkbox and dashed rules. */
 .cal-note {
-  position: relative; flex: 1 1 auto; min-height: 150px; display: flex; flex-direction: column;
-  padding: var(--sp-5) var(--sp-4) var(--sp-3); margin-top: 2px;
+  position: relative; display: flex; flex-direction: column;
+  padding: var(--sp-5) var(--sp-4) var(--sp-4); margin: 2px var(--sp-4) 0 var(--sp-2);
   background:
+    var(--cal-weave),
     var(--paper-grain),
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 38%, transparent), transparent 38%, color-mix(in srgb, var(--ink) 4%, transparent)),
     var(--note-0);
   border: 1px solid color-mix(in srgb, var(--ink) 9%, transparent); border-radius: 2px 2px 3px 3px;
-  box-shadow: 0 1px 1px rgba(0,0,0,0.07), 1px 3px 6px rgba(0,0,0,0.08), 3px 10px 20px -4px rgba(0,0,0,0.12);
-  transform: rotate(-0.5deg);
+  box-shadow: 0 1px 1px rgba(0,0,0,0.07), 1px 3px 6px rgba(0,0,0,0.09), 4px 12px 24px -6px rgba(0,0,0,0.16);
+  transform: rotate(-0.8deg);
 }
 .cal-note::after {   /* the corner lifting off the desk */
   content: ''; position: absolute; right: 8px; bottom: 0; width: 40%; height: 8px; z-index: -1; pointer-events: none;
@@ -325,7 +367,7 @@
   font-family: var(--font-ui); font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-soft); transition: background var(--dur-fast);
 }
 .cal-todos-add:hover { background: color-mix(in srgb, var(--ink) 14%, transparent); }
-.cal-note-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0 calc(var(--sp-2) * -1); padding: 0 var(--sp-2); }
+.cal-note-list { margin: 0 calc(var(--sp-2) * -1); padding: 0 var(--sp-2); }
 .cal-todos-empty { font-size: var(--fs-sm); color: var(--ink-muted); font-style: italic; padding: var(--sp-2) 0; text-align: center; }
 .cal-todos-section-label { font-family: var(--font-stamp); font-size: var(--fs-2xs); letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-muted); padding: var(--sp-3) 0 var(--sp-1); }
 .cal-todo-row {
@@ -359,7 +401,6 @@
 }
 .cal-todo-edit:hover, .cal-todo-del:hover { opacity: 1; background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
 .cal-todo-del:hover { color: var(--cal-red); }
-@media (max-width: 860px) { .cal-note { min-height: 0; } .cal-note-list { overflow: visible; } }
 
 /* ── Phone: tighter cells, fewer rings, city label hidden (the sheet names the city) ── */
 @media (max-width: 560px) {
@@ -371,12 +412,15 @@
   .cal-cell { min-height: 46px; padding: 3px 3px 4px; }
   .cal-daynum { min-width: 22px; height: 22px; }
   .cal-city { display: none; }
+  /* a 48px cell has room for one clipped word, not a sentence */
+  .cal-cell-note-ic { display: none; }
+  .cal-cell-note-tx { -webkit-line-clamp: 1; font-size: 9px; }
   .cal-hdr { font-size: 9px; letter-spacing: 0.08em; }
   .cal-stats { gap: var(--sp-1) var(--sp-4); }
   .cal-bigday { font-size: 56px; }
   .cal-today-stamp { right: var(--sp-4); }
   .cal-panel-head { padding-left: var(--sp-4); padding-right: var(--sp-4); }
-  .cal-items, .cal-sec, .cal-empty-day, .cal-panel-actions { margin-left: var(--sp-4); margin-right: var(--sp-4); }
+  .cal-items, .cal-sec, .cal-empty-day, .cal-panel-actions { flex-shrink: 0; margin-left: var(--sp-4); margin-right: var(--sp-4); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -373,3 +373,68 @@ export function kindsByDate(src: AgendaSources): Map<string, Set<AgendaKind>> {
 export function undatedTodos(todos: StoredTodo[]): StoredTodo[] {
   return todos.filter((t) => !t.done && !t.dueDate);
 }
+
+/** The one line a month-grid cell has room for, under the date. */
+export interface DayBrief {
+  /** What the day is mostly about, already localised and short. */
+  label: string;
+  /** The emoji that leads it. */
+  icon: string;
+  /** The kind it came from, so a cell can tint its line. */
+  kind: AgendaKind;
+  /** Things that did not fit the one line. */
+  more: number;
+}
+
+/**
+ * One headline per date, for a whole month of cells at once.
+ *
+ * Built from the SAME date rules as `kindsByDate` / `agendaForDay` (arrival wins
+ * over a stay, a stay over a plan, …), so a cell and the day panel can never
+ * disagree about a date. Computed once per data change rather than per cell:
+ * `agendaForDay` re-sorts every leg and re-scans every expense, which is fine
+ * once but not 42 times a render.
+ */
+export function briefsByDate(src: AgendaSources): Map<string, DayBrief> {
+  const map = new Map<string, DayBrief>();
+  /** Lower rank wins the line; everything else only adds to `more`. */
+  const put = (d: string | null | undefined, rank: number, b: DayBrief) => {
+    if (!d) return;
+    const cur = map.get(d) as (DayBrief & { rank: number }) | undefined;
+    if (!cur) { map.set(d, { ...b, rank } as DayBrief); return; }
+    cur.more += 1;
+    if (rank < cur.rank) { Object.assign(cur, b, { rank, more: cur.more }); }
+  };
+
+  for (const leg of src.legs) {
+    // Arriving somewhere is the most newsworthy thing a day can do.
+    // No icon here: the cell already shows the city's flag beside the date.
+    put(leg.dateFrom, 0, { label: leg.city, icon: '', kind: 'transport', more: 0 });
+    const tr = leg.arrivalTransport;
+    if (tr?.date && tr.date !== leg.dateFrom) {
+      put(tr.date, 1, { label: leg.city, icon: transportIcon(tr.type), kind: 'transport', more: 0 });
+    }
+    const stays = leg.accommodations?.length ? leg.accommodations : leg.accommodation ? [leg.accommodation] : [];
+    for (const a of stays) {
+      const ci = datePart(a.checkIn), co = datePart(a.checkOut);
+      if (ci) put(ci, 2, { label: a.name, icon: STAY_ICON, kind: 'stay', more: 0 });
+      if (co) put(co, 2, { label: a.name, icon: STAY_ICON, kind: 'stay', more: 0 });
+    }
+    const dayDate = planDayDates(leg);
+    for (const p of leg.plans ?? []) {
+      if (p.dayId) put(dayDate.get(p.dayId), 3, { label: p.title, icon: p.done ? '✅' : '📌', kind: 'plan', more: 0 });
+    }
+  }
+  for (const td of src.todos) {
+    if (!td.done) put(td.dueDate, 4, { label: td.text, icon: '☑️', kind: 'todo', more: 0 });
+  }
+  // A journal entry only gets the line when nothing was planned that day, and
+  // then only its place — an entry's own title ("Bulk entry 12") says nothing a
+  // month view needs, and a wall of them drowns out the days that do matter.
+  for (const e of src.journal) {
+    put(e.happenedOn, 9, { label: e.destination?.trim() || '', icon: WIDGET_ICON.journal, kind: 'journal', more: 0 });
+  }
+  // `rank` was only needed while choosing; the caller never sees it.
+  for (const b of map.values()) delete (b as Partial<DayBrief> & { rank?: number }).rank;
+  return map;
+}

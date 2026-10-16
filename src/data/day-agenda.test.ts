@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { agendaForDay, kindsByDate, datePart, timePart, addDays, undatedTodos } from './day-agenda.ts';
+import { agendaForDay, briefsByDate, kindsByDate, datePart, timePart, addDays, undatedTodos } from './day-agenda.ts';
 
 const lisbon: any = {
   id: 'L', city: 'Lisbon', country: 'Portugal', flag: '🇵🇹', dateFrom: '2026-08-08', dateTo: '2026-08-12',
@@ -123,5 +123,31 @@ describe('implied plan days (the Itinerary stores a day only once it is customis
   });
   it('the check-out date has no implied day (days are nights)', () => {
     expect(agendaForDay('2026-06-28', src({ legs: [oslo] })).items.some((i) => i.kind === 'plan')).toBe(false);
+  });
+});
+
+describe('briefsByDate — the one line a month cell shows', () => {
+  const sources = src({
+    todos: [{ id: 't', text: 'Book Colosseum', dueDate: '2026-08-14', done: false }],
+    journal: [
+      { id: 'j1', happenedOn: '2026-08-14', title: 'Bulk entry 3', destination: 'Rome', body: '' },
+      { id: 'j2', happenedOn: '2026-08-20', title: 'Bulk entry 4', destination: 'Paris', body: '' },
+    ],
+  });
+  const b = briefsByDate(sources);
+  it('headlines an arrival with the city, and counts what else happened', () => {
+    expect(b.get('2026-08-12')).toMatchObject({ label: 'Rome', kind: 'transport' });
+    expect(b.get('2026-08-12')!.more).toBeGreaterThan(0);
+  });
+  it('lets a planned thing beat a journal entry, and never shows an entry title', () => {
+    expect(b.get('2026-08-14')).toMatchObject({ label: 'Book Colosseum', kind: 'todo', more: 1 });
+    expect(b.get('2026-08-20')).toMatchObject({ label: 'Paris', kind: 'journal' });
+  });
+  it('never writes a line on a day the dots say is empty (mid-stay nights have a dot but no headline)', () => {
+    const kinds = kindsByDate(sources);
+    for (const iso of b.keys()) expect(kinds.has(iso)).toBe(true);
+  });
+  it('does not leak its ranking', () => {
+    expect(b.get('2026-08-12')).not.toHaveProperty('rank');
   });
 });

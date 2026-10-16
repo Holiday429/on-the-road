@@ -24,7 +24,7 @@ import { journalStore, type StoredJournalEntry } from '../../data/stores/journal
 import { todoStore, type StoredTodo } from '../../data/stores/todo-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { expenseCategoryStore } from '../../data/stores/expense-category-store.ts';
-import { agendaForDay, kindsByDate, AGENDA_COLORS, type AgendaItem, type AgendaKind, type AgendaSources } from '../../data/day-agenda.ts';
+import { agendaForDay, briefsByDate, kindsByDate, AGENDA_COLORS, type AgendaItem, type AgendaKind, type AgendaSources, type DayBrief } from '../../data/day-agenda.ts';
 import { baseCurrency } from '../../data/trip-context.ts';
 import { currencySymbol, peekRateTable } from '../../data/rates.ts';
 import { navigateTo, consumeNavIntent, type NavIntent, type ViewId } from '../../core/app.ts';
@@ -78,9 +78,6 @@ function categoryFor(id: string): Category | undefined {
   const c = expenseCategoryStore.peek().find((x) => x.id === id);
   return c ? { id: c.id, label: c.label, icon: c.icon, color: c.color, builtin: false } : undefined;
 }
-function shortDate(iso: string): string {
-  return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
 function fmtMoney(n: number): string {
   return `${currencySymbol(baseCurrency())}${Math.round(n).toLocaleString()}`;
 }
@@ -99,7 +96,7 @@ const RING_COUNT = 14;
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];   // Monday-first, as Date.getDay() numbers
 
 /** One printed month: title, weekday row, six weeks of days, legend and totals. Always six rows, like a real page. */
-function renderMonthPage(year: number, month: number, kinds: Map<string, Set<AgendaKind>>): string {
+function renderMonthPage(year: number, month: number, kinds: Map<string, Set<AgendaKind>>, briefs: Map<string, DayBrief>): string {
   const today = todayIso();
   const loc = getLocale();
   const firstDow = (new Date(year, month, 1).getDay() + 6) % 7;   // Monday-first
@@ -128,13 +125,25 @@ function renderMonthPage(year: number, month: number, kinds: Map<string, Set<Age
       : '';
     const leg = _legs.find((l) => l.dateFrom <= iso && iso <= l.dateTo);
     const cls = ['cal-cell', weekend.trim(), iso === today ? 'is-today' : '', iso === _selected ? 'is-sel' : '', leg ? 'in-leg' : ''].filter(Boolean).join(' ');
-    // A new city starts today: just its flag in the cell, the details in a hover tooltip.
+    // A new city starts today: its flag sits by the date.
     const arriving = _legs.find((l) => l.dateFrom === iso);
-    const tip = arriving ? `${arriving.flag} ${arriving.city} · ${shortDate(arriving.dateFrom)} – ${shortDate(arriving.dateTo)}`.trim() : '';
     const city = arriving ? `<span class="cal-city" aria-hidden="true">${esc(arriving.flag || '📍')}</span>` : '';
+    // The day's headline, written into the cell the way you'd pencil it in — so
+    // the month reads on its own, without hovering or opening each day.
+    const b = briefs.get(iso);
+    const note = b?.label
+      ? `<span class="cal-cell-note" style="--ag-c:${AGENDA_COLORS[b.kind]}">
+           ${b.icon ? `<span class="cal-cell-note-ic" aria-hidden="true">${esc(b.icon)}</span>` : ''}
+           <span class="cal-cell-note-tx">${esc(b.label)}</span>
+         </span>`
+      : '';
+    const more = b && b.more > 0 ? `<span class="cal-more">+${b.more}</span>` : '';
+    // The full day is read out for screen readers; sighted users get the line above.
+    const label = [String(d), b?.label, b && b.more > 0 ? `+${b.more}` : ''].filter(Boolean).join(' · ');
     cells += `
-      <button type="button" class="${cls}" data-day="${iso}"${tip ? ` data-tip="${esc(tip)}" aria-label="${esc(tip)}"` : ''}>
-        <span class="cal-cell-top"><span class="cal-daynum">${d}</span>${city}</span>
+      <button type="button" class="${cls}" data-day="${iso}" aria-label="${esc(label)}">
+        <span class="cal-cell-top"><span class="cal-daynum">${d}</span>${city}${more}</span>
+        ${note}
         <span class="cal-dots">${dots}</span>
       </button>`;
   }
@@ -295,9 +304,11 @@ function renderDayPanel(): string {
         ${_selected === todayIso() ? `<span class="cal-today-stamp" aria-hidden="true">${esc(t('dash.agenda.today'))}</span>` : ''}
       </div>
       <div class="cal-perf" aria-hidden="true"></div>
-      ${rows.length ? `<div class="cal-items">${rows.map(renderItem).join('')}</div>` : ''}
-      ${journal ? `<div class="cal-sec"><div class="cal-sec-label">${WIDGET_ICON.journal} ${esc(t('dash.widget.journal'))}</div>${journal}</div>` : ''}
-      ${empty}
+      <div class="cal-panel-body">
+        ${rows.length ? `<div class="cal-items">${rows.map(renderItem).join('')}</div>` : ''}
+        ${journal ? `<div class="cal-sec"><div class="cal-sec-label">${WIDGET_ICON.journal} ${esc(t('dash.widget.journal'))}</div>${journal}</div>` : ''}
+        ${empty}
+      </div>
       <div class="cal-panel-actions">
         <button class="btn btn-primary" data-journal-new>✍️ ${esc(t('dash.journal.compose'))}</button>
       </div>
@@ -395,20 +406,22 @@ function render(): void {
   if (!body) return;
   if (isFlipping()) { _stale = true; return; }
   _stale = false;
-  const kinds = kindsByDate(sources());
+  const src = sources();
+  const kinds = kindsByDate(src);
+  const briefs = briefsByDate(src);
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = `
     <div class="cal-root">
-      <div class="cal-main">
-        <section class="cal-book">
-          <div class="cal-cap" aria-hidden="true"><span>On the Road</span><span>${_year}</span></div>
-          <div class="cal-stage">${renderMonthPage(_year, _month, kinds)}</div>
-          <div class="cal-rings" aria-hidden="true">${'<i></i>'.repeat(RING_COUNT)}</div>
-        </section>
+      <section class="cal-book">
+        <div class="cal-cap" aria-hidden="true"><span>On the Road</span><span>${_year}</span></div>
+        <div class="cal-stage">${renderMonthPage(_year, _month, kinds, briefs)}</div>
+        <div class="cal-rings" aria-hidden="true">${'<i></i>'.repeat(RING_COUNT)}</div>
+      </section>
+      <div class="cal-desk">
+        <div class="cal-slot">${renderDayPanel()}</div>
         ${renderTodosPanel()}
       </div>
-      <div class="cal-slot">${renderDayPanel()}</div>
     </div>`;
   wire(body);
 }
@@ -431,7 +444,7 @@ function turnMonth(delta: 1 | -1): void {
   const live = stage?.querySelector<HTMLElement>('.cal-page');
   const commit = () => { _year = y; _month = m; render(); };
   if (!stage || !live) { commit(); return; }
-  turnPage(stage, live, detached(renderMonthPage(y, m, kindsByDate(sources()))), delta, commit);
+  turnPage(stage, live, detached(renderMonthPage(y, m, kindsByDate(sources()), briefsByDate(sources()))), delta, commit);
 }
 
 /** Show another date. Same month: the day sheet is torn over; another month: the page turns to it. */
@@ -444,7 +457,7 @@ function goToDay(iso: string, scroll = false): void {
     select(iso);
     render();
     // Stacked (narrow) layout: bring the panel into view.
-    if (scroll && window.matchMedia('(max-width: 860px)').matches) {
+    if (scroll && window.matchMedia('(max-width: 980px)').matches) {
       document.getElementById('cal-panel')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }
   };
@@ -454,7 +467,7 @@ function goToDay(iso: string, scroll = false): void {
     if (!stage || !live) { commit(); return; }
     const dir = y * 12 + m - 1 > _year * 12 + _month ? 1 : -1;
     _selected = iso;
-    const target = detached(renderMonthPage(y, m - 1, kindsByDate(sources())));
+    const target = detached(renderMonthPage(y, m - 1, kindsByDate(sources()), briefsByDate(sources())));
     _selected = prev;
     turnPage(stage, live, target, dir, commit);
     return;
@@ -486,7 +499,7 @@ function wire(body: HTMLElement): void {
       target: (dir) => {
         const total = _year * 12 + _month + dir;
         const y = Math.floor(total / 12);
-        return detached(renderMonthPage(y, total - y * 12, kindsByDate(sources())));
+        return detached(renderMonthPage(y, total - y * 12, kindsByDate(sources()), briefsByDate(sources())));
       },
       commit: (dir) => { const total = _year * 12 + _month + dir; _year = Math.floor(total / 12); _month = total - _year * 12; render(); },
     });
