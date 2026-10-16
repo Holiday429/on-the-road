@@ -39,6 +39,11 @@ export const JournalEntrySchema = doc({
   // width / height of the FIRST image, e.g. 1.5 for 3:2. Drives the cover
   // aspect ratio in the feed (portrait -> 3:4, landscape -> 4:3, else 1:1).
   imageRatio: z.number().optional(),
+  // width / height of EACH photo, index-aligned with `images`. Optional: entries
+  // written before this (and by clients that don't know it) are measured on read.
+  // Readers must ignore it when its length differs from the photo count — an
+  // older client that added or removed a photo will have left it stale.
+  imageRatios: z.array(z.number().positive()).max(MAX_JOURNAL_IMAGES).optional(),
   linkedPlaces: z.array(z.string()).optional(), // Guide card ids saved for this entry
 });
 export type JournalEntry = z.infer<typeof JournalEntrySchema>;

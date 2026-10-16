@@ -27,6 +27,7 @@ import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import { uploadJournalImage } from '../../../firebase/storage.ts';
 import { openModal } from '../../../core/modal.ts';
+import { cachedRatio, measureMissing, measureRatio, rememberRatio, storedRatios } from '../shared/ratio-cache.ts';
 import {
   MAX_JOURNAL_IMAGES,
   OTHER_DESTINATION,
@@ -592,12 +593,30 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
   /** After every render: keep the places map and the gallery's drift in step with what is on screen. */
   function afterRender(root: HTMLElement) {
+    measureReading();
     void syncPlacesMap(root, {
       onPick: (key) => pickPlace(key),
     });
     syncGalleryFlow(root, {
       isDrifting: () => state.view === 'gallery' && state.galleryDrift && state.selection === null,
       onStop: () => { state.galleryDrift = false; deps.requestRender(); },
+    });
+  }
+
+  /**
+   * An entry written before `imageRatios` has photos nobody has measured, and a
+   * postcard can't be framed without its shape. Measure the one being read,
+   * repaint once if that taught us anything, and let the entry remember the
+   * answer (see shared/ratio-cache.ts).
+   */
+  function measureReading() {
+    const id = state.readingId;
+    const entry = id ? deps.getEntries().find((e) => e.id === id) : undefined;
+    if (!entry || !entryImages(entry).length) return;
+    void measureMissing([entry], {
+      write: (entryId, imageRatios) => journalStore.update(entryId, { imageRatios }),
+    }).then((learned) => {
+      if (learned && state.readingId === entry.id) deps.requestRender();
     });
   }
 
@@ -667,7 +686,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       happenedOn: new Date().toISOString().slice(0, 10),
       images: [],
       pendingFiles: [],
-      imageRatio: undefined,
+      imageRatios: [],
       uploading: false,
       linkedPlaces: [],
     };
@@ -705,7 +724,9 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       images: entryImages(entry),
       // Already on Storage — nothing to re-upload unless the user adds more.
       pendingFiles: entryImages(entry).map(() => null),
-      imageRatio: entry.imageRatio,
+      // The entry's own shapes if they can be trusted, else whatever was measured
+      // while reading it; anything still unknown is measured when it is saved.
+      imageRatios: draftRatiosFor(entry),
       uploading: false,
       linkedPlaces: entry.linkedPlaces ?? [],
     };
@@ -737,7 +758,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       happenedOn: get<HTMLInputElement>('#journal-date')?.value ?? state.draft.happenedOn,
       images: state.draft.images,
       pendingFiles: state.draft.pendingFiles,
-      imageRatio: state.draft.imageRatio,
+      imageRatios: state.draft.imageRatios,
       uploading: state.draft.uploading,
       linkedPlaces: linkedChecked.length ? linkedChecked : state.draft.linkedPlaces,
     };
@@ -789,8 +810,14 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     // Mirror the first photo into the legacy field so older clients and the
     // share-card renderer still find a cover.
     payload.coverImage = images[0] ?? '';
-    if (images.length && typeof state.draft.imageRatio === 'number') {
-      payload.imageRatio = state.draft.imageRatio;
+    // Every photo's shape, index-aligned with `images`. All or nothing: a list
+    // with a hole in it would put every later ratio on the wrong picture. The
+    // reader measures what is missing, so leaving it out costs nothing.
+    const ratios = images.length ? await draftRatios() : null;
+    if (ratios) {
+      payload.imageRatios = ratios;
+      // The feed still reads the first photo's shape from the old field.
+      payload.imageRatio = ratios[0];
     }
     if (state.draft.linkedPlaces.length) payload.linkedPlaces = state.draft.linkedPlaces;
 
@@ -1104,14 +1131,43 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
     syncDraftFromLiveShell();
 
+    const added: string[] = [];
     for (const file of files) {
-      state.draft.images.push(URL.createObjectURL(file));
+      const url = URL.createObjectURL(file);
+      added.push(url);
+      state.draft.images.push(url);
       state.draft.pendingFiles.push(file);
+      state.draft.imageRatios.push(undefined);
     }
-    // The first photo drives the cover's aspect ratio, so re-measure whenever
-    // index 0 could have changed.
-    state.draft.imageRatio = await measureImageRatio(state.draft.images[0] ?? '');
     deps.requestRender();
+    // Measure the new photos now, while the file is in memory; save only has to
+    // fill in whatever failed. Looked up by URL, not index: the user may have
+    // removed or reordered photos while this was loading.
+    await Promise.all(added.map(async (url) => {
+      const ratio = await measureRatio(url);
+      const at = state.draft.images.indexOf(url);
+      if (ratio && at >= 0) state.draft.imageRatios[at] = ratio;
+    }));
+  }
+
+  /** The draft's shapes, with the entry's trusted `imageRatios` or the cache filling what it can. */
+  function draftRatiosFor(entry: StoredJournalEntry): (number | undefined)[] {
+    const own = storedRatios(entry);
+    return entryImages(entry).map((url, i) => own?.[i] ?? cachedRatio(url));
+  }
+
+  /** Every photo's width / height for the entry being saved, or null if any could not be measured. */
+  async function draftRatios(): Promise<number[] | null> {
+    const { images, imageRatios } = state.draft;
+    if (!images.length) return null;
+    const out = await Promise.all(images.map(async (url, i) => {
+      const known = imageRatios[i];
+      if (known) return known;
+      const measured = await measureRatio(url);
+      if (measured) rememberRatio(url, measured);
+      return measured;
+    }));
+    return out.every((r): r is number => typeof r === 'number') ? out : null;
   }
 
   /** Upload every pending file; returns the draft's photos as Storage URLs. */
@@ -1138,17 +1194,19 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     syncDraftFromLiveShell();
     const [removed] = state.draft.images.splice(index, 1);
     state.draft.pendingFiles.splice(index, 1);
+    state.draft.imageRatios.splice(index, 1);
     // Only object URLs are ours to revoke; Storage URLs must survive.
     if (removed?.startsWith('blob:')) URL.revokeObjectURL(removed);
   }
 
   function moveDraftImage(index: number, delta: number) {
     const next = index + delta;
-    const { images, pendingFiles } = state.draft;
+    const { images, pendingFiles, imageRatios } = state.draft;
     if (next < 0 || next >= images.length) return;
     syncDraftFromLiveShell();
     [images[index], images[next]] = [images[next], images[index]];
     [pendingFiles[index], pendingFiles[next]] = [pendingFiles[next], pendingFiles[index]];
+    [imageRatios[index], imageRatios[next]] = [imageRatios[next], imageRatios[index]];
   }
 
 }
@@ -1208,15 +1266,6 @@ async function copyLink(url: string) {
   } catch {
     toast(url);
   }
-}
-
-function measureImageRatio(src: string): Promise<number | undefined> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => resolve(img.naturalWidth > 0 && img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : undefined);
-    img.onerror = () => resolve(undefined);
-    img.src = src;
-  });
 }
 
 function focusComposer(scroll = false) {

@@ -26,7 +26,8 @@ export interface DraftState {
   images: string[];
   /** null at an index = already-uploaded URL; a File = needs uploading on save. */
   pendingFiles: (File | null)[];
-  imageRatio: number | undefined;
+  /** width / height of each photo, index-aligned with `images`; undefined = not measured yet. */
+  imageRatios: (number | undefined)[];
   uploading: boolean;
   linkedPlaces: string[];
 }
