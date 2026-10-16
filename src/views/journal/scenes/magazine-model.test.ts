@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bindLeaves, bodyLeft, headlineOf, kickerOf, sideOf, spreadIdx, spreadIndexOf, toArticle, tocPageCount, turnTo, BODY_W, MARGIN, PAGE_W,
+  bindLeaves, bodyLeft, captionOf, headlineOf, kickerOf, pickQuote, sideOf, spreadIdx, spreadIndexOf, toArticle, tocPageCount, turnTo, BODY_W, MARGIN, PAGE_W,
 } from './magazine-model.ts';
 import { bookKeyOf } from './magazine-book.ts';
 
@@ -100,5 +100,47 @@ describe('bookKeyOf', () => {
     expect(bookKeyOf('x', a)).not.toBe(bookKeyOf('x', [a[0], { id: 'b', updatedAt: 3 }]));
     expect(bookKeyOf('x', a)).not.toBe(bookKeyOf('x', [a[1], a[0]]));
     expect(bookKeyOf('x', a)).not.toBe(bookKeyOf('y', a));
+  });
+});
+
+describe('captionOf', () => {
+  it('names the place and the day', () => {
+    expect(captionOf({ destination: 'Brussels', happenedOn: '2026-07-14' })).toBe('Brussels · 14 JUL 2026');
+    expect(captionOf({ destination: '', happenedOn: '2026-07-14' })).toBe('14 JUL 2026');
+  });
+});
+
+describe('pickQuote', () => {
+  const para = (s: string) => s.repeat(1);
+  const filler = '字'.repeat(180) + '。';
+
+  it('pulls a whole sentence of 20–60 characters ending in a stop', () => {
+    const q = '一路走来，我才明白旅行最奢侈的东西其实是没有计划的下午。';
+    const out = pickQuote([filler, filler, para(q), filler]);
+    expect(out).toBe(q);
+    expect(out!.length).toBeGreaterThanOrEqual(20);
+    expect(out!.length).toBeLessThanOrEqual(60);
+  });
+
+  it('pulls nothing from a short piece, or one with no sentence of the right length', () => {
+    expect(pickQuote(['很短的一段。'])).toBeNull();
+    expect(pickQuote([filler, filler, filler])).toBeNull();
+  });
+
+  it('prefers the middle of the piece to its opening', () => {
+    const a = '开头的这句话是二十个字以上的一个句子，放在文章最前面。';
+    const b = '中间的这句话也是二十个字以上的一个句子，放在文章中部。';
+    expect(pickQuote([a, filler, filler, b, filler, filler, filler])).toBe(b);
+  });
+
+  it('does not pull half a quotation', () => {
+    const half = '她说：“这里是我见过最安静的地方，真的是这样。';
+    expect(pickQuote([filler, filler, half, filler])).toBeNull();
+  });
+
+  it('works on Latin sentences too, and is the same every time', () => {
+    const q = 'It was the quietest square I had ever stood in, and I stayed.';
+    const text = ['Lorem ipsum dolor sit amet. '.repeat(20), q + ' ' + 'x'.repeat(10), 'Lorem ipsum dolor sit amet. '.repeat(20)];
+    expect(pickQuote(text)).toBe(pickQuote(text));
   });
 });

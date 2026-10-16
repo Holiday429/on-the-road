@@ -49,6 +49,10 @@ export interface Article {
   mood?: string;
   paragraphs: string[];
   photos: PhotoRef[];
+  /** Under each photograph: "Brussels · 14 JUL 2026". */
+  caption: string;
+  /** A sentence worth setting large, taken from the text — or null when none suits. */
+  quote: string | null;
 }
 
 /** The line above a headline: the day and the place. */
@@ -56,6 +60,52 @@ export function kickerOf(entry: Pick<StoredJournalEntry, 'happenedOn' | 'destina
   const { day, month } = stampParts(entry.happenedOn);
   const where = entry.destination.trim();
   return `${day} ${month}${where ? ` · ${where}` : ''}`.toUpperCase();
+}
+
+/** The line under a photograph: the place and the day. */
+export function captionOf(entry: Pick<StoredJournalEntry, 'happenedOn' | 'destination'>): string {
+  const { day, month, year } = stampParts(entry.happenedOn);
+  const when = `${day} ${month} ${year}`;
+  const where = entry.destination.trim();
+  return where ? `${where} · ${when}` : when;
+}
+
+/** Sentence-ending marks, Chinese and Latin. */
+const SENTENCE_END = /(?<=[。！？!?]|\.(?=\s))/;
+export const QUOTE_MIN = 20;
+export const QUOTE_MAX = 60;
+
+/** Every opening quote or bracket has its closing one — a pulled line must not begin or end inside a quotation. */
+function balanced(s: string): boolean {
+  const count = (c: string) => s.split(c).length - 1;
+  return count('“') === count('”') && count('「') === count('」') && count('（') === count('）') && count('(') === count(')') && count('"') % 2 === 0;
+}
+
+/**
+ * A line to pull out and set large: a whole sentence of 20–60 characters ending in
+ * a full stop, question or exclamation mark, from the middle of the piece rather
+ * than its opening (the opening is already on the page). The sentence nearest the
+ * middle of the text wins, so the same article always pulls the same line.
+ */
+export function pickQuote(paragraphs: string[]): string | null {
+  const text = paragraphs.join('\n');
+  if (text.length < 400) return null;
+  const sentences: Array<{ s: string; at: number }> = [];
+  let at = 0;
+  for (const para of paragraphs) {
+    let offset = 0;
+    for (const piece of para.split(SENTENCE_END)) {
+      const s = piece.trim();
+      if (s.length >= QUOTE_MIN && s.length <= QUOTE_MAX && /[。！？!?.]$/.test(s) && balanced(s) && at + offset > text.length * 0.2) {
+        sentences.push({ s, at: at + offset });
+      }
+      offset += piece.length;
+    }
+    at += para.length + 1;
+  }
+  if (!sentences.length) return null;
+  const mid = text.length * 0.45;
+  return sentences.reduce((best, c) => (Math.abs(c.at - mid) < Math.abs(best.at - mid) ? c : best)).s;
 }
 
 /** The headline: the title, else the opening line of the body, else the place. (Not titleFor: that splits on spaces, and Chinese has none.) */
@@ -79,13 +129,16 @@ export function toArticle(entry: StoredJournalEntry, ratios: Array<number | unde
     const r = ratios[i] && ratios[i]! > 0 ? ratios[i]! : UNMEASURED;
     return { src, ratio: snapRatio(r), orient: orientationOf(r) };
   });
+  const paragraphs = entry.body.split(/\r?\n+/).map((p) => p.trim()).filter(Boolean);
   return {
     id: entry.id,
     kicker: kickerOf(entry),
     headline: headlineOf(entry),
     mood: entry.mood,
-    paragraphs: entry.body.split(/\r?\n+/).map((p) => p.trim()).filter(Boolean),
+    paragraphs,
     photos,
+    caption: captionOf(entry),
+    quote: pickQuote(paragraphs),
   };
 }
 

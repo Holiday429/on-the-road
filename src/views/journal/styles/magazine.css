@@ -19,7 +19,7 @@
   column-gap: 24px; column-fill: auto;
   font-family: var(--font-serif); font-size: .9375rem; line-height: 1.75;
   color: var(--ink);
-  text-align: justify; line-break: strict; overflow-wrap: anywhere;
+  text-align: justify; line-break: strict; overflow-wrap: anywhere; text-wrap: pretty;
 }
 .mag-text p { margin: 0; text-indent: 2em; }
 .mag-text p.is-cont, .mag-text.has-dropcap > p:first-child { text-indent: 0; }
@@ -40,9 +40,31 @@
 }
 .mag-head.is-l .mag-headline { font-size: 2.75rem; line-height: 1.12; }
 
+/* A caption under a photograph: the place and the day. */
+.mag-cap {
+  position: absolute; font-family: var(--font-data); font-size: .625rem; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* A sentence pulled out of the piece and set large, between two thin rules. */
+.mag-quote {
+  position: absolute; margin: 0; padding: 16px 0; box-sizing: border-box;
+  border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
+  font-family: var(--font-serif); font-size: 1.5rem; line-height: 1.4; font-style: italic; text-align: center; color: var(--ink);
+  text-wrap: balance; overflow-wrap: anywhere;
+}
+/* Where the next article begins on the same page. */
+.mag-rule { position: absolute; margin: 0; height: 0; border: 0; border-top: 1px solid var(--ink); }
+/* The running head, in the outer top margin. */
+.mag-run {
+  position: absolute; top: 28px; z-index: 6; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-data); font-size: .625rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint);
+}
+.mag-page.is-verso .mag-run { left: 48px; }
+.mag-page.is-recto .mag-run { right: 48px; }
+
 /* The off-screen ruler. Same classes, nothing visible. */
 .mag-measure { position: fixed; left: -10000px; top: 0; visibility: hidden; pointer-events: none; }
-.mag-measure .mag-text, .mag-measure .mag-head { position: static; }
+.mag-measure .mag-text, .mag-measure .mag-head, .mag-measure .mag-quote { position: static; }
 
 /* ── The desk ────────────────────────────────────────────────────────────── */
 .mag-desk { max-width: 1240px; margin: 0 auto; padding-bottom: var(--sp-6); outline: none; }
@@ -93,6 +115,10 @@
 .mag-page.is-verso::after { right: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 11%, transparent)); }
 .mag-page.is-recto::before { left: 0; background: linear-gradient(270deg, transparent, color-mix(in srgb, var(--ink) 11%, transparent)); }
 .mag-page.is-void { background: none; box-shadow: none; }
+/* A plate: one picture, edge to edge, on a dark page. */
+.mag-page.is-plate { background: var(--ink); }
+.mag-page.is-plate .mag-cap, .mag-page.is-plate .mag-run, .mag-page.is-plate .mag-folio { color: color-mix(in srgb, var(--surface) 62%, transparent); }
+.mag-photo.is-bleed { box-shadow: none; }
 .mag-body { position: absolute; }
 
 .mag-photo { position: absolute; margin: 0; overflow: hidden; background: var(--surface-3); }

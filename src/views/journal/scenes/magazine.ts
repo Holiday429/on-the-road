@@ -75,17 +75,26 @@ const px = (n: number) => `${Math.round(n * 100) / 100}px`;
 const box = (b: { x: number; y: number; w: number; h?: number }) =>
   `left:${px(b.x)};top:${px(b.y)};width:${px(b.w)}${b.h != null ? `;height:${px(b.h)}` : ''}`;
 
-function pageBody(page: Page, book: Book, folio: number): string {
+function pageBody(page: Page, book: Book, folio: number, side: 'verso' | 'recto'): string {
   const article = book.articles.find((a) => a.id === page.articleId)!;
   const text = book.texts[page.articleId] ?? '';
+  // The frame that ends an article balances its columns, so a few lines are set as two even columns, not one long one.
+  const frames = (list: Page['frames'], src: string) => list.map((f) => `
+      <div class="${textClass(f)}" style="${box(f)};columns:${columnsOf(f.cols)}${f.to >= src.length ? ';column-fill:balance' : ''}">${textHtml(src.slice(f.from, f.to), f)}</div>`).join('');
+  const tailArticle = page.tail ? book.articles.find((a) => a.id === page.tail!.articleId) : undefined;
   return `
     ${page.photos.map((p) => `
-      <figure class="mag-photo" style="${box(p)}">
+      <figure class="mag-photo${p.bleed ? ' is-bleed' : ''}" style="${box(p.bleed ? { ...p, x: p.x - bodyLeft(side) } : p)}">
         <img src="${escHtml(p.photo.src)}" alt="${escHtml(article.headline)}" loading="lazy" draggable="false">
       </figure>`).join('')}
+    ${page.captions.map((c) => `<span class="mag-cap" style="${box({ x: c.x, y: c.y, w: c.w })}">${escHtml(article.caption)}</span>`).join('')}
     ${page.head ? `<div class="mag-head${page.head.size === 'l' ? ' is-l' : ''}" style="${box(page.head)}">${headHtml(article)}</div>` : ''}
-    ${page.frames.map((f) => `
-      <div class="${textClass(f)}" style="${box(f)};columns:${columnsOf(f.cols)}">${textHtml(text.slice(f.from, f.to), f)}</div>`).join('')}
+    ${page.quote && article.quote ? `<blockquote class="mag-quote" style="${box(page.quote)}">${escHtml(article.quote)}</blockquote>` : ''}
+    ${frames(page.frames, text)}
+    ${page.tail && tailArticle ? `
+      <hr class="mag-rule" style="${box(page.tail.rule)}">
+      <div class="mag-head" style="${box(page.tail.head)}">${headHtml(tailArticle)}</div>
+      ${frames(page.tail.frames, book.texts[tailArticle.id] ?? '')}` : ''}
     ${page.continues ? `<span class="mag-cont">${escHtml(t('journal.mag.continued', { n: folio + 1 }))}</span>` : ''}`;
 }
 
@@ -106,7 +115,7 @@ function contentsBody(book: Book, part: number): string {
     </ol>`;
 }
 
-function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalAlbum, entries: StoredJournalEntry[], book: Book): string {
+function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalAlbum, entries: StoredJournalEntry[], book: Book, countries: Record<string, string>): string {
   if (!leaf || index === null) return `<div class="mag-page is-void" aria-hidden="true"></div>`;
   const side = sideOf(index);
   const cls = `mag-page is-${side}`;
@@ -127,10 +136,21 @@ function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalA
         </div>
       </section>`;
   }
-  const inner = leaf.kind === 'toc' ? contentsBody(book, leaf.part) : pageBody(book.pages[leaf.page], book, folio);
-  return `
+  if (leaf.kind === 'toc') {
+    return `
     <section class="${cls}">
-      <div class="mag-body" style="left:${bodyLeft(side)}px;top:${MARGIN.top}px;width:${BODY_W}px;height:${BODY_H}px">${inner}</div>
+      <div class="mag-body" style="left:${bodyLeft(side)}px;top:${MARGIN.top}px;width:${BODY_W}px;height:${BODY_H}px">${contentsBody(book, leaf.part)}</div>
+      <span class="mag-folio">${folio}</span>
+    </section>`;
+  }
+  const page = book.pages[leaf.page];
+  // The running head: the magazine's name and, when it can be worked out, the country the page is about.
+  const country = countries[page.tail ? page.tail.articleId : page.articleId];
+  const run = [coverOf(album).headline, country].filter(Boolean).join(' · ');
+  return `
+    <section class="${cls}${page.plate ? ' is-plate' : ''}">
+      <span class="mag-run">${escHtml(run)}</span>
+      <div class="mag-body" style="left:${bodyLeft(side)}px;top:${MARGIN.top}px;width:${BODY_W}px;height:${BODY_H}px">${pageBody(page, book, folio, side)}</div>
       <span class="mag-folio">${folio}</span>
     </section>`;
 }
@@ -160,6 +180,8 @@ export function renderMagazine(
   entries: StoredJournalEntry[],
   book: Book | undefined,
   s: MagazineState,
+  /** Country of each article by entry id, for the running head. */
+  countries: Record<string, string> = {},
 ): string {
   if (!book) {
     return `
@@ -189,7 +211,7 @@ export function renderMagazine(
       <div class="mag-fit" data-mode="${view.mode}" style="--k:${view.k};--across:${single ? PAGE_W : PAGE_W * 2}">
         <div class="mag-stage">
           <div class="mag-spread${fade}" style="width:${single ? PAGE_W : PAGE_W * 2}px;height:${PAGE_H}px">
-            ${shown.map((i) => leafHtml(i === null ? null : book.leaves[i], i, album, entries, book)).join('')}
+            ${shown.map((i) => leafHtml(i === null ? null : book.leaves[i], i, album, entries, book, countries)).join('')}
           </div>
           <button class="mag-turn mag-turn--prev" data-album-page="prev" type="button" aria-label="${escHtml(t('journal.mag.prev'))}" ${atStart ? 'disabled' : ''}>‹</button>
           <button class="mag-turn mag-turn--next" data-album-page="next" type="button" aria-label="${escHtml(t('journal.mag.next'))}" ${atEnd ? 'disabled' : ''}>›</button>

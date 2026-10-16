@@ -260,9 +260,15 @@ function renderAlbumsView(model: CaptureRenderModel): string {
       ? renderAlbumFeed(open, model.allEntries, model.state.readingId)
       : (() => {
         const entries = albumEntries(open, model.allEntries);
+        // The running head names each article's country, worked out the way the stamp's is.
+        const countries: Record<string, string> = {};
+        for (const e of entries) {
+          const iso = buildStops([e], model.legs)[0]?.iso;
+          if (iso) countries[e.id] = countryName(iso);
+        }
         return renderMagazine(open, entries, cachedBook(open, entries), {
           leaf: model.state.albumLeaf, turn: model.state.albumTurn, dir: model.state.albumDir,
-        });
+        }, countries);
       })();
   }
 

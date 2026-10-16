@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { article, fakeMeasurer, photo } from './magazine-test-kit.ts';
-import { adjustCut, contentsOf, paginateArticle, paginateBook, TAIL_MIN } from './magazine-paginate.ts';
+import { adjustCut, contentsOf, paginateArticle, paginateBook, startsArticle, TAIL_MIN } from './magazine-paginate.ts';
 import { articleText, BODY_H, BODY_W } from './magazine-model.ts';
 import { assembleBook } from './magazine-book.ts';
-import { TEMPLATES } from './magazine-templates.ts';
+import { BREAK_MIN_FREE, TEMPLATES } from './magazine-templates.ts';
 
 const m = fakeMeasurer();
 
@@ -156,11 +156,11 @@ describe('paginateArticle — the photographs', () => {
 
   it('puts two portraits side by side and two landscapes one above the other', () => {
     const t = TEMPLATES['photo-pair'];
-    const head = () => 0;
-    const side = t.layout({ photos: [photo('3:4'), photo('3:4', 1)], headHeight: head, textRemains: true });
+    const ctx = { headHeight: () => 0, quoteHeight: () => 0, parity: 0 as const };
+    const side = t.layout({ photos: [photo('3:4'), photo('3:4', 1)], ...ctx, textRemains: true });
     expect(side.photos[0].y).toBe(side.photos[1].y);
     expect(side.photos[1].x).toBeGreaterThan(side.photos[0].x);
-    const stacked = t.layout({ photos: [photo('3:2'), photo('3:2', 1)], headHeight: head, textRemains: true });
+    const stacked = t.layout({ photos: [photo('3:2'), photo('3:2', 1)], ...ctx, textRemains: true });
     expect(stacked.photos[1].y).toBeGreaterThan(stacked.photos[0].y);
     expect(stacked.photos[1].x).toBe(stacked.photos[0].x);
   });
@@ -199,8 +199,7 @@ describe('the book', () => {
       const leaf = book.leaves[leafIndex];
       expect(leaf.kind).toBe('page');
       const page = book.pages[(leaf as { page: number }).page];
-      expect(page.articleId).toBe(row.articleId);
-      expect(page.first, `article ${row.articleId} starts there`).toBe(true);
+      expect(startsArticle(page, row.articleId), `article ${row.articleId} starts there`).toBe(true);
     }
   });
 
@@ -216,7 +215,7 @@ describe('the book', () => {
     expect(book.toc[0].folio).toBe(4);
     for (const row of book.toc) {
       const leaf = book.leaves[row.folio - 1];
-      expect(leaf.kind === 'page' && book.pages[leaf.page].articleId === row.articleId).toBe(true);
+      expect(leaf.kind === 'page' && startsArticle(book.pages[leaf.page], row.articleId)).toBe(true);
     }
   });
 
@@ -234,14 +233,203 @@ describe('the book', () => {
     expect(JSON.stringify(paginateBook(articles, m, 'alb'))).toBe(a);
   });
 
-  it('every article starts on a page of its own', () => {
+  it('every article starts somewhere: on a page of its own, or under the article before it', () => {
     const { pages, firstPage } = paginateBook(articles, m, 'alb');
-    for (const i of firstPage) expect(pages[i].first).toBe(true);
-    expect(pages.filter((p) => p.first)).toHaveLength(articles.length);
+    articles.forEach((a, i) => expect(startsArticle(pages[firstPage[i]], a.id), a.id).toBe(true));
+    expect(pages.filter((p) => p.first).length + pages.filter((p) => p.tail).length).toBe(articles.length);
   });
 
   it('contentsOf matches the assembled book', () => {
     const { firstPage } = paginateBook(articles, m, 'alb');
     expect(contentsOf(articles, firstPage)).toEqual(assembleBook(articles, m, 'alb', 'k').toc);
+  });
+});
+
+
+describe('article-break: the next article begins on the half page the last one left', () => {
+  const short = () => article({ chars: 260 });          // one short page, mostly empty
+  const later = () => article({ chars: 1500 });
+
+  it('starts the second article under the first when enough of the page is free', () => {
+    const [a, b] = [short(), later()];
+    const { pages, firstPage } = paginateBook([a, b], m, 'alb');
+    const shared = pages[firstPage[1]];
+    expect(shared.articleId).toBe(a.id);
+    expect(shared.tail?.articleId).toBe(b.id);
+    expect(firstPage[1]).toBe(firstPage[0]);               // both are on the same page, so the contents says the same page number
+    expect(shared.tail!.head.y).toBeGreaterThan(shared.frames[0].y);
+  });
+
+  it('keeps every word of both articles', () => {
+    const [a, b] = [short(), later()];
+    const { pages } = paginateBook([a, b], m, 'alb');
+    const text = (art: typeof a) => {
+      const full = articleText(art);
+      const frames = pages.flatMap((p) => [
+        ...(p.articleId === art.id ? p.frames : []),
+        ...(p.tail?.articleId === art.id ? p.tail.frames : []),
+      ]);
+      return frames.map((f) => full.slice(f.from, f.to)).join('').replace(/\n/g, '');
+    };
+    expect(text(a)).toBe(articleText(a).replace(/\n/g, ''));
+    expect(text(b)).toBe(articleText(b).replace(/\n/g, ''));
+  });
+
+  it('keeps the tail inside the page and below the first article', () => {
+    const { pages } = paginateBook([short(), later()], m, 'alb');
+    const t = pages[0].tail!;
+    for (const f of t.frames) expect(f.y + f.h).toBeLessThanOrEqual(BODY_H + 0.5);
+    expect(t.rule.y).toBeGreaterThan(0);
+    expect(t.head.y).toBeGreaterThan(t.rule.y);
+  });
+
+  it('begins under the last article only where at least BREAK_MIN_FREE of the page was left; otherwise on a page of its own', () => {
+    let broke = 0;
+    let fresh = 0;
+    for (let chars = 100; chars <= 4400; chars += 97) {
+      const a = article({ chars });
+      const b = later();
+      const { pages, firstPage } = paginateBook([a, b], m, 'alb');
+      const host = pages.filter((p) => p.articleId === a.id).pop()!;
+      if (host.tail) {
+        broke++;
+        expect(BODY_H - host.tail.rule.y, `chars=${chars}`).toBeGreaterThanOrEqual(BREAK_MIN_FREE - 30);   // the rule sits a little under the last line
+        expect(firstPage[1]).toBe(pages.indexOf(host));
+      } else {
+        fresh++;
+        expect(pages[firstPage[1]].first, `chars=${chars}`).toBe(true);
+      }
+    }
+    expect(broke).toBeGreaterThan(0);
+    expect(fresh).toBeGreaterThan(0);
+  });
+
+  it('does not break onto a plate, or when the next article has no words', () => {
+    const plated = paginateBook([article({ chars: 0, photos: [photo('3:2')] , paragraphs: [] }), article({ chars: 600 })], m, 'alb');
+    expect(plated.pages.every((p) => !p.tail || !p.plate)).toBe(true);
+    const wordless = paginateBook([short(), article({ paragraphs: [], photos: [photo('3:4')] })], m, 'alb');
+    expect(wordless.pages.some((p) => p.tail)).toBe(false);
+  });
+
+  it('a short second article can fit entirely in the tail, adding no page of its own', () => {
+    const { pages } = paginateBook([short(), article({ chars: 150 })], m, 'alb');
+    expect(pages).toHaveLength(1);
+    expect(pages[0].tail).toBeTruthy();
+    expect(pages[0].continues).toBe(false);
+  });
+});
+
+describe('the other page shapes', () => {
+  const landscapes = (n: number) => Array.from({ length: n }, (_, i) => photo('3:2', i));
+  const portraits = (n: number) => Array.from({ length: n }, (_, i) => photo('3:4', i));
+  const pagesOf = (a: ReturnType<typeof article>) => paginateArticle(a, m, 'alb');
+  /** The pages of that shape this article gets in any of a handful of albums — which shape a page takes among the fitting ones is chosen by the album's id. */
+  const withTemplate = (a: ReturnType<typeof article>, id: string) =>
+    ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].flatMap((album) => paginateArticle(a, m, album).filter((p) => p.template === id));
+
+  it('sets three or four photographs of one orientation together as a grid', () => {
+    for (const photos of [landscapes(4), landscapes(3), portraits(4)]) {
+      const grids = withTemplate(article({ chars: 0, paragraphs: [], photos: [photo('3:2', 9), ...photos] }), 'grid');
+      expect(grids.length, photos.length + photos[0].orient).toBeGreaterThanOrEqual(1);
+      expect(grids[0].photos.length).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('does not grid three tall pictures with nothing else to set: they are paired instead', () => {
+    expect(TEMPLATES.grid.applies(portraits(3), false)).toBe(false);
+    expect(TEMPLATES.grid.applies(portraits(3), true)).toBe(true);
+    expect(TEMPLATES.grid.applies(portraits(4), false)).toBe(true);
+  });
+
+  it('sets a page of photographs and no words as large as the page allows', () => {
+    const [g] = withTemplate(article({ chars: 0, paragraphs: [], photos: [photo('3:2', 9), ...landscapes(4)] }), 'grid');
+    const bottom = Math.max(...g.photos.map((p) => p.y + p.h));
+    expect(bottom).toBeGreaterThan(BODY_H * 0.6);
+  });
+
+  it('never grids photographs of mixed orientation', () => {
+    const mixed = [photo('3:2', 0), photo('3:4', 1), photo('3:2', 2), photo('3:4', 3), photo('3:2', 4)];
+    expect(withTemplate(article({ chars: 0, paragraphs: [], photos: mixed }), 'grid')).toHaveLength(0);
+  });
+
+  it('a row of tall pictures is a row, not squares: each stays tall', () => {
+    for (const textRemains of [true, false]) {
+      const a = textRemains ? article({ chars: 3000, photos: [photo('3:2', 9), ...portraits(4)] }) : article({ chars: 0, paragraphs: [], photos: [photo('3:2', 9), ...portraits(4)] });
+      const [g] = withTemplate(a, 'grid');
+      expect(g, `text=${textRemains}`).toBeTruthy();
+      for (const p of g.photos) expect(p.h).toBeGreaterThan(p.w);
+    }
+  });
+
+  it('puts a wide picture across a whole dark page only when there are no words left to set', () => {
+    const plates = withTemplate(article({ chars: 0, paragraphs: [], photos: landscapes(5) }), 'full-bleed');
+    expect(plates.length).toBeGreaterThanOrEqual(1);
+    expect(plates[0].plate).toBe(true);
+    expect(plates[0].photos[0].bleed).toBe(true);
+    expect(plates[0].photos[0].w).toBe(600);
+    expect(plates[0].frames).toEqual([]);
+    expect(pagesOf(article({ chars: 3000, photos: landscapes(2) })).filter((p) => p.template === 'full-bleed' && p.frames.length)).toHaveLength(0);
+  });
+
+  it('sets a tall picture beside the words, alternating sides', () => {
+    const a = article({ chars: 6000, photos: [photo('3:2', 0), ...portraits(3)] });
+    const sides = withTemplate(a, 'photo-side-text').map((p) => p.photos[0].x);
+    expect(sides.length).toBeGreaterThanOrEqual(1);
+    for (const p of withTemplate(a, 'photo-side-text')) {
+      expect(p.frames.length).toBeGreaterThanOrEqual(1);
+      // the words and the picture never share a column's space
+      for (const f of p.frames) {
+        const overlapX = f.x < p.photos[0].x + p.photos[0].w && p.photos[0].x < f.x + f.w;
+        const overlapY = f.y < p.photos[0].y + p.photos[0].h && p.photos[0].y < f.y + f.h;
+        expect(overlapX && overlapY).toBe(false);
+      }
+    }
+  });
+
+  it('pulls one quotation from a long piece, once, between two blocks of its text', () => {
+    const a = article({ chars: 5000, quote: '这是一句值得放大的话，它来自文章的中间。' });
+    const pages = pagesOf(a).filter((p) => p.quote);
+    expect(pages).toHaveLength(1);
+    expect(pages[0].template).toBe('pull-quote');
+    expect(pages[0].frames).toHaveLength(2);
+    const [above, below] = pages[0].frames;
+    expect(above.y + above.h).toBeLessThanOrEqual(pages[0].quote!.y);
+    expect(below.y).toBeGreaterThanOrEqual(pages[0].quote!.y + pages[0].quote!.h);
+  });
+
+  it('pulls nothing from a short piece or one with no good sentence', () => {
+    expect(pagesOf(article({ chars: 600, quote: 'x'.repeat(30) })).some((p) => p.quote)).toBe(false);
+    expect(pagesOf(article({ chars: 5000, quote: null })).some((p) => p.quote)).toBe(false);
+  });
+
+  it('captions every picture page, inside the page', () => {
+    const photos = [photo('3:2', 0), photo('3:4', 1), photo('16:9', 2), ...portraits(3), photo('4:3', 8)];
+    for (const page of pagesOf(article({ chars: 2500, photos }))) {
+      if (!page.photos.length) continue;
+      expect(page.captions.length, page.template).toBeGreaterThanOrEqual(1);
+      for (const c of page.captions) expect(c.y).toBeLessThanOrEqual(BODY_H);
+    }
+  });
+
+  it('still places every photograph and every word, whatever mix', () => {
+    const photos = [photo('3:2', 0), ...portraits(3), ...landscapes(4).map((p, i) => ({ ...p, src: `l${i}.jpg` })), photo('2:3', 20), photo('16:9', 21)];
+    for (const chars of [0, 300, 4000]) {
+      const a = article({ chars, photos, quote: chars > 3000 ? '一句二十个字以上的引文放在这里这里这里这里。' : null });
+      const pages = pagesOf(a);
+      expect(pages.flatMap((p) => p.photos.map((x) => x.photo.src)).sort(), `photos, chars=${chars}`).toEqual(photos.map((p) => p.src).sort());
+      const text = articleText(a);
+      expect(pages.flatMap((p) => p.frames).map((f) => text.slice(f.from, f.to)).join('').replace(/\n/g, ''), `words, chars=${chars}`).toBe(text.replace(/\n/g, ''));
+    }
+  });
+
+  it('keeps every box inside the body (a bleed picture inside the page)', () => {
+    const photos = [photo('3:2', 0), ...portraits(4), ...landscapes(4).map((p, i) => ({ ...p, src: `l${i}.jpg` }))];
+    for (const page of pagesOf(article({ chars: 3000, photos, quote: '一句二十个字以上的引文放在这里这里这里这里。' }))) {
+      for (const b of [...page.photos.filter((p) => !p.bleed), ...page.frames, ...(page.head ? [page.head] : []), ...(page.quote ? [page.quote] : [])]) {
+        expect(b.x, page.template).toBeGreaterThanOrEqual(-0.5);
+        expect(b.x + b.w, page.template).toBeLessThanOrEqual(BODY_W + 0.5);
+        expect(b.y + b.h, page.template).toBeLessThanOrEqual(BODY_H + 0.5);
+      }
+    }
   });
 });

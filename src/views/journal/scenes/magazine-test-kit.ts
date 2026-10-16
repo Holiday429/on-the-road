@@ -13,6 +13,15 @@ export function fakeMeasurer(): Measurer {
       const room = Math.max(0, f.cols * perCol - (f.dropcap ? 6 : 0));
       return Math.min(text.length, room);
     },
+    quote(text, w) {
+      return Math.ceil((text.length * 22) / w) * 30 + 40;
+    },
+    used(text, f) {
+      const colW = f.cols === 2 ? (f.w - 24) / 2 : f.w;
+      const lines = Math.ceil(text.length / Math.max(1, Math.floor(colW / CHAR_W)));
+      // the last frame's columns are balanced, so two columns share the lines
+      return Math.min(f.h, Math.ceil(lines / f.cols) * LINE_H);
+    },
     head(a, w, size) {
       const per = Math.max(1, Math.floor(w / (size === 'l' ? 26 : 20)));
       return Math.ceil(a.headline.length / per) * (size === 'l' ? 52 : 44) + 30;
@@ -31,5 +40,5 @@ export function article(over: Partial<Article> & { chars?: number } = {}): Artic
   const { chars = 0, ...rest } = over;
   // paragraphs of ~120 characters, so there are real paragraph breaks to cut at
   const paragraphs = rest.paragraphs ?? Array.from({ length: Math.ceil(chars / 120) }, (_, i) => `第${i}段`.padEnd(Math.min(120, chars - i * 120), '字'));
-  return { id: `a${n}`, kicker: '06 SEP · TEST', headline: `Article ${n}`, paragraphs, photos: [], ...rest };
+  return { id: `a${n}`, kicker: '06 SEP · TEST', headline: `Article ${n}`, paragraphs, photos: [], caption: 'Test · 06 SEP 2026', quote: null, ...rest };
 }

@@ -15,8 +15,11 @@
    and nothing needs opening to read.
    ========================================================================== */
 
-import { articleText, tocPageCount, type Article, type PhotoRef } from './magazine-model.ts';
-import { openerFor, TEMPLATES, type Box, type TemplateId } from './magazine-templates.ts';
+import { articleText, BODY_H, tocPageCount, type Article, type PhotoRef } from './magazine-model.ts';
+import {
+  BREAK_MIN_FREE, CAP, breakTail, openerFor, TEMPLATES,
+  type Box, type CaptionSlot, type TemplateId,
+} from './magazine-templates.ts';
 import { pickLayout } from './album-layout.ts';
 
 export interface FrameSpec {
@@ -35,9 +38,13 @@ export interface Measurer {
   fit(text: string, frame: FrameSpec): number;
   /** The height of the kicker + headline when set `w` wide. */
   head(a: { kicker: string; headline: string }, w: number, size: 'm' | 'l'): number;
+  /** The height of a pulled quotation when set `w` wide. */
+  quote(text: string, w: number): number;
+  /** How much of the frame's height `text` actually uses (it may not fill it). */
+  used(text: string, frame: FrameSpec): number;
 }
 
-export interface PlacedPhoto extends Box { photo: PhotoRef }
+export interface PlacedPhoto extends Box { photo: PhotoRef; bleed?: boolean }
 export interface PlacedFrame extends Box {
   cols: 1 | 2;
   /** Character range of the article's text, [from, to). */
@@ -48,17 +55,37 @@ export interface PlacedFrame extends Box {
 }
 export interface PlacedHead extends Box { size: 'm' | 'l' }
 
+/** The foot of a page given to the next article: a rule, its heading, its words. */
+export interface PlacedTail {
+  articleId: string;
+  rule: { x: number; y: number; w: number };
+  head: PlacedHead;
+  frames: PlacedFrame[];
+}
+
 export interface Page {
   articleId: string;
   template: TemplateId;
   /** First page of its article. */
   first: boolean;
   photos: PlacedPhoto[];
+  /** Under each photograph (or group of them): the place and the day. */
+  captions: CaptionSlot[];
   head?: PlacedHead;
   frames: PlacedFrame[];
-  /** The words go on over the page. */
+  /** A pulled sentence of the article, set between the frames. */
+  quote?: Box;
+  /** A dark page whose picture is all there is. */
+  plate?: boolean;
+  /** The next article begins here, under this one (article-break). */
+  tail?: PlacedTail;
+  /** The words of the last article on the page go on over the page. */
   continues: boolean;
 }
+
+/** Does this page open the article? (Either on its own page, or as the tail of the one before.) */
+export const startsArticle = (page: Page, articleId: string): boolean =>
+  (page.first && page.articleId === articleId) || page.tail?.articleId === articleId;
 
 /* ── Where a line may end ────────────────────────────────────────────────── */
 
@@ -110,63 +137,124 @@ function skipBreaks(text: string, at: number): number {
   return at;
 }
 
+/** The ids of the templates that can follow words with pictures still to place, in the order they are offered. */
+const OFFERED: TemplateId[] = ['photo-pair', 'photo-side-text', 'grid', 'full-bleed', 'text-2col', 'pull-quote'];
+
+/** How far down the body a page has been used (so a following article can be given the rest). */
+export function usedBottom(page: Page, text: string, m: Measurer): number {
+  let bottom = 0;
+  for (const p of page.photos) bottom = Math.max(bottom, p.y + p.h);
+  for (const c of page.captions) bottom = Math.max(bottom, c.y + CAP - 6);
+  if (page.head) bottom = Math.max(bottom, page.head.y + page.head.h);
+  if (page.quote) bottom = Math.max(bottom, page.quote.y + page.quote.h);
+  page.frames.forEach((f, i) => {
+    // every frame but the last is full; the last holds what is left — if the article ends here, perhaps only a few lines
+    const last = i === page.frames.length - 1 && !page.continues;
+    const used = last
+      ? m.used(text.slice(f.from, f.to), { w: f.w, h: f.h, cols: f.cols, dropcap: f.dropcap, continued: f.continued })
+      : f.h;
+    bottom = Math.max(bottom, f.y + used);
+  });
+  return Math.ceil(bottom);
+}
+
+/** Flow `text` from `pos` through a page's frames. Returns the frames placed and the new position. */
+function flow(text: string, pos: number, slots: Array<Box & { cols: 1 | 2; dropcap?: boolean }>, m: Measurer): { frames: PlacedFrame[]; pos: number } {
+  const frames: PlacedFrame[] = [];
+  slots.forEach((slot, i) => {
+    if (pos >= text.length) return;
+    const rest = text.slice(pos);
+    const continued = pos > 0 && text[pos - 1] !== '\n';
+    const dropcap = !!slot.dropcap && pos === 0;
+    let n = m.fit(rest, { w: slot.w, h: slot.h, cols: slot.cols, dropcap, continued });
+    const lastFrame = i === slots.length - 1;
+    if (n < rest.length) n = adjustCut(rest, n, lastFrame);
+    else n = rest.length;
+    if (n <= 0) return;
+    frames.push({ x: slot.x, y: slot.y, w: slot.w, h: slot.h, cols: slot.cols, from: pos, to: pos + n, dropcap, continued });
+    pos = skipBreaks(text, pos + n);
+  });
+  return { frames, pos };
+}
+
 /**
- * Paginate one article. `previous` is the template of the page before this
- * article's first (null at the start of the book) — only used to keep the
- * alternation going; an opener is always chosen by its photo.
+ * Paginate one article.
+ *
+ * `startOn`: the previous article's last page, with `free` px of body left under
+ * it — if that is enough, this article begins there (a rule, its heading, its
+ * words) instead of on a page of its own, and only the pages after it are
+ * returned.
  */
-export function paginateArticle(article: Article, m: Measurer, albumId = ''): Page[] {
+export function paginateArticle(
+  article: Article, m: Measurer, albumId = '',
+  startOn?: { page: Page; usedBottom: number },
+): Page[] {
   const text = articleText(article);
   const photos = [...article.photos];
   const pages: Page[] = [];
   let pos = 0;
   let prev: TemplateId | null = null;
+  let quoteUsed = false;
+  let joined = false;
+
+  // Begin under the previous article, if there is room.
+  if (startOn && text.length > 0) {
+    const tail = breakTail(startOn.usedBottom, (w, size) => m.head(article, w, size));
+    if (tail) {
+      const placed = flow(text, 0, tail.frames, m);
+      if (placed.frames.length) {
+        pos = placed.pos;
+        startOn.page.tail = { articleId: article.id, rule: tail.rule, head: { ...tail.head }, frames: placed.frames };
+        startOn.page.continues = pos < text.length;
+        joined = true;
+        prev = startOn.page.template;
+      }
+    }
+  }
 
   for (let guard = 0; guard < 400; guard++) {
-    const first = pages.length === 0;
+    if (joined && pos >= text.length && !photos.length) break;
+    const first = pages.length === 0 && !joined;
     const textRemains = pos < text.length;
 
     let tpl;
     if (first) tpl = openerFor(photos[0]);
     else {
-      const options: TemplateId[] = photos.length
-        ? (textRemains ? ['photo-pair', 'text-2col'] : ['photo-pair'])
-        : ['text-2col'];
+      const canQuote = !!article.quote && !quoteUsed && text.length - pos > 700;
+      const options = OFFERED.filter((id) => {
+        if (id === 'pull-quote') return canQuote;
+        if (!photos.length && TEMPLATES[id].pictureLed) return false;
+        return TEMPLATES[id].applies(photos, textRemains);
+      });
+      if (!options.length) options.push('photo-pair');
       tpl = TEMPLATES[pickLayout(options, prev, (id) => TEMPLATES[id].pictureLed, albumId + article.id, pages.length)];
     }
+    if (tpl.id === 'pull-quote') quoteUsed = true;
 
     const took = photos.splice(0, tpl.take(photos, textRemains));
     const geo = tpl.layout({
-      photos: took, textRemains: textRemains,
+      photos: took, textRemains,
+      parity: (pages.length % 2) as 0 | 1,
       headHeight: (w, size) => m.head(article, w, size),
+      quoteHeight: (w) => (article.quote ? m.quote(article.quote, w) : 0),
     });
 
-    const frames: PlacedFrame[] = [];
-    geo.frames.forEach((slot, i) => {
-      if (pos >= text.length) return;
-      const rest = text.slice(pos);
-      const continued = pos > 0 && text[pos - 1] !== '\n';
-      const dropcap = !!slot.dropcap && pos === 0;
-      let n = m.fit(rest, { w: slot.w, h: slot.h, cols: slot.cols, dropcap, continued });
-      const lastFrame = i === geo.frames.length - 1;
-      if (n < rest.length) n = adjustCut(rest, n, lastFrame);
-      else n = rest.length;
-      if (n <= 0) return;
-      frames.push({ x: slot.x, y: slot.y, w: slot.w, h: slot.h, cols: slot.cols, from: pos, to: pos + n, dropcap, continued });
-      pos = skipBreaks(text, pos + n);
-    });
+    const placed = flow(text, pos, geo.frames, m);
+    pos = placed.pos;
+    const frames = placed.frames;
 
     // A page that placed nothing would never end. (A frame too small for one character: print it anyway.)
     if (!took.length && !frames.length && !geo.head && pos < text.length) {
-      const slot = geo.frames[0] ?? { x: 0, y: 0, w: 496, h: 680, cols: 1 as const };
-      frames.push({ ...slot, cols: slot.cols, from: pos, to: pos + 1, dropcap: false, continued: pos > 0 && text[pos - 1] !== '\n' });
+      const slot = geo.frames[0] ?? { x: 0, y: 0, w: 496, h: BODY_H, cols: 1 as const };
+      frames.push({ x: slot.x, y: slot.y, w: slot.w, h: slot.h, cols: slot.cols, from: pos, to: pos + 1, dropcap: false, continued: pos > 0 && text[pos - 1] !== '\n' });
       pos = skipBreaks(text, pos + 1);
     }
 
     pages.push({
       articleId: article.id, template: tpl.id, first,
       photos: took.map((photo, i) => ({ ...geo.photos[i], photo })),
-      head: geo.head, frames, continues: pos < text.length,
+      captions: geo.captions, head: geo.head, frames, quote: geo.quote, plate: geo.plate,
+      continues: pos < text.length,
     });
     prev = tpl.id;
     if (pos >= text.length && !photos.length) break;
@@ -185,10 +273,19 @@ export interface Paginated {
 export function paginateBook(articles: Article[], m: Measurer, albumId = ''): Paginated {
   const pages: Page[] = [];
   const firstPage: number[] = [];
-  for (const a of articles) {
-    firstPage.push(pages.length);
-    pages.push(...paginateArticle(a, m, albumId));
-  }
+  articles.forEach((a, i) => {
+    const last = pages[pages.length - 1];
+    let startOn: { page: Page; usedBottom: number } | undefined;
+    // The previous article left the lower part of its last page empty: this one begins there.
+    if (i > 0 && last && !last.plate && !last.tail && articleText(a).length > 0) {
+      const prevArticle = articles[i - 1];
+      const bottom = usedBottom(last, articleText(prevArticle), m);
+      if (BODY_H - bottom >= BREAK_MIN_FREE && last.articleId === prevArticle.id) startOn = { page: last, usedBottom: bottom };
+    }
+    const mine = paginateArticle(a, m, albumId, startOn);
+    firstPage.push(startOn?.page.tail?.articleId === a.id ? pages.length - 1 : pages.length);
+    pages.push(...mine);
+  });
   return { pages, firstPage };
 }
 

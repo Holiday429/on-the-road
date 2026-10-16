@@ -92,4 +92,55 @@ describe('renderMagazine', () => {
     expect(host.querySelector('.mag-page .mag-headline img')).toBeNull();
     expect(host.querySelector('.mag-text b')).toBeNull();
   });
+
+  it('sets a caption under a photograph, and a running head at the top of every article page', () => {
+    const { host } = open(2);
+    expect(host.querySelector('.mag-cap')?.textContent).toBe('Test · 06 SEP 2026');
+    expect(host.querySelector('.mag-run')?.textContent).toContain('Brussels');
+    const withCountry = document.createElement('div');
+    const book = assembleBook([article({ chars: 200 })], fakeMeasurer(), 'alb', 'k');
+    // eslint-disable-next-line no-restricted-syntax -- audited: fixture markup under test
+    withCountry.innerHTML = renderMagazine(album, [entry('a')], book, { leaf: 2, turn: false, dir: '' }, { [book.articles[0].id]: 'Belgium' });
+    expect(withCountry.querySelector('.mag-run')?.textContent).toBe('Brussels · Belgium');
+    expect(open(1).host.querySelector('.mag-toc')!.closest('.mag-page')!.querySelector('.mag-run')).toBeNull();
+  });
+
+  it('prints a pulled quotation once, between two blocks of the piece', () => {
+    const a = article({ chars: 5200, quote: '这是一句值得放大的话，它来自文章的中间。' });
+    const book = assembleBook([a], fakeMeasurer(), 'alb', 'k');
+    let quotes = 0;
+    for (let i = 1; i < book.leaves.length; i += 2) {
+      const host = document.createElement('div');
+      // eslint-disable-next-line no-restricted-syntax -- audited: fixture
+      host.innerHTML = renderMagazine(album, [entry('a')], book, { leaf: i, turn: false, dir: '' });
+      quotes += host.querySelectorAll('.mag-quote').length;
+    }
+    expect(quotes).toBe(1);
+  });
+
+  it('begins the next article under the last, with a rule, on the same page — and the contents agree', () => {
+    const book = assembleBook([article({ chars: 260 }), article({ chars: 1200 })], fakeMeasurer(), 'alb', 'k');
+    const shared = book.pages.findIndex((p) => p.tail);
+    expect(shared).toBeGreaterThanOrEqual(0);
+    const leaf = 1 + 1 + shared;                                  // cover, contents, then the pages
+    const host = document.createElement('div');
+    // eslint-disable-next-line no-restricted-syntax -- audited: fixture
+    host.innerHTML = renderMagazine(album, [entry('a'), entry('b')], book, { leaf, turn: false, dir: '' });
+    expect(host.querySelector('.mag-rule')).toBeTruthy();
+    expect(host.querySelectorAll('.mag-headline')).toHaveLength(2);
+    expect(book.toc[1].folio).toBe(book.toc[0].folio);
+  });
+
+  it('prints a plate: a dark page with one picture to the edges and a caption', () => {
+    const photos = [photo('3:2', 0), photo('3:2', 1), photo('3:2', 2)];
+    // which page shape is chosen among the fitting ones depends on the album's id: take one that gives a plate
+    const books = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((id) => assembleBook([article({ chars: 0, paragraphs: [], photos })], fakeMeasurer(), id, 'k'));
+    const book = books.find((b) => b.pages.some((p) => p.plate))!;
+    expect(book).toBeTruthy();
+    const plates = book.pages.map((p, i) => (p.plate ? i : -1)).filter((i) => i >= 0);
+    const host = document.createElement('div');
+    // eslint-disable-next-line no-restricted-syntax -- audited: fixture
+    host.innerHTML = renderMagazine(album, [entry('a')], book, { leaf: 2 + plates[0], turn: false, dir: '' });
+    expect(host.querySelector('.is-plate .mag-photo.is-bleed')).toBeTruthy();
+  });
 });

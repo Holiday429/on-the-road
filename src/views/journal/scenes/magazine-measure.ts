@@ -37,7 +37,9 @@ export function createDomMeasurer(): DomMeasurer {
   host.setAttribute('aria-hidden', 'true');
   const textEl = document.createElement('div');
   const headEl = document.createElement('div');
-  host.append(textEl, headEl);
+  const quoteEl = document.createElement('blockquote');
+  const usedEl = document.createElement('div');
+  host.append(textEl, headEl, quoteEl, usedEl);
   document.body.appendChild(host);
 
   return {
@@ -57,6 +59,21 @@ export function createDomMeasurer(): DomMeasurer {
         if (fits(mid)) lo = mid; else hi = mid - 1;
       }
       return lo;
+    },
+    quote(text, w) {
+      quoteEl.className = 'mag-quote';
+      quoteEl.style.cssText = `width:${w}px`;
+      quoteEl.textContent = text;
+      return Math.ceil(quoteEl.offsetHeight);
+    },
+    used(text, f) {
+      // The frame that ends an article has its columns balanced (see `balanced` in magazine.ts),
+      // so what it uses is the height of the balanced columns.
+      usedEl.className = textClass(f);
+      usedEl.style.cssText = `width:${f.w}px;height:auto;columns:${columnsOf(f.cols)};column-fill:balance`;
+      // eslint-disable-next-line no-restricted-syntax -- audited: textHtml escapes
+      usedEl.innerHTML = textHtml(text, f);
+      return Math.min(f.h, Math.ceil(usedEl.offsetHeight));
     },
     head(a, w, size) {
       headEl.className = `mag-head${size === 'l' ? ' is-l' : ''}`;
