@@ -9,7 +9,6 @@
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import { escHtml, entryCover } from '../shared/utils.ts';
-import { headlineOf } from './magazine-model.ts';
 import { hashId } from './feed-plan.ts';
 import { coverOf, renderCover } from './album-cover.ts';
 import '../styles/album-cover.css';
@@ -25,13 +24,24 @@ export function albumEntries(album: StoredJournalAlbum, all: StoredJournalEntry[
     .filter((e): e is StoredJournalEntry => Boolean(e));
 }
 
+/**
+ * The entries of an album in the order a magazine prints them: by the day they happened, oldest
+ * first, so the contents read as the trip did. (The album's own order is the order they were
+ * filed in, which is not the order they happened in.) Entries of one day keep their filing order.
+ */
+export function magazineEntries(album: StoredJournalAlbum, all: StoredJournalEntry[]): StoredJournalEntry[] {
+  return albumEntries(album, all)
+    .map((e, i) => ({ e, i }))
+    .sort((a, b) => a.e.happenedOn.localeCompare(b.e.happenedOn) || a.i - b.i)
+    .map(({ e }) => e);
+}
+
 /* ── The shelf ───────────────────────────────────────────────────────────── */
 
 export function renderBooklet(album: StoredJournalAlbum, entries: StoredJournalEntry[]): string {
   const art = coverArtOf(album, entries);
   return `
     <button class="jb-book" data-open-album="${escHtml(album.id)}" style="--lean:${bookLean(album.id)}deg" type="button">
-      <span class="jb-pages" aria-hidden="true"></span>
       ${renderCover(coverOf(album), art)}
       <span class="jb-spine" aria-hidden="true"></span>
     </button>`;
@@ -46,13 +56,15 @@ export function renderShelf(albums: StoredJournalAlbum[], entriesOf: (a: StoredJ
 }
 
 /** The cover art an album prints, drawn from its entries. */
-export function coverArtOf(album: StoredJournalAlbum, entries: StoredJournalEntry[]) {
+export function coverArtOf(album: StoredJournalAlbum, given: StoredJournalEntry[]) {
+  // The cover is the same whichever order the entries arrive in (the magazine passes them by date).
+  const at = (e: StoredJournalEntry) => album.entryIds.indexOf(e.id);
+  const entries = [...given].sort((a, b) => at(a) - at(b));
   const coverEntry = entries.find((e) => e.id === album.coverEntryId && entryCover(e)) ?? entries.find((e) => entryCover(e));
   const dates = entries.map((e) => e.happenedOn).filter(Boolean).sort();
   return {
     photo: coverEntry ? entryCover(coverEntry) : '',
     count: entries.length,
     newest: dates[dates.length - 1] ?? '',
-    suggested: entries.map((e) => headlineOf(e, 24)).filter(Boolean).slice(0, 2),
   };
 }

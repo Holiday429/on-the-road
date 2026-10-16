@@ -7,30 +7,28 @@
    character and rule for rule, what is printed.
 
    The text is the article's paragraphs joined with a newline. A frame carries a
-   character range of it; a page that starts mid-paragraph says so (`continued`)
-   so its first line is not indented as if a paragraph began there.
+   character range of it.
    ========================================================================== */
 
 import { escHtml } from '../shared/utils.ts';
 
 export interface TextOpts {
-  /** First letter of the first paragraph is set large, sunk into the lines. */
-  dropcap?: boolean;
-  /** The text begins in the middle of a paragraph. */
-  continued?: boolean;
+  /** A very short note, set larger so it does not sit as two lines on an empty page. */
+  lead?: boolean;
 }
 
-/** The paragraphs of a slice of article text, as markup. */
-export function textHtml(text: string, o: TextOpts = {}): string {
-  const paragraphs = text.split('\n').filter((p) => p.length > 0);
-  return paragraphs
-    .map((p, i) => `<p${i === 0 && o.continued ? ' class="is-cont"' : ''}>${escHtml(p)}</p>`)
+/** The paragraphs of a slice of article text, as markup. Paragraphs are told apart by space, not by indenting. */
+export function textHtml(text: string): string {
+  return text
+    .split('\n')
+    .filter((p) => p.length > 0)
+    .map((p) => `<p>${escHtml(p)}</p>`)
     .join('');
 }
 
 /** The class list of a text frame. */
 export function textClass(o: TextOpts = {}): string {
-  return `mag-text${o.dropcap ? ' has-dropcap' : ''}`;
+  return `mag-text${o.lead ? ' is-lead' : ''}`;
 }
 
 export type HeadSize = 'm' | 'l';

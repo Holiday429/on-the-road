@@ -9,7 +9,10 @@
        cover (alone, on the right)
        contents | first article page
        page | page … (articles run on continuously)
-       back cover (alone)
+       (colophon, when it is needed to make the last spread whole) | back cover
+
+   The back cover is always a right-hand page with a page facing it, as on a real
+   magazine, so the last spread is never half empty.
 
    Page numbers are folios: the cover is page 1, the first contents page 2, and
    so on; the contents list is written after the articles have been paginated,
@@ -165,13 +168,20 @@ export type Leaf =
   | { kind: 'cover' }
   | { kind: 'toc'; part: number }
   | { kind: 'page'; page: number }
+  | { kind: 'colophon' }
   | { kind: 'back' };
 
-/** The leaves of the book in binding order: cover, contents, article pages, back cover. */
+/**
+ * The leaves of the book in binding order: cover, contents, article pages, back cover.
+ * The back cover must land on a right-hand page (an even index, the cover being 0), so
+ * when the pages before it would leave it on the left, the inside back cover — a
+ * colophon — is bound in to face it.
+ */
 export function bindLeaves(pageCount: number, articleCount: number): Leaf[] {
   const leaves: Leaf[] = [{ kind: 'cover' }];
   for (let part = 0; part < tocPageCount(articleCount); part++) leaves.push({ kind: 'toc', part });
   for (let page = 0; page < pageCount; page++) leaves.push({ kind: 'page', page });
+  if (leaves.length % 2 === 1) leaves.push({ kind: 'colophon' });
   leaves.push({ kind: 'back' });
   return leaves;
 }
@@ -189,16 +199,13 @@ export type SpreadIdx = [number | null, number | null];
 
 /**
  * The spreads a reader turns through, as leaf indices. The cover is alone on the
- * right; the back cover alone on the left; everything between is paired
- * verso | recto (an odd last page faces a blank).
+ * right; after it the leaves are paired verso | recto, and because the back cover
+ * is bound onto a right-hand page (see bindLeaves) the last spread is whole.
  */
 export function spreadIdx(leafCount: number): SpreadIdx[] {
   if (leafCount <= 0) return [];
   const out: SpreadIdx[] = [[null, 0]];
-  const hasBack = leafCount > 1;
-  const middleEnd = hasBack ? leafCount - 1 : leafCount;
-  for (let i = 1; i < middleEnd; i += 2) out.push([i, i + 1 < middleEnd ? i + 1 : null]);
-  if (hasBack) out.push([leafCount - 1, null]);
+  for (let i = 1; i < leafCount; i += 2) out.push([i, i + 1 < leafCount ? i + 1 : null]);
   return out;
 }
 

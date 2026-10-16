@@ -68,13 +68,36 @@ describe('renderMagazine', () => {
     expect(printed.replace(/\s/g, '')).toBe(a.paragraphs.join('').replace(/\s/g, ''));
   });
 
-  it('ends on the back cover, alone on the left, with ‹ available and › not', () => {
+  it('ends on the back cover, on the right, with a page facing it on the left', () => {
     const { host, book } = open(99);
-    expect(host.querySelector('.is-back')).toBeTruthy();
-    expect(host.querySelectorAll('.mag-page')).toHaveLength(2);
+    const pages = [...host.querySelectorAll('.mag-page')];
+    expect(pages).toHaveLength(2);
+    expect(pages[1].classList.contains('is-back')).toBe(true);
+    expect(pages[0].classList.contains('is-void')).toBe(false);
     expect(host.querySelector<HTMLButtonElement>('[data-album-page="next"]')!.disabled).toBe(true);
     expect(host.querySelector<HTMLButtonElement>('[data-album-page="prev"]')!.disabled).toBe(false);
-    expect(host.querySelector('.mag-bar-pos')!.textContent).toBe(`${book.leaves.length} / ${book.leaves.length}`);
+    expect(host.querySelector('.mag-bar-pos')!.textContent).toBe(`${book.leaves.length - 1}–${book.leaves.length} / ${book.leaves.length}`);
+  });
+
+  it('the back cover is a magazine\'s: the line, the issue, a QR code to the site, a barcode and a price', () => {
+    const { host } = open(99);
+    const back = host.querySelector('.is-back')!;
+    expect(back.textContent).toContain('On the Road');
+    expect(back.querySelector('.mag-qr-svg path')!.getAttribute('d')!.length).toBeGreaterThan(200);
+    expect(back.querySelector('.mag-barcode-svg rect')).toBeTruthy();
+    expect(back.querySelector('.mag-barcode-digits')!.textContent).toMatch(/^\d \d{6} \d{5}$/);
+    expect(back.querySelector('.mag-price')).toBeTruthy();
+    expect(back.querySelector('button, a, input')).toBeNull();
+  });
+
+  it('prints a colophon on the left of the back cover when the pages leave it needing one', () => {
+    for (let n = 1; n < 6; n++) {
+      const book = assembleBook(Array.from({ length: n }, () => article({ chars: 100 })), fakeMeasurer(), 'alb', 'k');
+      const hasColophon = book.leaves.some((l) => l.kind === 'colophon');
+      const { host } = open(book.leaves.length - 1, Array.from({ length: n }, () => article({ chars: 100 })));
+      expect(!!host.querySelector('.is-colophon'), `${n} articles`).toBe(hasColophon);
+      expect(host.querySelectorAll('.mag-page.is-void')).toHaveLength(0);
+    }
   });
 
   it('says where a page runs on, on the side away from its page number', () => {
@@ -116,19 +139,6 @@ describe('renderMagazine', () => {
       quotes += host.querySelectorAll('.mag-quote').length;
     }
     expect(quotes).toBe(1);
-  });
-
-  it('begins the next article under the last, with a rule, on the same page — and the contents agree', () => {
-    const book = assembleBook([article({ chars: 260 }), article({ chars: 1200 })], fakeMeasurer(), 'alb', 'k');
-    const shared = book.pages.findIndex((p) => p.tail);
-    expect(shared).toBeGreaterThanOrEqual(0);
-    const leaf = 1 + 1 + shared;                                  // cover, contents, then the pages
-    const host = document.createElement('div');
-    // eslint-disable-next-line no-restricted-syntax -- audited: fixture
-    host.innerHTML = renderMagazine(album, [entry('a'), entry('b')], book, { leaf, turn: false, dir: '' });
-    expect(host.querySelector('.mag-rule')).toBeTruthy();
-    expect(host.querySelectorAll('.mag-headline')).toHaveLength(2);
-    expect(book.toc[1].folio).toBe(book.toc[0].folio);
   });
 
   it('prints a plate: a dark page with one picture to the edges and a caption', () => {

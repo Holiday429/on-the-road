@@ -48,8 +48,11 @@ describe('toArticle', () => {
 });
 
 describe('binding', () => {
-  it('is cover, contents, pages, back', () => {
-    expect(bindLeaves(3, 2).map((l) => l.kind)).toEqual(['cover', 'toc', 'page', 'page', 'page', 'back']);
+  it('is cover, contents, pages, back — with a colophon bound in only when the back would otherwise fall on a left-hand page', () => {
+    // 3 pages: cover, toc, 3 pages = 5 leaves, so the back would be index 5 (a left page): a colophon faces it
+    expect(bindLeaves(3, 2).map((l) => l.kind)).toEqual(['cover', 'toc', 'page', 'page', 'page', 'colophon', 'back']);
+    // 2 pages: the back is index 4, already on the right
+    expect(bindLeaves(2, 2).map((l) => l.kind)).toEqual(['cover', 'toc', 'page', 'page', 'back']);
   });
   it('gives a long list of articles a second contents page', () => {
     expect(tocPageCount(0)).toBe(1);
@@ -57,19 +60,26 @@ describe('binding', () => {
     expect(tocPageCount(13)).toBe(2);
   });
 
-  it('spreads: the cover alone on the right, pages paired, the back alone on the left', () => {
-    // cover, toc, p, p, p, back  (6 leaves)
-    expect(spreadIdx(6)).toEqual([[null, 0], [1, 2], [3, 4], [5, null]]);
-    expect(spreadIdx(7)).toEqual([[null, 0], [1, 2], [3, 4], [5, null], [6, null]]);
+  it('spreads: the cover alone on the right, then whole pairs, ending with the back cover facing a page', () => {
+    expect(spreadIdx(7)).toEqual([[null, 0], [1, 2], [3, 4], [5, 6]]);
+    expect(spreadIdx(5)).toEqual([[null, 0], [1, 2], [3, 4]]);
+    expect(spreadIdx(3)).toEqual([[null, 0], [1, 2]]);
     expect(spreadIdx(1)).toEqual([[null, 0]]);
     expect(spreadIdx(0)).toEqual([]);
+  });
+
+  it('no spread of a bound book has an empty side, apart from the cover\'s', () => {
+    for (let pages = 0; pages < 12; pages++) {
+      const n = bindLeaves(pages, 3).length;
+      for (const [l, r] of spreadIdx(n).slice(1)) { expect(l).not.toBeNull(); expect(r).not.toBeNull(); }
+    }
   });
 
   it('finds the spread a leaf is on', () => {
     expect(spreadIndexOf(0, 7)).toBe(0);
     expect(spreadIndexOf(2, 7)).toBe(1);
     expect(spreadIndexOf(3, 7)).toBe(2);
-    expect(spreadIndexOf(6, 7)).toBe(4);
+    expect(spreadIndexOf(6, 7)).toBe(3);
   });
 });
 

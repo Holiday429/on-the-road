@@ -7,7 +7,7 @@ import { buildStops } from '../scenes/places-model.ts';
 import { syncPlacesMap, disposePlacesMap } from '../scenes/places-map.ts';
 import { syncGalleryFlow, stopGalleryFlow } from '../scenes/gallery-flow.ts';
 import { coverDraftFor } from '../scenes/album-cover-edit.ts';
-import { albumEntries, coverArtOf } from '../scenes/albums.ts';
+import { albumEntries, coverArtOf, magazineEntries } from '../scenes/albums.ts';
 import { currentMode, renderMagazine, syncMagazineView } from '../scenes/magazine.ts';
 import { beginFlip, dragDirection, shouldCommit, turnProgress, type Flip, type FlipDir } from '../scenes/magazine-flip.ts';
 import { bookIsLoading, cachedBook, loadBook } from '../scenes/magazine-measure.ts';
@@ -88,6 +88,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
   /** A save is in flight (the envelope may or may not be animating). Declared up here: the code below the controller's `return` never runs a `let`. */
   let saving = false;
+  /** The picture picked in the cover editor and not yet uploaded. */
+  let coverFile: File | null = null;
 
   function savedGuideCards(): { id: string; title: string; type: string }[] {
     const city = state.draft.destination.trim();
@@ -310,6 +312,13 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
+      if (target.closest('[data-cover-photo-clear]') && state.coverEdit) {
+        releaseCoverPhoto();
+        state.coverEdit.draft.photo = '';
+        deps.requestRender();
+        return;
+      }
+
       const toneBtn = target.closest<HTMLElement>('[data-cover-tone]');
       if (toneBtn && state.coverEdit) {
         state.coverEdit.draft.tone = toneBtn.dataset.coverTone as JournalAlbumCover['tone'];
@@ -318,6 +327,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       }
 
       if (target.closest('[data-cover-cancel]')) {
+        releaseCoverPhoto();
         state.coverEdit = null;
         deps.requestRender();
         return;
@@ -568,6 +578,18 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
+      // A cover picture is only previewed here; it is uploaded when the cover is saved.
+      if (target.matches('[data-cover-photo-input]') && state.coverEdit) {
+        const file = (target as HTMLInputElement).files?.[0];
+        (target as HTMLInputElement).value = '';
+        if (!file) return;
+        releaseCoverPhoto();
+        coverFile = file;
+        state.coverEdit.draft.photo = URL.createObjectURL(file);
+        deps.requestRender();
+        return;
+      }
+
       if (target.matches('#journal-image-input')) {
         void loadDraftImages(target as HTMLInputElement);
         return;
@@ -723,7 +745,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   function openBook() {
     const album = (deps.getAlbums?.() ?? []).find((a) => a.id === state.openAlbumId);
     if (!album) return null;
-    const entries = albumEntries(album, sortEntries(deps.getEntries()));
+    const entries = magazineEntries(album, deps.getEntries());
     return { album, entries, book: cachedBook(album, entries) };
   }
 
@@ -1142,12 +1164,30 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   async function saveCover(): Promise<void> {
     const edit = state.coverEdit;
     if (!edit) return;
-    const draft = edit.draft;
+    const draft = { ...edit.draft };
+    // A picture chosen in the editor is still a local preview: put it on Storage first, so the
+    // album only ever references a URL Storage has accepted (as entries' photos do).
+    if (coverFile) {
+      try {
+        draft.photo = (await uploadJournalImage(coverFile, 0)).url;
+      } catch (error) {
+        console.error('Cover upload failed:', error);
+        toast('Could not upload the cover photo');
+        return;
+      }
+    }
+    releaseCoverPhoto();
     state.coverEdit = null;
     deps.requestRender();
     await journalAlbumStore.update(edit.albumId, {
       cover: { ...draft, lines: draft.lines.map((l) => l.trim()).filter(Boolean) },
     });
+  }
+
+  function releaseCoverPhoto() {
+    const url = state.coverEdit?.draft.photo;
+    if (coverFile && url?.startsWith('blob:')) URL.revokeObjectURL(url);
+    coverFile = null;
   }
 
   /** The cover's text fields, read straight off the input as it is typed. */
