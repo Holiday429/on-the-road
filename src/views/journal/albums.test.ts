@@ -186,7 +186,9 @@ describe('reader album membership', () => {
     const { body } = mount([mkEntry('e1')], [mkAlbum('a1', ['e1']), mkAlbum('a2', [])]);
 
     (body.querySelector('[data-open-entry="e1"]') as HTMLElement).click();
-    expect(body.querySelector('.journal-reader-albums'), 'album row in reader').toBeTruthy();
+    // The membership list moved off the page into the bar's album menu (scenes/letter.ts).
+    expect(body.querySelector('.ltr-bar .ltr-album'), 'album menu in the reader\'s bar').toBeTruthy();
+    expect(body.querySelector('.ltr-paper .ltr-album, .ltr-paper [data-album-add-entry]'), 'nothing album-related printed on the paper').toBeFalsy();
     expect(body.textContent).toContain('Album a1');
 
     (body.querySelector('[data-album-remove-entry="a1:e1"]') as HTMLElement).click();

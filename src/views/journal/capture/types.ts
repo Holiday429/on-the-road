@@ -1,6 +1,7 @@
 import type { TemplateId } from '../templates.ts';
 import type { TidySuggestions } from '../ai-classify.ts';
 import type { JournalAlbumCover } from '../../../data/schema.ts';
+import type { CardFocus } from '../shared/letter-model.ts';
 
 /** Places and Map are one view: the map, the line of places and their entries. */
 export type CaptureView = 'feed' | 'places' | 'albums' | 'gallery' | 'calendar';
@@ -48,6 +49,8 @@ export interface CaptureState {
   readingId: string | null;
   /** Which way the reader last turned a page, so the spread animates from that edge. */
   readerTurn: '' | 'next' | 'prev';
+  /** The open entry's postcards: which is on top of the pile, which are turned over. */
+  letter: CardFocus | null;
   calendarMonth: string;
   gallerySquare: boolean;
   /** Whether the gallery wall is drifting by itself. */

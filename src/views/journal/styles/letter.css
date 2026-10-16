@@ -1,0 +1,352 @@
+/* ==========================================================================
+   On the Road · Journal — the letter
+   Markup: scenes/letter.ts, scenes/postcard.ts. Numbers: shared/letter-model.ts.
+
+   The reader is a desk with things on it: an envelope, a letter on paper, the
+   photos as postcards. The paper holds words and nothing else — every control
+   lives in the bar under the desk.
+
+   Layout is decided by the desk's own width (a container query), not the
+   window's: the reader is a drawer, so "wide" means room for the paper AND the
+   pile of postcards side by side.
+     wide   envelope + paper on the left, postcards fanned in a pile on the right
+            (sticky, so the photos stay in view while a long letter scrolls)
+     narrow postcards in a swipeable row, then the envelope, then the paper
+   ========================================================================== */
+
+/* ── The drawer is the desk ──────────────────────────────────────────────── */
+.journal-reader-overlay .journal-reader-drawer {
+  max-width: 1240px;
+  height: min(92dvh, 980px);
+  max-height: none;
+  overflow: hidden;
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.ltr {
+  position: relative;
+  display: flex; flex-direction: column;
+  height: 100%;
+  background: var(--paper-grain), var(--surface-2);
+  font-family: var(--font-letter);
+  color: var(--ink);
+}
+
+.ltr-scroll {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--sp-10) var(--sp-10) var(--sp-8);
+  container: ltr / inline-size;
+}
+
+/* Turning to another entry is a fade, never the opening of the envelope. */
+@keyframes ltr-fade-a { from { opacity: 0; transform: translateX(14px); } }
+@keyframes ltr-fade-b { from { opacity: 0; transform: translateX(-14px); } }
+.ltr.is-fading-a .ltr-scroll { animation: ltr-fade-a 260ms var(--ease-out) both; }
+.ltr.is-fading-b .ltr-scroll { animation: ltr-fade-b 260ms var(--ease-out) both; }
+
+/* ── The scene: narrow first ─────────────────────────────────────────────── */
+.ltr-scene {
+  display: grid; grid-template-columns: minmax(0, 1fr);
+  row-gap: var(--sp-6);
+  max-width: 680px; margin-inline: auto;
+}
+.ltr-scene--letter { grid-template-areas: "env" "cards" "paper"; }
+.ltr-scene--cards  { grid-template-areas: "env" "cards"; max-width: 900px; }
+.ltr-scene--letter:not(.has-cards) { grid-template-areas: "env" "paper"; }
+
+@container ltr (min-width: 1060px) {
+  .ltr-scene--letter.has-cards {
+    max-width: none; justify-content: center;
+    grid-template-columns: minmax(0, 640px) 400px;
+    grid-template-areas: "env cards" "paper cards";
+    column-gap: 56px; row-gap: 0;
+  }
+  .ltr-scene--letter:not(.has-cards) { max-width: 640px; }
+}
+
+/* ── The envelope ────────────────────────────────────────────────────────── */
+.ltr-env {
+  grid-area: env; position: relative; z-index: 1;
+  width: min(300px, 100%); aspect-ratio: 300 / 168;
+  margin: 58px 0 0 8px;
+  transform: rotate(-1.5deg);
+  --env-paper: color-mix(in srgb, var(--amber-100) 55%, var(--surface));
+}
+.ltr-env.is-big { width: min(440px, 100%); margin: 70px auto 0; transform: rotate(-1deg); }
+
+/* The flap, thrown open behind the envelope. */
+.ltr-env-flap {
+  position: absolute; left: 0; right: 0; bottom: 100%; height: 36%;
+  background: color-mix(in srgb, var(--amber-200) 60%, var(--surface));
+  clip-path: polygon(0 100%, 50% 0, 100% 100%);
+  filter: drop-shadow(0 -1px 1px color-mix(in srgb, black 12%, transparent));
+}
+.ltr-env-body {
+  position: absolute; inset: 0; overflow: hidden;
+  border-radius: 2px;
+  background: var(--paper-grain), var(--env-paper);
+  box-shadow: var(--shadow-md);
+}
+/* Air-mail stripes along the top edge. */
+.ltr-env-body::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 7px;
+  background: repeating-linear-gradient(135deg,
+    var(--coral-400) 0 10px, transparent 10px 18px, var(--sky-400) 18px 28px, transparent 28px 36px);
+  opacity: .85;
+}
+.ltr-env-label {
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.ltr-env-from { position: absolute; left: 6%; top: 15%; display: flex; flex-direction: column; gap: 2px; max-width: 42%; }
+.ltr-env-place { font-size: var(--fs-sm); font-style: italic; color: var(--ink-muted); overflow-wrap: anywhere; }
+.ltr-env-stamp { position: absolute; right: 5%; top: 11%; width: 21%; aspect-ratio: 1; }
+.ltr-env-stamp .pp-stamp { display: block; width: 100%; }
+.ltr-env-stamp .pp-stamp svg { width: 100%; height: auto; }
+.ltr-env-to { position: absolute; left: 16%; right: 18%; top: 47%; display: flex; flex-direction: column; gap: 5px; }
+.ltr-env-title {
+  font-size: 1.1rem; font-weight: var(--fw-semibold); line-height: 1.3; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.ltr-env-rule { height: 1px; background: color-mix(in srgb, var(--ink) 28%, transparent); margin-top: 3px; }
+.ltr-env.is-big .ltr-env-title { font-size: 1.35rem; }
+
+/* The ring that says where and when. Struck on top of the stamp, off-centre. */
+.ltr-postmark {
+  position: absolute; display: grid; place-items: center; gap: 1px;
+  width: 70px; height: 70px; padding: 0 6px; border-radius: 50%;
+  border: 1.5px dashed color-mix(in srgb, var(--ink) 36%, transparent);
+  color: color-mix(in srgb, var(--ink) 58%, transparent);
+  font-family: var(--font-data); text-align: center; transform: rotate(8deg);
+  background: color-mix(in srgb, var(--env-paper, var(--surface)) 40%, transparent);
+  pointer-events: none;
+}
+.ltr-postmark-city { font-size: .5rem; letter-spacing: .06em; line-height: 1.05; white-space: nowrap; }
+.ltr-postmark-date { font-size: .5rem; letter-spacing: .1em; opacity: .8; }
+.ltr-env-stamp .ltr-postmark { left: -62%; top: 14%; }
+.ltr-env.is-big .ltr-env-stamp .ltr-postmark { left: -68%; }
+
+/* ── The paper ───────────────────────────────────────────────────────────── */
+.ltr-paper {
+  grid-area: paper; position: relative; z-index: 2;
+  width: 100%; max-width: 640px; margin-inline: auto;
+  padding: 40px 36px 36px 52px; min-height: 440px;
+  display: flex; flex-direction: column;
+  background: var(--paper-grain), var(--surface);
+  border-radius: 2px;
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--rule-soft);
+  font-family: var(--font-letter);
+}
+.ltr-scene.has-cards .ltr-paper { margin-top: calc(var(--sp-6) * -1); }
+@container ltr (min-width: 1060px) {
+  .ltr-scene--letter.has-cards .ltr-paper { margin-top: -22px; padding: 48px 56px 44px 68px; }
+}
+/* A margin line down the left, the way letter paper is ruled — and no rules across it. */
+.ltr-paper::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 34px; width: 1px;
+  background: color-mix(in srgb, var(--coral-400) 30%, transparent);
+}
+@container ltr (min-width: 1060px) { .ltr-paper::before { left: 46px; } }
+
+.ltr-letterhead {
+  margin: 0 0 18px; padding-bottom: 12px; text-align: center;
+  border-bottom: 3px double var(--rule);
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .34em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.ltr-dateline {
+  margin: 0 0 20px; text-align: right;
+  font-size: 1rem; font-style: italic; color: var(--ink-muted);
+}
+.ltr-title {
+  margin: 0 0 22px;
+  font-size: clamp(1.55rem, 2.4vw, 2rem); font-weight: var(--fw-semibold); line-height: 1.28;
+  color: var(--ink); text-wrap: balance; overflow-wrap: anywhere;
+}
+.ltr-text {
+  font-size: 1.0625rem; line-height: 1.85; color: var(--ink);
+  white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty;
+}
+.ltr-foot {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4);
+  margin-top: auto; padding-top: 36px;
+}
+.ltr-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.ltr-tag {
+  padding: 2px 7px; border: 1px dashed color-mix(in srgb, var(--ink) 30%, transparent); border-radius: 2px;
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-muted); transform: rotate(-1.5deg);
+}
+
+/* The mood, pressed into wax. Four moods, four waxes. */
+.ltr-seal {
+  --wax: color-mix(in srgb, var(--coral-500) 86%, black);
+  position: relative; flex: none; display: grid; place-items: center;
+  width: 64px; height: 64px; transform: rotate(-8deg);
+  border-radius: 52% 48% 55% 45% / 47% 55% 45% 53%;
+  background: radial-gradient(circle at 34% 30%,
+    color-mix(in srgb, var(--wax) 62%, white), var(--wax) 44%, color-mix(in srgb, var(--wax) 60%, black) 100%);
+  box-shadow:
+    0 2px 3px color-mix(in srgb, black 32%, transparent),
+    inset 0 -2px 3px color-mix(in srgb, black 26%, transparent),
+    inset 0 2px 2px color-mix(in srgb, white 28%, transparent);
+}
+.ltr-seal[data-mood='spark'] { --wax: color-mix(in srgb, var(--amber-500) 86%, black); }
+.ltr-seal[data-mood='calm']  { --wax: color-mix(in srgb, var(--sky-500) 84%, black); }
+.ltr-seal[data-mood='wired'] { --wax: color-mix(in srgb, var(--coral-500) 86%, black); }
+.ltr-seal[data-mood='soft']  { --wax: color-mix(in srgb, var(--sage-500) 84%, black); }
+.ltr-seal::before {
+  content: ''; position: absolute; inset: 9px; border-radius: 50%;
+  border: 2px solid color-mix(in srgb, black 20%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, white 24%, transparent);
+}
+/* Pressed in, not printed on: the icon is a single dark tone, like the die. */
+.ltr-seal-icon { font-size: 1.45rem; line-height: 1; filter: grayscale(1) brightness(.3); opacity: .5; }
+
+/* ── Postcards ───────────────────────────────────────────────────────────── */
+.ltr-cards { grid-area: cards; min-width: 0; }
+
+.ltr-pc {
+  /* A postcard is card stock: it stays light on a dark desk, and the ink on it stays dark. */
+  --pc-paper: color-mix(in srgb, white 94%, var(--amber-300));
+  --pc-ink: var(--on-accent);
+  position: relative; cursor: pointer; flex: none;
+  container-type: inline-size; perspective: 1400px;
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform var(--dur-mid) var(--ease-spring), z-index 0s;
+  outline-offset: 5px;
+}
+.ltr-pc:focus-visible { outline: 2px solid var(--select-bg); }
+.ltr-pc-inner { position: relative; transform-style: preserve-3d; transition: transform 620ms var(--ease-out); }
+.ltr-pc.is-flipped .ltr-pc-inner { transform: rotateY(180deg); }
+.ltr-pc-face {
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  background: var(--paper-grain), var(--pc-paper);
+  border-radius: 2px; box-shadow: var(--shadow-md), 0 0 0 1px var(--rule-soft);
+}
+.ltr-pc-front { padding: var(--b); }
+/* The picture area is cut to the photo's own shape, so there is nothing to crop. */
+.ltr-pc-front img {
+  display: block; width: 100%; aspect-ratio: var(--ar); object-fit: cover; background: var(--surface-3);
+}
+.ltr-pc-front img.is-unmeasured { object-fit: contain; }
+
+/* The back: message on the left, the address side on the right. */
+.ltr-pc-back {
+  position: absolute; inset: 0; transform: rotateY(180deg);
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr;
+  grid-template-areas: "no addr" "msg addr";
+  column-gap: 5cqw; padding: 6cqw;
+  background: var(--paper-grain), color-mix(in srgb, white 86%, var(--amber-300));
+  color: var(--pc-ink);
+}
+.ltr-pc-no {
+  grid-area: no; font-family: var(--font-data); font-size: 3cqw; letter-spacing: .1em; color: color-mix(in srgb, var(--pc-ink) 55%, transparent);
+  white-space: nowrap;
+}
+.ltr-pc-msg {
+  grid-area: msg; align-self: start; margin-top: 3cqw;
+  font-size: 4.6cqw; line-height: 1.5; font-style: italic; color: color-mix(in srgb, var(--pc-ink) 85%, transparent);
+  display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+}
+.ltr-pc-addr {
+  grid-area: addr; display: flex; flex-direction: column; gap: 7cqw;
+  padding-left: 5cqw; border-left: 1px solid color-mix(in srgb, var(--pc-ink) 25%, transparent);
+}
+.ltr-pc-stamp { position: relative; align-self: flex-end; width: 46px; height: 46px; margin-bottom: 3cqw; }
+.ltr-pc-stamp .pp-stamp { display: block; }
+.ltr-pc-stamp .ltr-postmark { right: 30px; top: 8px; width: 52px; height: 52px; }
+.ltr-pc-stamp .ltr-postmark-city, .ltr-pc-stamp .ltr-postmark-date { font-size: .4375rem; }
+.ltr-pc-line {
+  min-height: 1.4em; border-bottom: 1px solid color-mix(in srgb, var(--pc-ink) 28%, transparent);
+  font-size: 4.2cqw; font-style: italic; color: color-mix(in srgb, var(--pc-ink) 85%, transparent); overflow-wrap: anywhere;
+}
+/* The stamp's own dark-mode rule lightens its ink for a dark page; this page is light. */
+:root[data-theme='dark'] .ltr-pc-back .pp-stamp { color: var(--ink-c); mix-blend-mode: multiply; }
+.ltr-pc-back .ltr-postmark { color: color-mix(in srgb, var(--pc-ink) 60%, transparent); border-color: color-mix(in srgb, var(--pc-ink) 40%, transparent); background: none; }
+
+/* In a pile (wide desk): fanned down a sticky column, the picked card on top and straightened. */
+.ltr-cards[data-layout='stack'] {
+  display: flex; gap: var(--sp-4); overflow-x: auto; scroll-snap-type: x mandatory;
+  padding: var(--sp-3) var(--sp-2) var(--sp-5); margin-inline: calc(var(--sp-2) * -1);
+  scrollbar-width: none;
+}
+.ltr-cards[data-layout='stack']::-webkit-scrollbar { display: none; }
+.ltr-cards[data-layout='stack'] .ltr-pc {
+  --row-h: 210px;
+  width: calc((var(--row-h) - 2 * var(--b)) * var(--ar) + 2 * var(--b));
+  scroll-snap-align: center;
+}
+@container ltr (min-width: 1060px) {
+  .ltr-cards[data-layout='stack'] {
+    display: block; position: sticky; top: 0; align-self: start;
+    width: var(--pile-w); height: var(--pile-h); overflow: visible; padding: 0; margin: 0;
+  }
+  .ltr-cards[data-layout='stack'] .ltr-pc {
+    position: absolute; top: var(--top); left: var(--left); width: var(--w); z-index: var(--z);
+  }
+  .ltr-cards[data-layout='stack'] .ltr-pc.is-picked { transform: rotate(0deg) scale(1.04); }
+  .ltr-cards[data-layout='stack'] .ltr-pc.is-picked .ltr-pc-face { box-shadow: var(--shadow-lg), 0 0 0 1px var(--rule-soft); }
+}
+
+/* Postcards with no letter: scattered across the desk, each leaning its own way. */
+.ltr-cards[data-layout='loose'] {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start;
+  gap: var(--sp-8) var(--sp-6); padding: var(--sp-4) 0 var(--sp-6);
+}
+.ltr-cards[data-layout='loose'] .ltr-pc { width: min(var(--w), 100%); }
+.ltr-cards[data-layout='loose'] .ltr-pc:hover { transform: rotate(0deg) translateY(-4px); }
+
+/* ── The bar under the desk ──────────────────────────────────────────────── */
+.ltr-bar {
+  position: relative; flex: none; display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--surface) 78%, var(--surface-2));
+  font-family: var(--font-ui);
+}
+.ltr-tools { flex: 1; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--sp-2); }
+.ltr-turn {
+  width: 36px; height: 36px; flex: none; display: grid; place-items: center;
+  border: 1px solid var(--rule); border-radius: 50%; background: var(--surface);
+  color: var(--ink-soft); font-size: var(--fs-lg); cursor: pointer;
+}
+.ltr-turn:hover:not(:disabled) { background: var(--surface-3); color: var(--ink); }
+.ltr-turn:disabled { opacity: .35; cursor: default; }
+.ltr-close { position: absolute; top: var(--sp-3); right: var(--sp-3); z-index: 5; }
+
+/* The album menu opens upward from the bar. */
+.ltr-album { position: static; }
+.ltr-album > summary { list-style: none; cursor: pointer; }
+.ltr-album > summary::-webkit-details-marker { display: none; }
+.ltr-album-pop {
+  position: absolute; bottom: calc(100% + var(--sp-2)); left: 50%; translate: -50% 0; z-index: 6;
+  width: min(380px, calc(100% - 24px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-3); border: 1px solid var(--rule); border-radius: var(--r-lg);
+  background: var(--surface); box-shadow: var(--shadow-lg);
+}
+.ltr-album-pop .journal-album-add { flex: 1 1 100%; }
+
+/* ── A phone ─────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .journal-reader-overlay .journal-reader-drawer {
+    height: 94dvh; border-radius: var(--r-xl) var(--r-xl) 0 0;
+  }
+  .ltr-scroll { padding: var(--sp-6) var(--sp-4) var(--sp-5); }
+  .ltr-env { margin: 46px 0 0 0; }
+  .ltr-paper { padding: 32px 22px 28px 34px; }
+  .ltr-paper::before { left: 22px; }
+  .ltr-scene.has-cards .ltr-paper { margin-top: 0; }
+  .ltr-bar { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+  .ltr-close { top: var(--sp-2); right: var(--sp-2); }
+  .ltr-cards[data-layout='loose'] .ltr-pc { width: min(var(--w), 86%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ltr.is-fading-a .ltr-scroll, .ltr.is-fading-b .ltr-scroll { animation: none; }
+  .ltr-pc, .ltr-pc-inner { transition: none; }
+}

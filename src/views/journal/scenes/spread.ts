@@ -1,8 +1,8 @@
 /* ==========================================================================
-   On the Road · Journal — the open notebook
+   On the Road · Journal — the open notebook (writing)
    --------------------------------------------------------------------------
-   One spread, two states: writing and reading. They are the same two pages, so
-   switching between them moves nothing on screen — the pen simply comes out.
+   Reading moved to scenes/letter.ts (a letter with postcards). This is what is
+   left until the composer gets the same treatment: the notebook you write in.
 
    Left page is the day: a rubber date stamp, the city as a postmark, a mood
    sticker, and the photos taped on as polaroids. Right page is ruled paper —
@@ -16,30 +16,12 @@
    the pictures.
    ========================================================================== */
 
-import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
-import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import type { CaptureState } from '../capture/types.ts';
 import { t } from '../../../core/i18n.ts';
-import { escHtml, entryImages, moodEmoji, MOODS, MAX_JOURNAL_IMAGES, OTHER_DESTINATION, prettyDate, titleFor } from '../shared/utils.ts';
-import { hashId } from './feed-plan.ts';
+import { escHtml, MOODS, MAX_JOURNAL_IMAGES, OTHER_DESTINATION, prettyDate } from '../shared/utils.ts';
+import { photoLean, stampParts } from '../shared/letter-model.ts';
 import { renderFastener } from '../../../core/paper/fastener.ts';
 import '../../../core/paper/fastener.css';
-
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-/** How far a taped-down photo leans, in degrees — small, alternating, and stable per photo. */
-export function photoLean(key: string, index: number): number {
-  const h = hashId(`${key}:${index}`);
-  const size = 1.2 + (h % 180) / 100;          // 1.2° – 3.0°
-  return index % 2 === 0 ? -size : size;
-}
-
-/** The date as a rubber stamp prints it: day, month, year on three lines. */
-export function stampParts(iso: string): { day: string; month: string; year: string } {
-  const [y, m, d] = iso.split('-');
-  const mi = Number(m) - 1;
-  return { day: d ?? '', month: mi >= 0 && mi < 12 ? MONTHS[mi] : (m ?? ''), year: y ?? '' };
-}
 
 /* ── The furniture of the left page ──────────────────────────────────────── */
 
@@ -56,89 +38,6 @@ function dateStamp(iso: string, editable: boolean): string {
       ${face}
       <input class="jsp-stamp-input" type="date" id="journal-date" value="${escHtml(iso)}" aria-label="${escHtml(t('journal.date'))}">
     </label>`;
-}
-
-/** The city, struck on as a postmark ring. */
-function postmark(place: string, iso: string): string {
-  const { day, month } = stampParts(iso);
-  const text = place.trim();
-  if (!text) return '';
-  return `
-    <div class="jsp-postmark" aria-hidden="true">
-      <span class="jsp-postmark-city">${escHtml(text.toUpperCase().slice(0, 14))}</span>
-      <span class="jsp-postmark-date">${escHtml(`${day} ${month}`)}</span>
-    </div>`;
-}
-
-/** One photo, taped to the page as a polaroid. */
-function polaroid(src: string, key: string, index: number, caption = ''): string {
-  return `
-    <figure class="jsp-photo" style="--lean:${photoLean(key, index)}deg">
-      ${renderFastener(index % 3 === 1 ? 'pin' : 'tape', { at: 0.3 + ((hashId(`${key}${index}`) % 40) / 100) })}
-      <img src="${escHtml(src)}" alt="${escHtml(caption)}" loading="lazy" draggable="false">
-    </figure>`;
-}
-
-/* ── Reading ─────────────────────────────────────────────────────────────── */
-
-export interface ReadSpreadOpts {
-  entry: StoredJournalEntry;
-  albums: StoredJournalAlbum[];
-  /** Entry ids either side of this one, for the page arrows. */
-  prevId: string | null;
-  nextId: string | null;
-  /** Which way the last turn went, so the page animates from the right edge. */
-  dir: '' | 'next' | 'prev';
-}
-
-export function renderReadSpread(o: ReadSpreadOpts, albumsMarkup: string): string {
-  const { entry } = o;
-  const photos = entryImages(entry).slice(0, MAX_JOURNAL_IMAGES);
-  const mood = moodEmoji(entry.mood);
-  const isPublic = entry.visibility === 'public';
-
-  return `
-    <article class="jsp jsp--read${o.dir ? ` is-turning-${o.dir}` : ''}" data-journal-spread>
-      <div class="jsp-book">
-        <section class="jsp-page jsp-page--left">
-          <div class="jsp-day">
-            ${dateStamp(entry.happenedOn, false)}
-            ${postmark(entry.destination, entry.happenedOn)}
-            ${mood ? `<span class="jsp-mood" title="${escHtml(entry.mood ?? '')}">${mood}</span>` : ''}
-          </div>
-          <div class="jsp-photos${photos.length > 1 ? ' is-many' : ''}">
-            ${photos.length
-              ? photos.map((src, i) => polaroid(src, entry.id, i, titleFor(entry))).join('')
-              : `<p class="jsp-nophoto">${escHtml(t('journal.noPhotos'))}</p>`}
-          </div>
-        </section>
-
-        <section class="jsp-page jsp-page--right">
-          <div class="jsp-written">
-            ${entry.title.trim() ? `<h2 class="jsp-title">${escHtml(titleFor(entry))}</h2>` : ''}
-            ${entry.body.trim() ? `<div class="jsp-text">${escHtml(entry.body)}</div>` : ''}
-          </div>
-          <div class="jsp-foot">
-            ${entry.tags.length ? `<div class="jsp-tags">${entry.tags.map((tag) => `<span class="journal-tag">#${escHtml(tag)}</span>`).join('')}</div>` : ''}
-            ${albumsMarkup}
-          </div>
-        </section>
-      </div>
-
-      <div class="jsp-bar">
-        <button class="jsp-turn" data-spread-prev="${escHtml(o.prevId ?? '')}" type="button" ${o.prevId ? '' : 'disabled'} aria-label="${escHtml(t('journal.prevEntry'))}">‹</button>
-        <div class="jsp-tools">
-          <button class="journal-reader-pill" data-open-reader-edit="${escHtml(entry.id)}" type="button">✎ ${escHtml(t('journal.editAction'))}</button>
-          <button class="journal-reader-pill" data-card-entry="${escHtml(entry.id)}" type="button">🖼 ${escHtml(t('journal.card'))}</button>
-          <button class="journal-reader-pill ${isPublic ? 'is-on' : ''}" data-share-entry="${escHtml(entry.id)}" type="button">↗ ${escHtml(t('journal.share'))}</button>
-          <button class="journal-reader-pill ${entry.favorite ? 'is-on' : ''}" data-favorite-entry="${escHtml(entry.id)}" type="button">📌 ${escHtml(t('journal.pin'))}</button>
-          <button class="journal-reader-pill is-danger" data-delete-entry="${escHtml(entry.id)}" type="button">✕ ${escHtml(t('journal.delete'))}</button>
-        </div>
-        <button class="jsp-turn" data-spread-next="${escHtml(o.nextId ?? '')}" type="button" ${o.nextId ? '' : 'disabled'} aria-label="${escHtml(t('journal.nextEntry'))}">›</button>
-      </div>
-
-      <button class="journal-icon-btn jsp-close" data-reader-close type="button" title="${escHtml(t('journal.close'))}">✕</button>
-    </article>`;
 }
 
 /* ── Writing ─────────────────────────────────────────────────────────────── */

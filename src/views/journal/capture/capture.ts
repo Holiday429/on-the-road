@@ -63,6 +63,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     editingId: null,
     readingId: null,
     readerTurn: '',
+    letter: null,
     calendarMonth: currentMonthKey(),
     gallerySquare: false,
     galleryDrift: true,
@@ -433,6 +434,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         // a deliberate action from inside the reader (data-open-reader-edit).
         state.readingId = entryTarget.dataset.openEntry!;
         state.readerTurn = '';
+        state.letter = null;
         deps.requestRender();
         return;
       }
@@ -445,8 +447,17 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         if (id) {
           state.readingId = id;
           state.readerTurn = back ? 'prev' : 'next';
+          state.letter = null;
           deps.requestRender();
         }
+        return;
+      }
+
+      // A postcard: in the pile the first tap brings it to the front, the next turns it over;
+      // in a row (narrow screens) or spread across the desk a tap just turns it.
+      const postcard = target.closest<HTMLElement>('[data-postcard]');
+      if (postcard) {
+        pressPostcard(Number(postcard.dataset.postcard), postcard);
         return;
       }
 
@@ -544,7 +555,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       }
       // Enter / Space on a focused card, page or tile opens it (they are buttons in spirit)
       if ((keyEvent.key === 'Enter' || keyEvent.key === ' ') && keyEvent.target instanceof HTMLElement
-          && keyEvent.target.matches('[data-open-entry][role="button"], [data-gallery-pick][role="button"]')) {
+          && keyEvent.target.matches('[data-open-entry][role="button"], [data-gallery-pick][role="button"], [data-postcard][role="button"]')) {
         keyEvent.preventDefault();
         keyEvent.target.click();
         return;
@@ -594,6 +605,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   /** After every render: keep the places map and the gallery's drift in step with what is on screen. */
   function afterRender(root: HTMLElement) {
     measureReading();
+    resetReaderScroll();
     void syncPlacesMap(root, {
       onPick: (key) => pickPlace(key),
     });
@@ -618,6 +630,31 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     }).then((learned) => {
       if (learned && state.readingId === entry.id) deps.requestRender();
     });
+  }
+
+  /** Turning to another entry keeps the same scroller (the markup is morphed, not rebuilt), so start it at the top. */
+  let scrolledFor: string | null = null;
+  function resetReaderScroll() {
+    if (state.readingId === scrolledFor) return;
+    scrolledFor = state.readingId;
+    const scroller = document.querySelector<HTMLElement>('.ltr-scroll');
+    if (scroller) scroller.scrollTop = 0;
+  }
+
+  function pressPostcard(index: number, card: HTMLElement) {
+    const id = state.readingId;
+    if (!id) return;
+    const focus = state.letter?.entryId === id ? state.letter : { entryId: id, picked: 0, flipped: [] as number[] };
+    // Fanned in a pile (a wide desk) the cards are absolutely positioned; in a row or spread loose they are not.
+    const inPile = getComputedStyle(card).position === 'absolute';
+    if (inPile && focus.picked !== index) {
+      focus.picked = index;
+    } else {
+      focus.picked = index;
+      focus.flipped = focus.flipped.includes(index) ? focus.flipped.filter((i) => i !== index) : [...focus.flipped, index];
+    }
+    state.letter = focus;
+    deps.requestRender();
   }
 
   /** ‹ › in the open album: one spread at a time, clamped, and the animation restarts each turn. */

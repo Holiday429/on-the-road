@@ -1,5 +1,6 @@
 /* ==========================================================================
-   On the Road · Journal — the open notebook
+   On the Road · Journal — the open notebook (writing)
+   Reading is the letter now (letter.css); this is the composer until it gets the same treatment.
    Markup: scenes/spread.ts. Two pages hinged at a spine: the day on the left
    (date stamp, postmark, mood, taped photos), the writing on the right (ruled
    paper). Reading and writing are the same furniture, so the switch between
@@ -49,12 +50,6 @@
   background-position: 0 calc(var(--sp-5) - 1px);
   background-repeat: repeat-x;
 }
-
-/* The page turning in or out, when you move between entries. */
-@keyframes jsp-turn-next { from { opacity: 0; transform: perspective(1400px) rotateY(-14deg) translateX(18px); } }
-@keyframes jsp-turn-prev { from { opacity: 0; transform: perspective(1400px) rotateY(14deg) translateX(-18px); } }
-.jsp--read.is-turning-next .jsp-book { animation: jsp-turn-next 380ms var(--ease-out) both; transform-origin: left center; }
-.jsp--read.is-turning-prev .jsp-book { animation: jsp-turn-prev 380ms var(--ease-out) both; transform-origin: right center; }
 
 /* ── The day: stamp, postmark, mood ──────────────────────────────────────── */
 .jsp-day { display: flex; align-items: flex-start; gap: var(--sp-3); flex-wrap: wrap; }
@@ -196,14 +191,6 @@
 
 /* ── The bar under the book ──────────────────────────────────────────────── */
 .jsp-bar { display: flex; align-items: center; gap: var(--sp-3); }
-/* The page arrows sit over the outer edges of the book, where a thumb would be. */
-.jsp--read .jsp-turn {
-  position: absolute; top: 50%; margin-top: -18px; z-index: 4;
-  background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--shadow-sm);
-}
-.jsp--read .jsp-turn[data-spread-prev] { left: var(--sp-2); }
-.jsp--read .jsp-turn[data-spread-next] { right: var(--sp-2); }
-.jsp--read .jsp-bar { justify-content: center; }
 .jsp-tools { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-inline: auto; }
 .jsp-bar-hint { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); }
 .jsp-turn {
@@ -232,6 +219,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .jsp--read.is-turning-next .jsp-book, .jsp--read.is-turning-prev .jsp-book { animation: none; }
   .jsp-photo, .jsp-sticker { transition: none; }
 }

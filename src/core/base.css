@@ -123,12 +123,18 @@
        ui/body  DM Sans — everything you read or press (--font-ui is kept as an
                 alias so the ~330 existing declarations follow along)
        data     JetBrains Mono — times, flight numbers, amounts, weights
-       hand     Caveat — journal handwriting only */
+       hand     Caveat — fixed Latin decoration only, never user-typed text
+       serif    Newsreader + Songti — the journal letter and magazine */
   --font-display: 'Sora', system-ui, sans-serif;
   --font-body:    'DM Sans', system-ui, -apple-system, 'PingFang SC', 'Hiragino Sans GB', sans-serif;
   --font-ui:      var(--font-body);
   --font-data:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-hand:    'Caveat', 'DM Sans', cursive;
+  /* serif  Newsreader (latin) + the system Songti for Chinese — the letter and the
+     magazine. Never Caveat for anything the user typed: it has no Chinese glyphs, so a
+     mixed line would change face mid-sentence. */
+  --font-letter:  'Newsreader', 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, serif;
+  --font-serif:   var(--font-letter);
   --font-stamp:   'Oswald', 'Arial Narrow', 'Helvetica Neue', sans-serif;   /* passport stamps only */
 
   /* ── Passport (views/passport) ───────────────────────────────────────

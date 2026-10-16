@@ -2,16 +2,19 @@ import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import type { CaptureState } from './types.ts';
-import { t } from '../../../core/i18n.ts';
+import { getLocale, t } from '../../../core/i18n.ts';
 import { renderFeedGrid } from '../scenes/feed.ts';
 import { renderGallery } from '../scenes/gallery.ts';
 import { renderPlaces } from '../scenes/places.ts';
+import { buildStops, countryName, type PlaceStop } from '../scenes/places-model.ts';
 import { albumEntries, renderBook, renderShelf } from '../scenes/albums.ts';
-import { renderReadSpread, renderWriteSpread } from '../scenes/spread.ts';
+import { renderWriteSpread } from '../scenes/spread.ts';
+import { renderReadLetter } from '../scenes/letter.ts';
+import { ratioFor } from '../shared/ratio-cache.ts';
 import { renderCoverEditor } from '../scenes/album-cover-edit.ts';
-import type { PlaceStop } from '../scenes/places-model.ts';
 import {
   escHtml,
+  entryImages,
   excerpt,
   moodEmoji,
   prettyDate,
@@ -81,7 +84,7 @@ export function renderCapture(model: CaptureRenderModel): string {
       ${model.allEntries.length === 0 && !model.state.composerOpen ? renderFirstTimeGuide() : ''}
 
       ${model.state.composerOpen ? `<div class="journal-composer-overlay" data-journal-overlay><div class="journal-composer-drawer">${renderComposer(model.state, model.allEntries, model.legs, model.savedGuidePlaces ?? [])}</div></div>` : ''}
-      ${readingEntry ? `<div class="journal-reader-overlay" data-journal-reader-overlay><div class="journal-reader-drawer">${renderReader(readingEntry, model.albums, neighbours, model.state.readerTurn)}</div></div>` : ''}
+      ${readingEntry ? `<div class="journal-reader-overlay" data-journal-reader-overlay><div class="journal-reader-drawer">${renderReader(readingEntry, model, neighbours)}</div></div>` : ''}
 
       <div class="journal-view-surface">
         ${renderActiveView(model)}
@@ -198,42 +201,31 @@ function renderMagazineFeed(entries: StoredJournalEntry[], editingId: string | n
 
 /**
  * Read-only entry view — what opens when a feed/gallery/calendar card is
- * tapped. Full photo gallery, then title, then body, then meta; editing is a
- * single explicit button here rather than the default action, so opening an
- * entry to read it never drops you into an editable textarea.
+ * tapped: the entry as a letter with postcards (scenes/letter.ts). Editing is a
+ * single explicit button in the bar under it, so opening an entry to read it
+ * never drops you into an editable textarea.
  */
 function renderReader(
   entry: StoredJournalEntry,
-  albums: StoredJournalAlbum[],
+  model: CaptureRenderModel,
   neighbours: { prevId: string | null; nextId: string | null },
-  dir: '' | 'next' | 'prev',
 ): string {
-  return renderReadSpread(
-    { entry, albums, prevId: neighbours.prevId, nextId: neighbours.nextId, dir },
-    renderReaderAlbums(entry, albums),
-  );
-}
-
-/** Album membership for one entry, editable inline — the per-entry way to file something. */
-function renderReaderAlbums(entry: StoredJournalEntry, albums: StoredJournalAlbum[]): string {
-  const inAlbums = albums.filter((album) => album.entryIds.includes(entry.id));
-  const available = albums.filter((album) => !album.entryIds.includes(entry.id));
-  return `
-    <div class="journal-reader-albums">
-      <span class="journal-reader-albums-label">Album</span>
-      ${inAlbums.length ? inAlbums.map((album) => `
-        <span class="journal-album-chip">
-          ${escHtml(album.emoji)} ${escHtml(album.title)}
-          <button class="journal-album-chip-x" data-album-remove-entry="${escHtml(album.id)}:${escHtml(entry.id)}" type="button" title="${escHtml(t('journal.album.remove'))}">✕</button>
-        </span>
-      `).join('') : '<span class="journal-reader-albums-none">—</span>'}
-      <select class="select input journal-album-add" data-album-add-entry="${escHtml(entry.id)}">
-        <option value="">${escHtml(t('journal.album.add'))}</option>
-        ${available.map((album) => `<option value="${escHtml(album.id)}">${escHtml(album.emoji)} ${escHtml(album.title)}</option>`).join('')}
-        <option value="__new__">${escHtml(t('journal.album.new'))}</option>
-      </select>
-    </div>
-  `;
+  // The stamp wants the country; the places model already knows how to work it out
+  // from the place's name, the itinerary and the date.
+  const stop = buildStops([entry], model.legs)[0];
+  const iso = stop?.iso ?? null;
+  return renderReadLetter({
+    entry,
+    albums: model.albums,
+    prevId: neighbours.prevId,
+    nextId: neighbours.nextId,
+    dir: model.state.readerTurn,
+    ratios: entryImages(entry).map((_, i) => ratioFor(entry, i)),
+    iso,
+    country: iso ? countryName(iso) : '',
+    locale: getLocale(),
+    focus: model.state.letter,
+  });
 }
 
 /**
