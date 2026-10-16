@@ -31,6 +31,7 @@ import { navigateTo, consumeNavIntent, type NavIntent, type ViewId } from '../..
 import { escHtml as esc } from '../../core/utils.ts';
 import { t, getLocale } from '../../core/i18n.ts';
 import { renderFastener } from '../../core/paper/fastener.ts';
+import { emptyDraft, renderTodoAddRow, wireTodoAddRow } from '../todo/todo-add.ts';
 import { attachPageDrag, finishFlip, isFlipping, onFlipIdle, turnPage } from './agenda-flip.ts';
 import { openModal } from '../../core/modal.ts';
 import { scheduleAllNotifications, clearAllNotificationTimers } from '../../core/notifications.ts';
@@ -52,6 +53,8 @@ let _expenses: StoredExpense[]      = [];
 let _year  = new Date().getFullYear();
 let _month = new Date().getMonth();   // 0-based
 let _selected: string = todayIso();
+/** The add row's picks (due date, reminder); the typed text is carried across a redraw by render(). */
+const _draft = emptyDraft();
 const _expanded = new Set<string>();  // item ids whose detail rows are open
 let _unsubs: Array<() => void> = [];
 
@@ -93,26 +96,26 @@ const LEGEND: AgendaKind[] = ['transport', 'stay', 'plan', 'journal', 'spend', '
 
 /* ── Month page ──────────────────────────────────────────────────────────── */
 const RING_COUNT = 14;
-const WEEKDAYS = [1, 2, 3, 4, 5, 6, 0];   // Monday-first, as Date.getDay() numbers
+const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];   // Sunday-first, as Date.getDay() numbers
 
 /** One printed month: title, weekday row, six weeks of days, legend and totals. Always six rows, like a real page. */
 function renderMonthPage(year: number, month: number, kinds: Map<string, Set<AgendaKind>>, briefs: Map<string, DayBrief>): string {
   const today = todayIso();
   const loc = getLocale();
-  const firstDow = (new Date(year, month, 1).getDay() + 6) % 7;   // Monday-first
+  const firstDow = new Date(year, month, 1).getDay();   // Sunday-first
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const prevDays = new Date(year, month, 0).getDate();
   const monthName = new Date(year, month, 1).toLocaleString(loc, { month: 'long' });
-  // Weekday names from a known Monday, so they follow the locale.
+  // Weekday names from a known Sunday (7 Jan 2024), so they follow the locale.
   const hdr = WEEKDAYS.map((dow, i) => {
     const name = new Date(2024, 0, 7 + dow).toLocaleDateString(loc, { weekday: 'short' });
-    return `<div class="cal-hdr${i >= 5 ? ' is-weekend' : ''}">${esc(name)}</div>`;
+    return `<div class="cal-hdr${i === 0 || i === 6 ? ' is-weekend' : ''}">${esc(name)}</div>`;
   }).join('');
 
   let cells = '';
   for (let i = 0; i < 42; i++) {
     const d = i - firstDow + 1;
-    const weekend = i % 7 >= 5 ? ' is-weekend' : '';
+    const weekend = i % 7 === 0 || i % 7 === 6 ? ' is-weekend' : '';
     if (d < 1 || d > daysInMonth) {
       // The days of the neighbouring months, printed faint like on a real page.
       cells += `<div class="cal-cell cal-empty${weekend}" aria-hidden="true"><span class="cal-cell-top"><span class="cal-daynum">${d < 1 ? prevDays + d : d - daysInMonth}</span></span></div>`;
@@ -293,11 +296,10 @@ function renderDayPanel(): string {
   // A tear-off sheet: the month on the red header, the day in big print, then the day's lines.
   return `
     <aside class="cal-panel" id="cal-panel" aria-label="${esc(fullDate)}">
-      <div class="cal-sheet-top"><span>${esc(monthYear)}</span></div>
       <div class="cal-panel-head">
         <div class="cal-bigday">${d.getDate()}</div>
         <div class="cal-panel-id">
-          <div class="cal-panel-date">${esc(weekday)}</div>
+          <div class="cal-panel-date">${esc(weekday)}<span class="cal-panel-month">${esc(monthYear)}</span></div>
           ${where ? `<div class="cal-panel-where">${where}</div>` : ''}
           ${hint ? `<div class="cal-panel-hint">${esc(hint)}</div>` : ''}
         </div>
@@ -308,9 +310,6 @@ function renderDayPanel(): string {
         ${rows.length ? `<div class="cal-items">${rows.map(renderItem).join('')}</div>` : ''}
         ${journal ? `<div class="cal-sec"><div class="cal-sec-label">${WIDGET_ICON.journal} ${esc(t('dash.widget.journal'))}</div>${journal}</div>` : ''}
         ${empty}
-      </div>
-      <div class="cal-panel-actions">
-        <button class="btn btn-primary" data-journal-new>✍️ ${esc(t('dash.journal.compose'))}</button>
       </div>
     </aside>`;
 }
@@ -325,31 +324,31 @@ function renderTodosPanel(): string {
     return 0;
   });
   const done = _todos.filter((td) => td.done).sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)).slice(0, 3);
-  // One sticky note, the same paper and tape as a note on the Prepare checklist board.
+  // One sticky note, the same paper and tape as a note on the Prepare checklist board. A new
+  // to-do is typed on the add row that closes the open ones — the same row as the Dashboard's.
   return `
     <section class="cal-note" id="cal-todos">
       ${renderFastener('tape')}
       <div class="cal-note-head">
         <span class="cal-todos-title">${WIDGET_ICON.todo} ${esc(t('dash.widget.todo'))}</span>
-        <button type="button" class="cal-todos-add" data-add-todo="${today}">+ ${esc(t('cal.addTodo'))}</button>
       </div>
       <div class="cal-note-list">
-        ${pending.length ? pending.map((td) => todoRow(td, today)).join('') : `<div class="cal-todos-empty">${esc(t('cal.noOpenTodos'))}</div>`}
+        ${pending.map((td) => todoRow(td, today)).join('')}
+        ${renderTodoAddRow(_draft, _selected)}
+        ${pending.length ? '' : `<div class="cal-todos-empty">${esc(t('cal.noOpenTodos'))}</div>`}
         ${done.length ? `<div class="cal-todos-section-label">${esc(t('cal.recentlyDone'))}</div>${done.map((td) => todoRow(td, today)).join('')}` : ''}
       </div>
     </section>`;
 }
 
-/* ── Add / Edit todo modal ───────────────────────────────────────────────── */
-function openTodoModal(opts: { mode: 'add'; dueDate: string } | { mode: 'edit'; todo: StoredTodo }): void {
-  const isEdit = opts.mode === 'edit';
-  const existing = isEdit ? opts.todo : null;
-  const defaultDate = isEdit ? (existing!.dueDate ?? '') : opts.dueDate;
-  const defaultText = existing?.text ?? '';
-  const defaultRemind = existing?.remindAt ? new Date(existing.remindAt).toISOString().slice(0, 16) : '';
+/* ── Edit todo modal (adding is the note's own add row) ──────────────────── */
+function openTodoModal(existing: StoredTodo): void {
+  const defaultDate = existing.dueDate ?? '';
+  const defaultText = existing.text;
+  const defaultRemind = existing.remindAt ? new Date(existing.remindAt).toISOString().slice(0, 16) : '';
 
   const handle = openModal({
-    title: isEdit ? 'Edit to-do' : '+ New to-do',
+    title: 'Edit to-do',
     body: `
       <div style="display:flex;flex-direction:column;gap:12px">
         <input class="input" id="cal-todo-text" placeholder="What do you need to do?" value="${esc(defaultText)}" autofocus>
@@ -364,7 +363,7 @@ function openTodoModal(opts: { mode: 'add'; dueDate: string } | { mode: 'edit'; 
         <div id="cal-notif-status" style="font-size:12px;color:var(--ink-faint)"></div>
       </div>`,
     footer: `<button class="btn btn-ghost" id="cal-todo-cancel">Cancel</button>
-             <button class="btn btn-primary" id="cal-todo-save">${isEdit ? 'Save' : 'Add'}</button>`,
+             <button class="btn btn-primary" id="cal-todo-save">Save</button>`,
   });
 
   const statusEl = handle.root.querySelector<HTMLElement>('#cal-notif-status');
@@ -387,8 +386,7 @@ function openTodoModal(opts: { mode: 'add'; dueDate: string } | { mode: 'edit'; 
     if (remindAt && 'Notification' in window && Notification.permission === 'default') {
       await Notification.requestPermission();
     }
-    if (isEdit) await todoStore.update(existing!.id, { text, dueDate: due, remindAt });
-    else await todoStore.add({ text, dueDate: due, remindAt });
+    await todoStore.update(existing.id, { text, dueDate: due, remindAt });
     handle.close();
     scheduleAllNotifications();
     render();
@@ -409,6 +407,10 @@ function render(): void {
   const src = sources();
   const kinds = kindsByDate(src);
   const briefs = briefsByDate(src);
+  // What is half-typed on the add row (and whether the caret is in it) must survive the redraw.
+  const addBox = body.querySelector<HTMLTextAreaElement>('.td-todo-add-input');
+  const typed = addBox?.value ?? '';
+  const hadFocus = !!addBox && document.activeElement === addBox;
 
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   body.innerHTML = `
@@ -424,6 +426,14 @@ function render(): void {
       </div>
     </div>`;
   wire(body);
+  if (typed || hadFocus) {
+    const box = body.querySelector<HTMLTextAreaElement>('.td-todo-add-input');
+    if (box) {
+      box.value = typed;
+      box.dispatchEvent(new Event('input'));   // let it grow to fit
+      if (hadFocus) { box.focus(); box.setSelectionRange(typed.length, typed.length); }
+    }
+  }
 }
 
 /** A detached copy of a month page / the day sheet, for a turn to bring in. */
@@ -560,19 +570,17 @@ function wire(body: HTMLElement): void {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const todo = _todos.find((td) => td.id === btn.dataset.editTodo);
-      if (todo) openTodoModal({ mode: 'edit', todo });
+      if (todo) openTodoModal(todo);
     });
   });
   body.querySelectorAll<HTMLElement>('[data-del-todo]').forEach((btn) => {
     btn.addEventListener('click', (e) => { e.stopPropagation(); void todoStore.remove(btn.dataset.delTodo!); });
   });
-  body.querySelectorAll<HTMLElement>('[data-add-todo]').forEach((btn) => {
-    btn.addEventListener('click', () => openTodoModal({ mode: 'add', dueDate: btn.dataset.addTodo! }));
-  });
 
-  // Journal composer overlay (lazy: journal/index pulls in Leaflet).
-  body.querySelectorAll<HTMLElement>('[data-journal-new]').forEach((btn) => {
-    btn.addEventListener('click', () => { import('../journal/index.ts').then((m) => m.openJournalComposerOverlay()); });
+  // The add row at the foot of the note (shared with the Dashboard's to-do card).
+  wireTodoAddRow(body, _draft, {
+    rerender: render,
+    refocus: () => document.querySelector<HTMLTextAreaElement>('#view-agenda .td-todo-add-input')?.focus(),
   });
 }
 
