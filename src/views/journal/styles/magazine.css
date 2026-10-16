@@ -1,0 +1,155 @@
+/* ==========================================================================
+   On the Road · Journal — the magazine
+   Markup: scenes/magazine.ts, scenes/magazine-text.ts. Layout: magazine-templates.ts.
+
+   A page is 600 × 800 CSS px, always. The spread (two pages, 1200 × 800) is
+   scaled to the screen with `--k`, set from the desk's measured width — so a
+   line that broke here when the book was measured breaks here when it is read,
+   on any screen. The text rules below are shared by the printed frames and by
+   the hidden element that measures them (.mag-measure): change one and you
+   change what fits.
+
+   Sizes are in rem/em, not px, only so the design lint (which wants tokens for
+   px font sizes) is not asked about a page that is deliberately a fixed size.
+   ========================================================================== */
+
+/* ── What is measured and printed alike ──────────────────────────────────── */
+.mag-text {
+  position: absolute; overflow: hidden;
+  column-gap: 24px; column-fill: auto;
+  font-family: var(--font-serif); font-size: .9375rem; line-height: 1.75;
+  color: var(--ink);
+  text-align: justify; line-break: strict; overflow-wrap: anywhere;
+}
+.mag-text p { margin: 0; text-indent: 2em; }
+.mag-text p.is-cont, .mag-text.has-dropcap > p:first-child { text-indent: 0; }
+/* The first letter of an article, sunk into the lines. */
+.mag-text.has-dropcap > p:first-child::first-letter {
+  float: left; font-size: 3.5em; line-height: .84; font-weight: var(--fw-semibold);
+  padding: .04em .1em 0 0; color: var(--ink);
+}
+
+.mag-head { position: absolute; font-family: var(--font-serif); }
+.mag-kicker {
+  display: block; margin-bottom: 8px;
+  font-family: var(--font-data); font-size: .6875rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
+}
+.mag-headline {
+  margin: 0; font-family: var(--font-serif); font-size: 2.125rem; line-height: 1.18; font-weight: var(--fw-semibold);
+  color: var(--ink); overflow-wrap: anywhere; text-wrap: balance;
+}
+.mag-head.is-l .mag-headline { font-size: 2.75rem; line-height: 1.12; }
+
+/* The off-screen ruler. Same classes, nothing visible. */
+.mag-measure { position: fixed; left: -10000px; top: 0; visibility: hidden; pointer-events: none; }
+.mag-measure .mag-text, .mag-measure .mag-head { position: static; }
+
+/* ── The desk ────────────────────────────────────────────────────────────── */
+.mag-desk { max-width: 1240px; margin: 0 auto; padding-bottom: var(--sp-6); outline: none; }
+.mag-bar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+.mag-bar-title {
+  flex: 1 1 140px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-display); font-size: var(--fs-md); font-weight: var(--fw-semibold);
+}
+.mag-bar-tools { display: flex; gap: var(--sp-2); }
+.mag-bar-pos { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); white-space: nowrap; }
+.jb-chip { height: 32px; padding: 0 var(--sp-4); border: 1px solid var(--rule); border-radius: var(--r-full); background: var(--surface); color: var(--ink-soft); font-size: var(--fs-sm); cursor: pointer; }
+.jb-chip:hover { background: var(--surface-3); }
+.jb-chip.is-danger { color: var(--danger); }
+.jb-empty-note { margin: var(--sp-4) 0 0; text-align: center; font-size: var(--fs-sm); color: var(--ink-muted); }
+
+/* The desk is measured; the book is its scaled picture. */
+.mag-fit { position: relative; width: 100%; --k: .6; --across: 1200; display: flex; justify-content: center; }
+.mag-stage { position: relative; width: calc(var(--across) * var(--k) * 1px); height: calc(800 * var(--k) * 1px); }
+.mag-spread {
+  position: absolute; left: 0; top: 0; display: flex; transform-origin: 0 0; transform: scale(var(--k));
+  animation: mag-rise 520ms var(--ease-out) both;
+}
+@keyframes mag-rise { from { opacity: 0; translate: 0 14px; } }
+.mag-spread.is-fade-a { animation: mag-fade-a 320ms var(--ease-out) both; }
+.mag-spread.is-fade-b { animation: mag-fade-b 320ms var(--ease-out) both; }
+@keyframes mag-fade-a { from { opacity: 0; } }
+@keyframes mag-fade-b { from { opacity: 0; } }
+
+.mag-binding {
+  display: grid; place-items: center; width: 100%; aspect-ratio: 3 / 2; max-height: 60vh;
+  border: 1px dashed var(--rule); border-radius: var(--r-lg); color: var(--ink-muted);
+  font-family: var(--font-serif); font-size: 1.125rem; font-style: italic;
+  animation: mag-pulse 1.6s ease-in-out infinite;
+}
+@keyframes mag-pulse { 50% { opacity: .55; } }
+
+/* ── A page ──────────────────────────────────────────────────────────────── */
+.mag-page {
+  position: relative; flex: none; width: 600px; height: 800px; overflow: hidden;
+  background: var(--paper-grain), var(--surface); color: var(--ink);
+}
+.mag-page.is-verso { border-radius: 4px 0 0 4px; box-shadow: -2px 4px 16px color-mix(in srgb, var(--ink) 14%, transparent); }
+.mag-page.is-recto { border-radius: 0 4px 4px 0; box-shadow: 2px 4px 16px color-mix(in srgb, var(--ink) 14%, transparent); }
+/* The gutter: a soft crease where the two pages meet. */
+.mag-page.is-verso::after, .mag-page.is-recto::before {
+  content: ''; position: absolute; top: 0; bottom: 0; width: 46px; pointer-events: none; z-index: 5;
+}
+.mag-page.is-verso::after { right: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 11%, transparent)); }
+.mag-page.is-recto::before { left: 0; background: linear-gradient(270deg, transparent, color-mix(in srgb, var(--ink) 11%, transparent)); }
+.mag-page.is-void { background: none; box-shadow: none; }
+.mag-body { position: absolute; }
+
+.mag-photo { position: absolute; margin: 0; overflow: hidden; background: var(--surface-3); }
+.mag-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.mag-page.is-verso .mag-cont { right: 0; }
+.mag-page.is-recto .mag-cont { left: 0; }
+.mag-folio {
+  position: absolute; bottom: 30px; z-index: 6;
+  font-family: var(--font-data); font-size: .6875rem; letter-spacing: .1em; color: var(--ink-faint);
+}
+.mag-page.is-verso .mag-folio { left: 48px; }
+.mag-page.is-recto .mag-folio { right: 48px; }
+/* Where the words go on. */
+/* On the side away from the page number, so the two never meet. */
+.mag-cont {
+  position: absolute; bottom: -30px;
+  font-family: var(--font-data); font-size: .625rem; letter-spacing: .08em; color: var(--ink-faint);
+}
+
+/* ── Cover and back ──────────────────────────────────────────────────────── */
+.mag-page.is-cover { background: none; }
+.mag-cover .jc { width: 600px; height: 800px; }
+.mag-page.is-back { background: var(--jc-paper); color: var(--jc-ink); }
+.mag-back { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 0 64px; }
+.mag-back-name { font-family: var(--font-display); font-size: 2rem; font-weight: var(--fw-bold); letter-spacing: -.02em; }
+.mag-back-title { font-family: var(--font-serif); font-size: 1.125rem; font-style: italic; opacity: .85; }
+.mag-back-issue { margin-top: 20px; font-family: var(--font-data); font-size: .6875rem; letter-spacing: .16em; opacity: .7; }
+
+/* ── Contents ────────────────────────────────────────────────────────────── */
+.mag-toc-title { margin: 0 0 28px; font-family: var(--font-serif); font-size: 2.125rem; font-weight: var(--fw-semibold); }
+.mag-toc { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 22px; }
+.mag-toc-row { display: flex; align-items: baseline; gap: 10px; }
+.mag-toc-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.mag-toc-text .mag-kicker { margin: 0; }
+.mag-toc-head { font-family: var(--font-serif); font-size: 1.125rem; line-height: 1.3; overflow-wrap: anywhere; }
+.mag-dots { flex: 1; min-width: 20px; border-bottom: 2px dotted color-mix(in srgb, var(--ink) 30%, transparent); transform: translateY(-4px); }
+.mag-toc-no { font-family: var(--font-data); font-size: .8125rem; color: var(--ink-muted); }
+
+/* ── Turning ─────────────────────────────────────────────────────────────── */
+.mag-turn {
+  position: absolute; top: 50%; z-index: 4; width: 40px; height: 40px; margin-top: -20px; display: grid; place-items: center;
+  border: 1px solid var(--rule); border-radius: 50%; background: var(--surface); color: var(--ink); font-size: var(--fs-lg);
+  cursor: pointer; box-shadow: var(--shadow-md);
+  transition: transform var(--dur-fast) var(--ease-out), opacity var(--dur-fast);
+}
+.mag-turn:hover:not(:disabled) { transform: scale(1.1); }
+.mag-turn:disabled { opacity: .3; cursor: default; }
+.mag-turn:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+.mag-turn--prev { left: -18px; }
+.mag-turn--next { right: -18px; }
+
+@media (max-width: 760px) {
+  .mag-turn--prev { left: -6px; }
+  .mag-turn--next { right: -6px; }
+  .mag-bar-tools { order: 3; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mag-spread, .mag-binding { animation: none; }
+}

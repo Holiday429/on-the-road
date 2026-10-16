@@ -119,18 +119,21 @@ describe('albums view', () => {
     expect(body.textContent).toContain('VOL.01');
   });
 
-  it('opens an album and can drop an entry from it', async () => {
+  it('opens an album as a magazine: the controls are above the book, and a page has none', async () => {
     const album = mkAlbum('a1', ['e1', 'e2']);
-    const { body } = mount([mkEntry('e1'), mkEntry('e2')], [album]);
+    const { body, ctrl, root } = mount([mkEntry('e1', { images: [], coverImage: '' }), mkEntry('e2', { images: [], coverImage: '' })], [album]);
     gotoView(body, 'albums');
 
     (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
     expect(body.querySelector('[data-album-back]'), 'album detail opened').toBeTruthy();
+    expect(body.querySelector('.mag-binding'), 'binding while the fonts and photo shapes load').toBeTruthy();
 
-    (body.querySelector('[data-album-remove-entry="a1:e1"]') as HTMLElement).click();
-    await Promise.resolve();
-
-    expect(albumUpdate).toHaveBeenCalledWith('a1', { entryIds: ['e2'] });
+    ctrl.afterRender(root);
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    expect(body.querySelector('.mag-binding')).toBeFalsy();
+    expect(body.querySelector('.mag-bar [data-album-cover]')).toBeTruthy();
+    // An entry leaves an album from its own action bar (the reader), never from a page of the book.
+    expect(body.querySelector('[data-album-remove-entry], [data-open-entry]')).toBeFalsy();
   });
 
   it('keeps the tag groups, but below the user albums', () => {
@@ -325,26 +328,33 @@ describe('album create / rename / delete modals', () => {
   });
 });
 
-describe('open album is a book', () => {
-  it('opens on the title page facing the first entry; ‹ › turn the spread and clamp at the ends', () => {
-    const { body } = mount([mkEntry('e1'), mkEntry('e2'), mkEntry('e3')], [mkAlbum('a1', ['e1', 'e2', 'e3'])]);
+describe('open album is a magazine', () => {
+  it('opens on the cover alone; ‹ › turn a spread and clamp at the ends', async () => {
+    const { body, ctrl, root } = mount(
+      [mkEntry('e1', { images: [], coverImage: '' }), mkEntry('e2', { images: [], coverImage: '' }), mkEntry('e3', { images: [], coverImage: '' })],
+      [mkAlbum('a1', ['e1', 'e2', 'e3'])],
+    );
     gotoView(body, 'albums');
     (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
+    ctrl.afterRender(root);
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
 
-    expect(body.querySelector('.jb-page--title')).toBeTruthy();
-    expect(body.querySelector('[data-open-entry="e1"]')).toBeTruthy();
-    expect(body.querySelector('[data-open-entry="e2"]')).toBeFalsy();
+    expect(body.querySelector('.mag-page.is-cover .jc')).toBeTruthy();
+    expect(body.querySelectorAll('.jc')).toHaveLength(1);
     expect((body.querySelector('[data-album-page="prev"]') as HTMLButtonElement).disabled).toBe(true);
 
     (body.querySelector('[data-album-page="next"]') as HTMLElement).click();
-    expect(body.querySelector('[data-open-entry="e2"]')).toBeTruthy();
-    expect(body.querySelector('[data-open-entry="e3"]')).toBeTruthy();
-    expect(body.querySelector('.jb-page--title')).toBeFalsy();
-    expect(body.querySelector('.jb-spread')!.className).toMatch(/is-turn-next-[ab]/);
+    expect(body.querySelector('.mag-toc'), 'the contents').toBeTruthy();
+    expect(body.querySelector('.jc'), 'the cover is not printed again').toBeFalsy();
+    expect(body.querySelector('.mag-spread')!.className).toMatch(/is-fade-[ab]/);
+
+    // keep turning: it ends on the back cover, and › stops there
+    for (let i = 0; i < 6; i++) (body.querySelector('[data-album-page="next"]') as HTMLElement).click();
+    expect(body.querySelector('.is-back')).toBeTruthy();
     expect((body.querySelector('[data-album-page="next"]') as HTMLButtonElement).disabled).toBe(true);
 
     (body.querySelector('[data-album-page="prev"]') as HTMLElement).click();
-    expect(body.querySelector('.jb-page--title')).toBeTruthy();
+    expect(body.querySelector('.is-back')).toBeFalsy();
   });
 
   it('closing the book returns to the shelf', () => {

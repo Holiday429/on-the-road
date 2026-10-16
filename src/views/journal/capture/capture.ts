@@ -6,9 +6,11 @@ import type { StoredLeg } from '../../../data/stores/route-store.ts';
 import { buildStops } from '../scenes/places-model.ts';
 import { syncPlacesMap, disposePlacesMap } from '../scenes/places-map.ts';
 import { syncGalleryFlow, stopGalleryFlow } from '../scenes/gallery-flow.ts';
-import { clampSpread, spreadCount } from '../scenes/albums.ts';
 import { coverDraftFor } from '../scenes/album-cover-edit.ts';
 import { albumEntries, coverArtOf } from '../scenes/albums.ts';
+import { currentMode, syncMagazineView } from '../scenes/magazine.ts';
+import { bookIsLoading, cachedBook, loadBook } from '../scenes/magazine-measure.ts';
+import { turnTo } from '../scenes/magazine-model.ts';
 import { renderCover } from '../scenes/album-cover.ts';
 import type { JournalAlbumCover } from '../../../data/schema.ts';
 import { currentTrip } from '../../../data/trip-context.ts';
@@ -73,10 +75,9 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     galleryDrift: true,
     placeKey: null,
     placeFlip: false,
-    albumSpread: 0,
+    albumLeaf: 0,
     albumTurn: false,
     albumDir: '',
-    albumOpening: false,
     selection: null,
     openAlbumId: null,
     coverEdit: null,
@@ -140,6 +141,10 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     // Only attach listeners once per root element to prevent accumulation across re-renders.
     if (_boundRoot === root) return;
     _boundRoot = root;
+
+    window.addEventListener('resize', () => {
+      if (state.openAlbumId && syncMagazineView(root)) deps.requestRender();
+    });
 
     root.addEventListener('click', (event) => {
       const target = event.target as HTMLElement;
@@ -251,10 +256,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       const albumOpenBtn = target.closest<HTMLElement>('[data-open-album]');
       if (albumOpenBtn) {
         state.openAlbumId = albumOpenBtn.dataset.openAlbum ?? null;
-        state.albumSpread = 0;
+        state.albumLeaf = 0;
         state.albumDir = '';
-        state.albumOpening = true;
-        window.setTimeout(() => { state.albumOpening = false; }, 1400);
         deps.requestRender();
         return;
       }
@@ -262,7 +265,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       const albumBackBtn = target.closest<HTMLElement>('[data-album-back]');
       if (albumBackBtn) {
         state.openAlbumId = null;
-        state.albumOpening = false;
         deps.requestRender();
         return;
       }
@@ -628,6 +630,9 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
   /** After every render: keep the places map and the gallery's drift in step with what is on screen. */
   function afterRender(root: HTMLElement) {
+    bindOpenBook();
+    // The book is scaled to its desk; a desk that has become phone-wide (or the reverse) shows one page (or two).
+    if (syncMagazineView(root)) deps.requestRender();
     measureReading();
     resetReaderScroll();
     playOpening();
@@ -708,19 +713,36 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     deps.requestRender();
   }
 
-  /** ‹ › in the open album: one spread at a time, clamped, and the animation restarts each turn. */
-  function turnAlbumPage(delta: 1 | -1) {
+  /** The open album's entries, in its order, and its finished book if it has been bound. */
+  function openBook() {
     const album = (deps.getAlbums?.() ?? []).find((a) => a.id === state.openAlbumId);
-    if (!album) return;
-    // A long entry runs over several spreads, so the end of the book is not the entry count.
-    const all = deps.getEntries();
-    const inAlbum = album.entryIds.map((id) => all.find((e) => e.id === id)).filter((e) => !!e);
-    const next = clampSpread(state.albumSpread + delta, spreadCount(inAlbum));
-    if (next === state.albumSpread) return;
-    state.albumSpread = next;
+    if (!album) return null;
+    const entries = albumEntries(album, sortEntries(deps.getEntries()));
+    return { album, entries, book: cachedBook(album, entries) };
+  }
+
+  /**
+   * An open album needs binding: wait for the fonts and the photos' shapes, paginate, then
+   * draw. Cached by the entries' ids and edit times, so this runs once per change, not per page.
+   */
+  function bindOpenBook() {
+    if (!state.openAlbumId || state.view !== 'albums' || state.coverEdit) return;
+    const o = openBook();
+    if (!o || o.book || bookIsLoading(o.album, o.entries)) return;
+    void loadBook(o.album, o.entries, (id, imageRatios) => journalStore.update(id, { imageRatios })).then((book) => {
+      if (book && state.openAlbumId === o.album.id) deps.requestRender();
+    }).catch((error) => console.error('Binding the album failed:', error));
+  }
+
+  /** ‹ › in the open album: a spread at a time (a page at a time on a phone), clamped to the book. */
+  function turnAlbumPage(delta: 1 | -1) {
+    const o = openBook();
+    if (!o?.book) return;
+    const next = turnTo(state.albumLeaf, delta, o.book.leaves.length, currentMode());
+    if (next === state.albumLeaf) return;
+    state.albumLeaf = next;
     state.albumDir = delta > 0 ? 'next' : 'prev';
     state.albumTurn = !state.albumTurn;
-    state.albumOpening = false;
     deps.requestRender();
   }
 

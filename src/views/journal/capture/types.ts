@@ -63,12 +63,10 @@ export interface CaptureState {
   placeKey: string | null;
   /** Flips on every pick so the cards are dealt again. */
   placeFlip: boolean;
-  /** Which spread of the open album is showing, and how it was reached. */
-  albumSpread: number;
+  /** Which leaf (physical page; 0 is the cover) of the open album is showing, and how it was reached. */
+  albumLeaf: number;
   albumTurn: boolean;
   albumDir: '' | 'next' | 'prev';
-  /** True just after an album is opened, so its cover swings open once. */
-  albumOpening: boolean;
   /** Gallery multi-select: null = off, otherwise the picked entry ids. */
   selection: string[] | null;
   /** Album whose contents are being viewed, or null for the album grid. */

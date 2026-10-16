@@ -7,7 +7,9 @@ import { renderFeedGrid } from '../scenes/feed.ts';
 import { renderGallery } from '../scenes/gallery.ts';
 import { renderPlaces } from '../scenes/places.ts';
 import { buildStops, countryName, type PlaceStop } from '../scenes/places-model.ts';
-import { albumEntries, renderBook, renderShelf } from '../scenes/albums.ts';
+import { albumEntries, renderShelf } from '../scenes/albums.ts';
+import { renderMagazine } from '../scenes/magazine.ts';
+import { cachedBook } from '../scenes/magazine-measure.ts';
 import { renderReadLetter, renderWriteLetter } from '../scenes/letter.ts';
 import { ratioFor } from '../shared/ratio-cache.ts';
 import { renderCoverEditor } from '../scenes/album-cover-edit.ts';
@@ -256,9 +258,12 @@ function renderAlbumsView(model: CaptureRenderModel): string {
   if (open) {
     return model.albumDrawer
       ? renderAlbumFeed(open, model.allEntries, model.state.readingId)
-      : renderBook(open, albumEntries(open, model.allEntries), {
-        spread: model.state.albumSpread, turn: model.state.albumTurn, dir: model.state.albumDir, opening: model.state.albumOpening,
-      });
+      : (() => {
+        const entries = albumEntries(open, model.allEntries);
+        return renderMagazine(open, entries, cachedBook(open, entries), {
+          leaf: model.state.albumLeaf, turn: model.state.albumTurn, dir: model.state.albumDir,
+        });
+      })();
   }
 
   return `

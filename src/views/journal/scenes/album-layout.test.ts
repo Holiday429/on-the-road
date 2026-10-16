@@ -1,82 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { candidatesFor, isPictureLed, planLayouts } from './album-layout.ts';
-import type { Leaf } from './album-pages.ts';
+import { pickLayout } from './album-layout.ts';
 
-const leaf = (photos: number, chars: number, over: Partial<Leaf> = {}): Leaf => ({
-  layout: 'feature',
-  photos: Array.from({ length: photos }, (_, i) => `p${i}.jpg`),
-  text: 'x'.repeat(chars),
-  continues: false,
-  continued: false,
-  slots: 4,
-  ...over,
-});
+type L = 'photo' | 'photo2' | 'words' | 'words2';
+const led = (l: L) => l.startsWith('photo');
 
-describe('candidatesFor', () => {
-  it('gives a page with no pictures the reading column, and nothing else', () => {
-    expect(candidatesFor(leaf(0, 600), false)).toEqual(['column']);
-  });
+describe('pickLayout', () => {
+  const options: L[] = ['photo', 'photo2', 'words', 'words2'];
 
-  it('runs a lone picture large when there is little to read, and insets it when there is a lot', () => {
-    expect(candidatesFor(leaf(1, 50), false)[0]).toBe('plate');
-    expect(candidatesFor(leaf(1, 900), false)[0]).toBe('inset');
-  });
-
-  it('offers the full-bleed opener only on an opening page', () => {
-    expect(candidatesFor(leaf(1, 50), true)).toContain('openerL');
-    expect(candidatesFor(leaf(1, 50), false)).not.toContain('openerL');
-  });
-
-  it('spreads several pictures into a mosaic', () => {
-    expect(candidatesFor(leaf(4, 100), false)[0]).toBe('mosaic');
-  });
-});
-
-describe('planLayouts', () => {
-  const pages = Array.from({ length: 12 }, (_, i) => leaf(i % 4, 120 + i * 40));
+  /** Pick a whole run of pages the way the paginator does. */
+  const run = (albumId: string, n: number, opts: readonly L[] = options) => {
+    const out: L[] = [];
+    let prev: L | null = null;
+    for (let i = 0; i < n; i++) { prev = pickLayout(opts, prev, led, albumId, i); out.push(prev); }
+    return out;
+  };
 
   it('never repeats a layout on the page straight after it', () => {
-    const plan = planLayouts(pages, 'album-1').filter(Boolean);
-    for (let i = 1; i < plan.length; i++) {
-      expect(plan[i], `page ${i} repeats ${plan[i - 1]}`).not.toBe(plan[i - 1]);
-    }
+    const plan = run('album-1', 24);
+    for (let i = 1; i < plan.length; i++) expect(plan[i], `page ${i}`).not.toBe(plan[i - 1]);
   });
 
-  it('alternates picture-led and text-led pages where the content allows', () => {
-    // Pages that could go either way: one picture and enough text for both.
-    const mixed = Array.from({ length: 8 }, () => leaf(1, 300));
-    const plan = planLayouts(mixed, 'album-2').filter(Boolean) as string[];
-    let switches = 0;
-    for (let i = 1; i < plan.length; i++) {
-      if (isPictureLed(plan[i] as never) !== isPictureLed(plan[i - 1] as never)) switches++;
-    }
-    expect(switches).toBeGreaterThan(plan.length / 2);
+  it('alternates picture-led and text-led where there is a choice', () => {
+    const plan = run('album-2', 24);
+    for (let i = 1; i < plan.length; i++) expect(led(plan[i])).not.toBe(led(plan[i - 1]));
   });
 
-  it('leaves the title page and blank sides alone', () => {
-    const plan = planLayouts([leaf(0, 0, { layout: 'title' }), null, leaf(2, 100)], 'a');
-    expect(plan[0]).toBeNull();
-    expect(plan[1]).toBeNull();
-    expect(plan[2]).not.toBeNull();
+  it('is stable: the same album is laid out the same way every time', () => {
+    expect(run('album-1', 12)).toEqual(run('album-1', 12));
   });
 
-  it('is stable: an album is laid out the same way every time it is opened', () => {
-    expect(planLayouts(pages, 'album-1')).toEqual(planLayouts(pages, 'album-1'));
+  it('varies between albums where the choice is real', () => {
+    const plans = new Set(['album-1', 'album-2', 'album-3', 'album-4', 'album-5', 'album-6'].map((id) => run(id, 12).join()));
+    expect(plans.size).toBeGreaterThan(1);
   });
 
-  it('varies between albums wherever the page has a real choice to make', () => {
-    // Four pictures and plenty of text: every candidate is available, so the
-    // album id is free to pick a different starting point. (Where a page has
-    // only one or two candidates the adjacency rules settle it, and both albums
-    // land on the same layout — that is the rules working, not a bug.)
-    const roomy = Array.from({ length: 10 }, () => leaf(4, 400));
-    const a = planLayouts(roomy, 'album-1');
-    const b = planLayouts(roomy, 'album-9');
-    expect(a).not.toEqual(b);
+  it('takes the only option there is, even if it repeats', () => {
+    expect(run('a', 4, ['words'])).toEqual(['words', 'words', 'words', 'words']);
   });
 
-  it('still lays out pages that have only one possible arrangement', () => {
-    const textOnly = Array.from({ length: 4 }, () => leaf(0, 500));
-    expect(planLayouts(textOnly, 'a')).toEqual(['column', 'column', 'column', 'column']);
+  it('breaks the alternation rather than repeat, when only one kind is on offer', () => {
+    const plan = run('a', 6, ['words', 'words2']);
+    for (let i = 1; i < plan.length; i++) expect(plan[i]).not.toBe(plan[i - 1]);
   });
 });
