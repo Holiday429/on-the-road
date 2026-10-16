@@ -2,7 +2,7 @@
    On the Road · Firebase Storage helpers
    ========================================================================== */
 
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, getBlob, deleteObject } from 'firebase/storage';
 import { storage } from './config.ts';
 import { currentUser } from './auth.ts';
 
@@ -129,4 +129,24 @@ export async function uploadPassportPhoto(file: File): Promise<string> {
   const storageRef = ref(storage, `users/${user.uid}/passport/${id}.jpg`);
   await uploadBytes(storageRef, blob, { contentType: blob.type || 'image/jpeg' });
   return getDownloadURL(storageRef);
+}
+
+/**
+ * The bytes of a file we uploaded, by its download URL, through the Storage SDK rather than a plain fetch.
+ *
+ * Drawing a photo onto a canvas needs it CORS-clean, and that asks the BUCKET for an Access-Control-Allow-Origin
+ * covering this site (bucket CORS is configured separately from everything else — see cors.json). When the site's
+ * origin is missing from that list, a plain <img crossorigin> or fetch() cannot get the photo at all. This path
+ * goes through the SDK, which talks to the same bucket with its own credentials, so the picture can still be made
+ * while the bucket's CORS is wrong — and keeps working after it is fixed. Returns null for a URL that is not ours.
+ */
+export async function blobFromDownloadUrl(url: string): Promise<Blob | null> {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)firebasestorage\.googleapis\.com$/.test(u.hostname) && !/(^|\.)firebasestorage\.app$/.test(u.hostname)) return null;
+    // ref() understands a download URL and pulls the bucket and the object path out of it.
+    return await getBlob(ref(storage, url));
+  } catch {
+    return null;
+  }
 }

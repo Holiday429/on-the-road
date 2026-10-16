@@ -72,23 +72,41 @@ function tryImage(src: string, cors: boolean, ms: number): Promise<HTMLImageElem
 async function loadImage(src: string, cors = false): Promise<HTMLImageElement | null> {
   // A URL of its own for the CORS request, so no cached copy of the page's plain <img> (the browser's, or the service
   // worker's opaque one — see sw-routes.ts) can be handed to it. The storage hosts ignore a parameter they do not know.
-  if (cors) src = `${src}${src.includes('?') ? '&' : '?'}otrshare=${Date.now().toString(36)}`;
-  const direct = await tryImage(src, cors, cors ? 8000 : 4000);
+  const direct = await tryImage(cors ? `${src}${src.includes('?') ? '&' : '?'}otrshare=${Date.now().toString(36)}` : src, cors, cors ? 8000 : 4000);
   if (direct || !cors) return direct;
-  try {
-    // no-store: skip whatever the page's own <img> left in the cache, which may carry no CORS verdict.
-    const res = await fetch(src, { mode: 'cors', cache: 'no-store', referrerPolicy: 'no-referrer' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const url = URL.createObjectURL(await res.blob());
+  // Two ways to the bytes, in order of how little they ask of the host: a CORS fetch (which needs the bucket to allow
+  // this origin), then the Storage SDK (which does not). Drawn from a local copy, neither can taint the canvas.
+  const reasons: string[] = [];
+  const blobs: Array<() => Promise<Blob | null>> = [
+    async () => {
+      // no-store: skip whatever the page's own <img> left in the cache, which may carry no CORS verdict.
+      const res = await fetch(src, { mode: 'cors', cache: 'no-store', referrerPolicy: 'no-referrer' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
+    },
+    async () => {
+      const { blobFromDownloadUrl } = await import('../../firebase/storage.ts');
+      return blobFromDownloadUrl(src);
+    },
+  ];
+  for (const get of blobs) {
+    let blob: Blob | null = null;
+    try {
+      blob = await get();
+    } catch (err) {
+      reasons.push(String(err));
+      continue;
+    }
+    if (!blob) { reasons.push('not a file of ours'); continue; }
+    const url = URL.createObjectURL(blob);
     const img = await tryImage(url, false, 8000);
     // The bytes are decoded into the Image by now; the object URL has done its job.
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     if (img) return img;
-    throw new Error('the bytes are not an image');
-  } catch (err) {
-    console.warn('Passport share: could not use the photo —', err);
-    return null;
+    reasons.push('the bytes are not an image');
   }
+  console.warn('Passport share: could not use the photo —', reasons.join(' / '));
+  return null;
 }
 
 function loadLogo(): Promise<HTMLImageElement | null> {
