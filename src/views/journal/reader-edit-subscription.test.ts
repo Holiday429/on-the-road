@@ -98,18 +98,18 @@ describe('reader -> edit through the real subscription wiring', () => {
     // Open the reader, then the editor.
     (body.querySelector('[data-open-entry]') as HTMLElement).click();
     (body.querySelector('[data-open-reader-edit]') as HTMLElement).click();
-    expect(body.querySelector('.jsp--write'), 'composer open').toBeTruthy();
+    expect(body.querySelector('.ltr--write'), 'composer open').toBeTruthy();
 
     // A sibling store re-emits its cold-cache empty snapshot while the editor
     // is open — this is what slammed the composer shut and bounced the user
     // back to the feed.
     emit('legs', []);
     emit('albums', []);
-    expect(body.querySelector('.jsp--write'), 'composer survives sibling refresh').toBeTruthy();
+    expect(body.querySelector('.ltr--write'), 'composer survives sibling refresh').toBeTruthy();
 
     // The entries stream itself re-subscribing (trip switch / signed-out blip).
     emit('entries', []);
-    expect(body.querySelector('.jsp--write'), 'composer survives empty entries snapshot').toBeTruthy();
+    expect(body.querySelector('.ltr--write'), 'composer survives empty entries snapshot').toBeTruthy();
   });
 
   it('closes the editor when the entry is deleted out of band', () => {
@@ -120,10 +120,10 @@ describe('reader -> edit through the real subscription wiring', () => {
     const body = document.querySelector('.journal-body') as HTMLElement;
     (body.querySelector('[data-open-entry="e1"]') as HTMLElement).click();
     (body.querySelector('[data-open-reader-edit]') as HTMLElement).click();
-    expect(body.querySelector('.jsp--write'), 'composer open').toBeTruthy();
+    expect(body.querySelector('.ltr--write'), 'composer open').toBeTruthy();
 
     // e1 removed on another device; the collection is still populated.
     emit('entries', [other]);
-    expect(body.querySelector('.jsp--write'), 'composer should close').toBeFalsy();
+    expect(body.querySelector('.ltr--write'), 'composer should close').toBeFalsy();
   });
 });

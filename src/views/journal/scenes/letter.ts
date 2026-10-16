@@ -11,6 +11,11 @@
    share, pin, delete, the album menu and the page arrows all live in a bar
    under the desk.
 
+   Writing is the same desk, editable: the date and place are the dateline, the
+   title and body are typed straight onto the paper, the mood is a row of wax
+   seals to press, and the postcards are the photos about to be sent, with a
+   blank card to add another.
+
    Pure markup — every function takes what it draws and returns a string. The
    lean of each card comes from the entry id (shared/letter-model.ts), never
    Math.random(), so a re-render never reshuffles the desk.
@@ -20,13 +25,14 @@
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import type { StoredJournalAlbum } from '../../../data/stores/journal-album-store.ts';
 import { t } from '../../../core/i18n.ts';
-import { escHtml, entryImages, moodEmoji, MAX_JOURNAL_IMAGES, titleFor } from '../shared/utils.ts';
-import { envelopeTitle, hasLetter, letterDate, pilePlan, postcardTilt, type CardFocus } from '../shared/letter-model.ts';
+import type { CaptureState } from '../capture/types.ts';
+import { escHtml, entryImages, moodEmoji, MOODS, MAX_JOURNAL_IMAGES, OTHER_DESTINATION, titleFor } from '../shared/utils.ts';
+import { datelineSep, envelopeTitle, hasLetter, letterDate, pilePlan, postcardTilt, type CardFocus } from '../shared/letter-model.ts';
 import { renderStamp, type StampSpec } from '../../../core/paper/stamp.ts';
 import { COUNTRY_SHAPES } from '../../../core/paper/stamp-country.ts';
 import { countryInk } from '../../../data/country-ink.ts';
 import { hashStr } from '../../../data/palette.ts';
-import { postmark, renderPostcard } from './postcard.ts';
+import { postmark, renderPostcard, renderPostcardSlot } from './postcard.ts';
 import '../../../core/paper/paper.css';
 
 export interface ReadLetterOpts {
@@ -46,10 +52,13 @@ export interface ReadLetterOpts {
   focus: CardFocus | null;
 }
 
+/** What the envelope and stamp need of an entry — also true of a draft. */
+type LetterHead = Pick<StoredJournalEntry, 'id' | 'title' | 'body' | 'destination' | 'happenedOn'>;
+
 /* ── The stamp ───────────────────────────────────────────────────────────── */
 
 /** The country stamp for an entry. With no country it is a plain stamp with the place's name. */
-function entryStamp(entry: StoredJournalEntry, iso: string | null, country: string, size: number): string {
+function entryStamp(entry: LetterHead, iso: string | null, country: string, size: number): string {
   const name = country || entry.destination.trim();
   const key = iso || name.toLowerCase();
   const spec: StampSpec = {
@@ -64,7 +73,7 @@ function entryStamp(entry: StoredJournalEntry, iso: string | null, country: stri
 
 /* ── The envelope ────────────────────────────────────────────────────────── */
 
-function envelope(entry: StoredJournalEntry, iso: string | null, country: string, big: boolean): string {
+function envelope(entry: LetterHead, iso: string | null, country: string, big: boolean): string {
   const to = envelopeTitle(entry);
   return `
     <div class="ltr-env${big ? ' is-big' : ''}" aria-hidden="true">
@@ -198,5 +207,133 @@ export function renderReadLetter(o: ReadLetterOpts): string {
       </div>
       ${bar(o)}
       <button class="journal-icon-btn ltr-close" data-reader-close type="button" title="${escHtml(t('journal.close'))}" aria-label="${escHtml(t('journal.close'))}">✕</button>
+    </article>`;
+}
+
+/* ── Writing ─────────────────────────────────────────────────────────────── */
+
+export interface WriteLetterOpts {
+  state: CaptureState;
+  /** Cities from the itinerary, offered as the place. */
+  cities: string[];
+  /** Places written about before, for the free-text list. */
+  destinations: string[];
+  /** The guide-place picker and any other optional fields, already drawn. */
+  extras: string;
+  iso: string | null;
+  country: string;
+  locale: string;
+}
+
+/** The date, written as it will read on the letter. The real date control sits invisibly over it. */
+function dateControl(iso: string, locale: string): string {
+  return `
+    <label class="ltr-date">
+      <span class="ltr-date-text">${escHtml(letterDate(iso, '', locale))}</span>
+      <input class="ltr-date-input" type="date" id="journal-date" value="${escHtml(iso)}" aria-label="${escHtml(t('journal.date'))}">
+    </label>`;
+}
+
+function placeControl(o: WriteLetterOpts): string {
+  const d = o.state.draft;
+  const place = d.destination.trim();
+  const isCustom = place !== '' && !o.cities.includes(place);
+  return `
+    <span class="ltr-place">
+      ${o.cities.length ? `
+        <select class="ltr-place-select" id="journal-destination-select" aria-label="${escHtml(t('journal.whereWereYou'))}">
+          ${o.cities.map((c) => `<option value="${escHtml(c)}" ${!isCustom && c === place ? 'selected' : ''}>${escHtml(c)}</option>`).join('')}
+          <option value="${OTHER_DESTINATION}" ${isCustom ? 'selected' : ''}>${escHtml(t('journal.otherPlace'))}</option>
+        </select>` : ''}
+      <input class="ltr-place-input" id="journal-destination" list="journal-dest-list"
+        placeholder="${escHtml(t('journal.whereWereYou'))}" value="${escHtml(d.destination)}"
+        ${o.cities.length && !isCustom ? 'hidden' : ''}>
+      <datalist id="journal-dest-list">
+        ${o.destinations.map((x) => `<option value="${escHtml(x)}"></option>`).join('')}
+      </datalist>
+    </span>`;
+}
+
+/** Four seals to press the letter with. The radio is the state; the wax is only its picture. */
+function sealPicker(mood: string): string {
+  return `
+    <div class="ltr-seals" role="group" aria-label="${escHtml(t('journal.mood'))}">
+      ${MOODS.map((m) => `
+        <label class="ltr-seal ltr-seal--pick${mood === m.value ? ' is-on' : ''}" data-mood="${escHtml(m.value)}" title="${escHtml(m.value)}">
+          <input type="radio" name="journal-mood" value="${escHtml(m.value)}" ${mood === m.value ? 'checked' : ''}>
+          <span class="ltr-seal-icon" aria-hidden="true">${m.emoji}</span>
+        </label>`).join('')}
+    </div>`;
+}
+
+function writePaper(o: WriteLetterOpts): string {
+  const { state } = o;
+  const d = state.draft;
+  return `
+    <section class="ltr-paper ltr-paper--write">
+      <div class="ltr-letterhead" aria-hidden="true">On the Road</div>
+      <div class="ltr-dateline is-edit">${dateControl(d.happenedOn, o.locale)}<span class="ltr-sep" aria-hidden="true">${escHtml(datelineSep(o.locale).trim())}</span>${placeControl(o)}</div>
+      <input class="ltr-title-input" id="journal-title" maxlength="80"
+        placeholder="${escHtml(t('journal.titlePlaceholder'))}" value="${escHtml(d.title)}">
+      <textarea class="ltr-text-input" id="journal-body"
+        placeholder="${escHtml(t('journal.bodyPlaceholder'))}">${escHtml(d.body)}</textarea>
+      <footer class="ltr-foot ltr-foot--write">
+        <details class="ltr-note" ${state.moreOpen ? 'open' : ''} data-journal-more>
+          <summary class="ltr-note-tab">${escHtml(t('journal.moreFields'))}</summary>
+          <div class="ltr-note-body">
+            <input class="input" id="journal-tags" placeholder="${escHtml(t('journal.tagsPlaceholder'))}" value="${escHtml(d.tagsText)}">
+            ${o.extras}
+          </div>
+        </details>
+        ${sealPicker(d.mood)}
+      </footer>
+    </section>`;
+}
+
+/** The photos about to go out, as a pile, with a blank card on the end to add another. */
+function writeCards(o: WriteLetterOpts): string {
+  const { state } = o;
+  const d = state.draft;
+  const key = 'draft';
+  const full = d.images.length >= MAX_JOURNAL_IMAGES;
+  const pile = pilePlan(key, [...d.images.map((_, i) => d.imageRatios[i]), ...(full ? [] : [undefined])]);
+  const focus = state.letter?.entryId === key ? state.letter : null;
+  const picked = Math.min(focus?.picked ?? 0, Math.max(0, d.images.length - 1));
+  return `
+    <aside class="ltr-cards" data-layout="stack" aria-label="${escHtml(t('journal.letter.postcards'))}"
+           style="--pile-w:${pile.width}px;--pile-h:${pile.height}px">
+      ${d.images.map((src, i) => renderPostcard({
+        src, index: i, total: d.images.length, card: pile.cards[i],
+        z: i === picked ? 100 : 50 - Math.abs(i - picked),
+        picked: i === picked, flipped: false,
+        place: d.destination, date: d.happenedOn, message: d.title, stamp: '',
+        edit: { first: i === 0, last: i === d.images.length - 1 },
+      })).join('')}
+      ${full ? '' : renderPostcardSlot({ card: pile.cards[d.images.length], uploading: d.uploading, label: t('journal.addPhoto') })}
+      <input class="ltr-file" type="file" id="journal-image-input" accept="image/*" multiple>
+    </aside>`;
+}
+
+export function renderWriteLetter(o: WriteLetterOpts): string {
+  const { state } = o;
+  const d = state.draft;
+  const head: LetterHead = { id: 'draft', title: d.title, body: d.body, destination: d.destination, happenedOn: d.happenedOn };
+  return `
+    <article class="ltr ltr--write" data-letter-scene data-layout="letter">
+      <div class="ltr-scroll">
+        <div class="ltr-scene ltr-scene--letter has-cards">
+          ${envelope(head, o.iso, o.country, false)}
+          ${writePaper(o)}
+          ${writeCards(o)}
+        </div>
+      </div>
+      <nav class="ltr-bar ltr-bar--write">
+        <span class="ltr-bar-hint">${escHtml(t(state.editingId ? 'journal.edit' : 'journal.new'))}</span>
+        <div class="ltr-tools">
+          <button class="btn btn-ghost" data-journal-cancel type="button">${escHtml(t('journal.cancel'))}</button>
+          <button class="btn btn-primary" data-journal-save type="button">${escHtml(t('journal.save'))}</button>
+        </div>
+      </nav>
+      <button class="journal-icon-btn ltr-close" data-journal-close type="button" title="${escHtml(t('journal.close'))}" aria-label="${escHtml(t('journal.close'))}">✕</button>
     </article>`;
 }

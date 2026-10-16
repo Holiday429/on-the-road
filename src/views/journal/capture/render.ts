@@ -8,8 +8,7 @@ import { renderGallery } from '../scenes/gallery.ts';
 import { renderPlaces } from '../scenes/places.ts';
 import { buildStops, countryName, type PlaceStop } from '../scenes/places-model.ts';
 import { albumEntries, renderBook, renderShelf } from '../scenes/albums.ts';
-import { renderWriteSpread } from '../scenes/spread.ts';
-import { renderReadLetter } from '../scenes/letter.ts';
+import { renderReadLetter, renderWriteLetter } from '../scenes/letter.ts';
 import { ratioFor } from '../shared/ratio-cache.ts';
 import { renderCoverEditor } from '../scenes/album-cover-edit.ts';
 import {
@@ -124,7 +123,13 @@ function renderComposer(
     ? renderGuidePlacesPicker(savedGuidePlaces, state.draft.linkedPlaces)
     : '';
 
-  return renderWriteSpread({ state, cities, destinations, extras });
+  // The stamp wants the country; work it out from the place the way the reader does.
+  const draft = state.draft;
+  const stop = draft.destination.trim()
+    ? buildStops([{ id: 'draft', destination: draft.destination, happenedOn: draft.happenedOn, updatedAt: 0 } as unknown as StoredJournalEntry], legs)[0]
+    : undefined;
+  const iso = stop?.iso ?? null;
+  return renderWriteLetter({ state, cities, destinations, extras, iso, country: iso ? countryName(iso) : '', locale: getLocale() });
 }
 
 

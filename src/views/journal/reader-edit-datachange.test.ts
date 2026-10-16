@@ -54,7 +54,7 @@ function openEditor(getEntries: () => any[]) {
 
   (body.querySelector('[data-open-entry]') as HTMLElement).click();
   (body.querySelector('[data-open-reader-edit]') as HTMLElement).click();
-  expect(body.querySelector('.jsp--write'), 'composer open').toBeTruthy();
+  expect(body.querySelector('.ltr--write'), 'composer open').toBeTruthy();
 
   return { ctrl, body };
 }
@@ -72,7 +72,7 @@ describe('open editor survives store refreshes', () => {
 
     // eslint-disable-next-line no-restricted-syntax -- fixture data
     body.innerHTML = ctrl.render();
-    expect(body.querySelector('.jsp--write'), 'composer must stay open').toBeTruthy();
+    expect(body.querySelector('.ltr--write'), 'composer must stay open').toBeTruthy();
   });
 
   it('still closes the editor when the entry is genuinely deleted', () => {
@@ -88,6 +88,6 @@ describe('open editor survives store refreshes', () => {
 
     // eslint-disable-next-line no-restricted-syntax -- fixture data
     body.innerHTML = ctrl.render();
-    expect(body.querySelector('.jsp--write'), 'composer should close').toBeFalsy();
+    expect(body.querySelector('.ltr--write'), 'composer should close').toBeFalsy();
   });
 });

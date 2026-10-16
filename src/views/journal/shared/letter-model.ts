@@ -143,6 +143,11 @@ export function envelopeTitle(entry: { title: string; body: string; destination:
 
 const SEP: Record<string, string> = { zh: '，', ja: '、' };
 
+/** What goes between the date and the place on the dateline. */
+export function datelineSep(locale: string): string {
+  return SEP[locale] ?? ', ';
+}
+
 /** "2026年9月6日，Copenhagen" / "6 September 2026, Copenhagen" — the line at the top right of the page. */
 export function letterDate(iso: string, place: string, locale = 'en'): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -154,5 +159,5 @@ export function letterDate(iso: string, place: string, locale = 'en'): string {
     } catch { /* unknown locale: keep the ISO date */ }
   }
   const where = place.trim();
-  return where ? `${date}${SEP[locale] ?? ', '}${where}` : date;
+  return where ? `${date}${datelineSep(locale)}${where}` : date;
 }

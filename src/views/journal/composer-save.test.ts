@@ -101,7 +101,7 @@ describe('composer save', () => {
     expect(body.querySelector('[data-stamp]'), 'no category stamps').toBeFalsy();
 
     newEntryButton(root, body).click();
-    expect(body.querySelector('.jsp--write'), 'composer opened').toBeTruthy();
+    expect(body.querySelector('.ltr--write'), 'composer opened').toBeTruthy();
     expect(body.querySelector('#journal-body'), 'straight to the text field').toBeTruthy();
   });
 
@@ -156,5 +156,23 @@ describe('composer save', () => {
 
     expect(update).toHaveBeenCalledTimes(1);
     expect(update.mock.calls[0][1]).toMatchObject({ template: 'interesting' });
+  });
+
+  it('saves from the Dashboard overlay, which mounts the composer without the journal shell', async () => {
+    const ctrl = createCaptureController({ getEntries: () => [], getLegs: () => [], requestRender: () => {} });
+    ctrl.openComposer();
+    // views/journal/index.ts lifts just the overlay node out of the full render.
+    const tmp = document.createElement('div');
+    // eslint-disable-next-line no-restricted-syntax -- audited: fixture
+    tmp.innerHTML = ctrl.render();
+    const host = document.createElement('div');
+    host.appendChild(tmp.querySelector('.journal-composer-overlay')!);
+    document.body.replaceChildren(host);
+    ctrl.bind(host);
+    expect(host.querySelector('.journal-shell')).toBeNull();
+
+    await writeAndSave(host, '今天走了很久的路');
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0][0]).toMatchObject({ body: '今天走了很久的路' });
   });
 });

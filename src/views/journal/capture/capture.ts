@@ -27,6 +27,7 @@ import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import { uploadJournalImage } from '../../../firebase/storage.ts';
 import { openModal } from '../../../core/modal.ts';
+import { envelopeTitle } from '../shared/letter-model.ts';
 import { cachedRatio, measureMissing, measureRatio, rememberRatio, storedRatios } from '../shared/ratio-cache.ts';
 import {
   MAX_JOURNAL_IMAGES,
@@ -164,7 +165,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const saveBtn = target.closest<HTMLElement>('[data-journal-save]');
       if (saveBtn) {
-        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        const liveShell = shellOf(root);
         if (liveShell) void saveDraft(liveShell);
         return;
       }
@@ -193,7 +194,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       // L2: swap the place+date summary line for its controls.
       const metaEditBtn = target.closest<HTMLElement>('[data-meta-edit]');
       if (metaEditBtn) {
-        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        const liveShell = shellOf(root);
         if (liveShell) syncDraftFromDom(liveShell);
         state.metaEditing = true;
         deps.requestRender();
@@ -209,6 +210,12 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
 
       /* ── Albums ───────────────────────────────────────────────────────── */
+
+      // The sticky note of extras opens and closes on its own; remember it so a redraw does not fold it shut.
+      const noteTab = target.closest<HTMLElement>('[data-journal-more] > summary');
+      if (noteTab) {
+        state.moreOpen = !(noteTab.parentElement as HTMLDetailsElement).open;
+      }
 
       const tidyBtn = target.closest<HTMLElement>('[data-album-tidy]');
       if (tidyBtn) {
@@ -490,6 +497,8 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     // rebuild the input under the cursor and lose the caret mid-word.
     root.addEventListener('input', (event) => {
       const el = event.target as HTMLInputElement;
+      if (el.id === 'journal-body') autosize(el);
+      if (el.id === 'journal-title' || el.id === 'journal-destination') updateEnvelope(el);
       if (!state.coverEdit || !syncCoverField(el)) return;
       const album = albums().find((a) => a.id === state.coverEdit!.albumId);
       const proof = root.querySelector<HTMLElement>('.jce-proof-art');
@@ -504,7 +513,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
     root.addEventListener('change', (event) => {
       const target = event.target as HTMLInputElement | HTMLSelectElement;
-      const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+      const liveShell = shellOf(root);
       if (!liveShell) return;
 
       if (target.matches('[data-album-target]')) {
@@ -532,6 +541,13 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         syncDraftFromDom(liveShell);
         const selected = (target as HTMLSelectElement).value;
         state.draft.destination = selected === OTHER_DESTINATION ? '' : selected;
+        deps.requestRender();
+        return;
+      }
+
+      // The dateline reads the date back as a sentence, so it is redrawn when the date changes.
+      if (target.matches('#journal-date')) {
+        syncDraftFromDom(liveShell);
         deps.requestRender();
         return;
       }
@@ -567,7 +583,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         keyEvent.key === 'Enter'
       ) {
         keyEvent.preventDefault();
-        const liveShell = root.querySelector<HTMLElement>('.journal-shell');
+        const liveShell = shellOf(root);
         if (!liveShell) return;
         void saveDraft(liveShell);
       }
@@ -606,6 +622,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   function afterRender(root: HTMLElement) {
     measureReading();
     resetReaderScroll();
+    autosize(document.getElementById('journal-body'));
     void syncPlacesMap(root, {
       onPick: (key) => pickPlace(key),
     });
@@ -632,6 +649,20 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     });
   }
 
+  /** The envelope is addressed as the title is typed. */
+  function updateEnvelope(el: HTMLInputElement) {
+    const scene = el.closest('[data-letter-scene]');
+    if (!scene) return;
+    const draft = { title: '', body: '', destination: '' };
+    draft.title = scene.querySelector<HTMLInputElement>('#journal-title')?.value ?? '';
+    draft.body = scene.querySelector<HTMLTextAreaElement>('#journal-body')?.value ?? '';
+    draft.destination = scene.querySelector<HTMLInputElement>('#journal-destination')?.value ?? '';
+    const to = scene.querySelector('.ltr-env-title');
+    if (to) to.textContent = envelopeTitle(draft);
+    const from = scene.querySelector('.ltr-env-place');
+    if (from) from.textContent = draft.destination.trim() || '—';
+  }
+
   /** Turning to another entry keeps the same scroller (the markup is morphed, not rebuilt), so start it at the top. */
   let scrolledFor: string | null = null;
   function resetReaderScroll() {
@@ -642,12 +673,16 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   }
 
   function pressPostcard(index: number, card: HTMLElement) {
-    const id = state.readingId;
+    // Writing and reading each have their own pile; they are never open together.
+    const id = state.composerOpen ? 'draft' : state.readingId;
     if (!id) return;
     const focus = state.letter?.entryId === id ? state.letter : { entryId: id, picked: 0, flipped: [] as number[] };
     // Fanned in a pile (a wide desk) the cards are absolutely positioned; in a row or spread loose they are not.
     const inPile = getComputedStyle(card).position === 'absolute';
-    if (inPile && focus.picked !== index) {
+    // A card being written is arranged, not read: picking it brings it forward, nothing turns it over.
+    if (state.composerOpen) {
+      focus.picked = index;
+    } else if (inPile && focus.picked !== index) {
       focus.picked = index;
     } else {
       focus.picked = index;
@@ -734,10 +769,12 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     state.composerOpen = true;
     state.moreOpen = false;
     state.metaEditing = false;
+    state.letter = null;
     state.draft = defaultDraft(deps.getLegs());
   }
 
   function resetDraft() {
+    state.letter = null;
     state.editingId = null;
     state.composerOpen = false;
     state.moreOpen = false;
@@ -750,6 +787,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     if (!entry) return;
     state.editingId = id;
     state.composerOpen = true;
+    state.letter = null;
     state.draft = {
       body: entry.body,
       title: entry.title,
@@ -777,7 +815,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
    * instead, the same way focusComposer/appendToComposerBody reach the DOM.
    */
   function syncDraftFromLiveShell() {
-    const liveShell = document.querySelector<HTMLElement>('.journal-shell');
+    const liveShell = document.querySelector<HTMLElement>('.ltr--write') ?? document.querySelector<HTMLElement>('.journal-shell');
     if (liveShell) syncDraftFromDom(liveShell);
   }
 
@@ -1305,6 +1343,23 @@ async function copyLink(url: string) {
   }
 }
 
+/**
+ * Where the form fields are. The Journal view wraps everything in `.journal-shell`; the
+ * Dashboard's "write an entry" overlay mounts only the composer, so there the root is the
+ * overlay itself. (Without this fallback nothing in that overlay — save, mood, date, photos —
+ * did anything.)
+ */
+function shellOf(root: HTMLElement): HTMLElement {
+  return root.querySelector<HTMLElement>('.journal-shell') ?? root;
+}
+
+/** The body grows with what is written, so the whole letter scrolls rather than the textarea. */
+function autosize(el: HTMLTextAreaElement | HTMLElement | null) {
+  if (!(el instanceof HTMLTextAreaElement)) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 function focusComposer(scroll = false) {
   queueMicrotask(() => {
     // The composer renders inside `.journal-composer-overlay`, which is
@@ -1320,7 +1375,9 @@ function focusComposer(scroll = false) {
         composer.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }
-    document.getElementById('journal-body')?.focus();
+    const body = document.getElementById('journal-body');
+    autosize(body);
+    body?.focus();
   });
 }
 

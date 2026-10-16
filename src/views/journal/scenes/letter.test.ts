@@ -6,7 +6,7 @@
  * produces which scene.
  */
 import { describe, expect, it } from 'vitest';
-import { renderReadLetter, type ReadLetterOpts } from './letter.ts';
+import { renderReadLetter, renderWriteLetter, type ReadLetterOpts, type WriteLetterOpts } from './letter.ts';
 
 const entry = (over: Record<string, unknown> = {}): any => ({
   id: 'e1', tripId: null, title: 'Canal bikes', body: 'Rented a bike.', template: 'moment',
@@ -114,5 +114,67 @@ describe('renderReadLetter', () => {
   it('seals the letter in the mood\'s wax, and leaves it off for a mood it does not know', () => {
     expect(dom(opts(entry({ mood: 'wired' }))).querySelector('.ltr-seal')?.getAttribute('data-mood')).toBe('wired');
     expect(dom(opts(entry({ mood: '😊' }))).querySelector('.ltr-seal')).toBeNull();
+  });
+});
+
+describe('renderWriteLetter', () => {
+  const draft = (over: Record<string, unknown> = {}): any => ({
+    body: 'b', title: 't', template: 'moment', destination: 'Berlin', tagsText: 'x', mood: 'calm', happenedOn: '2026-07-08',
+    images: ['a.jpg', 'b.jpg'], pendingFiles: [null, null], imageRatios: [0.75, 1.5], uploading: false, linkedPlaces: [], ...over,
+  });
+  const w = (d: any, over: Partial<WriteLetterOpts> = {}) => {
+    const host = document.createElement('div');
+    // eslint-disable-next-line no-restricted-syntax -- audited: fixture markup under test
+    host.innerHTML = renderWriteLetter({
+      state: { draft: d, editingId: null, moreOpen: false, letter: null } as any,
+      cities: ['Berlin', 'Rome'], destinations: ['Berlin'], extras: '<i class="extra"></i>', iso: 'DE', country: 'Germany', locale: 'en', ...over,
+    });
+    return host;
+  };
+
+  it('keeps every hook the composer, the tests and the dashboard overlay rely on', () => {
+    const d = w(draft());
+    for (const sel of ['#journal-date', '#journal-destination-select', '#journal-destination', '#journal-title', '#journal-body',
+      '#journal-tags', '#journal-image-input', '[data-journal-save]', '[data-journal-cancel]', '[data-journal-close]', '[data-journal-more]',
+      'input[name="journal-mood"]', '.extra']) {
+      expect(d.querySelector(sel), sel).toBeTruthy();
+    }
+    expect(d.querySelectorAll('input[name="journal-mood"]')).toHaveLength(4);
+    expect(d.querySelector<HTMLInputElement>('input[name="journal-mood"]:checked')?.value).toBe('calm');
+  });
+
+  it('one card per photo with remove and reorder, first is the cover, and a blank card to add more', () => {
+    const d = w(draft());
+    expect(d.querySelectorAll('[data-postcard]')).toHaveLength(2);
+    expect(d.querySelector('[data-remove-image="1"]')).toBeTruthy();
+    expect(d.querySelector('[data-move-image="0"][data-move-dir="back"]')?.hasAttribute('disabled')).toBe(true);
+    expect(d.querySelector('[data-move-image="1"][data-move-dir="forward"]')?.hasAttribute('disabled')).toBe(true);
+    expect(d.querySelectorAll('.ltr-pc-cover')).toHaveLength(1);
+    expect(d.querySelector('label.ltr-pc-slot[for="journal-image-input"]')).toBeTruthy();
+  });
+
+  it('offers no blank card once nine photos are in', () => {
+    const nine = Array.from({ length: 9 }, (_, i) => `p${i}.jpg`);
+    const d = w(draft({ images: nine, pendingFiles: nine.map(() => null), imageRatios: nine.map(() => 1.5) }));
+    expect(d.querySelectorAll('[data-postcard]')).toHaveLength(9);
+    expect(d.querySelector('.ltr-pc-slot')).toBeNull();
+  });
+
+  it('a draft with no photos is the paper and a blank card', () => {
+    const d = w(draft({ images: [], pendingFiles: [], imageRatios: [] }));
+    expect(d.querySelectorAll('[data-postcard]')).toHaveLength(0);
+    expect(d.querySelector('.ltr-pc-slot')).toBeTruthy();
+  });
+
+  it('writes the place and the date as a dateline, in the right language', () => {
+    expect(w(draft()).querySelector('.ltr-date-text')?.textContent).toBe('8 July 2026');
+    expect(w(draft(), { locale: 'zh' }).querySelector('.ltr-date-text')?.textContent).toBe('2026年7月8日');
+  });
+
+  it('escapes what was typed', () => {
+    const d = w(draft({ title: '"><img src=x>', body: '</textarea><b>x</b>' }));
+    expect(d.querySelector('.ltr-paper img')).toBeNull();
+    expect(d.querySelector('.ltr-paper b')).toBeNull();
+    expect((d.querySelector('#journal-body') as HTMLTextAreaElement).value).toBe('</textarea><b>x</b>');
   });
 });
