@@ -56,7 +56,7 @@ function arriveBy(leg: Leg): { glyph: string; code: string; times: string } | nu
 
 function firstStay(leg: Leg): string {
   const stays = legStays(leg);
-  return stays.length ? stays[0].name : '';
+  return stays.length ? (stays[0].name ?? '') : '';
 }
 
 /* ── Rows ────────────────────────────────────────────────────────────────── */

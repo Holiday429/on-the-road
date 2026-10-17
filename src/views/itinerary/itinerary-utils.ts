@@ -55,7 +55,10 @@ export function sortLegs(rows: Leg[]): Leg[] {
 /** Stays for a leg, normalising the legacy single `accommodation` field. */
 export function legStays(leg: Leg): Accommodation[] {
   if (leg.accommodations?.length) {
-    return [...leg.accommodations].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    // A null/undefined entry survives a bad write or a half-applied migration;
+    // every caller reads `.name` straight off these, so drop the holes here
+    // rather than let one bad row throw the view that renders it.
+    return leg.accommodations.filter(Boolean).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }
   if (leg.accommodation) return [{ ...leg.accommodation, id: 'legacy' }];
   return [];

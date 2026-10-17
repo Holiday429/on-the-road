@@ -528,6 +528,8 @@ export const en: StringTable = {
   'route.collClips':        'Clips',
   'route.collNotes':        'Notes',
   'route.collEmpty':        'Clip links and screenshots, or jot a note: everything for this city that is not scheduled yet.',
+  'route.crashTitle':       'This view could not be drawn',
+  'route.crashReload':      'Reload',
   'route.stayKind':          'Stay voucher',
   'route.stayRate':          'Rate',
   'route.stayPlatform':      'Booked via',

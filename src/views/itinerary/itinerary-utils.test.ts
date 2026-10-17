@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Leg as SchemaLeg, Clip } from '../../data/schema.ts';
 import {
   stayPriceLabel, transportPriceLabel, stayBookingHref,
-  baggageLabel, clipImages, legPlanTitleSet, coverPosition, cityHue,
+  baggageLabel, clipImages, legPlanTitleSet, coverPosition, cityHue, legStays,
 } from './itinerary-utils.ts';
 
 type Accommodation = NonNullable<SchemaLeg['accommodations']>[number];
@@ -128,5 +128,12 @@ describe('cityHue', () => {
     const h = cityHue('Copenhagen');
     expect(h).toBeGreaterThanOrEqual(0);
     expect(h).toBeLessThan(360);
+  });
+});
+
+describe('legStays resilience', () => {
+  it('drops null entries rather than letting a caller read .name off one', () => {
+    const leg = { accommodations: [null, { name: 'B', order: 1 }, undefined, { name: 'A', order: 0 }] };
+    expect(legStays(leg as never).map((s) => s.name)).toEqual(['A', 'B']);
   });
 });

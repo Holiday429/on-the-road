@@ -218,6 +218,21 @@ function legMarks(leg: Leg): CardPostmarks | undefined {
   return _markMemo.marks.get(leg.id);
 }
 
+/** Shown in place of the view when a renderer throws, so the failure is visible
+ *  and recoverable rather than a blank page with dead controls. */
+function renderCrash(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  return `
+    <div class="route-empty">
+      <div class="route-empty-icon">\u26A0\uFE0F</div>
+      <div class="route-empty-title">${tr('route.crashTitle')}</div>
+      <div class="route-empty-text">${esc(msg)}</div>
+      <div class="route-empty-actions">
+        <button class="btn btn-primary" data-act="crash-reload">${tr('route.crashReload')}</button>
+      </div>
+    </div>`;
+}
+
 /** The list page: action row, then the departures board (itinerary-board.ts). */
 function renderTimeline(): string {
   if (legs.length === 0) {
@@ -668,16 +683,32 @@ function render() {
   // focused textarea on the Firestore echo). Time-windowed, not one-shot.
   if (selected && isNoteSuppressed(selected.id)) return;
 
+  // One malformed stop must not take the page down with it. Before this guard a
+  // throw inside a renderer left the previous DOM on screen (so the board could
+  // be missing while an older card stayed put), and a throw while wiring left
+  // every button — here AND in the rest of the app, since the error escaped the
+  // store callback — without its listeners.
+  let html: string;
+  try {
+    html = selected ? renderDetail(selected) : renderTimeline();
+  } catch (e) {
+    console.error('[route] render failed:', e);
+    html = renderCrash(e);
+  }
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
-  timeline.innerHTML = selected ? renderDetail(selected) : renderTimeline();
+  timeline.innerHTML = html;
   timeline.classList.toggle('is-detail', !!selected);
   // With a stop open, the "Itinerary" page title is the way back to the list.
   setViewHome('route', selected ? backToList : null);
 
-  if (selected) {
-    wireDetail(timeline, selected);
-    if (_openDatesFor === selected.id) { _openDatesFor = null; openDatesEditor(timeline, selected, patchLeg); }
-  } else wireList(timeline);
+  try {
+    if (selected) {
+      wireDetail(timeline, selected);
+      if (_openDatesFor === selected.id) { _openDatesFor = null; openDatesEditor(timeline, selected, patchLeg); }
+    } else wireList(timeline);
+  } catch (e) {
+    console.error('[route] wiring failed:', e);
+  }
 }
 
 /* ── Wiring: list ───────────────────────────────────────────────────────── */
@@ -741,6 +772,7 @@ function openLeg(id: string, row?: HTMLElement | null) {
 }
 
 function wireList(timeline: HTMLElement) {
+  timeline.querySelector('[data-act="crash-reload"]')?.addEventListener('click', () => location.reload());
   wirePassportOpeners(timeline);
   timeline.querySelectorAll<HTMLElement>('[data-pp-icon]').forEach(mountPassportIcon);
   timeline.querySelectorAll<HTMLElement>('[data-act="add-stop"]').forEach((b) =>

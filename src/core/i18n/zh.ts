@@ -522,6 +522,8 @@ export const zh: StringTable = {
   'route.collClips':        '收藏',
   'route.collNotes':        '便签',
   'route.collEmpty':        '收藏链接和截图，或者写张便签：这座城市还没安排的东西都放这里。',
+  'route.crashTitle':       '这个页面没能画出来',
+  'route.crashReload':      '重新加载',
   'route.stayKind':          '住宿凭证',
   'route.stayRate':          '房价',
   'route.stayPlatform':      '预订平台',

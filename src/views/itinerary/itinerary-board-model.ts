@@ -77,8 +77,9 @@ export function gateFor(legs: Leg[], today: string): Gate {
   return { kind: 'over', nights: s.nights, stops: s.stops };
 }
 
-/** Text for the flap tiles: capped so one long name can't push the row wide. */
-export function tileText(s: string, max: number): string {
-  const chars = [...s.trim()];
+/** Text for the flap tiles: capped so one long name can't push the row wide.
+ *  Tolerates a missing value — a stop saved without a city still has a row. */
+export function tileText(s: string | null | undefined, max: number): string {
+  const chars = [...(s ?? '').trim()];
   return chars.length > max ? chars.slice(0, max - 1).join('') + '…' : chars.join('');
 }

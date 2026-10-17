@@ -54,6 +54,10 @@ describe('boardSummary / tileText', () => {
     const legs = [leg('a', '2026-07-01', '2026-07-05'), leg('b', '2026-07-05', '2026-07-09', { country: 'Y' })];
     expect(boardSummary(legs, '2026-06-01')).toEqual({ stops: 2, countries: 2, nights: 8, toBook: 2 });
   });
+  it('tolerates a stop saved without a city', () => {
+    expect(tileText(undefined, 10)).toBe('');
+    expect(tileText(null, 10)).toBe('');
+  });
   it('caps long names with an ellipsis', () => {
     expect(tileText('Copenhagen', 12)).toBe('Copenhagen');
     expect(tileText('Llanfairpwllgwyngyll', 10)).toBe('Llanfairp…');
