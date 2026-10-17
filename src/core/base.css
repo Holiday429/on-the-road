@@ -143,6 +143,18 @@
   --pp-desk-2:     #cdc4b2;
   --pp-cloth:      #34465e;
   --pp-cloth-2:    #283750;
+  /* Itinerary departures board. Light: warm enamel, cream flap tiles and ink
+     characters (the page never goes black). Dark: the classic black board. */
+  --board-bg:      var(--surface-2);
+  --board-bar:     var(--amber-100);
+  --board-bar-ink: var(--amber-700);
+  --board-tile:    var(--surface);
+  --board-ink:     var(--ink);
+  --board-dim:     var(--ink-muted);
+  --board-rule:    var(--rule);
+  --board-hinge:   color-mix(in srgb, var(--ink) 16%, transparent);
+  --board-now:     color-mix(in srgb, var(--amber-400) 14%, var(--surface));
+  --board-warn:    var(--amber-700);
   --pp-gold:       #c4a672;
   --pp-paper:      #f7f1e2;
   --pp-paper-edge: #e3d9c2;
@@ -224,6 +236,16 @@
   --pp-desk-2:     #35312b;
   --pp-cloth:      #2f4562;
   --pp-cloth-2:    #263650;
+  --board-bg:      #14120f;
+  --board-bar:     #0b0a08;
+  --board-bar-ink: var(--amber-400);
+  --board-tile:    #26221c;
+  --board-ink:     #efe9dc;
+  --board-dim:     #8d887d;
+  --board-rule:    #25221d;
+  --board-hinge:   #000000;
+  --board-now:     color-mix(in srgb, var(--amber-400) 13%, #14120f);
+  --board-warn:    var(--amber-400);
   --pp-gold:       #c4a672;
   --pp-paper:      #403b33;
   --pp-paper-edge: #4b453b;

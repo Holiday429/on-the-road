@@ -161,8 +161,13 @@
 }
 .rd-detail-grid--top {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
+  align-items: stretch;
 }
+/* Transport and stays are a matched pair: same head height, ticket fills the column. */
+.rd-detail-grid--top > .rd-section { display: flex; flex-direction: column; }
+.rd-detail-grid--top .rd-section-head { min-height: 34px; }
+.rd-detail-grid--top > .rd-section > .rd-ticket,
+.rd-detail-grid--top > .rd-section > .rd-ticket-ghost { flex: 1 1 auto; }
 .rd-detail-layout > .rd-section,
 .rd-detail-grid > .rd-section {
   margin-bottom: 0;

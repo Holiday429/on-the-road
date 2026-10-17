@@ -23,7 +23,7 @@ import { flagForCountry } from '../../data/destinations.ts';
 import type { StampLeg } from '../../data/stamps.ts';
 import { postmarksFor, type CardPostmarks } from '../../data/card-postmarks.ts';
 import { todayIso as stampToday } from '../../data/trip-phase.ts';
-import { mountPassportPockets, wirePassportOpeners } from '../passport/passport-links.ts';
+import { mountPassportIcon, wirePassportOpeners } from '../passport/passport-links.ts';
 import { postmarkPair } from '../passport/postmark.ts';
 import {
   uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
@@ -53,8 +53,10 @@ import {
   BUILTIN_CATEGORIES, CATEGORY_PALETTE, allCategories, categoryById,
 } from './itinerary-shared.ts';
 import {
-  nightsLabel, legCoverArt, legSummary, renderTransportSection, renderStaysSection,
+  nightsLabel, legCoverArt, renderTransportSection, renderStaysSection,
 } from './itinerary-cards.ts';
+import { renderBoard } from './itinerary-board.ts';
+import { wireBoard } from './itinerary-board-wire.ts';
 import {
   ensurePlanDays, renderPlanItem,
   renderPlanBoardView, renderPlanCategoryView, renderPlanFeedView,
@@ -72,6 +74,9 @@ export { BUILTIN_CATEGORIES, CATEGORY_PALETTE };
 type PlanView = 'board' | 'feed' | 'category' | 'calendar' | 'map';
 let _planView: PlanView = 'board';
 let _calMonth = 0;  // calendar plan-view: month offset from leg start; reset on new leg
+let _openDatesFor: string | null = null;   // set when the list asks for a stop's dates editor on arrival
+let _boardShown = false;   // the list's flap tiles shuffle once per visit to the list
+let _stayPage = 0;  // which stay the detail page's stays ticket is showing; reset on new leg
 
 // Drag state (plan items → day columns)
 let _dragItemId: string | null = null;
@@ -209,42 +214,11 @@ function legMarks(leg: Leg): CardPostmarks | undefined {
   return _markMemo.marks.get(leg.id);
 }
 
-function renderLegCard(leg: Leg): string {
-  const days = daysBetween(leg.dateFrom, leg.dateTo);
-  const status = legStatus(leg);
-  // Stops wear arrival / departure postmarks instead of a "visited" label; only "now" keeps a pill.
-  const statusLabel = status === 'active' ? tr('route.statusActive') : '';
-  return `
-    <div class="route-leg status-${status}" data-id="${leg.id}">
-      <div class="route-leg-dot"></div>
-      <div class="route-leg-card" data-act="open" data-id="${leg.id}" role="button" tabindex="0">
-        <div class="route-leg-cover">
-          ${legCoverArt(leg, 'route-leg-cover')}
-          ${statusLabel ? `<span class="route-leg-status">${statusLabel}</span>` : ''}
-        </div>
-        <div class="route-leg-body">
-          <div class="route-leg-header">
-            <div class="route-leg-title">
-              <span class="route-leg-city">${esc(leg.city)}</span>
-              <span class="route-leg-flag">${leg.flag || ''}</span>
-            </div>
-            ${postmarkPair(legMarks(leg), { size: 60, openId: `city:${leg.id}` })}
-            <div class="route-leg-dates">
-              <span class="route-leg-range">${fmtDate(leg.dateFrom)} <span class="route-leg-arrow">→</span> ${fmtDate(leg.dateTo)}</span>
-              <span class="route-leg-duration">${nightsLabel(days)}</span>
-            </div>
-            <button class="route-leg-del delete-leg" data-act="del" data-id="${leg.id}" title="Remove" aria-label="Remove">✕</button>
-          </div>
-          ${legSummary(leg)}
-        </div>
-      </div>
-    </div>`;
-}
-
-/** Group consecutive legs by country into headed sections. */
+/** The list page: action row, then the departures board (itinerary-board.ts). */
 function renderTimeline(): string {
   if (legs.length === 0) {
     return `
+      <div class="rb-actions"><span data-pp-icon></span></div>
       ${renderAddForm()}
       ${addFormOpen ? '' : `
       <div class="route-empty">
@@ -252,39 +226,21 @@ function renderTimeline(): string {
         <div class="route-empty-title">${tr('route.emptyTitle')}</div>
         <div class="route-empty-text">${tr('route.emptyText')}</div>
         <div class="route-empty-actions">
-          <button class="btn btn-primary" id="route-add-toggle">${tr('route.addStop')}</button>
+          <button class="btn btn-primary" data-act="add-stop">${tr('route.addStop')}</button>
           <button class="btn btn-ghost" id="route-link-trip">${tr('route.linkTrip')}</button>
         </div>
       </div>`}`;
   }
 
-  const groups: { country: string; flag: string; legs: Leg[] }[] = [];
-  for (const leg of legs) {
-    const last = groups[groups.length - 1];
-    if (last && last.country === leg.country) last.legs.push(leg);
-    else groups.push({ country: leg.country, flag: leg.flag || flagForCountry(leg.country), legs: [leg] });
-  }
-
-  const sections = groups.map((g) => `
-    <div class="route-country-group">
-      <div class="route-country-head">
-        <span class="route-country-flag">${g.flag}</span>
-        <span class="route-country-name">${esc(g.country)}</span>
-        <span class="route-country-count">${g.legs.length} ${g.legs.length === 1 ? tr('route.citySingular') : tr('route.citiesPlural')}</span>
-      </div>
-      ${g.legs.map(renderLegCard).join('')}
-    </div>`).join('');
-
+  const board = renderBoard({ legs, today: stampToday(), marks: legMarks }, { shuffle: !_boardShown });
+  _boardShown = true;
   return `
+    <div class="rb-actions">
+      <span data-pp-icon></span>
+      <button class="btn btn-primary" data-act="add-stop">${tr('route.addStop')}</button>
+    </div>
     ${renderAddForm()}
-    <div class="pp-pocket-host" data-pp-pocket></div>
-    ${sections}
-    <div class="route-add-wrap">
-      <button class="route-add-btn" id="route-add-toggle">
-        <span style="font-size:20px">+</span>
-        ${tr('route.addStop')}
-      </button>
-    </div>`;
+    ${board}`;
 }
 
 function renderTripSelector(): string {
@@ -812,7 +768,7 @@ function renderDetail(leg: Leg): string {
       <div class="rd-detail-layout">
         <div class="rd-detail-grid rd-detail-grid--top">
           ${renderTransportSection(leg)}
-          ${renderStaysSection(leg)}
+          ${renderStaysSection(leg, _stayPage)}
         </div>
         ${renderClipsSection(leg)}
         ${renderPlansSection(leg)}
@@ -822,6 +778,7 @@ function renderDetail(leg: Leg): string {
 }
 
 function backToList() {
+  _boardShown = false;
   if (_planLeaflet) { _planLeaflet.remove(); _planLeaflet = null; _planLeafletEl = null; }
   selectedLegId = null;
   render();
@@ -847,8 +804,10 @@ function render() {
   // With a stop open, the "Itinerary" page title is the way back to the list.
   setViewHome('route', selected ? backToList : null);
 
-  if (selected) wireDetail(timeline, selected);
-  else wireList(timeline);
+  if (selected) {
+    wireDetail(timeline, selected);
+    if (_openDatesFor === selected.id) { _openDatesFor = null; openDatesEditor(timeline, selected, patchLeg); }
+  } else wireList(timeline);
 }
 
 /* ── Wiring: list ───────────────────────────────────────────────────────── */
@@ -896,10 +855,26 @@ function mountAddFormPickers(timeline: HTMLElement) {
   }
 }
 
+/** Open a stop from the board. The row's tiles flip once on the way out (skipped for reduced motion). */
+function openLeg(id: string, row?: HTMLElement | null) {
+  const go = () => {
+    selectedLegId = id;
+    addFormOpen = false;
+    _calMonth = 0; _stayPage = 0;
+    render();
+    document.getElementById('view-route')?.querySelector('.route-timeline')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (!row || still) { go(); return; }
+  row.classList.add('is-flipping');
+  setTimeout(go, 240);
+}
+
 function wireList(timeline: HTMLElement) {
   wirePassportOpeners(timeline);
-  mountPassportPockets(timeline);
-  timeline.querySelector('#route-add-toggle')?.addEventListener('click', () => openAddForm(timeline));
+  timeline.querySelectorAll<HTMLElement>('[data-pp-icon]').forEach(mountPassportIcon);
+  timeline.querySelectorAll<HTMLElement>('[data-act="add-stop"]').forEach((b) =>
+    b.addEventListener('click', () => openAddForm(timeline)));
   timeline.querySelector('#route-link-trip')?.addEventListener('click', () => {
     openTripChooser({ title: tr('route.linkTripTitle'), subtitle: tr('route.linkTripSubtitle') });
   });
@@ -928,22 +903,11 @@ function wireList(timeline: HTMLElement) {
     addLeg(city, country, from, to, tType, tFrom, tVia);
   });
 
-  timeline.querySelectorAll<HTMLElement>('[data-act="open"]').forEach((card) => {
-    card.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('[data-act="del"], [data-act="stay-link"]')) return;
-      selectedLegId = card.dataset.id!;
-      addFormOpen = false;
-      _calMonth = 0;
-      render();
-      timeline.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-    card.addEventListener('keydown', (e) => {
-      if ((e as KeyboardEvent).key === 'Enter') { selectedLegId = card.dataset.id!; render(); }
-    });
-  });
-
-  timeline.querySelectorAll<HTMLElement>('[data-act="del"]').forEach((btn) => {
-    btn.addEventListener('click', (e) => { e.stopPropagation(); deleteLeg(btn.dataset.id!); });
+  wireBoard(timeline, {
+    legs, today: stampToday(), marks: legMarks,
+    open: openLeg,
+    editDates: (id) => { selectedLegId = id; addFormOpen = false; _openDatesFor = id; render(); },
+    remove: deleteLeg,
   });
 }
 
@@ -1014,6 +978,14 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     const key = el.dataset.stay!;
     const next = stays.filter((s, i) => (s.id ?? String(i)) !== key);
     if (confirm('Remove this stay?')) persistStays(leg, next);
+  });
+  on('toggle-stay-confirmed', (el) => {
+    const key = el.dataset.stay!;
+    persistStays(leg, legStays(leg).map((s, i) => (s.id ?? String(i)) === key ? { ...s, confirmed: !s.confirmed } : s));
+  });
+  on('stay-page', (el) => {
+    _stayPage = Math.max(0, _stayPage + Number(el.dataset.dir));
+    render();
   });
   on('sync-stay', (el) => {
     const stays = legStays(leg);
@@ -1716,7 +1688,7 @@ function applyNavIntent() {
   if (!intent?.legId) return;
   selectedLegId = intent.legId;
   addFormOpen = false;
-  _calMonth = 0;
+  _calMonth = 0; _stayPage = 0;
   render();
   const root = document.getElementById('view-route');
   const target = intent.dayId
@@ -1734,6 +1706,7 @@ export function initRoute() {
   sharedCities = [];
   selectedLegId = null;
   addFormOpen = false;
+  _boardShown = false;
   _unsubRoute = routeStore.subscribe((rows) => {
     legs = sortLegs(rows as Leg[]);
     render();

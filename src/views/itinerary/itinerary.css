@@ -5,6 +5,7 @@
    identical to the original single file, so visual output is unchanged.
    ========================================================================== */
 @import './styles/timeline.css';
+@import './styles/board.css';
 @import './styles/detail.css';
 @import './styles/clips.css';
 @import './styles/plan.css';

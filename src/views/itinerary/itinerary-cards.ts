@@ -144,7 +144,7 @@ export function renderTransportSection(leg: Leg): string {
       ${t.priceAmount != null ? `<button class="btn btn-ghost rd-sm" data-act="sync-transport">${synced ? tr('route.btnUpdateExpense') : tr('route.btnLogExpense')}</button>` : ''}
       <button class="btn btn-ghost rd-sm rd-danger" data-act="del-transport">${tr('route.btnRemove')}</button>
     </div>` : `
-    <div class="rd-placeholder">
+    <div class="rd-ticket-ghost">
       <span>${tr('route.noTransport')}</span>
       <button class="btn btn-primary rd-sm" data-act="edit-transport">${tr('route.btnAddTransport')}</button>
     </div>`;
@@ -156,74 +156,108 @@ export function renderTransportSection(leg: Leg): string {
     </section>`;
 }
 
-/** One stay as a little storefront: a striped awning (amber once confirmed,
- *  grey while pending) over a check-in → check-out reservation strip. */
-export function renderStayCard(leg: Leg, a: Accommodation, i: number, total: number): string {
+/** One stay as a hotel voucher — the same ticket as the transport one (top
+ *  band, route strip, perforated stub) so the two sit side by side at the same
+ *  size. Check-in and check-out take the two route ends, a moon and the night
+ *  count sit on the path between them, and the stub carries the confirmed stamp
+ *  above a room-key magstripe (the transport ticket has a barcode there).
+ *  `interactive` turns the stamp into a toggle; the dashboard / agenda drawers
+ *  render the card read-only. */
+export function renderStayCard(leg: Leg, a: Accommodation, i: number, total: number, opts: { interactive?: boolean } = {}): string {
   const key = a.id ?? String(i);
   const price = stayPriceLabel(a, baseCurrency());
-  const canSync = a.priceAmount != null;
   const synced = !!a.expenseId;
   const nights = a.checkIn && a.checkOut ? daysBetween(a.checkIn, a.checkOut) : null;
-  const dateCell = (cls: string, label: string, iso?: string) => {
+  const end = (cls: string, label: string, iso?: string) => {
     const d = iso ? new Date(iso + 'T00:00:00') : null;
     return `
-      <div class="rd-stay-date ${cls}">
-        <span class="rd-stay-lbl">${label}</span>
-        <span class="rd-stay-day">${d ? esc(d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })) : '—'}</span>
-        <span class="rd-stay-wd">${d ? esc(d.toLocaleDateString('en-GB', { weekday: 'long' })) : ''}</span>
-      </div>`;
+    <div class="rd-ticket-end ${cls}">
+      <span class="rd-ticket-lbl">${label}</span>
+      <span class="rd-ticket-time rd-stay-day">${d ? esc(d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })) : '—'}</span>
+      ${d ? `<span class="rd-ticket-place">${esc(d.toLocaleDateString('en-GB', { weekday: 'long' }))}</span>` : ''}
+    </div>`;
   };
-  const facts = [
-    price ? `<span>💰 ${esc(price)}${tr('route.perNight')}${synced ? ` · ${tr('route.loggedLabel')}` : ''}</span>` : '',
-    a.platform ? `<span>🛎️ ${esc(a.platform)}</span>` : '',
-    a.phone ? `<span>📞 ${esc(a.phone)}</span>` : '',
+  const field = (label: string, value: string) =>
+    `<div class="rd-ticket-field"><span class="rd-ticket-lbl">${label}</span><span class="rd-ticket-val">${value}</span></div>`;
+  const fields = [
+    price ? field(tr('route.stayRate'), `${esc(price)}${tr('route.perNight')}${synced ? ` <small>· ${tr('route.loggedLabel')}</small>` : ''}`) : '',
+    a.platform ? field(tr('route.stayPlatform'), esc(a.platform)) : '',
+    a.phone ? field(tr('route.stayPhone'), esc(a.phone)) : '',
   ].filter(Boolean).join('');
   const booking = stayBookingHref(a);
+  const stampText = a.confirmed ? tr('route.stayConfirmed') : tr('route.stayNotConfirmed');
+  const stamp = opts.interactive
+    ? `<button class="rd-ticket-status ${a.confirmed ? 'is-booked' : ''}" data-act="toggle-stay-confirmed" data-stay="${esc(key)}" title="${tr('route.stayToggleHint')}">${stampText}</button>`
+    : `<span class="rd-ticket-status ${a.confirmed ? 'is-booked' : ''}">${stampText}</span>`;
   return `
-    <article class="rd-stay-card ${a.confirmed ? 'is-confirmed' : ''}" data-stay="${esc(key)}">
-      <div class="rd-stay-awning" aria-hidden="true"></div>
-      <div class="rd-stay-body">
-        <div class="rd-stay-head">
-          <div class="rd-stay-sign">
-            ${total > 1 ? `<span class="rd-stay-no">${i + 1}</span>` : ''}
-            <div class="rd-stay-name-wrap">
-              <div class="rd-stay-name">${esc(a.name)}</div>
-              ${a.address ? `<div class="rd-stay-addr">${esc(a.address)}</div>` : ''}
-            </div>
-          </div>
-          <span class="rd-stay-badge">${a.confirmed ? tr('route.stayConfirmed') : tr('route.stayNotConfirmed')}</span>
+    <article class="rd-ticket rd-ticket--stay" data-stay="${esc(key)}">
+      <div class="rd-ticket-top">
+        <span class="rd-ticket-kind">${STAY_ICON} ${tr('route.stayKind')}</span>
+        ${total > 1 ? `<span class="rd-ticket-service">${i + 1} / ${total}</span>` : ''}
+      </div>
+      <div class="rd-ticket-main">
+        <div class="rd-stay-name-wrap">
+          <div class="rd-stay-name">${esc(a.name)}</div>
+          ${a.address ? `<div class="rd-stay-addr">${esc(a.address)}</div>` : ''}
         </div>
-        <div class="rd-stay-strip">
-          ${dateCell('is-in', tr('route.stayCheckIn'), a.checkIn)}
-          <div class="rd-stay-nights">
-            <span class="rd-stay-moon">🌙</span>
-            <span>${nights != null ? nightsLabel(nights) : ''}</span>
+        <div class="rd-ticket-route">
+          ${end('is-from', tr('route.stayCheckIn'), a.checkIn)}
+          <div class="rd-ticket-path" aria-hidden="true">
+            <span class="rd-ticket-track"><span class="rd-ticket-glyph">🌙</span></span>
+            ${nights != null ? `<span class="rd-ticket-via">${nightsLabel(nights)}</span>` : ''}
           </div>
-          ${dateCell('is-out', tr('route.stayCheckOut'), a.checkOut)}
+          ${end('is-to', tr('route.stayCheckOut'), a.checkOut)}
         </div>
-        <div class="rd-stay-foot">
-          <div class="rd-stay-facts">${facts}</div>
-          <div class="rd-stay-actions">
-            <a class="rd-map-btn" href="${safeUrl(mapHref(a, leg))}" target="_blank" rel="noopener" title="Navigate in Google Maps">${tr('route.stayNavigate')}</a>
-            ${booking ? `<a class="rd-map-btn rd-map-btn--soft" href="${safeUrl(booking)}" target="_blank" rel="noopener" title="Open the booking on ${esc(a.platform || 'the platform')}">${tr('route.stayOrder')}</a>` : ''}
-            ${canSync ? `<button class="rd-icon-btn rd-icon-btn--text" data-act="sync-stay" data-stay="${esc(key)}" title="${synced ? 'Update the linked expense' : 'Log this stay in Expenses'}">${synced ? '↻ Expense' : '+ Expense'}</button>` : ''}
-            <button class="rd-icon-btn" data-act="edit-stay" data-stay="${esc(key)}" title="Edit">✎</button>
-            <button class="rd-icon-btn rd-danger" data-act="del-stay" data-stay="${esc(key)}" title="Remove">✕</button>
-          </div>
+        ${fields ? `<div class="rd-ticket-fields">${fields}</div>` : ''}
+        <div class="rd-ticket-links">
+          <a class="rd-map-btn" href="${safeUrl(mapHref(a, leg))}" target="_blank" rel="noopener" title="Navigate in Google Maps">${tr('route.stayNavigate')}</a>
+          ${booking ? `<a class="rd-map-btn rd-map-btn--soft" href="${safeUrl(booking)}" target="_blank" rel="noopener" title="Open the booking on ${esc(a.platform || 'the platform')}">${tr('route.stayOrder')}</a>` : ''}
         </div>
+      </div>
+      <div class="rd-ticket-stub">
+        ${stamp}
+        <span class="rd-ticket-keycard" aria-hidden="true"></span>
       </div>
     </article>`;
 }
 
-export function renderStaysSection(leg: Leg): string {
+/** Edit / expense / remove row under one stay ticket (the detail page only). */
+function stayActions(a: Accommodation, i: number): string {
+  const key = esc(a.id ?? String(i));
+  const synced = !!a.expenseId;
+  return `
+    <div class="rd-section-actions">
+      <button class="btn btn-ghost rd-sm" data-act="edit-stay" data-stay="${key}">${tr('route.btnEdit')}</button>
+      ${a.priceAmount != null ? `<button class="btn btn-ghost rd-sm" data-act="sync-stay" data-stay="${key}">${synced ? tr('route.btnUpdateExpense') : tr('route.btnLogExpense')}</button>` : ''}
+      <button class="btn btn-ghost rd-sm rd-danger" data-act="del-stay" data-stay="${key}">${tr('route.btnRemove')}</button>
+    </div>`;
+}
+
+/** The stays column. One ticket at a time: with several stays a pager steps
+ *  through them so the column keeps the transport ticket's height. */
+export function renderStaysSection(leg: Leg, page = 0): string {
   const stays = legStays(leg);
+  const at = Math.min(Math.max(page, 0), Math.max(stays.length - 1, 0));
+  const pager = stays.length > 1 ? `
+    <div class="rd-stay-pager" role="group" aria-label="${tr('route.sectionStays')}">
+      <button class="rd-icon-btn" data-act="stay-page" data-dir="-1" aria-label="Previous stay" ${at === 0 ? 'disabled' : ''}>‹</button>
+      <span class="rd-stay-pager-n">${at + 1} / ${stays.length}</span>
+      <button class="rd-icon-btn" data-act="stay-page" data-dir="1" aria-label="Next stay" ${at === stays.length - 1 ? 'disabled' : ''}>›</button>
+    </div>` : '';
+  const body = stays.length ? `
+    ${renderStayCard(leg, stays[at], at, stays.length, { interactive: true })}
+    ${stayActions(stays[at], at)}` : `
+    <div class="rd-ticket-ghost">
+      <span>${tr('route.noStays')}</span>
+      <button class="btn btn-primary rd-sm" data-act="add-stay">${tr('route.btnAddStay')}</button>
+    </div>`;
   return `
     <section class="rd-section rd-section--stays">
       <div class="rd-section-head">
         <h3>${tr('route.sectionStays')}</h3>
-        <button class="btn btn-ghost rd-sm" data-act="add-stay">${tr('route.btnAddStay')}</button>
+        ${pager}
+        ${stays.length ? `<button class="btn btn-ghost rd-sm" data-act="add-stay">${tr('route.btnAddStay')}</button>` : ''}
       </div>
-      ${stays.length ? `<div class="rd-stay-list">${stays.map((a, i) => renderStayCard(leg, a, i, stays.length)).join('')}</div>`
-        : `<div class="rd-placeholder"><span>${tr('route.noStays')}</span></div>`}
+      ${body}
     </section>`;
 }

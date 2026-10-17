@@ -116,3 +116,25 @@ export function mountPassportPocket(host: HTMLElement, withAtlas = false): void 
 export function mountPassportPockets(root: HTMLElement): void {
   root.querySelectorAll<HTMLElement>('[data-pp-pocket]').forEach((el) => mountPassportPocket(el));
 }
+
+/* ── Icon button ─────────────────────────────────────────────────────────── */
+
+/** The passport as a single icon (Itinerary's action row). A dot when stamps wait to be pressed or a document needs attention. */
+export function passportIconHtml(p: PassportFeed): string {
+  const attention = p.pending.length > 0 || p.warnings.length > 0 || p.visaWarnings.length > 0;
+  const label = esc(t('passport.open'));
+  return `<button type="button" class="pp-icon-btn${attention ? ' has-pending' : ''}" data-open-passport="" title="${label}" aria-label="${label}">
+    <span class="pp-icon-cover" aria-hidden="true">🛂</span>
+  </button>`;
+}
+
+/** Keeps `host` showing the live passport icon; stops listening once the host leaves the page. */
+export function mountPassportIcon(host: HTMLElement): void {
+  let off: (() => void) | null = null;
+  off = onPassport((p) => {
+    if (!host.isConnected && off) { off(); off = null; return; }
+    // eslint-disable-next-line no-restricted-syntax -- audited: passportIconHtml escapes every interpolation
+    host.innerHTML = passportIconHtml(p);
+    wirePassportOpeners(host);
+  });
+}

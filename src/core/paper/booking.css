@@ -2,7 +2,7 @@
    On the Road · Paper kit · tickets and storefronts
    --------------------------------------------------------------------------
    Transport as a ticket (boarding pass / rail / coach / ferry) and a stay as a
-   little shop front with an awning. Moved here from the Itinerary so the
+   hotel voucher cut from the same ticket. Moved here from the Itinerary so the
    Dashboard drawers, Agenda and anything else can load just these two
    components. Markup: views/itinerary/itinerary-cards.ts (renderTicket,
    renderStayCard).
@@ -217,59 +217,13 @@
   .rd-ticket-barcode { max-width: 72px; height: 26px; }
 }
 
-/* ── Stays: a little storefront per stay ─────────────────────────────────── */
-.rd-stay-list { display: flex; flex-direction: column; gap: var(--sp-4); }
-.rd-stay-card {
-  --aw-a: var(--ink-faint);
-  --aw-b: var(--surface-3);
-  position: relative;
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  min-width: 0;
-}
-.rd-stay-card.is-confirmed { --aw-a: var(--amber-400); --aw-b: var(--amber-50); }
-:root[data-theme='dark'] .rd-stay-card.is-confirmed { --aw-b: var(--amber-200); }
-
-/* Striped awning with a scalloped hem. */
-.rd-stay-awning {
-  position: relative;
-  height: 18px;
-  background: repeating-linear-gradient(90deg, var(--aw-a) 0 20px, var(--aw-b) 20px 40px);
-}
-.rd-stay-awning::after {
-  content: '';
-  position: absolute; left: 0; right: 0; top: 100%;
-  height: 10px;
-  background:
-    radial-gradient(circle at 10px 0, var(--aw-a) 9.5px, transparent 10px) 0 0 / 40px 10px repeat-x,
-    radial-gradient(circle at 30px 0, var(--aw-b) 9.5px, transparent 10px) 0 0 / 40px 10px repeat-x;
-  filter: drop-shadow(0 2px 1px rgba(0,0,0,0.06));
-}
-.rd-stay-body {
-  padding: calc(var(--sp-4) + 8px) var(--sp-4) var(--sp-4);
-  display: flex; flex-direction: column; gap: var(--sp-3);
-}
-.rd-stay-head {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3);
-}
-.rd-stay-sign { display: flex; align-items: flex-start; gap: var(--sp-2); min-width: 0; }
-.rd-stay-no {
-  flex-shrink: 0;
-  min-width: 24px; height: 24px;
-  padding: 0 6px;
-  border-radius: 6px;
-  background: var(--ink);
-  color: var(--surface);
-  font-family: var(--font-ui);
-  font-size: var(--fs-xs); font-weight: var(--fw-semibold);
-  display: flex; align-items: center; justify-content: center;
-}
-.rd-stay-name-wrap { min-width: 0; }
+/* ── Stays: a hotel voucher, cut from the same ticket ────────────────────
+   Shares every rule above (top band, route strip, perforated stub); only the
+   accent, the name block and the key-card stub differ. */
+.rd-ticket--stay { --tk-accent: var(--cat-health); --tk-bg: var(--tint-health); --tk-ink: var(--tint-health-ink); }
+.rd-stay-name-wrap { min-width: 0; margin-bottom: var(--sp-3); }
 .rd-stay-name {
-  font-family: var(--font-ui);
+  font-family: var(--font-display);
   font-size: var(--fs-lg); font-weight: var(--fw-semibold);
   color: var(--ink);
   line-height: 1.25;
@@ -280,64 +234,48 @@
   margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.rd-stay-badge {
-  flex-shrink: 0;
-  font-size: var(--fs-xs); font-weight: var(--fw-semibold);
-  padding: 3px 10px;
-  border-radius: var(--r-full);
-  background: var(--surface-3); color: var(--ink-muted);
-  white-space: nowrap;
-}
-.rd-stay-card.is-confirmed .rd-stay-badge { background: var(--success-bg); color: var(--success); }
+/* Dates are shorter than flight times; size them like a name, not a clock. */
+.rd-ticket-time.rd-stay-day { font-family: var(--font-display); font-size: var(--fs-xl); }
+.rd-ticket-links { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
 
-/* Check-in · nights · check-out strip */
-.rd-stay-strip {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  border: 1px solid var(--rule-soft);
+/* Room-key magstripe where the transport stub has its barcode. */
+.rd-ticket-keycard {
+  position: relative;
+  width: 100%; max-width: 96px; height: 40px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--tk-accent) 14%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--tk-accent) 35%, transparent);
+  overflow: hidden;
 }
-.rd-stay-date { display: flex; flex-direction: column; min-width: 0; }
-.rd-stay-date.is-out { align-items: flex-end; text-align: right; }
-.rd-stay-lbl {
-  font-size: var(--fs-2xs); font-weight: var(--fw-semibold); letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ink-faint);
+.rd-ticket-keycard::before {   /* the stripe */
+  content: '';
+  position: absolute; left: 0; right: 0; top: 7px; height: 9px;
+  background: var(--ink); opacity: 0.8;
 }
-.rd-stay-day {
-  font-family: var(--font-display);
-  font-size: var(--fs-xl); font-weight: var(--fw-bold);
-  color: var(--ink);
-  line-height: 1.2;
-}
-.rd-stay-wd { font-size: var(--fs-xs); color: var(--ink-muted); }
-.rd-stay-nights {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  font-size: var(--fs-xs); font-weight: var(--fw-semibold);
-  color: var(--amber-700);
-  white-space: nowrap;
-}
-.rd-stay-moon {
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--amber-100);
-  font-size: var(--fs-base);
+.rd-ticket-keycard::after {    /* the chip */
+  content: '';
+  position: absolute; left: 8px; bottom: 6px; width: 14px; height: 11px;
+  border-radius: 2px;
+  background: var(--amber-400);
 }
 
-.rd-stay-foot {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
-  flex-wrap: wrap;
+/* ── Same footprint for both tickets ─────────────────────────────────────
+   --pass-h is the shared minimum, so transport and stay read as a matched
+   pair, and an empty slot (the ghost ticket) holds exactly the same space. */
+.rd-detail-grid--top .rd-ticket,
+.rd-ticket-ghost { --pass-h: 218px; min-height: var(--pass-h); }
+.rd-ticket { grid-template-rows: auto 1fr; }
+.rd-ticket-ghost {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3);
+  padding: var(--sp-5);
+  border: 2px dashed var(--surface-4);
+  border-radius: var(--r-lg);
+  text-align: center;
+  font-size: var(--fs-sm); color: var(--ink-muted);
 }
-.rd-stay-facts {
-  display: flex; flex-wrap: wrap; gap: var(--sp-3);
-  font-size: var(--fs-xs); color: var(--ink-soft);
-  min-width: 0;
-}
-.rd-stay-actions { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; margin-left: auto; }
+.rd-stay-pager { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; }
+.rd-stay-pager-n { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); min-width: 3.2em; text-align: center; }
+.rd-icon-btn:disabled { opacity: 0.35; cursor: default; }
 .rd-map-btn--soft { color: var(--ink-soft); background: var(--surface-3); }
 .rd-map-btn--soft:hover { background: var(--surface-4); }
 .rd-icon-btn.rd-icon-btn--text { width: auto; padding: 0 8px; font-size: var(--fs-xs); font-weight: var(--fw-medium); white-space: nowrap; }

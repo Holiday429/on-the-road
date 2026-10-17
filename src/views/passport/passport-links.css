@@ -59,3 +59,21 @@
   .route-leg-header .pm-pair .pp-stamp svg { width: 46px; height: 46px; }
   .route-leg-header .pm-depart { margin-left: -10px; }
 }
+
+/* Icon button: the passport cover, with a dot while something waits. */
+.pp-icon-btn {
+  position: relative; display: inline-grid; place-items: center; width: 40px; height: 40px; padding: 0;
+  border: 1px solid var(--rule); border-radius: var(--r-md); cursor: pointer;
+  background: var(--paper-grain), var(--surface); box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--dur-fast), transform var(--dur-fast);
+}
+.pp-icon-btn:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.pp-icon-btn:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
+.pp-icon-cover {
+  display: grid; place-items: center; width: 22px; height: 28px; font-size: 13px; line-height: 1;
+  border-radius: 2px 5px 5px 2px; background: var(--pp-cloth); box-shadow: inset 2px 0 0 color-mix(in srgb, black 22%, transparent);
+}
+.pp-icon-btn.has-pending::after {
+  content: ''; position: absolute; top: 5px; right: 5px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--danger); border: 2px solid var(--surface);
+}
