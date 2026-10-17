@@ -11,6 +11,7 @@
 @import './styles/plan.css';
 @import './styles/plan-tickets.css';
 @import '../../core/paper/booking.css';
+@import '../../core/paper/fastener.css';
 @import './styles/booking.css';
 @import './styles/editors.css';
 @import './styles/map.css';

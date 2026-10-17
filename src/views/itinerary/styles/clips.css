@@ -177,3 +177,16 @@ a.rd-clip-preview-title:hover { color: var(--info); text-decoration: underline; 
   max-height: 40vh; overflow-y: auto;
 }
 
+
+/* ── Collection: clips and notes on one board ───────────────────────────── */
+.rd-coll-count { margin-left: 4px; font-family: var(--font-data); font-size: var(--fs-xs); font-weight: var(--fw-regular, 400); color: var(--ink-muted); }
+.rd-filter-sep { align-self: stretch; width: 1px; margin: 2px 4px; background: var(--rule); }
+.rd-filter-n { margin-left: 2px; font-family: var(--font-data); font-size: var(--fs-2xs); opacity: .7; }
+.rd-coll-grid { align-items: start; grid-auto-flow: dense; padding-top: var(--sp-2); }
+.rd-coll-grid [hidden] { display: none; }
+/* Notes are pinned on, so they hang a little off-square; a note being typed in stays straight. */
+.rd-coll-grid .rd-note-card { position: relative; margin-top: 6px; }
+.rd-coll-grid .rd-note-card:nth-of-type(odd) { transform: rotate(-.5deg); }
+.rd-coll-grid .rd-note-card:nth-of-type(even) { transform: rotate(.6deg); }
+.rd-coll-grid .rd-note-card:focus-within, .rd-coll-grid .rd-note-card:hover { transform: none; }
+@media (prefers-reduced-motion: reduce) { .rd-coll-grid .rd-note-card { transform: none !important; } }

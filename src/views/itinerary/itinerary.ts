@@ -27,12 +27,12 @@ import { mountPassportIcon, wirePassportOpeners } from '../passport/passport-lin
 import { postmarkPair } from '../passport/postmark.ts';
 import {
   uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
-  legStays, NOTE_COLORS, noteColor, resolveNoteColor, dayColour, bearing,
+  legStays, NOTE_COLORS, noteColor, dayColour, bearing,
   legNoteCardsOf, clipImages, legPlanTitleSet,
 } from './itinerary-utils.ts';
 import {
   cityShareContext, sharedPlans, groupSharedPlans, buildSharedDoc,
-  sharedClips, sharedNoteCards, type SharedPlan,
+  type SharedPlan,
 } from './itinerary-city-shared.ts';
 import { coordsFor } from '../map/geo.ts';
 import { geocode } from '../map/geocode.ts';
@@ -58,6 +58,7 @@ import {
 import { renderBoard } from './itinerary-board.ts';
 import { wireBoard } from './itinerary-board-wire.ts';
 import { wirePlanMachine } from './itinerary-plan-machine.ts';
+import { renderCollectionSection, wireCollectionFilter } from './itinerary-collection.ts';
 import {
   ensurePlanDays, renderPlanItem, renderPlanMachine,
   renderPlanBoardView, renderPlanCategoryView, renderPlanFeedView,
@@ -323,128 +324,11 @@ function categorySelectOptions(leg: Leg, selected: string): string {
 
 /* ── Clips section ───────────────────────────────────────────────────────── */
 
-function renderClipsSection(leg: Leg): string {
-  const cats = allCategories(leg);
-
-  // Merge clips across every visit to this city (same trip). When the city is
-  // unique, `entries` is just this leg's clips tagged with its own id.
-  const ctx = cityShareContext(leg, legs, sharedCities);
-  const entries: { clip: Clip; srcLegId: string }[] = ctx
-    ? sharedClips(ctx)
-    : [...(leg.clips ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(c => ({ clip: c, srcLegId: leg.id }));
-
-  // Position of each sibling leg, for the "from visit N" tag on foreign clips.
-  const visitIndex = (legId: string) =>
-    ctx ? ctx.siblings.findIndex(s => s.id === legId) + 1 : 0;
-
-  // active filter stored in data attr of the section element; default = ''
-  const filterAttr = `data-clip-filter=""`;
-
-  const card = ({ clip: c, srcLegId }: { clip: Clip; srcLegId: string }) => {
-    // Category colour resolves against the clip's own leg (categories are per-leg).
-    const srcLeg = legs.find(l => l.id === srcLegId) ?? leg;
-    const cat = c.category ? categoryById(srcLeg, c.category) : undefined;
-    const color = cat?.color ?? '#ebebeb';
-    const imgs = clipImages(c);
-    const foreign = srcLegId !== leg.id;
-    const vIdx = foreign ? visitIndex(srcLegId) : 0;
-    return `
-    <div class="rd-clip-card rd-clip-card--expandable${foreign ? ' rd-clip-card--shared' : ''}" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" data-clip-cat="${esc(c.category ?? '')}" data-act="preview-clip" data-clip-preview="${esc(c.id)}">
-      <div class="rd-clip-card-color" style="background:${esc(color)}"></div>
-      <div class="rd-clip-card-body">
-        ${imgs.length ? `<div class="rd-clip-card-imgs">${imgs.slice(0, 3).map((u, i) => `<div class="rd-clip-card-img-wrap">${i === 2 && imgs.length > 3 ? `<img class="rd-clip-card-img" src="${esc(u)}" alt=""><div class="rd-clip-card-img-more">+${imgs.length - 2}</div>` : `<img class="rd-clip-card-img" src="${esc(u)}" alt="">`}</div>`).join('')}</div>` : ''}
-        <div class="rd-clip-card-top">
-          ${cat ? `<span class="rd-cat-badge rd-cat-badge--sm" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
-          ${foreign ? `<span class="rd-share-tag" title="${tr('route.shareFromVisitTitle')}">${tr('route.shareFromVisit', { n: vIdx })}</span>` : ''}
-          <div class="rd-clip-card-actions">
-            <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Convert to plan item">→✨</button>
-            <button class="rd-icon-btn" data-act="edit-clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Edit">✎</button>
-            <button class="rd-icon-btn rd-danger" data-act="del-clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Remove">✕</button>
-          </div>
-        </div>
-        ${c.url
-          ? `<a class="rd-clip-card-title" href="${esc(/^https?:\/\//i.test(c.url) ? c.url : 'https://' + c.url)}" target="_blank" rel="noopener">${esc(c.title || c.url)}</a>`
-          : `<div class="rd-clip-card-title">${esc(c.title || 'Note')}</div>`}
-        ${c.body ? `<div class="rd-clip-card-body-text">${esc(c.body)}</div>` : ''}
-      </div>
-    </div>`;
-  };
-
-  const filterBar = `
-    <div class="rd-filter-bar" id="rd-clip-filter-bar">
-      <button class="rd-filter-chip is-active" data-filter="">${tr('route.filterAll')}</button>
-      ${cats.filter(c => entries.some(e => e.clip.category === c.id)).map(c =>
-        `<button class="rd-filter-chip" data-filter="${esc(c.id)}" style="--chip-color:${esc(c.color)}">${esc(c.label)}</button>`
-      ).join('')}
-      <button class="rd-filter-chip rd-filter-chip--add" data-act="add-clip-category" title="New category">${tr('route.btnAddCategory')}</button>
-    </div>`;
-
-  return `
-    <section class="rd-section" id="rd-clips-section" ${filterAttr}>
-      <div class="rd-section-head">
-        <h3>${tr('route.sectionClips')}</h3>
-        <button class="btn btn-ghost rd-sm" data-act="open-add-clip">${tr('route.btnAddClip')}</button>
-      </div>
-      ${filterBar}
-      ${entries.length
-        ? `<div class="rd-clip-grid">${entries.map(card).join('')}</div>`
-        : `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.clipsEmpty')}</span></div>`}
-    </section>`;
-}
-
 /* ── Notes section ───────────────────────────────────────────────────────── */
 
 // Note-card migration/normalisation now lives in itinerary-utils as
 // `legNoteCardsOf` (shared with the city-sharing aggregator).
 const legNoteCards = legNoteCardsOf;
-
-function renderNotesSection(leg: Leg): string {
-  // Merge notes across every visit to this city (same trip); each card is
-  // tagged with the leg it lives in so edits patch the right document.
-  const ctx = cityShareContext(leg, legs, sharedCities);
-  const entries: { card: NoteCard; srcLegId: string }[] = ctx
-    ? sharedNoteCards(ctx)
-    : legNoteCards(leg).map(c => ({ card: c, srcLegId: leg.id }));
-
-  const visitIndex = (legId: string) =>
-    ctx ? ctx.siblings.findIndex(s => s.id === legId) + 1 : 0;
-
-  const cardHtml = entries.map(({ card: c, srcLegId }, i) => {
-    const color = resolveNoteColor(c.color, i);
-    const foreign = srcLegId !== leg.id;
-    return `
-    <div class="rd-note-card${foreign ? ' rd-note-card--shared' : ''}" data-note-id="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" style="background:${esc(color)}">
-      <div class="rd-note-card-head">
-        <input class="rd-note-title-input" data-note-id="${esc(c.id)}" value="${esc(c.title)}" placeholder="Title…">
-        <div class="rd-note-card-actions">
-          ${foreign ? `<span class="rd-share-tag" title="${tr('route.shareFromVisitTitle')}">${tr('route.shareFromVisit', { n: visitIndex(srcLegId) })}</span>` : ''}
-          <button class="rd-note-expand-btn" data-act="expand-note" data-note-id="${esc(c.id)}" title="View full note">↗</button>
-          <div class="rd-note-color-wrap" data-note-id="${esc(c.id)}">
-            <button class="rd-note-color-trigger" data-act="toggle-color" data-note-id="${esc(c.id)}" title="Note colour" style="background:${esc(color)}"></button>
-            <div class="rd-note-color-popover" data-note-id="${esc(c.id)}" hidden>
-              ${NOTE_COLORS.map(col => `<button class="rd-note-color-swatch${col === color ? ' is-active' : ''}" data-color="${col}" data-note-id="${esc(c.id)}" style="background:${col}"></button>`).join('')}
-            </div>
-          </div>
-          <button class="rd-note-del" data-act="del-note" data-note-id="${esc(c.id)}" title="Delete note">✕</button>
-        </div>
-      </div>
-      <div class="rd-note-body-wrap">
-        <textarea class="rd-note-body" data-note-id="${esc(c.id)}" placeholder="Write anything…">${esc(c.body)}</textarea>
-      </div>
-    </div>`;
-  }).join('');
-
-  return `
-    <section class="rd-section rd-section-notes">
-      <div class="rd-section-head">
-        <h3>${tr('route.sectionNotes')}</h3>
-        <button class="btn btn-ghost rd-sm" data-act="add-note">${tr('route.btnAddNote')}</button>
-      </div>
-      ${entries.length
-        ? `<div class="rd-note-grid">${cardHtml}</div>`
-        : `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.notesEmpty')}</span></div>`}
-    </section>`;
-}
 
 /* ── Plan section ────────────────────────────────────────────────────────── */
 
@@ -761,9 +645,8 @@ function renderDetail(leg: Leg): string {
           ${renderTransportSection(leg)}
           ${renderStaysSection(leg, _stayPage)}
         </div>
-        ${renderClipsSection(leg)}
         ${renderPlansSection(leg)}
-        ${renderNotesSection(leg)}
+        ${renderCollectionSection(leg, legs, sharedCities)}
       </div>
     </div>`;
 }
@@ -1210,22 +1093,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     dlg.addEventListener('click', e => { if (e.target === dlg) close(); });
   });
 
-  // Clip filter chips
-  const clipFilterBar = timeline.querySelector<HTMLElement>('#rd-clip-filter-bar');
-  if (clipFilterBar) {
-    clipFilterBar.addEventListener('click', (e) => {
-      const chip = (e.target as HTMLElement).closest<HTMLElement>('.rd-filter-chip[data-filter]');
-      if (!chip) return;
-      const filter = chip.dataset.filter!;
-      clipFilterBar.querySelectorAll('.rd-filter-chip').forEach(c => c.classList.remove('is-active'));
-      chip.classList.add('is-active');
-      const grid = timeline.querySelector<HTMLElement>('.rd-clip-grid');
-      if (!grid) return;
-      grid.querySelectorAll<HTMLElement>('.rd-clip-card').forEach(card => {
-        card.hidden = filter !== '' && card.dataset.clipCat !== filter;
-      });
-    });
-  }
+  wireCollectionFilter(timeline);
 
   /* — Plan view tabs — */
   on('plan-view', (el) => {
