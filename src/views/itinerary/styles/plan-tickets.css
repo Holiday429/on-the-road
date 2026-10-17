@@ -1,0 +1,175 @@
+/* ==========================================================================
+   On the Road · Itinerary — plan as a ticket folder
+   --------------------------------------------------------------------------
+   Plan items are paper tickets (punch strip, category band, title, ≈time ·
+   price); days are manila envelopes that unfold; loose tickets sit in a kraft
+   box; "Print ticket" is a one-line machine. Markup: itinerary-plan-views.ts,
+   itinerary-plan-machine.ts. Paper stock tokens (--kraft, --env) in base.css.
+   ========================================================================== */
+
+@keyframes rd-pt-punch { 0% { transform: scale(0) rotate(-18deg); opacity: 0; } 65% { transform: scale(1.3) rotate(4deg); opacity: 1; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+
+/* ── Ticket ─────────────────────────────────────────────────────────────── */
+.rd-plan-tag {
+  --pt-cat: var(--ink-faint);
+  --pt-hole-x: 0px;
+  position: relative; display: flex; align-items: stretch; min-width: 0;
+  cursor: grab; user-select: none;
+  filter: drop-shadow(0 1px 1.5px color-mix(in srgb, black 14%, transparent));
+  transition: transform var(--dur-fast), opacity var(--dur-fast);
+}
+.rd-plan-tag:hover { transform: translateY(-1px) rotate(-.3deg); }
+.rd-plan-tag::before, .rd-plan-tag::after {   /* notches where the punch strip tears off */
+  content: ''; position: absolute; left: 24px; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--pt-bg, var(--surface)); z-index: 2; pointer-events: none;
+}
+.rd-plan-tag::before { top: -6px; } .rd-plan-tag::after { bottom: -6px; }
+.rd-pt-punch {
+  flex: none; width: 30px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-right: 1px dashed var(--ink-faint);
+  border-radius: var(--r-md) 0 0 var(--r-md);
+}
+.rd-pt-punch:focus-visible { outline: 2px solid var(--amber-500); outline-offset: 1px; }
+.rd-pt-hole { display: block; width: 11px; height: 11px; border-radius: 50%; border: 1.4px dashed var(--ink-faint); }
+.rd-plan-tag.is-done .rd-pt-hole {
+  border: 0; background: var(--surface-3); box-shadow: inset 0 1px 2px color-mix(in srgb, black 45%, transparent);
+  transform: translate(var(--pt-hole-x), 1px); animation: rd-pt-punch 420ms cubic-bezier(.3, 1.4, .5, 1);
+}
+.rd-pt-main {
+  position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; padding-bottom: 8px; overflow: hidden;
+  background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-left: 0; border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+.rd-plan-tag.is-done .rd-pt-main, .rd-plan-tag.is-done .rd-pt-punch { opacity: .62; }
+.rd-pt-band {
+  display: block; padding: 3px 54px 2px 10px; font-family: var(--font-stamp); font-size: var(--fs-2xs); font-weight: var(--fw-medium);
+  letter-spacing: .15em; text-transform: uppercase; color: var(--ink);
+  background: var(--pt-cat);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+:root[data-theme='dark'] .rd-pt-band, :root[data-theme='dark'] .rd-pm-cat { background: color-mix(in srgb, var(--pt-cat) 40%, var(--surface)); }
+.rd-pt-title {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  padding: 7px 11px 0; font-family: var(--font-display); font-size: var(--fs-sm); font-weight: var(--fw-medium); line-height: 1.3; color: var(--ink); word-break: break-word;
+}
+.rd-pt-meta { padding: 5px 11px 0; font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .04em; color: var(--ink-muted); }
+.rd-pt-tools { position: absolute; top: 1px; right: 3px; display: flex; align-items: center; }
+.rd-plan-tag-open, .rd-plan-tag-del { border: 0; background: none; cursor: pointer; padding: 1px 4px; line-height: 1.2; color: var(--ink-muted); }
+.rd-plan-tag-open { font-size: 16px; opacity: .65; }
+.rd-plan-tag-del { font-size: var(--fs-xs); opacity: 0; transition: opacity var(--dur-fast); }
+.rd-plan-tag:hover .rd-plan-tag-del, .rd-plan-tag:focus-within .rd-plan-tag-del { opacity: 1; }
+.rd-plan-tag-open:hover { opacity: 1; color: var(--ink); } .rd-plan-tag-del:hover { color: var(--danger); }
+.rd-pt-nav { position: absolute; right: 16px; bottom: 5px; font-size: var(--fs-2xs); color: var(--info); }
+.rd-pt-fold { position: absolute; right: 0; bottom: 0; border-bottom: 12px solid color-mix(in srgb, var(--ink) 14%, transparent); border-left: 12px solid transparent; }
+.rd-pt-checked {
+  position: absolute; right: 12px; bottom: 7px; z-index: 3; transform: rotate(-11deg); pointer-events: none;
+  font-family: var(--font-stamp); font-size: var(--fs-xs); font-weight: var(--fw-medium); letter-spacing: .16em; line-height: 1;
+  color: color-mix(in srgb, var(--danger) 62%, transparent); border: 1.6px solid currentColor; border-radius: 3px; padding: 3px 5px;
+}
+
+/* ── Ticket machine ─────────────────────────────────────────────────────── */
+.rd-pm { display: flex; align-items: stretch; max-width: 620px; }
+.rd-pm-body {
+  flex: 1; min-width: 0; background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg) 0 0 var(--r-lg); box-shadow: var(--shadow-sm);
+}
+.rd-pm-row { display: flex; align-items: center; gap: var(--sp-2); padding: 10px 12px 6px; }
+.rd-pm-ico { flex: none; font-size: 16px; }
+.rd-pm-input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: var(--fs-base); color: var(--ink); }
+.rd-pm-input::placeholder { color: var(--ink-faint); }
+.rd-pm-print { flex: none; padding: 7px 12px; border: 0; border-radius: var(--r-sm); background: var(--ink); color: var(--surface); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer; }
+.rd-pm-print:hover { background: var(--ink-soft); }
+.rd-pm-parse { padding: 0 12px 6px 38px; font-family: var(--font-data); font-size: var(--fs-xs); color: var(--board-warn); }
+.rd-pm-parse[hidden] { display: none; }
+.rd-pm-cats { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 12px 10px; border-top: 1px solid var(--rule); }
+.rd-pm-cat {
+  padding: 4px 9px; border: 1.5px solid transparent; border-radius: 6px; cursor: pointer;
+  font-family: var(--font-stamp); font-size: var(--fs-2xs); letter-spacing: .12em; text-transform: uppercase; color: var(--ink);
+  background: var(--pt-cat);
+}
+.rd-pm-cat.is-active { border-color: var(--ink); }
+.rd-pm .rd-plan-add-details { padding: 0 12px 10px; }
+.rd-pm-slot {
+  flex: none; width: 30px; display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl;
+  font-family: var(--font-stamp); font-size: var(--fs-2xs); letter-spacing: .2em; color: var(--ink-muted);
+  background: linear-gradient(180deg, var(--kraft), var(--kraft-edge)); border: 1px solid var(--kraft-edge); border-left: 0; border-radius: 0 var(--r-lg) var(--r-lg) 0;
+  box-shadow: inset 2px 0 5px color-mix(in srgb, black 18%, transparent);
+}
+
+/* ── Loose-ticket box ───────────────────────────────────────────────────── */
+.rd-plan-sidebar {
+  --pt-bg: var(--kraft);
+  background: var(--paper-grain), var(--kraft); border: 1px solid var(--kraft-edge); border-radius: var(--r-lg);
+  box-shadow: inset 0 2px 6px color-mix(in srgb, black 10%, transparent), var(--shadow-sm);
+}
+.rd-plan-unassigned-head { background: none; border-bottom: 1px dashed var(--kraft-edge); }
+.rd-plan-unassigned-title { font-family: var(--font-stamp); font-size: var(--fs-xs); font-weight: var(--fw-medium); letter-spacing: .15em; text-transform: uppercase; color: var(--ink-soft); }
+.rd-plan-unassigned-badge { background: var(--ink); color: var(--surface); }
+.rd-plan-unassigned-items.is-drag-over { background: color-mix(in srgb, var(--amber-400) 16%, transparent); }
+.rd-plan-loose-hint { padding: var(--sp-2) var(--sp-3); font-family: var(--font-hand); font-size: var(--fs-md); text-align: center; color: var(--ink-soft); }
+
+/* "From your other visits": older tickets, a shade yellower than the new ones. */
+.rd-share-history { border-top: 1px dashed var(--kraft-edge); }
+.rd-share-item { background: color-mix(in srgb, var(--amber-100) 55%, var(--surface)); border: 1px solid var(--kraft-edge); border-radius: var(--r-sm); }
+
+/* ── Day envelopes ──────────────────────────────────────────────────────── */
+.rd-env-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 11px; align-items: start; padding-top: 4px; }
+.rd-env {
+  --pt-bg: var(--env);
+  position: relative; min-height: 76px; background: var(--paper-grain), var(--env); border: 1px solid var(--env-edge); border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm); transition: border-color var(--dur-fast), transform var(--dur-mid), box-shadow var(--dur-mid);
+}
+.rd-env:hover { box-shadow: var(--shadow-md); }
+.rd-env.is-today { border-color: var(--amber-400); transform: translateY(-3px); box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber-400) 28%, transparent), var(--shadow-sm); }
+.rd-env.is-open { border-color: var(--amber-500); }
+.rd-env.is-drag-over { background: var(--paper-grain), var(--env); border-color: var(--amber-500); outline: 2px dashed var(--amber-500); outline-offset: 2px; }
+.rd-env-flap {
+  position: absolute; left: 0; right: 0; top: 0; height: 22px; pointer-events: none; opacity: .5; background: var(--env-edge);
+  clip-path: polygon(0 0, 100% 0, 50% 100%); border-radius: var(--r-md) var(--r-md) 0 0; transform-origin: top center;
+  transition: transform 300ms cubic-bezier(.3, .9, .3, 1), opacity var(--dur-mid);
+}
+.rd-env.is-drag-over .rd-env-flap { transform: rotateX(-155deg); opacity: .95; }
+.rd-env-btn { position: relative; display: flex; flex-direction: column; gap: 7px; width: 100%; padding: 9px 10px 10px; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.rd-env-btn:focus-visible { outline: 2px solid var(--amber-500); outline-offset: -2px; border-radius: var(--r-md); }
+.rd-env-head { display: flex; align-items: baseline; gap: 6px; padding-right: 26px; }
+.rd-env-day { font-family: var(--font-stamp); font-size: var(--fs-xs); letter-spacing: .13em; text-transform: uppercase; color: var(--ink-soft); }
+.rd-env-date { font-family: var(--font-data); font-size: var(--fs-2xs); color: var(--ink-muted); }
+.rd-env-spines { display: flex; flex-direction: column; width: 100%; }
+.rd-env-spine {
+  display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: var(--surface); border: 1px solid var(--rule); border-radius: 6px;
+  box-shadow: 0 1px 2px color-mix(in srgb, black 8%, transparent); overflow: hidden; font-size: var(--fs-2xs); color: var(--ink-soft);
+}
+.rd-env-spine + .rd-env-spine { margin-top: -3px; }
+.rd-env-spine:nth-child(even) { transform: rotate(.5deg); } .rd-env-spine:nth-child(odd) { transform: rotate(-.5deg); }
+.rd-env-spine i { flex: none; width: 4px; height: 11px; border-radius: 2px; background: color-mix(in srgb, var(--pt-cat) 55%, var(--ink-muted)); }
+.rd-env-spine span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-env-spine.is-done { opacity: .55; }
+.rd-env-more { margin-top: 4px; font-family: var(--font-data); font-size: var(--fs-2xs); color: var(--ink-muted); }
+.rd-env-empty { font-size: var(--fs-2xs); color: var(--ink-faint); }
+.rd-env-load { display: block; width: 100%; margin-top: auto; }
+.rd-env-bar { display: block; height: 4px; border-radius: 2px; background: var(--env-edge); overflow: hidden; }
+.rd-env-bar i { display: block; height: 100%; border-radius: 2px; background: var(--ink-faint); transition: width 240ms, background 240ms; }
+.rd-env-bar.is-roomy i { background: var(--sage-500); } .rd-env-bar.is-full i { background: var(--amber-500); } .rd-env-bar.is-over i { background: var(--coral-500); }
+.rd-env-foot { display: flex; justify-content: space-between; gap: 6px; margin-top: 4px; font-family: var(--font-data); font-size: var(--fs-2xs); color: var(--ink-muted); }
+.rd-env .rd-plan-day-nav { top: 6px; right: 6px; width: 22px; height: 22px; background: none; }
+.rd-env .rd-plan-day-nav:hover { background: var(--surface); }
+
+.rd-env-panel {
+  --pt-bg: var(--env);
+  margin-top: 13px; padding: 14px 15px 16px; background: var(--paper-grain), var(--env); border: 1px solid var(--env-edge); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); animation: fadeUp var(--dur-mid) var(--ease-out);
+}
+.rd-env-panel.is-drag-over { outline: 2px dashed var(--amber-500); outline-offset: 2px; background: var(--paper-grain), var(--env); }
+.rd-env-panel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 13px; }
+.rd-env-panel-meta { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); }
+.rd-env-close { margin-left: auto; border: 0; background: none; cursor: pointer; font: inherit; font-size: var(--fs-sm); color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }
+.rd-env-tickets { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.rd-env-tickets .rd-plan-drop-hint { grid-column: 1 / -1; }
+
+/* Loose box tickets and views that list tickets on plain paper. */
+.rd-plan-unassigned-items .rd-plan-tag { width: 100%; box-sizing: border-box; }
+.rd-plan-cat-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: var(--sp-2); }
+.rd-feed-item-body .rd-plan-tag { max-width: 420px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rd-plan-tag.is-done .rd-pt-hole, .rd-env-panel { animation: none; }
+  .rd-plan-tag, .rd-env, .rd-env-flap { transition: none; }
+}

@@ -135,7 +135,7 @@
      mixed line would change face mid-sentence. */
   --font-letter:  'Newsreader', 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC', Georgia, serif;
   --font-serif:   var(--font-letter);
-  --font-stamp:   'Oswald', 'Arial Narrow', 'Helvetica Neue', sans-serif;   /* passport stamps only */
+  --font-stamp:   'Oswald', 'Arial Narrow', 'Helvetica Neue', sans-serif;   /* stamps, board and ticket labels: short uppercase tags, never running text */
 
   /* ── Passport (views/passport) ───────────────────────────────────────
      A matte linen desk, navy cloth cover with muted gold, cream pages. */
@@ -155,6 +155,11 @@
   --board-hinge:   color-mix(in srgb, var(--ink) 16%, transparent);
   --board-now:     color-mix(in srgb, var(--amber-400) 14%, var(--surface));
   --board-warn:    var(--amber-700);
+  /* Paper stock for the plan: kraft box for loose tickets, manila for day envelopes. */
+  --kraft:         #ded1b5;
+  --kraft-edge:    #c9b997;
+  --env:           #e7dfcb;
+  --env-edge:      #cfc3a6;
   --pp-gold:       #c4a672;
   --pp-paper:      #f7f1e2;
   --pp-paper-edge: #e3d9c2;
@@ -246,6 +251,10 @@
   --board-hinge:   #000000;
   --board-now:     color-mix(in srgb, var(--amber-400) 13%, #14120f);
   --board-warn:    var(--amber-400);
+  --kraft:         #4b4136;
+  --kraft-edge:    #5c5044;
+  --env:           #3a332b;
+  --env-edge:      #4b4136;
   --pp-gold:       #c4a672;
   --pp-paper:      #403b33;
   --pp-paper-edge: #4b453b;

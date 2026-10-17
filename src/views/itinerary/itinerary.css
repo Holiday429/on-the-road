@@ -9,6 +9,7 @@
 @import './styles/detail.css';
 @import './styles/clips.css';
 @import './styles/plan.css';
+@import './styles/plan-tickets.css';
 @import '../../core/paper/booking.css';
 @import './styles/booking.css';
 @import './styles/editors.css';

@@ -13,6 +13,8 @@ import { daysBetween, fmtDate, dayColour } from './itinerary-utils.ts';
 import { geocodeLocal } from '../map/geocode.ts';
 import { allCategories, categoryById, type Leg } from './itinerary-shared.ts';
 import type { PlanItem, PlanDay } from '../../data/schema.ts';
+import { dayLoad, hoursLabel, loadLevel } from './itinerary-plan-parse.ts';
+import { todayIso } from '../../data/trip-phase.ts';
 
 export function ensurePlanDays(leg: Leg): PlanDay[] {
   const total = daysBetween(leg.dateFrom, leg.dateTo);
@@ -30,49 +32,115 @@ export function ensurePlanDays(leg: Leg): PlanDay[] {
   return expected;
 }
 
-export function renderPlanItem(p: PlanItem, leg: Leg): string {
+/** One plan item as a paper ticket: a punch strip on the left (tap to punch = done),
+ *  a category-coloured band, the title, and "≈3H · €18" underneath. `drag: false`
+ *  drops the drag hook in views that have no drop zone. */
+export function renderPlanItem(p: PlanItem, leg: Leg, o: { drag?: boolean } = {}): string {
   const cat = p.category ? categoryById(leg, p.category) : undefined;
-  const color = cat?.color ?? '#ebebeb';
-  const tooltipParts = [cat?.label, p.note, p.duration, p.cost].filter(Boolean);
-  const tooltip = tooltipParts.join(' · ');
+  const color = cat?.color ?? 'var(--surface-3)';
+  const meta = [p.duration ? `≈${esc(p.duration.toUpperCase())}` : '', p.cost ? esc(p.cost) : ''].filter(Boolean).join('  ·  ');
+  const hint = [cat?.label, p.note].filter(Boolean).join(' · ');
+  const name = esc(p.title);
   return `
-    <div class="rd-plan-tag ${p.done ? 'is-done' : ''}" data-id="${esc(p.id)}" data-drag="plan-item" style="--tint-bg:${esc(color)}"${tooltip ? ` data-tooltip="${esc(tooltip)}"` : ''}>
-      <button class="rd-plan-tag-check" data-act="toggle-plan" data-plan="${esc(p.id)}" title="Mark done">
-        ${p.done ? '✓' : ''}
-      </button>
-      <span class="rd-plan-tag-name">${esc(p.title)}</span>
-      <button class="rd-plan-tag-open" data-act="open-plan" data-plan="${esc(p.id)}" title="Details">›</button>
-      <button class="rd-plan-tag-del" data-act="del-plan" data-plan="${esc(p.id)}" title="Delete">✕</button>
+    <div class="rd-plan-tag${p.done ? ' is-done' : ''}" data-id="${esc(p.id)}"${o.drag === false ? '' : ' data-drag="plan-item"'} style="--pt-cat:${esc(color)}"${hint ? ` title="${esc(hint)}"` : ''}>
+      <button class="rd-plan-tag-check rd-pt-punch" data-act="toggle-plan" data-plan="${esc(p.id)}" aria-pressed="${p.done}" aria-label="${esc(tr(p.done ? 'route.planUnpunch' : 'route.planPunch', { title: p.title }))}"><span class="rd-pt-hole"></span></button>
+      <div class="rd-pt-main">
+        <span class="rd-pt-band">${esc(cat?.label ?? tr('route.planNoCategory'))}</span>
+        <span class="rd-plan-tag-name rd-pt-title">${name}</span>
+        ${meta ? `<span class="rd-pt-meta">${meta}</span>` : ''}
+        <span class="rd-pt-tools">
+          <button class="rd-plan-tag-open" data-act="open-plan" data-plan="${esc(p.id)}" title="${esc(tr('route.planDetails'))}">›</button>
+          <button class="rd-plan-tag-del" data-act="del-plan" data-plan="${esc(p.id)}" title="${esc(tr('route.planDelete'))}">✕</button>
+        </span>
+        ${p.address || p.mapUrl ? '<span class="rd-pt-nav" aria-hidden="true">◉</span>' : ''}
+        ${p.note ? '<span class="rd-pt-fold" aria-hidden="true"></span>' : ''}
+      </div>
+      ${p.done ? `<span class="rd-pt-checked" aria-hidden="true">${esc(tr('route.planChecked'))}</span>` : ''}
     </div>`;
 }
 
-export function renderPlanBoardView(leg: Leg): string {
+/** The ticket machine: one line that reads "Tivoli 3h kr170", category chips, a print button. */
+export function renderPlanMachine(leg: Leg, cat: string): string {
+  const chips = allCategories(leg).map((c) =>
+    `<button type="button" class="rd-pm-cat${c.id === cat ? ' is-active' : ''}" data-act="plan-cat" data-cat="${esc(c.id)}" aria-pressed="${c.id === cat}" style="--pt-cat:${esc(c.color)}">${esc(c.label)}</button>`).join('');
+  return `
+    <div class="rd-pm">
+      <div class="rd-pm-body">
+        <div class="rd-pm-row">
+          <span class="rd-pm-ico" aria-hidden="true">🎟</span>
+          <input class="rd-pm-input" id="rd-plan-input" placeholder="${esc(tr('route.machinePlaceholder'))}" aria-label="${esc(tr('route.machineAria'))}" autocomplete="off">
+          <button type="button" class="rd-pm-print" data-act="add-plan">${esc(tr('route.machinePrint'))}</button>
+        </div>
+        <div class="rd-pm-parse" id="rd-plan-parse" hidden></div>
+        <div class="rd-pm-cats" role="group" aria-label="${esc(tr('route.categorySelect'))}">${chips}</div>
+        <div id="rd-plan-add-details" class="rd-plan-add-details" hidden>
+          <input class="input" id="rd-plan-note" placeholder="${esc(tr('route.planNoteLabel'))}">
+        </div>
+      </div>
+      <div class="rd-pm-slot" aria-hidden="true">${esc(tr('route.machineSlot'))}</div>
+    </div>`;
+}
+
+/** Day envelopes (a wrapping grid, never a sideways rail). Each holds up to three
+ *  ticket spines and a load bar; the open day unfolds as a panel under the grid. */
+export function renderPlanBoardView(leg: Leg, openDayId: string | null = null): string {
   const days = ensurePlanDays(leg);
   const plans = leg.plans ?? [];
+  const today = todayIso();
+  const byDay = (id: string) => plans.filter((p) => p.dayId === id).sort((a, b) => a.order - b.order);
 
-  const dayCol = (day: PlanDay, idx: number) => {
-    const items = plans.filter(p => p.dayId === day.id).sort((a, b) => a.order - b.order);
-    const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const envelope = (day: PlanDay, idx: number) => {
+    const items = byDay(day.id);
+    const load = dayLoad(items);
+    const level = loadLevel(load.hours);
+    const dow = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase();
+    const spines = items.slice(0, 3).map((p) => {
+      const c = p.category ? categoryById(leg, p.category)?.color : undefined;
+      return `<span class="rd-env-spine${p.done ? ' is-done' : ''}" style="--pt-cat:${esc(c ?? 'var(--surface-3)')}"><i></i><span>${esc(p.title)}</span></span>`;
+    }).join('');
+    const open = openDayId === day.id;
     return `
-      <div class="rd-plan-day-col">
-        <div class="rd-plan-day-head">
-          <span class="rd-plan-day-num">${tr('route.dayPrefix', { n: idx + 1 })}</span>
-          <span class="rd-plan-day-date">${dateLabel}</span>
+      <div class="rd-plan-drop-zone rd-env${open ? ' is-open' : ''}${day.date === today ? ' is-today' : ''}" data-day-id="${esc(day.id)}">
+        <span class="rd-env-flap" aria-hidden="true"></span>
+        <button type="button" class="rd-env-btn" data-act="toggle-day" data-day-id="${esc(day.id)}" aria-expanded="${open}"
+          aria-label="${esc(tr('route.dayPrefix', { n: idx + 1 }))} ${esc(dow)}, ${items.length}">
+          <span class="rd-env-head"><span class="rd-env-day">${esc(tr('route.dayPrefix', { n: idx + 1 }))}</span><span class="rd-env-date">${esc(dow)}</span></span>
           ${day.label ? `<span class="rd-plan-day-label">${esc(day.label)}</span>` : ''}
-          ${items.length ? `<button class="rd-plan-day-nav" data-act="export-day" data-day-id="${esc(day.id)}" title="${esc(tr('export.navigateDay'))}" aria-label="${esc(tr('export.navigateDay'))}">↗</button>` : ''}
-        </div>
-        <div class="rd-plan-drop-zone pk-drop-zone" data-day-id="${esc(day.id)}">
-          ${items.map(p => renderPlanItem(p, leg)).join('')}
-          ${items.length === 0 ? `<div class="rd-plan-drop-hint">${tr('route.dropHint')}</div>` : ''}
-        </div>
+          ${items.length
+            ? `<span class="rd-env-spines">${spines}${items.length > 3 ? `<span class="rd-env-more">+${items.length - 3}</span>` : ''}</span>`
+            : `<span class="rd-env-empty">${esc(tr('route.dropHint'))}</span>`}
+          ${items.length ? `<span class="rd-env-load"><span class="rd-env-bar is-${level}"><i style="width:${Math.min(100, (load.hours / 10) * 100)}%"></i></span>
+            <span class="rd-env-foot"><span>${esc(tr('route.planned', { h: hoursLabel(load.hours) }))}</span><span>${esc(load.cost)}</span></span></span>` : ''}
+        </button>
+        ${items.length ? `<button class="rd-plan-day-nav" data-act="export-day" data-day-id="${esc(day.id)}" title="${esc(tr('export.navigateDay'))}" aria-label="${esc(tr('export.navigateDay'))}">↗</button>` : ''}
       </div>`;
   };
 
+  const openIdx = days.findIndex((d) => d.id === openDayId);
+  let panel = '';
+  if (openIdx >= 0) {
+    const day = days[openIdx];
+    const items = byDay(day.id);
+    const load = dayLoad(items);
+    const dow = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase();
+    panel = `
+      <div class="rd-env-panel rd-plan-drop-zone" data-day-id="${esc(day.id)}">
+        <div class="rd-env-panel-head">
+          <span class="rd-env-day">${esc(tr('route.dayPrefix', { n: openIdx + 1 }))} · ${esc(dow)}</span>
+          <span class="rd-env-panel-meta">${esc(tr('route.planned', { h: hoursLabel(load.hours) }))}${load.cost ? ` · ${esc(load.cost)}` : ''}</span>
+          <button type="button" class="rd-env-close" data-act="close-day">${esc(tr('route.closeDay'))}</button>
+        </div>
+        <div class="rd-env-tickets">
+          ${items.map((p) => renderPlanItem(p, leg)).join('')}
+          ${items.length ? '' : `<div class="rd-plan-drop-hint">${esc(tr('route.emptyDayHint'))}</div>`}
+        </div>
+      </div>`;
+  }
+
   return `
     <div class="rd-plan-board-wrap">
-      <div class="rd-plan-columns">
-        ${days.map((d, i) => dayCol(d, i)).join('')}
-      </div>
+      <div class="rd-env-grid">${days.map(envelope).join('')}</div>
+      ${panel}
     </div>
     <div id="rd-plan-drag-ghost" class="rd-plan-drag-ghost" hidden></div>`;
 }
@@ -80,13 +148,6 @@ export function renderPlanBoardView(leg: Leg): string {
 export function renderPlanCategoryView(leg: Leg): string {
   const plans = leg.plans ?? [];
   if (!plans.length) return `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.planCategoryEmpty')}</span></div>`;
-
-  const days = ensurePlanDays(leg);
-  const dayLabel = (dayId: string | null | undefined) => {
-    if (!dayId) return tr('route.unassigned');
-    const idx = days.findIndex(d => d.id === dayId);
-    return idx >= 0 ? tr('route.dayPrefix', { n: idx + 1 }) : tr('route.unassigned');
-  };
 
   const cats = allCategories(leg);
   const groups = cats.map(cat => {
@@ -99,13 +160,7 @@ export function renderPlanCategoryView(leg: Leg): string {
           <span class="rd-plan-cat-count">${items.length}</span>
         </div>
         <div class="rd-plan-cat-rows">
-          ${items.map(p => `
-            <div class="rd-plan-cat-row ${p.done ? 'is-done' : ''}" data-plan="${esc(p.id)}">
-              <button class="rd-plan-tag-check" data-act="toggle-plan" data-plan="${esc(p.id)}">${p.done ? '✓' : ''}</button>
-              <span class="rd-plan-cat-title">${esc(p.title)}</span>
-              <span class="rd-plan-cat-day">${dayLabel(p.dayId)}</span>
-              <button class="rd-icon-btn rd-sm" data-act="open-plan" data-plan="${esc(p.id)}">›</button>
-            </div>`).join('')}
+          ${items.map(p => renderPlanItem(p, leg, { drag: false })).join('')}
         </div>
       </div>`;
   }).join('');
@@ -116,7 +171,7 @@ export function renderPlanCategoryView(leg: Leg): string {
 export function renderPlanFeedView(leg: Leg): string {
   const plans = leg.plans ?? [];
   const days = ensurePlanDays(leg);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
 
   if (!plans.length) {
     return `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.feedEmpty')}</span></div>`;
@@ -135,23 +190,11 @@ export function renderPlanFeedView(leg: Leg): string {
     return 'upcoming';
   }
 
-  const feedItem = (p: PlanItem, status: 'active' | 'past' | 'upcoming') => {
-    const cat = p.category ? categoryById(leg, p.category) : undefined;
-    const color = cat?.color ?? '#ebebeb';
-    return `
-      <div class="rd-feed-item ${p.done ? 'is-done' : ''} rd-feed-item--${status}" data-plan="${esc(p.id)}">
+  const feedItem = (p: PlanItem, status: 'active' | 'past' | 'upcoming') => `
+      <div class="rd-feed-item rd-feed-item--${status}" data-plan="${esc(p.id)}">
         <div class="rd-feed-item-dot" style="background:${p.done ? 'var(--ink-faint)' : status === 'active' ? 'var(--route-active)' : status === 'past' ? 'var(--route-past)' : 'var(--route-upcoming)'}"></div>
-        <div class="rd-feed-item-body">
-          <div class="rd-feed-item-row">
-            <button class="rd-plan-tag-check ${p.done ? 'is-done' : ''}" data-act="toggle-plan" data-plan="${esc(p.id)}">${p.done ? '✓' : ''}</button>
-            ${cat ? `<span class="rd-cat-badge rd-cat-badge--sm" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
-            <span class="rd-feed-item-title">${esc(p.title)}</span>
-            <button class="rd-icon-btn" data-act="open-plan" data-plan="${esc(p.id)}">›</button>
-          </div>
-          ${p.note ? `<div class="rd-feed-item-note">${esc(p.note)}</div>` : ''}
-        </div>
+        <div class="rd-feed-item-body">${renderPlanItem(p, leg, { drag: false })}</div>
       </div>`;
-  };
 
   const dayGroups = assigned.map(({ day, items }) => {
     const status = dayStatus(day.date);

@@ -111,75 +111,6 @@
 .rd-plan-unassigned-items.is-drag-over { background: var(--amber-50); }
 .rd-plan-unassigned-items .rd-plan-tag { width: 100%; box-sizing: border-box; }
 
-/* ── Plan item tag ───────────────────────────────────────────────────────── */
-.rd-plan-tag {
-  background: var(--tint-bg, var(--surface-3));
-  display: flex; align-items: center; gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-2);
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  cursor: grab;
-  user-select: none;
-  position: relative;
-  transition: opacity var(--dur-fast), box-shadow var(--dur-fast), filter var(--dur-fast);
-}
-.rd-plan-tag:hover { box-shadow: var(--shadow-sm); filter: brightness(0.96); }
-
-/* Custom tooltip — shown when data-tooltip is present */
-.rd-plan-tag[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(30,30,30,0.92);
-  color: #fff;
-  font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1.45;
-  padding: 5px 9px;
-  border-radius: 6px;
-  white-space: pre-wrap;
-  max-width: 220px;
-  word-break: break-word;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity var(--dur-fast);
-  z-index: 200;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
-}
-.rd-plan-tag[data-tooltip]:hover::after { opacity: 1; }
-.rd-plan-tag.is-done { opacity: 0.5; }
-.rd-plan-tag.is-done .rd-plan-tag-name { text-decoration: line-through; }
-.rd-plan-tag-check {
-  width: 18px; height: 18px; flex-shrink: 0;
-  border: 1.5px solid rgba(0,0,0,0.18);
-  border-radius: var(--r-sm);
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
-  cursor: pointer;
-  font-size: var(--fs-xs); color: transparent;
-  display: flex; align-items: center; justify-content: center;
-}
-.rd-plan-tag.is-done .rd-plan-tag-check,
-.rd-plan-tag-check.is-done { background: var(--route-active); border-color: var(--route-active); color: #fff; }
-.rd-plan-tag-name {
-  flex: 1; min-width: 0;
-  font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink);
-  word-break: break-word;
-}
-.rd-plan-tag-open {
-  flex-shrink: 0; border: none; background: none;
-  color: rgba(0,0,0,0.35); cursor: pointer; font-size: 16px; padding: 0 2px;
-  transition: color var(--dur-fast);
-}
-.rd-plan-tag:hover .rd-plan-tag-open { color: rgba(0,0,0,0.6); }
-.rd-plan-tag-del {
-  flex-shrink: 0; border: none; background: none;
-  color: var(--ink-faint); cursor: pointer; font-size: var(--fs-xs); padding: 0 2px;
-  opacity: 0; transition: opacity var(--dur-fast), color var(--dur-fast);
-  line-height: 1;
-}
-.rd-plan-tag:hover .rd-plan-tag-del { opacity: 1; }
-.rd-plan-tag-del:hover { color: var(--badge-red, var(--danger)); }
-
 /* ── Plan drag ghost ─────────────────────────────────────────────────────── */
 .rd-plan-drag-ghost {
   position: fixed; z-index: 500; pointer-events: none;
@@ -513,10 +444,3 @@
 .rd-share-item--visited .rd-share-item-name { text-decoration: line-through; }
 .rd-share-item-meta { color: var(--ink-faint); font-size: var(--fs-2xs); flex-shrink: 0; }
 .rd-share-item-add { flex-shrink: 0; }
-
-
-/* ── Dark theme — sticky-note tags carry dark tints, lighten their glyphs ── */
-:root[data-theme='dark'] .rd-plan-tag-check { border-color: rgba(255,255,255,0.25); background: rgba(0,0,0,0.3); }
-:root[data-theme='dark'] .rd-plan-tag-open { color: rgba(255,255,255,0.4); }
-:root[data-theme='dark'] .rd-plan-tag:hover .rd-plan-tag-open { color: rgba(255,255,255,0.65); }
-:root[data-theme='dark'] .rd-plan-tag-del { color: rgba(255,255,255,0.35); }

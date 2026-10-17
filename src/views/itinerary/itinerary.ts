@@ -57,8 +57,9 @@ import {
 } from './itinerary-cards.ts';
 import { renderBoard } from './itinerary-board.ts';
 import { wireBoard } from './itinerary-board-wire.ts';
+import { wirePlanMachine } from './itinerary-plan-machine.ts';
 import {
-  ensurePlanDays, renderPlanItem,
+  ensurePlanDays, renderPlanItem, renderPlanMachine,
   renderPlanBoardView, renderPlanCategoryView, renderPlanFeedView,
   renderPlanCalendarView, renderPlanMapView,
 } from './itinerary-plan-views.ts';
@@ -74,6 +75,8 @@ export { BUILTIN_CATEGORIES, CATEGORY_PALETTE };
 type PlanView = 'board' | 'feed' | 'category' | 'calendar' | 'map';
 let _planView: PlanView = 'board';
 let _calMonth = 0;  // calendar plan-view: month offset from leg start; reset on new leg
+let _openDay: string | null = null;   // the plan board's unfolded day envelope
+let _planCat = '';                  // ticket machine: the category chip picked last
 let _openDatesFor: string | null = null;   // set when the list asks for a stop's dates editor on arrival
 let _boardShown = false;   // the list's flap tiles shuffle once per visit to the list
 let _stayPage = 0;  // which stay the detail page's stays ticket is showing; reset on new leg
@@ -636,12 +639,8 @@ function renderPlansSection(leg: Leg): string {
     { id: 'map',      label: '🗺️ Map' },
   ];
 
-  const cats = allCategories(leg);
-  const catOptions = `<option value="">${tr('route.categorySelect')}</option>` +
-    cats.map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
-
   let body = '';
-  if (_planView === 'board')         body = renderPlanBoardView(leg);
+  if (_planView === 'board')         body = renderPlanBoardView(leg, _openDay);
   else if (_planView === 'feed')     body = renderPlanFeedView(leg);
   else if (_planView === 'category') body = renderPlanCategoryView(leg);
   else if (_planView === 'calendar') body = renderPlanCalendarView(leg, _calMonth);
@@ -660,13 +659,14 @@ function renderPlansSection(leg: Leg): string {
   const sidebar = `
     <div class="rd-plan-sidebar">
       <div class="rd-plan-unassigned-head">
-        <span class="rd-plan-unassigned-title">${tr('route.unassigned')}</span>
+        <span class="rd-plan-unassigned-title">${tr('route.looseTickets')}</span>
         ${unassigned.length ? `<span class="rd-plan-unassigned-badge">${unassigned.length}</span>` : ''}
       </div>
       <div class="rd-plan-drop-zone pk-drop-zone rd-plan-unassigned-items" data-day-id="">
         ${unassigned.map(p => renderPlanItem(p, leg)).join('')}
-        ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">${tr('route.newItemsHint')}</div>` : ''}
+        ${unassigned.length === 0 ? `<div class="rd-plan-drop-hint">${tr('route.looseEmpty')}</div>` : ''}
       </div>
+      <div class="rd-plan-loose-hint">${tr('route.looseHint')}</div>
       ${renderSharedHistory(leg)}
     </div>`;
 
@@ -679,16 +679,7 @@ function renderPlansSection(leg: Leg): string {
             ${views.map(v => `<button class="rd-view-tab ${_planView === v.id ? 'is-active' : ''}" data-act="plan-view" data-view="${v.id}">${v.label}</button>`).join('')}
           </div>
         </div>
-        <div class="rd-plan-add-bar">
-          <input class="input rd-add-input" id="rd-plan-input" placeholder="${tr('route.planPlaceholder')}">
-          <select class="input select rd-plan-cat-sel" id="rd-plan-cat">${catOptions}</select>
-          <input class="input rd-plan-dur-input" id="rd-plan-duration" placeholder="${tr('route.planDurationPh')}">
-          <input class="input rd-plan-cost-input" id="rd-plan-cost" placeholder="${tr('route.planCostPh')}">
-          <button class="btn btn-primary rd-sm" data-act="add-plan">+ Add</button>
-        </div>
-        <div id="rd-plan-add-details" class="rd-plan-add-details" hidden>
-          <input class="input" id="rd-plan-note" placeholder="${tr('route.planNoteLabel')}">
-        </div>
+        ${renderPlanMachine(leg, _planCat)}
       </div>
       ${onboardBanner}
       <div class="rd-plan-layout">
@@ -860,7 +851,7 @@ function openLeg(id: string, row?: HTMLElement | null) {
   const go = () => {
     selectedLegId = id;
     addFormOpen = false;
-    _calMonth = 0; _stayPage = 0;
+    _calMonth = 0; _stayPage = 0; _openDay = null;
     render();
     document.getElementById('view-route')?.querySelector('.route-timeline')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -1252,37 +1243,12 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   on('cal-next', () => { _calMonth++; render(); });
 
   /* — Plan add — */
-  const planInput = timeline.querySelector<HTMLInputElement>('#rd-plan-input');
-  const planDetails = timeline.querySelector<HTMLElement>('#rd-plan-add-details');
-  planInput?.addEventListener('focus', () => { if (planDetails) planDetails.hidden = false; });
-
-  on('add-plan', () => {
-    const input = timeline.querySelector<HTMLInputElement>('#rd-plan-input');
-    const catSel = timeline.querySelector<HTMLSelectElement>('#rd-plan-cat');
-    const noteEl = timeline.querySelector<HTMLInputElement>('#rd-plan-note');
-    const durEl = timeline.querySelector<HTMLInputElement>('#rd-plan-duration');
-    const costEl = timeline.querySelector<HTMLInputElement>('#rd-plan-cost');
-    const title = input?.value.trim() ?? '';
-    if (!title) return;
-    const plans = leg.plans ?? [];
-    const next: PlanItem = {
-      id: uid(), title,
-      category: catSel?.value ?? '',
-      note: noteEl?.value.trim() || undefined,
-      duration: durEl?.value.trim() || undefined,
-      cost: costEl?.value.trim() || undefined,
-      dayId: null, done: false, order: plans.length,
-    };
-    if (input) input.value = '';
-    if (noteEl) noteEl.value = '';
-    if (durEl) durEl.value = '';
-    if (costEl) costEl.value = '';
-    if (planDetails) planDetails.hidden = true;
-    patchLeg(leg.id, { plans: [...plans, clean(next)] });
+  wirePlanMachine(timeline, leg, {
+    uid, clean, savePlans: (plans) => patchLeg(leg.id, { plans }),
+    getCat: () => _planCat, setCat: (id) => { _planCat = id; },
   });
-  planInput?.addEventListener('keydown', (e) => {
-    if ((e as KeyboardEvent).key === 'Enter') (timeline.querySelector('[data-act="add-plan"]') as HTMLElement)?.click();
-  });
+  on('toggle-day', (el) => { _openDay = _openDay === el.dataset.dayId ? null : el.dataset.dayId!; render(); });
+  on('close-day', () => { _openDay = null; render(); });
 
   // Bring an item from another visit into this leg's wishlist (unassigned).
   on('adopt-shared', (el) => {
@@ -1688,7 +1654,7 @@ function applyNavIntent() {
   if (!intent?.legId) return;
   selectedLegId = intent.legId;
   addFormOpen = false;
-  _calMonth = 0; _stayPage = 0;
+  _calMonth = 0; _stayPage = 0; _openDay = null;
   render();
   const root = document.getElementById('view-route');
   const target = intent.dayId
