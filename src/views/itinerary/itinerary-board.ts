@@ -252,7 +252,13 @@ export function renderBoard(ctx: BoardCtx, opts: { shuffle: boolean }): string {
   return `
     <div class="rb-wrap">
     <div data-rb-gate-host>${renderGate(gate, ctx)}</div>
-    <p class="rb-summary">${esc(summaryText(ctx))}</p>
+    <div class="rb-meta">
+      <p class="rb-summary">${esc(summaryText(ctx))}</p>
+      <span class="rb-meta-tools">
+        <span data-pp-icon></span>
+        <button type="button" class="btn btn-primary rd-sm" data-act="add-stop">${esc(tr('route.addStop'))}</button>
+      </span>
+    </div>
     ${renderStrip(ctx)}
     <section class="rb${opts.shuffle ? ' is-shuffling' : ''}" aria-label="${esc(title)}">
       <header class="rb-bar">

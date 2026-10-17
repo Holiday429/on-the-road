@@ -137,13 +137,13 @@ export function renderTicket(t: Transport): string {
 export function renderTransportSection(leg: Leg): string {
   const t = leg.arrivalTransport;
   const synced = !!t?.expenseId;
-  const body = t ? `
-    ${renderTicket(t)}
-    <div class="rd-section-actions">
+  const tools = t ? `
+    <div class="rd-head-actions">
       <button class="btn btn-ghost rd-sm" data-act="edit-transport">${tr('route.btnEdit')}</button>
       ${t.priceAmount != null ? `<button class="btn btn-ghost rd-sm" data-act="sync-transport">${synced ? tr('route.btnUpdateExpense') : tr('route.btnLogExpense')}</button>` : ''}
       <button class="btn btn-ghost rd-sm rd-danger" data-act="del-transport">${tr('route.btnRemove')}</button>
-    </div>` : `
+    </div>` : '';
+  const body = t ? renderTicket(t) : `
     <div class="rd-ticket-ghost">
       <span>${tr('route.noTransport')}</span>
       <button class="btn btn-primary rd-sm" data-act="edit-transport">${tr('route.btnAddTransport')}</button>
@@ -151,7 +151,7 @@ export function renderTransportSection(leg: Leg): string {
 
   return `
     <section class="rd-section rd-section--transport">
-      <div class="rd-section-head"><h3>${tr('route.sectionTransport')}</h3></div>
+      <div class="rd-section-head"><h3>${tr('route.sectionTransport')}</h3>${tools}</div>
       ${body}
     </section>`;
 }
@@ -221,15 +221,17 @@ export function renderStayCard(leg: Leg, a: Accommodation, i: number, total: num
     </article>`;
 }
 
-/** Edit / expense / remove row under one stay ticket (the detail page only). */
+/** Edit / expense / remove for the shown stay — sits on the section heading row
+ *  so the ticket keeps the same height as the transport one beside it. */
 function stayActions(a: Accommodation, i: number): string {
   const key = esc(a.id ?? String(i));
   const synced = !!a.expenseId;
   return `
-    <div class="rd-section-actions">
+    <div class="rd-head-actions">
       <button class="btn btn-ghost rd-sm" data-act="edit-stay" data-stay="${key}">${tr('route.btnEdit')}</button>
       ${a.priceAmount != null ? `<button class="btn btn-ghost rd-sm" data-act="sync-stay" data-stay="${key}">${synced ? tr('route.btnUpdateExpense') : tr('route.btnLogExpense')}</button>` : ''}
       <button class="btn btn-ghost rd-sm rd-danger" data-act="del-stay" data-stay="${key}">${tr('route.btnRemove')}</button>
+      <button class="btn btn-ghost rd-sm" data-act="add-stay">${tr('route.btnAddStay')}</button>
     </div>`;
 }
 
@@ -244,9 +246,7 @@ export function renderStaysSection(leg: Leg, page = 0): string {
       <span class="rd-stay-pager-n">${at + 1} / ${stays.length}</span>
       <button class="rd-icon-btn" data-act="stay-page" data-dir="1" aria-label="Next stay" ${at === stays.length - 1 ? 'disabled' : ''}>›</button>
     </div>` : '';
-  const body = stays.length ? `
-    ${renderStayCard(leg, stays[at], at, stays.length, { interactive: true })}
-    ${stayActions(stays[at], at)}` : `
+  const body = stays.length ? renderStayCard(leg, stays[at], at, stays.length, { interactive: true }) : `
     <div class="rd-ticket-ghost">
       <span>${tr('route.noStays')}</span>
       <button class="btn btn-primary rd-sm" data-act="add-stay">${tr('route.btnAddStay')}</button>
@@ -256,7 +256,7 @@ export function renderStaysSection(leg: Leg, page = 0): string {
       <div class="rd-section-head">
         <h3>${tr('route.sectionStays')}</h3>
         ${pager}
-        ${stays.length ? `<button class="btn btn-ghost rd-sm" data-act="add-stay">${tr('route.btnAddStay')}</button>` : ''}
+        ${stays.length ? stayActions(stays[at], at) : ''}
       </div>
       ${body}
     </section>`;

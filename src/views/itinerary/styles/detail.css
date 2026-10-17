@@ -194,6 +194,13 @@
   display: flex; gap: var(--sp-2);
   margin-top: var(--sp-3);
 }
+/* Edit / log / remove live on the section's heading row, not a line of their
+   own — a ticket is tall enough already, and the pair of columns stays level. */
+.rd-head-actions {
+  display: flex; align-items: center; gap: var(--sp-1);
+  margin-left: auto; flex-wrap: wrap; justify-content: flex-end;
+}
+.rd-head-actions .btn { padding: 4px 9px; font-size: var(--fs-xs); }
 .rd-sm { font-size: var(--fs-sm); padding: 6px 12px; }
 .rd-danger { color: var(--badge-red, var(--danger)); }
 .rd-danger:hover { color: var(--danger); }

@@ -42,25 +42,44 @@ registerRoute(
   ({ request, url }) => request.mode === 'navigate' && (url.pathname === '/app' || url.pathname.startsWith('/app/')),
   new NetworkFirst({
     cacheName: 'otr-app-shell',
-    plugins: [new PrecacheFallbackPlugin({ fallbackURL: '/app.html' })],
+    plugins: [
+      new PrecacheFallbackPlugin({ fallbackURL: '/app.html' }),
+      new ExpirationPlugin({ maxEntries: 30, purgeOnQuotaError: true }),
+    ],
   }),
 );
 registerRoute(
   ({ request, url }) => request.mode === 'navigate' && !(url.pathname === '/app' || url.pathname.startsWith('/app/')),
   new NetworkFirst({
     cacheName: 'otr-marketing-shell',
-    plugins: [new PrecacheFallbackPlugin({ fallbackURL: '/index.html' })],
+    plugins: [
+      new PrecacheFallbackPlugin({ fallbackURL: '/index.html' }),
+      new ExpirationPlugin({ maxEntries: 30, purgeOnQuotaError: true }),
+    ],
   }),
 );
 
 // Static assets not covered by the precache manifest (e.g. anything added at
 // runtime, or same-origin requests Workbox's build-time scan didn't see):
 // stale-while-revalidate so repeat visits are instant but never stale forever.
+//
+// The expiration is not optional. Asset filenames are content-hashed, so every
+// deploy introduces a fresh set of URLs and the old ones are never requested
+// again — without a bound this cache only ever grows, and once it hits the
+// origin's storage quota every `cache.put` here throws QuotaExceededError.
+// That surfaces as a flood of uncaught rejections from sw.js and a page running
+// on half-loaded chunks. purgeOnQuotaError lets Workbox drop this cache rather
+// than keep failing if the origin is squeezed by something else.
 registerRoute(
   ({ url }) =>
     url.origin === self.location.origin
     && /\.(js|css|png|jpg|jpeg|svg|gif|webp|woff2?|ico|mp4|webm)(\?.*)?$/.test(url.pathname),
-  new StaleWhileRevalidate({ cacheName: 'otr-static-assets' }),
+  new StaleWhileRevalidate({
+    cacheName: 'otr-static-assets',
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 30 * 24 * 60 * 60, purgeOnQuotaError: true }),
+    ],
+  }),
 );
 
 // Journal photos live in Firebase Storage (a different origin, so the

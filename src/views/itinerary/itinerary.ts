@@ -239,10 +239,6 @@ function renderTimeline(): string {
   const board = renderBoard({ legs, today: stampToday(), marks: legMarks }, { shuffle: !_boardShown });
   _boardShown = true;
   return `
-    <div class="rb-actions">
-      <span data-pp-icon></span>
-      <button class="btn btn-primary" data-act="add-stop">${tr('route.addStop')}</button>
-    </div>
     ${renderAddForm()}
     ${board}`;
 }
