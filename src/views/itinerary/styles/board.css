@@ -14,8 +14,6 @@
    strip, so the page starts with the card instead of a band of buttons. */
 .rb-meta { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-2); }
 .rb-meta-tools { display: flex; align-items: center; gap: var(--sp-2); margin-left: auto; }
-.rb-meta-tools .pp-icon-btn { width: 34px; height: 34px; }
-.rb-meta-tools .pp-icon-cover { width: 19px; height: 24px; font-size: 11px; }
 .rb-summary { margin: 0; font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); }
 
 @keyframes rb-breathe { 0%, 100% { opacity: .55; transform: scale(.85); } 50% { opacity: 1; transform: scale(1.1); } }
@@ -39,7 +37,6 @@
   padding: 8px; margin-bottom: var(--sp-4);
   background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: var(--r-xl); box-shadow: var(--shadow-md);
   overflow: hidden; animation: fadeUp var(--dur-mid) var(--ease-out);
-  max-width: 920px;
 }
 .rb-gate--now { border-color: color-mix(in srgb, var(--amber-500) 45%, var(--rule)); }
 .rb-gate-cover { cursor: pointer; min-height: 0; aspect-ratio: 4 / 3; border-radius: calc(var(--r-xl) - 6px); }

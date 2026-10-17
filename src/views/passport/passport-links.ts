@@ -119,12 +119,15 @@ export function mountPassportPockets(root: HTMLElement): void {
 
 /* ── Icon button ─────────────────────────────────────────────────────────── */
 
-/** The passport as a single icon (Itinerary's action row). A dot when stamps wait to be pressed or a document needs attention. */
+/** The passport as a little booklet (Itinerary's action row): cloth cover, foil globe, title line, chip. A dot when stamps wait to be pressed or a document needs attention. */
 export function passportIconHtml(p: PassportFeed): string {
   const attention = p.pending.length > 0 || p.warnings.length > 0 || p.visaWarnings.length > 0;
   const label = esc(t('passport.open'));
-  return `<button type="button" class="pp-icon-btn${attention ? ' has-pending' : ''}" data-open-passport="" title="${label}" aria-label="${label}">
-    <span class="pp-icon-cover" aria-hidden="true">🛂</span>
+  return `<button type="button" class="pp-booklet-btn${attention ? ' has-pending' : ''}" data-open-passport="" title="${label}" aria-label="${label}">
+    <span class="pp-booklet" aria-hidden="true">
+      <svg class="pp-booklet-globe" viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="3.6" ry="8.5"/><path d="M3.5 12h17M5 7.5h14M5 16.5h14"/></svg>
+      <i class="pp-booklet-title"></i><i class="pp-booklet-chip"></i>
+    </span>
   </button>`;
 }
 

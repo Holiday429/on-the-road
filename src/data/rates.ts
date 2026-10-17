@@ -206,7 +206,7 @@ export async function getRateTable(base: string): Promise<RateTable> {
 
   // No `symbols` filter: asking for an explicit list makes the whole request
   // 422 if frankfurter ever drops one of them. We take what it returns.
-  const url = `https://api.frankfurter.app/latest?base=${base}`;
+  const url = `https://api.frankfurter.dev/v1/latest?base=${base}`;
 
   inflight[base] = (async () => {
     try {

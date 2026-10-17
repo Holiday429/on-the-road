@@ -501,7 +501,6 @@ export const zh: StringTable = {
   'board.gate.daysToGo':  '天后出发',
   'board.gate.open':      '打开城市',
   'board.gate.overText':  '{stops} 站 · 在路上 {nights} 晚',
-  'board.gate.passport':  '去看护照',
   // ── Itinerary: plan tickets ──
   'route.planNoCategory':   '票',
   'route.planChecked':      '已完成',

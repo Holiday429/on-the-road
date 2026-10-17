@@ -28,7 +28,7 @@ let open: { close: () => void } | null = null;
 
 function dayChip(d: BookDay, max: number): string {
   const p = parts(d.iso);
-  return `<button type="button" class="rb-day" role="tab" data-rb-day="${esc(d.iso)}" title="${esc(`${longDate(d.iso)} · ${bookMoney(d.total)}`)}">
+  return `<button type="button" class="rcb-day" role="tab" data-rb-day="${esc(d.iso)}" title="${esc(`${longDate(d.iso)} · ${bookMoney(d.total)}`)}">
     <i style="height:${barHeight(d.total, max)}%"></i><b>${p.d}</b><span>${p.m}</span>
   </button>`;
 }
@@ -36,7 +36,7 @@ function dayChip(d: BookDay, max: number): string {
 function peek(d: BookDay | undefined, side: 'prev' | 'next'): string {
   if (!d) return '';
   const p = parts(d.iso);
-  return `<button type="button" class="rb-peek rb-peek--${side}" data-rb-step="${side === 'prev' ? -1 : 1}" aria-label="${esc(longDate(d.iso))}">
+  return `<button type="button" class="rcb-peek rcb-peek--${side}" data-rb-step="${side === 'prev' ? -1 : 1}" aria-label="${esc(longDate(d.iso))}">
     <span>${p.d} ${p.m}</span><b>${esc(bookMoney(d.total))}</b>
   </button>`;
 }
@@ -62,27 +62,27 @@ export function openReceiptBook(startIso: string): void {
   let busy = false;
 
   const root = document.createElement('div');
-  root.className = 'rb';
+  root.className = 'rcb';
   root.setAttribute('role', 'dialog');
   root.setAttribute('aria-modal', 'true');
   root.setAttribute('aria-label', t('expenses.book.title'));
   // eslint-disable-next-line no-restricted-syntax -- audited: every interpolation escaped (esc / bookMoney)
   root.innerHTML = `
-    <div class="rb-top">
-      <div class="rb-title"><span aria-hidden="true">🧾</span> ${esc(t('expenses.book.title'))}</div>
-      <div class="rb-count" data-rb-count aria-live="polite"></div>
-      <button type="button" class="rb-x" data-rb-close aria-label="${esc(t('common.close'))}">✕</button>
+    <div class="rcb-top">
+      <div class="rcb-title"><span aria-hidden="true">🧾</span> ${esc(t('expenses.book.title'))}</div>
+      <div class="rcb-count" data-rb-count aria-live="polite"></div>
+      <button type="button" class="rcb-x" data-rb-close aria-label="${esc(t('common.close'))}">✕</button>
     </div>
-    ${days.length ? `<div class="rb-days" role="tablist" data-rb-days>${days.map((d) => dayChip(d, max)).join('')}</div>` : ''}
-    <div class="rb-stage">
-      <button type="button" class="rb-nav" data-rb-step="-1" aria-label="${esc(t('expenses.book.prev'))}">‹</button>
-      <div class="rb-counter">
+    ${days.length ? `<div class="rcb-days" role="tablist" data-rb-days>${days.map((d) => dayChip(d, max)).join('')}</div>` : ''}
+    <div class="rcb-stage">
+      <button type="button" class="rcb-nav" data-rb-step="-1" aria-label="${esc(t('expenses.book.prev'))}">‹</button>
+      <div class="rcb-counter">
         <div class="ck-printer" aria-hidden="true"><div class="ck-printer-body"></div></div>
-        <div class="rb-paper" data-rb-paper></div>
+        <div class="rcb-paper" data-rb-paper></div>
       </div>
-      <button type="button" class="rb-nav" data-rb-step="1" aria-label="${esc(t('expenses.book.next'))}">›</button>
+      <button type="button" class="rcb-nav" data-rb-step="1" aria-label="${esc(t('expenses.book.next'))}">›</button>
     </div>
-    <div class="rb-hint">${esc(t('expenses.book.hint'))}</div>`;
+    <div class="rcb-hint">${esc(t('expenses.book.hint'))}</div>`;
   document.body.appendChild(root);
   document.body.classList.add('exp-records-lock');
   requestAnimationFrame(() => root.classList.add('is-in'));
@@ -92,7 +92,7 @@ export function openReceiptBook(startIso: string): void {
   /** A sheet for a day: the receipt on paper, ready to feed out. */
   const sheet = (iso: string | null): HTMLElement => {
     const el = document.createElement('div');
-    el.className = 'rc rc--book rc--feed paper paper--zigzag rb-sheet';
+    el.className = 'rc rc--book rc--feed paper paper--zigzag rcb-sheet';
     // eslint-disable-next-line no-restricted-syntax -- audited: bookReceiptHtml escapes every value
     el.innerHTML = iso ? bookReceiptHtml(iso) : `<div class="rc-inner"><div class="rc-empty">${esc(t('expenses.book.empty'))}</div></div>`;
     return el;
@@ -101,29 +101,29 @@ export function openReceiptBook(startIso: string): void {
   function paintChrome(): void {
     const d = days[index];
     root.querySelector<HTMLElement>('[data-rb-count]')!.textContent = d ? t('expenses.book.count', { i: index + 1, n: days.length }) : '';
-    root.querySelectorAll<HTMLElement>('.rb-day').forEach((b) => {
+    root.querySelectorAll<HTMLElement>('.rcb-day').forEach((b) => {
       const on = b.dataset.rbDay === d?.iso;
       b.classList.toggle('is-on', on);
       b.setAttribute('aria-selected', String(on));
       if (on) b.scrollIntoView({ inline: 'center', block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
     });
-    root.querySelectorAll<HTMLButtonElement>('.rb-nav').forEach((b) => {
+    root.querySelectorAll<HTMLButtonElement>('.rcb-nav').forEach((b) => {
       b.disabled = !d || (b.dataset.rbStep === '-1' ? index <= 0 : index >= days.length - 1);
     });
-    paper.querySelectorAll('.rb-peek').forEach((n) => n.remove());
+    paper.querySelectorAll('.rcb-peek').forEach((n) => n.remove());
     paper.insertAdjacentHTML('afterbegin', peek(days[index - 1], 'prev') + peek(days[index + 1], 'next'));
   }
 
   /** Puts the sheet for days[index] on the counter; the old one (if any) is torn off toward `dir`. */
   function show(dir: 1 | -1 | 0): void {
-    const old = paper.querySelector<HTMLElement>('.rb-sheet');
+    const old = paper.querySelector<HTMLElement>('.rcb-sheet');
     const still = reducedMotion();
     const d = days[index];
     const next = sheet(d?.iso ?? null);
     if (still) next.classList.remove('rc--feed');
     if (old) {
       old.style.setProperty('--dir', String(dir || 1));
-      old.classList.add('rb-sheet--out');
+      old.classList.add('rcb-sheet--out');
       window.setTimeout(() => old.remove(), still ? 0 : 380);
     }
     paper.appendChild(next);

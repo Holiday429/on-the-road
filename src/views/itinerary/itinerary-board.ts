@@ -159,7 +159,6 @@ export function renderGate(gate: Gate, ctx: BoardCtx, opts: { preview?: Leg } = 
         <div class="rb-gate-main">
           <div class="rb-gate-kicker">${esc(tr('board.gate.over'))}</div>
           <p class="rb-gate-over-text">${esc(tr('board.gate.overText', { stops: gate.stops, nights: gate.nights }))}</p>
-          <button type="button" class="btn btn-ghost rd-sm" data-open-passport="">${esc(tr('board.gate.passport'))}</button>
         </div>
       </section>`;
   }
