@@ -260,10 +260,11 @@ export function renderBoard(ctx: BoardCtx, opts: { shuffle: boolean }): string {
       </span>
     </div>
     ${renderStrip(ctx)}
-    <section class="rb${opts.shuffle ? ' is-shuffling' : ''}" aria-label="${esc(title)}">
+    <section class="rb${opts.shuffle ? ' is-shuffling' : ''}${gate.kind === 'over' ? ' is-over' : ''}" aria-label="${esc(title)}">
       <header class="rb-bar">
         <span class="rb-lamp" aria-hidden="true"></span>
         <h2 class="rb-title">${esc(title)}</h2>
+        ${gate.kind === 'over' ? `<span class="rb-done-tag">${esc(tr('board.doneTag'))}</span>` : ''}
         <time class="rb-clock" datetime="${esc(ctx.today)}">${esc(clock)}</time>
       </header>
       <div class="rb-head" aria-hidden="true">

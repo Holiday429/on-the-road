@@ -457,6 +457,7 @@ export const zh: StringTable = {
   'board.title.before':   '出发',
   'board.title.during':   '登机中',
   'board.title.after':    '已抵达',
+  'board.doneTag':        '已完成',
   'board.colDate':        '日期',
   'board.colCity':        '城市',
   'board.colArrive':      '到达方式',

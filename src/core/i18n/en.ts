@@ -463,6 +463,7 @@ export const en: StringTable = {
   'board.title.before':   'Departures',
   'board.title.during':   'Now boarding',
   'board.title.after':    'Arrived',
+  'board.doneTag':        'Completed',
   'board.colDate':        'Date',
   'board.colCity':        'City',
   'board.colArrive':      'Arrive by',
