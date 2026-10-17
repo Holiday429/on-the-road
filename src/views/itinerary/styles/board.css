@@ -142,7 +142,6 @@
 .rb-add:hover { color: var(--board-ink); background: color-mix(in srgb, var(--board-ink) 4%, transparent); }
 
 :lang(zh) .rb-title, :lang(zh) .rb-head, :lang(zh) .rb-status, :lang(zh) .rb-chip, :lang(zh) .rb-gate-kicker, :lang(zh) .rb-stub-sm { letter-spacing: .04em; }
-:lang(zh) .rb-ch { text-transform: none; }
 
 /* Fewer columns as the board narrows. */
 @container rb (max-width: 880px) {
