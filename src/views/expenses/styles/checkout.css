@@ -6,29 +6,39 @@
    comes from the paper kit (core/paper/paper.css); numbers are --font-data.
    ========================================================================== */
 
-/* ── Page: summary strip over [till | receipt], all above the fold ─────────── */
-#view-expenses .view-header { padding: var(--sp-3) 0 var(--sp-2); margin-bottom: var(--sp-2); }
+/* ── Page: summary strip over [till | receipt], all on one screen ──────────────
+   The title row is hidden (the top bar shows it), so the summary sits the same distance under the
+   bar as on every other page. Three tiers, all driven by the window, not the device name:
+     · phone (<600w): one column — till, then the receipt folded to a slip you tap open
+     · roomy (≥600w: unfolded foldable, tablet, desktop): till | receipt side by side, as on the web
+   Either way the page is pinned to the screen when it is tall enough (≥640h); only the receipt scrolls. */
 #view-expenses .view-subtitle { display: none; }
-#view-expenses .exp-summary { margin-bottom: var(--sp-3); }
+#view-expenses .exp-summary { margin-bottom: var(--sp-3); flex: none; }
 #view-expenses .exp-hero-btn { min-height: 0; padding: 12px 16px 12px; gap: 0; }
 #view-expenses .exp-hero-eyebrow { margin-bottom: 6px; }
 #view-expenses .exp-hero-num { font-size: 1.35rem; margin: 0; }
 #view-expenses .exp-hero-bar-track { margin: 6px 0 0; }
 #view-expenses .exp-hero-label { font-size: var(--fs-xs); margin-top: 4px; }
-@media (min-width: 901px) {
-  #view-expenses .exp-layout { grid-template-columns: minmax(0, 1.3fr) minmax(300px, .7fr); gap: var(--sp-5); align-items: start; }
-}
+#view-expenses .exp-layout { grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); align-items: start; }
 .exp-form-wrap { min-width: 0; }
 .exp-receipt-wrap { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-/* Not enough height to pin the page: the receipt keeps its own scroll, capped. */
+/* Not pinned (a short window): the receipt keeps its own scroll, capped. */
 .rc-scroll { max-height: 340px; }
 
-/* The page stays put: summary strip + [till | receipt] fill exactly one screen. A long day
-   scrolls inside the receipt (which grows with its content up to the column), never the page. */
-@media (min-width: 901px) and (min-height: 780px) {
-  #view-expenses.active { display: flex; flex-direction: column; height: 100dvh; box-sizing: border-box; overflow: hidden; }
-  #view-expenses .exp-layout { flex: 1; min-height: 0; max-height: 600px; align-items: stretch; }
-  .rc-scroll { max-height: none; }
+@media (min-width: 600px) {
+  #view-expenses .exp-layout { grid-template-columns: minmax(0, 1fr) clamp(224px, 34%, 340px); gap: var(--sp-4); }
+}
+@media (min-width: 901px) {
+  #view-expenses .exp-layout { grid-template-columns: minmax(0, 1.3fr) minmax(300px, .7fr); gap: var(--sp-5); }
+}
+
+/* Pinned: the window is exactly as tall as the top bar + the page, so nothing scrolls. A phone needs
+   more height than a roomy screen for the same till, so it pins later; below that it just scrolls. */
+@media (min-width: 600px) and (min-height: 640px), (max-width: 599px) and (min-height: 760px) {
+  #main:has(#view-expenses.active) { display: flex; flex-direction: column; height: 100dvh; }
+  #view-expenses.active { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  #view-expenses .exp-layout { flex: 1 1 auto; min-height: 0; max-height: 780px; align-items: stretch; }
+  .exp-receipt-wrap .rc-scroll { max-height: none; }
 }
 
 .ck-printer { position: relative; z-index: 3; }
@@ -147,4 +157,42 @@
 .exp-summary .paper-stamp--corner { right: var(--sp-3); top: var(--sp-3); font-size: var(--fs-2xs); }
 @media (max-width: 500px) {
   .exp-summary .exp-hero-btn + .exp-hero-btn { border-left: 0; border-top: 1.5px dashed var(--paper-perf); }
+}
+
+/* Phone: summary halves side by side, a tighter slip. */
+@media (max-width: 599px) {
+  #view-expenses .exp-summary { grid-template-columns: 1fr 1fr; margin-bottom: var(--sp-2); }
+  #view-expenses .exp-summary .exp-hero-btn + .exp-hero-btn { border-top: 0; border-left: 1.5px dashed var(--paper-perf); }
+  #view-expenses .exp-hero-btn { padding: 8px 12px 9px; }
+  #view-expenses .exp-hero-num { font-size: 1.2rem; }
+  #view-expenses .exp-hero-eyebrow { margin-bottom: 1px; }
+  #view-expenses .exp-hero-label { margin-top: 2px; }
+  #view-expenses .exp-hero-bar-track { margin-top: 3px; }
+  #view-expenses .exp-days-btn { right: calc(50% + 8px); top: 6px; padding: 2px 8px; font-size: 9px; letter-spacing: .04em; }
+}
+/* Phone, tall enough to pin: the till takes what it needs and the receipt folds into the rest as a
+   slip — lines when there is room, always the total and VIEW FULL RECEIPT. It gives up height first
+   (to its total row), then the till's screen does (its keys scroll inside it). */
+@media (max-width: 599px) and (min-height: 760px) {
+  #view-expenses.active { padding-bottom: var(--sp-2); }
+  #view-expenses .exp-layout { display: flex; flex-direction: column; gap: var(--sp-2); }
+  .exp-form-wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .exp-form-wrap > .ck-machine { flex: 1 1 auto; height: auto; }
+  .exp-receipt-wrap { flex: 0 100 auto; min-height: 58px; }
+  .exp-receipt-wrap .ck-printer { display: none; }
+  .exp-receipt-wrap .rc { margin-top: 0; border-radius: var(--r-md); transform: none; }
+  .exp-receipt-wrap .rc-inner { padding: 8px 10px 8px; }
+  .exp-receipt-wrap .rc-head, .exp-receipt-wrap .rc-meta, .exp-receipt-wrap .rc-barcode, .exp-receipt-wrap .rc-bcnum, .exp-receipt-wrap .rc-thanks { display: none; }
+  .exp-receipt-wrap .rc-scroll { padding-top: 0; }
+  .exp-receipt-wrap .rc-row--sub { display: none; }
+  .exp-receipt-wrap .rc-foot { display: flex; align-items: stretch; gap: var(--sp-2); padding-top: 6px; }
+  .exp-receipt-wrap .rc-total { flex: 1; padding: 4px 10px; font-size: 12px; }
+  .exp-receipt-wrap .rc-view { width: auto; margin: 0; padding: 0 12px; font-size: 9px; white-space: nowrap; }
+  .exp-receipt-wrap .rc-stamp { bottom: 44px; font-size: 14px; }
+}
+/* Unfolded foldable / small tablet: the web layout in a narrower receipt column. */
+@media (min-width: 600px) and (max-width: 900px) {
+  .exp-receipt-wrap .rc-title { font-size: 12px; letter-spacing: .14em; }
+  .exp-receipt-wrap .rc-thanks { letter-spacing: .1em; }
+  .exp-receipt-wrap .rc-inner { padding: 12px 12px 12px; }
 }

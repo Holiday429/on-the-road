@@ -23,11 +23,15 @@
   --scr-line: color-mix(in srgb, var(--scr-ink) 24%, transparent);
   --scr-ring: color-mix(in srgb, var(--surface-4) 78%, #000);
   --scr-glow: none;
+  /* vertical rhythm: tightened below for short windows and phones so the whole till stays on screen */
+  --ck-pad: var(--sp-4);
+  --ck-gap: var(--sp-4);
+  --ck-spad: 10px 14px 12px;
 
   position: relative;
   display: flex; flex-direction: column;
-  height: 100%;
-  padding: var(--sp-4);
+  height: 100%; min-height: 0;
+  padding: var(--ck-pad);
   margin-bottom: 0;
   border-radius: 20px;
   background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 80%, #fff), var(--surface-2) 90%);
@@ -56,7 +60,7 @@
 }
 
 /* ── Body: nameplate ─────────────────────────────────────────────────────── */
-.ck-plate { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin: 0 var(--sp-1) var(--sp-3); }
+.ck-plate { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; margin: 0 var(--sp-1) var(--ck-gap); }
 .ck-plate-name { display: flex; align-items: baseline; gap: var(--sp-3); }
 .ck-plate-name span { font-family: var(--font-display); font-weight: 700; font-size: 12px; letter-spacing: .22em; color: var(--ink-soft); }
 .ck-plate-name em { font-style: normal; font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); }
@@ -72,8 +76,8 @@
 
 /* ── The screen ──────────────────────────────────────────────────────────── */
 .ck-screen {
-  position: relative; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: space-between;
-  margin: 6px 6px var(--sp-4); padding: 10px 14px 12px; border-radius: 10px; overflow: hidden;
+  position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: space-between;
+  margin: 6px 6px var(--ck-gap); padding: var(--ck-spad); border-radius: 10px; overflow: hidden;
   color: var(--scr-ink); font-family: var(--font-data);
   background: linear-gradient(180deg, color-mix(in srgb, var(--scr-bg) 92%, #fff), var(--scr-bg) 40%, color-mix(in srgb, var(--scr-bg) 90%, #000));
   box-shadow: inset 0 2px 10px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.22),
@@ -144,8 +148,14 @@
 .ck-ptag-code { width: 24px; height: 14px; flex: none; background: repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 2px, var(--ink) 2px 4px, transparent 4px 6px); }
 
 /* soft keys: every category on screen at once, wrapping onto as many rows as needed */
-.ck-keys-row { margin-bottom: 8px; }
-.ck-keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; padding: 1px; }
+.ck-keys-row { flex: 1 1 auto; min-height: 52px; margin-bottom: 8px; display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: none; }
+.ck-keys-row::-webkit-scrollbar { display: none; }
+/* Spare height goes to the keys (up to a cap, centred); too little and the row scrolls inside the screen. */
+.ck-keys {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; padding: 1px;
+  flex: 1 1 auto; margin-block: auto; min-height: min-content; max-height: 176px;
+  grid-auto-rows: minmax(46px, 1fr);
+}
 .ck-key {
   --tile: color-mix(in srgb, var(--kc, var(--scr-bg)) 62%, var(--scr-bg));
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0;
@@ -165,7 +175,7 @@
 .ck-key.is-on .ck-key-label { font-weight: var(--fw-bold); }
 /* On the dark VFD the chosen key lights up instead. */
 :root[data-theme='dark'] .ck-key.is-on { background: var(--scr-ink); color: var(--scr-bg); text-shadow: none; border-color: var(--scr-ink); box-shadow: none; }
-.ck-key-emoji { font-size: 18px; line-height: 1; text-shadow: none; }
+.ck-key-emoji { font-size: clamp(16px, 2.6vh, 22px); line-height: 1; text-shadow: none; }
 .ck-key-label { font-size: 9px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .ck-key--new { --tile: transparent; border-style: dashed; border-bottom-width: 1px; color: var(--scr-dim); }
 .ck-key--new:hover { color: var(--scr-ink); }
@@ -185,13 +195,24 @@
 .ck-aux { grid-column: 1 / -1; min-height: 1.1em; line-height: 1.1; text-align: right; font-size: 10px; letter-spacing: .06em; color: var(--scr-dim); }
 
 /* ── On the body: fields + SCAN ──────────────────────────────────────────── */
-.ck-machine .exp-form-grid, .ck-buyrow { gap: var(--sp-3); }
-.ck-machine .exp-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: var(--sp-3); }
+.ck-machine .exp-form-grid, .ck-buyrow { gap: var(--ck-field-gap, var(--sp-3)); }
+.ck-machine .exp-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: var(--ck-field-gap, var(--sp-3)); }
 .ck-machine .exp-form-grid > div { min-width: 0; }
 /* Country + City share the third cell, so Currency / Date / Country are always the same width. */
-.ck-machine .exp-form-grid:has(.ck-pair) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr); }
+.ck-machine .exp-form-grid:has(.ck-pair) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.7fr); }
 .ck-machine .ck-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
-@container (max-width: 520px) { .ck-machine .exp-form-grid { grid-template-columns: 1fr 1fr; } .ck-machine .exp-form-grid > div:last-child { grid-column: 1 / -1; } }
+@container (max-width: 520px) {
+  .ck-machine .exp-form-grid, .ck-machine .exp-form-grid:has(.ck-pair) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ck-machine .exp-form-grid > div:last-child { grid-column: 1 / -1; }
+  .ck-plate-name em { display: none; }
+  .ck-plate-name span { font-size: 11px; letter-spacing: .14em; }
+  .ck-keys { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container (max-width: 340px) {
+  .ck-key-label { font-size: 8px; letter-spacing: .02em; }
+  .ck-status { gap: 2px var(--sp-3); font-size: 10.5px; letter-spacing: .04em; }
+  .ck-status-total { font-size: 18px; }
+}
 .ck-machine .field-label { font-family: var(--font-data); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-muted); margin-bottom: 2px; }
 .ck-machine .input {
   font-family: var(--font-data); font-size: 12px; letter-spacing: .02em; padding: 7px 10px; height: var(--ctl-h);
@@ -217,6 +238,30 @@
 .ck-scanbtn-hint { font-family: var(--font-data); font-size: 10px; letter-spacing: 0; opacity: .65; }
 @keyframes ck-busy { to { filter: saturate(.6) brightness(1.06); } }
 .ck-scanbtn:focus-visible, .ck-key:focus-visible { outline: 2px solid var(--amber-400); outline-offset: 2px; }
+
+/* ── Fitting the screen ───────────────────────────────────────────────────────
+   Short windows (laptops, unfolded foldables) and phones get a tighter rhythm; the screen gives up
+   height first (its keys scroll inside it), never the amount, the fields or SCAN. */
+@media (max-height: 820px), (max-width: 599px) {
+  .exp-form.ck-machine { --ck-pad: 12px; --ck-gap: 8px; --ck-spad: 8px 12px 9px; --ck-field-gap: 8px; --ctl-h: 34px; border-radius: 16px; }
+  .ck-machine .field-label { margin-bottom: 1px; font-size: 8.5px; }
+  .ck-scanline { height: 26px; line-height: 26px; margin: 5px 0; font-size: 13px; }
+  .ck-ptag { height: 20px; line-height: 20px; top: 3px; }
+  .ck-status-total { font-size: 20px; }
+  .ck-key { padding: 4px 3px 3px; }
+  .ck-display { padding-top: 5px; }
+  .ck-amount { font-size: clamp(24px, 6cqi, 30px); }
+  .ck-scanbtn { height: var(--ctl-h); min-width: 132px; }
+}
+@media (pointer: coarse) and ((max-height: 820px), (max-width: 599px)) { .exp-form.ck-machine { --ctl-h: 40px; } }
+@media (max-width: 599px) {
+  .ck-head-tools { gap: var(--sp-2); flex-wrap: nowrap; }
+  .ck-machine .exp-base-picker > span { display: none; }
+  .ck-machine .exp-base-picker { flex: none; }
+  .ck-machine .exp-base-picker .input { width: 110px; flex: none; }
+  .ck-plate { flex-wrap: nowrap; }
+  .ck-plate-name span { font-size: 11px; letter-spacing: .14em; white-space: nowrap; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ck-caret, .ck-last.is-marquee, .ck-scanbtn:disabled, .ck-status b.is-bump, .ck-screen.is-ok .ck-led, .ck-screen.is-err { animation: none; }
