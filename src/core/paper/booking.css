@@ -48,11 +48,11 @@
 .rd-ticket::before { top: -9px; }
 .rd-ticket::after  { bottom: -9px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--tk-accent) 22%, transparent); }
 
-.rd-ticket-main { padding: var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-5); min-width: 0; }
+.rd-ticket-main { padding: var(--sp-3) var(--sp-4) var(--sp-3) var(--sp-5); min-width: 0; }
 .rd-ticket-top {
   grid-column: 1 / -1;
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
-  padding: 8px var(--sp-5);
+  padding: 5px var(--sp-5);
   background: var(--tk-bg);
   color: var(--tk-ink);
 }
@@ -66,6 +66,8 @@
   font-family: var(--font-ui);
   font-size: var(--fs-xs); font-weight: var(--fw-semibold); letter-spacing: 0.1em; text-transform: uppercase;
 }
+.rd-ticket-topr { display: inline-flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.rd-ticket-date { font-family: var(--font-data); font-size: var(--fs-xs); letter-spacing: .02em; white-space: nowrap; }
 .rd-ticket-service {
   font-family: var(--font-ui);
   font-size: var(--fs-sm); font-weight: var(--fw-bold); letter-spacing: 0.04em;
@@ -96,7 +98,7 @@
 }
 .rd-ticket-time {
   font-family: var(--font-data);
-  font-size: var(--fs-2xl); font-weight: var(--fw-bold);
+  font-size: var(--fs-xl); font-weight: var(--fw-bold);
   color: var(--tk-ink);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
@@ -143,12 +145,15 @@
 
 .rd-ticket-fields {
   display: flex; flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-5);
-  margin-top: var(--sp-4);
-  padding-top: var(--sp-3);
+  align-items: flex-start;
+  gap: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-2);
   border-top: 1px solid color-mix(in srgb, var(--tk-accent) 15%, transparent);
 }
-.rd-ticket-field { display: flex; flex-direction: column; min-width: 0; }
+.rd-ticket-field { display: flex; flex-direction: column; min-width: 0; flex: 0 0 auto; }
+/* The last field (baggage, on a flight) takes what is left and wraps, so the row stays one line tall. */
+.rd-ticket-fields > .rd-ticket-field:last-child { flex: 1 1 110px; }
 .rd-ticket-val {
   font-family: var(--font-ui);
   font-size: var(--fs-sm); font-weight: var(--fw-semibold);
@@ -165,8 +170,8 @@
   position: relative;
   min-width: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-  gap: var(--sp-3);
-  padding: var(--sp-4) var(--sp-3);
+  gap: var(--sp-2);
+  padding: var(--sp-3);
   border-left: 2px dashed color-mix(in srgb, var(--tk-accent) 30%, transparent);
   background: color-mix(in srgb, var(--tk-accent) 5%, var(--tk-paper));
 }
@@ -199,7 +204,7 @@
 }
 .rd-ticket-barcode {
   width: 100%; max-width: 96px;
-  height: 34px;
+  height: 28px;
   opacity: 0.75;
   background: repeating-linear-gradient(90deg,
     var(--ink) 0 2px, transparent 2px 4px, var(--ink) 4px 5px, transparent 5px 8px,
@@ -221,10 +226,10 @@
    Shares every rule above (top band, route strip, perforated stub); only the
    accent, the name block and the key-card stub differ. */
 .rd-ticket--stay { --tk-accent: var(--cat-health); --tk-bg: var(--tint-health); --tk-ink: var(--tint-health-ink); }
-.rd-stay-name-wrap { min-width: 0; margin-bottom: var(--sp-3); }
+.rd-stay-name-wrap { min-width: 0; margin-bottom: var(--sp-2); }
 .rd-stay-name {
   font-family: var(--font-display);
-  font-size: var(--fs-lg); font-weight: var(--fw-semibold);
+  font-size: var(--fs-md); font-weight: var(--fw-semibold);
   color: var(--ink);
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -235,13 +240,13 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 /* Dates are shorter than flight times; size them like a name, not a clock. */
-.rd-ticket-time.rd-stay-day { font-family: var(--font-display); font-size: var(--fs-xl); }
-.rd-ticket-links { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+.rd-ticket-time.rd-stay-day { font-family: var(--font-display); font-size: var(--fs-lg); }
+.rd-ticket-links { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-left: auto; }
 
 /* Room-key magstripe where the transport stub has its barcode. */
 .rd-ticket-keycard {
   position: relative;
-  width: 100%; max-width: 96px; height: 40px;
+  width: 100%; max-width: 96px; height: 32px;
   border-radius: 5px;
   background: color-mix(in srgb, var(--tk-accent) 14%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--tk-accent) 35%, transparent);
@@ -249,12 +254,12 @@
 }
 .rd-ticket-keycard::before {   /* the stripe */
   content: '';
-  position: absolute; left: 0; right: 0; top: 7px; height: 9px;
+  position: absolute; left: 0; right: 0; top: 5px; height: 8px;
   background: var(--ink); opacity: 0.8;
 }
 .rd-ticket-keycard::after {    /* the chip */
   content: '';
-  position: absolute; left: 8px; bottom: 6px; width: 14px; height: 11px;
+  position: absolute; left: 8px; bottom: 4px; width: 14px; height: 10px;
   border-radius: 2px;
   background: var(--amber-400);
 }
@@ -262,8 +267,7 @@
 /* ── Same footprint for both tickets ─────────────────────────────────────
    --pass-h is the shared minimum, so transport and stay read as a matched
    pair, and an empty slot (the ghost ticket) holds exactly the same space. */
-.rd-detail-grid--top .rd-ticket,
-.rd-ticket-ghost { --pass-h: 218px; min-height: var(--pass-h); }
+.rd-ticket-ghost { min-height: 132px; }
 .rd-ticket { grid-template-rows: auto 1fr; }
 .rd-ticket-ghost {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3);

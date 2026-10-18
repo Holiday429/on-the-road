@@ -94,7 +94,6 @@ export function renderTicket(t: Transport): string {
   const field = (label: string, value: string) =>
     `<div class="rd-ticket-field"><span class="rd-ticket-lbl">${label}</span><span class="rd-ticket-val">${value}</span></div>`;
   const fields = [
-    t.date ? field(tr('route.ticketDate'), esc(fmtDay(t.date))) : '',
     t.duration ? field(tr('route.ticketDuration'), esc(t.duration)) : '',
     price ? field(tr('route.ticketFare'), `${esc(price)}${synced ? ` <small>· ${tr('route.loggedLabel')}</small>` : ''}`) : '',
     bags ? field(tr('route.ticketBaggage'), esc(bags)) : '',
@@ -110,7 +109,10 @@ export function renderTicket(t: Transport): string {
     <div class="rd-ticket rd-ticket--${t.type}">
       <div class="rd-ticket-top">
         <span class="rd-ticket-kind">${TRANSPORT_ICONS[t.type]} ${tr(TICKET_KIND[t.type])}</span>
-        ${t.service ? `<span class="rd-ticket-service">${esc(t.service)}</span>` : ''}
+        <span class="rd-ticket-topr">
+          ${t.date ? `<span class="rd-ticket-date">${esc(fmtDay(t.date))}</span>` : ''}
+          ${t.service ? `<span class="rd-ticket-service">${esc(t.service)}</span>` : ''}
+        </span>
       </div>
       <div class="rd-ticket-main">
         <div class="rd-ticket-route">
@@ -208,10 +210,12 @@ export function renderStayCard(leg: Leg, a: Accommodation, i: number, total: num
           </div>
           ${end('is-to', tr('route.stayCheckOut'), a.checkOut)}
         </div>
-        ${fields ? `<div class="rd-ticket-fields">${fields}</div>` : ''}
-        <div class="rd-ticket-links">
-          <a class="rd-map-btn" href="${safeUrl(mapHref(a, leg))}" target="_blank" rel="noopener" title="Navigate in Google Maps">${tr('route.stayNavigate')}</a>
-          ${booking ? `<a class="rd-map-btn rd-map-btn--soft" href="${safeUrl(booking)}" target="_blank" rel="noopener" title="Open the booking on ${esc(a.platform || 'the platform')}">${tr('route.stayOrder')}</a>` : ''}
+        <div class="rd-ticket-fields">
+          ${fields}
+          <div class="rd-ticket-links">
+            <a class="rd-map-btn" href="${safeUrl(mapHref(a, leg))}" target="_blank" rel="noopener" title="Navigate in Google Maps">${tr('route.stayNavigate')}</a>
+            ${booking ? `<a class="rd-map-btn rd-map-btn--soft" href="${safeUrl(booking)}" target="_blank" rel="noopener" title="Open the booking on ${esc(a.platform || 'the platform')}">${tr('route.stayOrder')}</a>` : ''}
+          </div>
         </div>
       </div>
       <div class="rd-ticket-stub">

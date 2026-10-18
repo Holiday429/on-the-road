@@ -11,8 +11,7 @@
 import { t as tr } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { renderStamp, type StampSpec } from '../../core/paper/stamp.ts';
-import { postmarksFor, type CardPostmarks } from '../../data/card-postmarks.ts';
-import type { StampLeg } from '../../data/stamps.ts';
+import type { CardPostmarks } from '../../data/card-postmarks.ts';
 import type { Leg } from './itinerary-shared.ts';
 import { TRANSPORT_ICONS, daysBetween, fmtDate, legStays } from './itinerary-utils.ts';
 import { legCoverArt, nightsLabel } from './itinerary-cards.ts';
@@ -63,11 +62,13 @@ function firstStay(leg: Leg): string {
 
 /* ── Rows ────────────────────────────────────────────────────────────────── */
 
-/** A stop's most recent postmark: the one it left behind, else the one it arrived with. */
-function rowStamp(leg: Leg, state: BoardState, ctx: BoardCtx): string {
+/** A stop's postmarks as they stand: the one it arrived with, and the one it left behind. Side by side, never overlapping. */
+function rowStamps(leg: Leg, ctx: BoardCtx): string {
   const m = ctx.marks(leg);
-  const spec = state === 'done' ? (m?.depart ?? m?.arrive) : m?.arrive;
-  return spec ? `<span class="rb-stamp" aria-hidden="true">${renderStamp(spec, { size: 34 })}</span>` : '';
+  const one = (spec: StampSpec | undefined, cls: string, size: number) =>
+    spec ? `<span class="rb-stamp ${cls}">${renderStamp(spec, { size })}</span>` : '';
+  const html = one(m?.arrive, 'is-arrive', 34) + one(m?.depart, 'is-depart', 32);
+  return html ? `<span class="rb-stamps" aria-hidden="true">${html}</span>` : '';
 }
 
 function renderRow(leg: Leg, i: number, ctx: BoardCtx): string {
@@ -88,12 +89,12 @@ function renderRow(leg: Leg, i: number, ctx: BoardCtx): string {
       <button type="button" class="rb-row is-${state}" data-act="open" data-id="${esc(leg.id)}"
         aria-label="${esc(tr('board.rowAria', { city: leg.city, from: fmtDate(leg.dateFrom), to: fmtDate(leg.dateTo), nights: nightsLabel(nights), status }))}">
         <span class="rb-marker" aria-hidden="true"></span>
-        <span class="rb-date">${tiles(boardDate(leg.dateFrom))}</span>
         <span class="rb-city"><span class="rb-flag" aria-hidden="true">${leg.flag || ''}</span>${tiles(tileText(leg.city, 13))}</span>
+        <span class="rb-date" aria-hidden="true"><span class="rb-led-screen rb-led-screen--row">${ledText(ledDate(leg.dateFrom))}</span></span>
         <span class="rb-arr">${ar ? `<span class="rb-arr-glyph" aria-hidden="true">${ar.glyph}</span><span class="rb-arr-code">${esc(ar.code)}</span><span class="rb-arr-times">${esc(ar.times)}</span>` : '<span class="rb-dim">—</span>'}</span>
         <span class="rb-stay">${stay ? esc(stay) : '<span class="rb-dim">—</span>'}</span>
         <span class="rb-n">${nights}</span>
-        <span class="rb-status">${rowStamp(leg, state, ctx)}<span class="rb-dot" aria-hidden="true"></span><span class="rb-status-text">${esc(status)}</span></span>
+        <span class="rb-status"><span class="rb-dot" aria-hidden="true"></span><span class="rb-status-text">${esc(status)}</span>${rowStamps(leg, ctx)}</span>
         ${missing}
         <span class="rb-sub">${esc(sub)}</span>
       </button>
@@ -140,21 +141,11 @@ function stateChip(leg: Leg, today: string): string {
   return `<span class="rb-pill is-${s}">${esc(tr(STATE_KEY[s]))}</span>`;
 }
 
-/** Both postmarks of a stop for the gate card: inked once their day has come, ghosted until then. */
-function gateMarks(leg: Leg, ctx: BoardCtx): { arrive?: StampSpec; depart?: StampSpec } {
-  const all = postmarksFor(ctx.legs as unknown as StampLeg[], '9999-12-31').get(leg.id);
-  const mark = (s: StampSpec | undefined) => (s ? { ...s, earned: s.date <= ctx.today } : undefined);
-  return { arrive: mark(all?.arrive), depart: mark(all?.depart) };
-}
-
 /** "20 AUG" for the LED: always three letters, whatever the locale spells the month as. */
 function ledDate(iso: string): string {
   const [d, m = ''] = boardDate(iso).toUpperCase().split(' ');
   return `${d} ${m.slice(0, 3)}`;
 }
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
-const screen = (inner: string, cls = '') => `<span class="rb-led-screen${cls ? ` ${cls}` : ''}">${inner}</span>`;
 
 /** The card above the board, for where you are or the next departure. The whole card opens the stop. */
 export function renderGate(gate: Gate, ctx: BoardCtx): string {
@@ -174,7 +165,7 @@ export function renderGate(gate: Gate, ctx: BoardCtx): string {
       mode: 'next', leg, ctx, label: tr('board.gate.next'),
       stub: gate.daysUntil <= 1
         ? `<span class="rb-stub-word">${esc(countdown(gate.daysUntil))}</span>`
-        : `${screen(ledText(pad2(gate.daysUntil)), 'rb-led-screen--stub')}<span class="rb-stub-sm">${esc(tr('board.gate.daysToGo'))}</span>`,
+        : `<span class="rb-stub-big">${gate.daysUntil}</span><span class="rb-stub-sm">${esc(tr('board.gate.daysToGo'))}</span>`,
       lines: [
         { icon: '🎫', html: transportLine(leg) + ' ' + stateChip(leg, ctx.today) },
         { icon: '🛏', html: esc(firstStay(leg) || tr('board.noStay')) },
@@ -196,19 +187,14 @@ export function renderGate(gate: Gate, ctx: BoardCtx): string {
   const ticks = Array.from({ length: dayTotal }, (_, i) => `<i class="${i < dayNo ? 'is-on' : ''}"></i>`).join('');
   return gateCard({
     mode: 'now', leg, ctx, label: tr('board.gate.now'),
-    stub: `<span class="rb-stub-sm">${esc(tr('board.gate.day'))}</span>${screen(ledText(pad2(dayNo), String(dayNo)), 'rb-led-screen--stub')}<span class="rb-stub-sm">${esc(tr('board.gate.of', { n: dayTotal }))}</span><span class="rb-ticks" aria-hidden="true">${ticks}</span>`,
+    stub: `<span class="rb-stub-sm">${esc(tr('board.gate.day'))}</span><span class="rb-stub-big">${dayNo}</span><span class="rb-stub-sm">${esc(tr('board.gate.of', { n: dayTotal }))}</span><span class="rb-ticks" aria-hidden="true">${ticks}</span>`,
     lines,
   });
 }
 
 function gateCard(o: { mode: 'now' | 'next'; leg: Leg; ctx: BoardCtx; label: string; stub: string; lines: { icon: string; html: string }[] }): string {
-  const { leg, ctx } = o;
+  const { leg } = o;
   const nights = Math.max(0, daysBetween(leg.dateFrom, leg.dateTo));
-  const marks = gateMarks(leg, ctx);
-  const stamp = (spec: StampSpec | undefined, cls: string, size: number) =>
-    spec ? `<span class="rb-gate-stamp ${cls}">${renderStamp(spec, { size })}</span>` : '';
-  const gateNo = pad2(ctx.legs.findIndex((l) => l.id === leg.id) + 1);
-  const dates = `${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)}`;
   const aria = tr('board.rowAria', { city: leg.city, from: fmtDate(leg.dateFrom), to: fmtDate(leg.dateTo), nights: nightsLabel(nights), status: o.label });
   return `
     <section class="rb-gate rb-gate--${o.mode}" data-act="open" data-id="${esc(leg.id)}" role="button" tabindex="0" aria-label="${esc(aria)}">
@@ -217,18 +203,11 @@ function gateCard(o: { mode: 'now' | 'next'; leg: Leg; ctx: BoardCtx; label: str
         <i class="rb-gate-frost"></i>
       </div>
       <div class="rb-gate-main">
-        <div class="rb-gate-kicker">
-          <span class="rb-lamp" aria-hidden="true"></span><span>${esc(o.label)}</span>
-          <span class="rb-gate-plate" aria-hidden="true">${esc(tr('board.gate.no', { n: gateNo }))}</span>
-        </div>
-        <div class="rb-gate-dates">
-          ${screen(ledText(`${ledDate(leg.dateFrom)} → ${ledDate(leg.dateTo)}`, dates))}
-          <span class="rb-gate-nights">${esc(nightsLabel(nights))}</span>
-        </div>
+        <div class="rb-gate-kicker"><span class="rb-lamp" aria-hidden="true"></span>${esc(o.label)}</div>
         <h2 class="rb-gate-city"><span aria-hidden="true">${leg.flag || ''}</span> ${esc(leg.city)}</h2>
+        <div class="rb-gate-dates">${esc(fmtDate(leg.dateFrom))} → ${esc(fmtDate(leg.dateTo))} · ${esc(nightsLabel(nights))}</div>
         <ul class="rb-gate-lines">${o.lines.map((l) => `<li><span class="rb-gate-ico" aria-hidden="true">${l.icon}</span><span>${l.html}</span></li>`).join('')}</ul>
       </div>
-      <div class="rb-gate-stamps" aria-hidden="true">${stamp(marks.arrive, 'is-arrive', 56)}${stamp(marks.depart, 'is-depart', 50)}</div>
       <div class="rb-gate-stub">${o.stub}</div>
     </section>`;
 }
@@ -259,7 +238,9 @@ function summaryText(ctx: BoardCtx): string {
 export function renderBoard(ctx: BoardCtx, opts: { shuffle: boolean }): string {
   const gate = gateFor(ctx.legs, ctx.today);
   const title = tr(gate.kind === 'now' ? 'board.title.during' : gate.kind === 'over' ? 'board.title.after' : 'board.title.before');
-  const clock = new Date(ctx.today + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  const day = new Date(ctx.today + 'T00:00:00');
+  const clock = day.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  const clockLed = `${day.toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 3)} ${ledDate(ctx.today)} ${day.getFullYear()}`;
   const rows = ctx.legs.map((leg, i) => (i > 0 ? renderGap(ctx.legs[i - 1], leg) : '') + renderRow(leg, i, ctx)).join('');
   return `
     <div class="rb-wrap">
@@ -277,15 +258,17 @@ export function renderBoard(ctx: BoardCtx, opts: { shuffle: boolean }): string {
         <span class="rb-lamp" aria-hidden="true"></span>
         <h2 class="rb-title">${esc(title)}</h2>
         ${gate.kind === 'over' ? `<span class="rb-done-tag">${esc(tr('board.doneTag'))}</span>` : ''}
-        <time class="rb-clock" datetime="${esc(ctx.today)}">${esc(clock)}</time>
+        <time class="rb-clock" datetime="${esc(ctx.today)}" aria-label="${esc(clock)}"><span class="rb-led-screen rb-led-screen--clock" aria-hidden="true">${ledText(clockLed)}</span></time>
       </header>
-      <div class="rb-head" aria-hidden="true">
-        <span></span><span>${esc(tr('board.colDate'))}</span><span>${esc(tr('board.colCity'))}</span>
-        <span class="rb-c-arr">${esc(tr('board.colArrive'))}</span><span class="rb-c-stay">${esc(tr('board.colStay'))}</span>
-        <span class="rb-c-n">${esc(tr('board.colNights'))}</span><span>${esc(tr('board.colStatus'))}</span>
+      <div class="rb-screen">
+        <div class="rb-head" aria-hidden="true">
+          <span></span><span>${esc(tr('board.colCity'))}</span><span>${esc(tr('board.colDate'))}</span>
+          <span class="rb-c-arr">${esc(tr('board.colArrive'))}</span><span class="rb-c-stay">${esc(tr('board.colStay'))}</span>
+          <span class="rb-c-n">${esc(tr('board.colNights'))}</span><span>${esc(tr('board.colStatus'))}</span>
+        </div>
+        <div class="rb-body">${rows}</div>
+        <button type="button" class="rb-add" data-act="add-stop">${esc(tr('route.addStop'))}</button>
       </div>
-      <div class="rb-body">${rows}</div>
-      <button type="button" class="rb-add" data-act="add-stop">${esc(tr('route.addStop'))}</button>
     </section>
     </div>`;
 }
