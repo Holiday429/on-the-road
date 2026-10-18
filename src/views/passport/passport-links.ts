@@ -7,6 +7,7 @@
    ========================================================================== */
 
 import './passport-links.css';
+import { PASSPORT_ICON_HTML } from '../../core/icons.ts';
 import { navigateTo, type NavIntent } from '../../core/app.ts';
 import { t, getLocale } from '../../core/i18n.ts';
 import { regionLabel } from '../../data/visa.ts';
@@ -81,7 +82,7 @@ export function pocketHtml(p: PassportFeed, withAtlas = false): string {
     : vw ? t(`passport.visa.warn.${vw.kind}`, { region: regionLabel(vw.region, getLocale(), t('passport.visa.schengen')), trip: vw.tripName, date: vw.date, days: String(vw.days ?? '') }) : '';
   const warn = warnText ? `<span class="pp-pocket-warn" title="${esc(warnText)}">⚠</span>` : '';
   const passport = `<button type="button" class="pp-pocket" data-open-passport="">
-    <span class="pp-pocket-cover" aria-hidden="true">🛂</span>
+    <span class="pp-pocket-cover" aria-hidden="true">${PASSPORT_ICON_HTML}</span>
     <span class="pp-pocket-text"><strong>${esc(t('passport.title'))}</strong> · ${text}</span>${pending}${warn}
     <span class="pp-pocket-dots" aria-hidden="true">${dots}</span>
     <span class="pp-pocket-go" aria-hidden="true">›</span>

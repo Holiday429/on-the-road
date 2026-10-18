@@ -10,6 +10,11 @@
    Emoji inside user-written content is never touched.
    ========================================================================== */
 
+/** The passport as the Itinerary shows it: a small closed booklet (cloth, foil globe, title line, chip). Sized by font-size
+ *  (1.15em tall), so it drops in wherever an emoji did. Styles: .pp-bk in core/paper/paper.css. */
+export const PASSPORT_ICON_HTML =
+  '<span class="pp-bk" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="3.6" ry="8.5"/><path d="M3.5 12h17M5 7.5h14M5 16.5h14"/></svg><i></i><i></i></span>';
+
 export const NAV_ICON = {
   today:    '🏠',
   agenda:   '🗓️',
@@ -23,7 +28,7 @@ export const NAV_ICON = {
   expenses: '🧾',
   journal:  '📔',
   // Me
-  passport: '🛂',
+  passport: PASSPORT_ICON_HTML,
   atlas:    '🌍',
   profile:  '⚙️',
   wrap:     '🎞️',

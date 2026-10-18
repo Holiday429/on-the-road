@@ -225,6 +225,8 @@
 .ck-machine input[type="date"].input { padding-right: 8px; }
 .ck-buyrow { display: flex; align-items: flex-end; }
 .ck-what { flex: 1; min-width: 0; }
+.ck-machine .ck-what .input { font-size: 11px; }
+.ck-machine .ck-what .input::placeholder { font-size: 11px; }
 .ck-scanbtn {
   flex: 0 0 auto; min-width: 160px; height: 40px; display: flex; align-items: center; justify-content: center; gap: 10px;
   padding: 0 16px; border-radius: 10px; cursor: pointer; border: 1px solid var(--amber-500);
@@ -296,4 +298,15 @@
   .exp-form.ck-machine { --ck-pad: 10px; --ck-gap: 6px; --ck-screen-gap: 12px; --ck-field-gap: 6px; --ctl-h: 32px; }
   .ck-machine .field-label { margin-bottom: 2px; }
   .ck-keys-row { margin: 6px 0; }
+}
+
+/* Roomy screens in the bottom-nav shell: every key — the new-category one included — is shown whole (five to a row,
+   short keys, no scrolling inside the screen); the page makes the room elsewhere. */
+@media (min-width: 600px) and (max-width: 768px) {
+  .ck-keys-row { flex: 0 0 auto; min-height: 0; overflow: visible; }
+  .ck-keys { grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-rows: 38px; gap: 4px; max-height: none; min-height: 0; margin-block: 0; }
+  .ck-key { padding: 3px 2px 2px; gap: 1px; }
+  .ck-key-emoji { font-size: 15px; }
+  .ck-key-label { font-size: 8px; letter-spacing: .03em; }
+  .ck-scanline { height: 22px; line-height: 22px; margin-top: 4px; font-size: 12px; }
 }

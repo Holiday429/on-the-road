@@ -92,7 +92,7 @@
 
 /* ── Pack widget ─────────────────────────────────────────────────────────── */
 /* The floor: the Prepare page's bags in small, each with its weight on a pill; the scale reads the total. */
-.td-pk-floor { flex: 1 1 auto; min-height: 0; display: flex; align-items: flex-end; justify-content: center; gap: var(--sp-2); padding-top: var(--sp-1); }
+.td-pk-floor { flex: 0 1 auto; margin-top: auto; min-height: 0; display: flex; align-items: flex-end; justify-content: center; gap: var(--sp-2); padding-top: var(--sp-1); }
 .td-pk-bag {
   position: relative; flex: 0 1 62px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 0; background: none; border-radius: var(--r-md); cursor: default;
@@ -122,7 +122,7 @@ button.td-pk-bag:focus-visible { outline: 2px solid var(--accent-deep); outline-
 }
 .td-pk-tag-hole { position: absolute; left: 6px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--surface-3); box-shadow: inset 0 1px 1px color-mix(in srgb, var(--ink) 30%, transparent); }
 /* the shelf: the scale and what its reading means */
-.td-pk-shelf { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); min-height: 0; }
+.td-pk-shelf { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); min-height: 0; margin-bottom: auto; }
 .td-pk-scale { flex: none; width: 52%; min-width: 0; }
 .td-pk-shelf.is-near { flex-direction: row; gap: var(--sp-3); }   /* near a flight: the reading's meaning sits beside it */
 .td-pk-shelf.is-near .td-pk-scale { flex: 0 0 52%; width: auto; }

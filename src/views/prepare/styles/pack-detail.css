@@ -27,14 +27,20 @@
 }
 
 /* ── Layout: bags + scale | loose items + add row ────────────────────────── */
-.pkd-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: var(--sp-5); align-items: start; }
+.pkd-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: var(--sp-5); align-items: start; }
 .pkd-main, .pkd-side { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
 .pkd-side { position: static; }
 /* On a tall window the scale and the loose items stay in view while the bags scroll past. */
 @media (min-width: 981px) and (min-height: 900px) { .pkd-side { position: sticky; top: calc(var(--topbar-h) + var(--sp-3)); } }
-@media (max-width: 980px) {
+/* Bags | scale and loose items stay side by side down to a foldable's width (600px); only a phone stacks them. */
+@media (max-width: 980px) { .pkd-grid { gap: var(--sp-4); } }
+@media (max-width: 599px) {
   .pkd-grid { grid-template-columns: minmax(0, 1fr); }
   .pkd-side { position: static; }
+}
+@media (min-width: 600px) and (max-width: 980px) {
+  .pkd-bag { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+  .pkd-bag .pkd-bag-art { width: auto; align-self: center; flex: none; }
 }
 
 /* ── A bag ───────────────────────────────────────────────────────────────── */

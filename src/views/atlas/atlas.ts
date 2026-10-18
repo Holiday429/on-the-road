@@ -8,6 +8,7 @@
    attribute.
    ========================================================================== */
 
+import { PASSPORT_ICON_HTML } from '../../core/icons.ts';
 import { t, getLocale } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { loadAmCharts } from '../map/amcharts-loader.ts';
@@ -96,7 +97,7 @@ function stageMarkup(): string {
       <aside class="atlas-card world-panel" id="worldPanel"></aside>
       <div class="map-timeline-slot atlas-timeline" id="worldTimeline"></div>
       <button type="button" class="atlas-prop" id="atlasPassport" title="${esc(t('passport.title'))}" aria-label="${esc(t('passport.title'))}">
-        <span class="atlas-prop-cover" aria-hidden="true">🛂</span>
+        <span class="atlas-prop-cover" aria-hidden="true">${PASSPORT_ICON_HTML}</span>
       </button>
     </div>`;
 }

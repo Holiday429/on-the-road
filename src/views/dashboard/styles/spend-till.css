@@ -154,7 +154,7 @@
 .td-quickadd-desc {
   flex: 1 1 0; min-width: 0; box-sizing: border-box; height: 32px; padding: 0 10px; border: 1px solid var(--rule); border-radius: var(--r-md); outline: none; color: var(--ink);
   background: color-mix(in srgb, var(--surface) 88%, var(--surface-3)); box-shadow: inset 0 1px 3px rgba(36,33,29,.16), 0 1px 0 var(--ck-hi);   /* a slot cut into the body */
-  font-family: var(--font-data); font-size: 12px; letter-spacing: .02em; transition: border-color var(--dur-fast);
+  font-family: var(--font-data); font-size: 10.5px; letter-spacing: .02em; transition: border-color var(--dur-fast);
 }
 .td-quickadd-desc:focus { border-color: var(--amber-400); }
 .td-quickadd-save {

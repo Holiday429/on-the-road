@@ -144,11 +144,8 @@ button.atlas-next:hover { color: var(--accent-deep); }
 }
 .atlas-prop:hover { transform: rotate(-3deg) translateY(-2px); }
 .atlas-prop:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 4px; }
-.atlas-prop-cover {
-  display: grid; place-items: center; width: 100%; height: 100%; font-size: 22px; line-height: 1;
-  border-radius: 3px 7px 7px 3px; background: var(--pp-cloth);
-  box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 18%, transparent), inset 3px 0 0 color-mix(in srgb, black 22%, transparent);
-}
+.atlas-prop-cover { display: grid; place-items: center; width: 100%; height: 100%; font-size: 62px; line-height: 1; }
+.atlas-prop-cover .pp-bk { vertical-align: 0; }
 .atlas-timeline:not(:empty) ~ .atlas-prop { display: none; }
 
 /* ── Panel ─────────────────────────────────────────────────────────────── */

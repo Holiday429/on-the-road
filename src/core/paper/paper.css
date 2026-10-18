@@ -223,3 +223,18 @@
 .mini-globe .mg-shine { fill: none; stroke: var(--surface); stroke-width: 1.6; stroke-linecap: round; opacity: .8; }
 .mini-globe .mg-ring { fill: none; stroke: var(--amber-600); stroke-width: 1.2; }
 .mini-globe .mg-axle { stroke: var(--amber-600); stroke-width: 1.6; stroke-linecap: round; }
+
+
+/* ── The passport as an icon: the Itinerary's closed booklet, sized by font-size ──────────────────────────
+   Everything is a percentage of the booklet's height (1.15em), so it stands in for an emoji at any size. */
+.pp-bk {
+  position: relative; display: inline-block; flex: none; vertical-align: -.2em;
+  height: 1.15em; width: calc(1.15em * .737); border-radius: 7% 14% 14% 7% / 5% 5% 5% 5%;
+  background: linear-gradient(90deg, rgba(0,0,0,.28) 0 11%, rgba(255,255,255,.08) 11% 14%, transparent 14%),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.12) 0 1px, transparent 1px 3px), var(--pp-cloth);
+  box-shadow: .07em 0 0 -0.02em var(--pp-paper), .1em .03em 0 -0.02em var(--pp-paper-edge), 0 .08em .16em rgba(0,0,0,.22);
+  transform: rotate(-6deg);
+}
+.pp-bk svg { position: absolute; left: 21%; top: 18%; width: 64%; aspect-ratio: 1; fill: none; stroke: var(--pp-gold); stroke-width: 1.4; }
+.pp-bk i:nth-of-type(1) { position: absolute; left: 32%; right: 21%; top: 74%; height: 5%; border-radius: 1px; background: var(--pp-gold); opacity: .85; }
+.pp-bk i:nth-of-type(2) { position: absolute; left: 46%; bottom: 7%; width: 21%; height: 8%; border: 1px solid var(--pp-gold); border-radius: 1px; opacity: .7; }

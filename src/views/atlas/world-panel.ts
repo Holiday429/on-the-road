@@ -6,6 +6,7 @@
    tested without a browser; world.ts wires the clicks by `data-*` attributes.
    ========================================================================== */
 
+import { PASSPORT_ICON_HTML } from '../../core/icons.ts';
 import { t } from '../../core/i18n.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import type { StampSpec } from '../../core/paper/stamp.ts';
@@ -110,7 +111,7 @@ export function overviewMarkup(o: OverviewInput): string {
     ${o.canReplay ? `<button class="btn btn-ghost world-replay" data-act="replay">${esc(t('world.replay.start'))}</button>` : ''}
     ${hasCurrent ? `<button class="btn btn-primary world-open-route" data-act="open-route">${esc(t('world.openRoute'))}</button>` : ''}
     ${o.passport ? `<button type="button" class="pp-pocket" data-open-passport="">
-      <span class="pp-pocket-cover" aria-hidden="true">🛂</span>
+      <span class="pp-pocket-cover" aria-hidden="true">${PASSPORT_ICON_HTML}</span>
       <span class="pp-pocket-text"><strong>${esc(t('passport.title'))}</strong> · ${esc(t('passport.summary', { n: o.passport.earned, c: o.passport.countries }))}</span>
       <span class="pp-pocket-go" aria-hidden="true">›</span>
     </button>` : ''}

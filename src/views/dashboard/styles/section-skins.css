@@ -37,7 +37,7 @@
               var(--screw) 0 100% / 8px 8px no-repeat, var(--screw) 100% 100% / 8px 8px no-repeat;
 }
 .td-w-spend .td-widget-label {
-  font-family: var(--font-display); font-weight: 700; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-soft);
+  font-family: var(--font-ui); font-weight: var(--fw-semibold); color: var(--ink-muted);
 }
 
 /* ── Map: the page's sea ─────────────────────────────────────────────────── */

@@ -14,6 +14,7 @@
    passport: nothing on these pages leads away to another view.
    ========================================================================== */
 
+import { PASSPORT_ICON_HTML } from '../../core/icons.ts';
 import './passport.css';
 import './passport-links.css';
 import { consumeNavIntent, type NavIntent } from '../../core/app.ts';
@@ -748,7 +749,7 @@ function wire(root: HTMLElement): void {
 function head(root: HTMLElement): void {
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via esc()
   root.querySelector('.view-header')!.innerHTML = `
-    <div class="view-title"><span class="view-title-icon" aria-hidden="true"><span class="nav-icon-emoji">🛂</span></span><span>${esc(t('passport.title'))}</span></div>
+    <div class="view-title"><span class="view-title-icon" aria-hidden="true"><span class="nav-icon-emoji">${PASSPORT_ICON_HTML}</span></span><span>${esc(t('passport.title'))}</span></div>
     <div class="view-subtitle">${esc(t('passport.view.subtitle'))}</div>`;
 }
 

@@ -24,10 +24,9 @@
 .pp-pocket:hover { box-shadow: var(--shadow-md); }
 .pp-pocket:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 2px; }
 .pp-pocket strong { color: var(--ink); font-weight: var(--fw-semibold); }
-.pp-pocket-cover {
-  display: grid; place-items: center; width: 28px; height: 36px; flex: none; font-size: 15px; line-height: 1;
-  border-radius: 3px 6px 6px 3px; background: var(--pp-cloth); box-shadow: inset 2px 0 0 color-mix(in srgb, black 22%, transparent);
-}
+.pp-pocket-cover { display: grid; place-items: center; width: 30px; height: 40px; flex: none; font-size: 36px; line-height: 1; }
+.pp-pocket-cover .pp-bk { vertical-align: 0; }
+.pp-pocket-cover.pp-atlas-cover { font-size: 22px; }
 .pp-pocket-text { flex: 1; min-width: 0; }
 .pp-pocket-dots { display: flex; gap: 3px; flex: none; }
 .pp-pocket-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-c, var(--ink-faint)); opacity: .85; }

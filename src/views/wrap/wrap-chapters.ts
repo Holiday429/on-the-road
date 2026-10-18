@@ -12,7 +12,7 @@ import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { paperReceipt, paperTag, type PaperRow } from '../../core/paper/paper.ts';
 import { renderStamp } from '../../core/paper/stamp.ts';
 import { renderTripStamp } from '../../core/paper/stamp-trip.ts';
-import { transportIcon, bagIcon, GLYPH } from '../../core/icons.ts';
+import { transportIcon, bagIcon, GLYPH, PASSPORT_ICON_HTML } from '../../core/icons.ts';
 import type { WrapModel } from '../../data/trip-wrap.ts';
 import { sketchRoute, sketchSvg } from './wrap-map.ts';
 
@@ -48,7 +48,7 @@ export function coverChapter(c: WrapCtx): string {
   const { cover } = c.m;
   return section('cover', `
     <div class="wrap-cover">
-      <div class="wrap-cover-emblem" aria-hidden="true">🛂</div>
+      <div class="wrap-cover-emblem" aria-hidden="true">${PASSPORT_ICON_HTML}</div>
       <div class="wrap-eyebrow">${esc(t('wrap.cover.eyebrow'))}</div>
       <h1 class="wrap-cover-name">${esc(cover.name)}</h1>
       <div class="wrap-cover-dates">${esc(range(c))}</div>
@@ -94,7 +94,7 @@ export function passportChapter(c: WrapCtx): string {
     ink: stamps[stamps.length - 1]?.ink ?? 'var(--ink-soft)',
   }, 150)}</div>`;
   return section('passport', `
-    ${head('🛂', t('wrap.passport.title'))}
+    ${head(PASSPORT_ICON_HTML, t('wrap.passport.title'))}
     <div class="wrap-sub">${esc(t('passport.summary', { n: c.m.cover.stamps, c: c.m.cover.stampCountries }))}</div>
     ${body}
     ${trip}
