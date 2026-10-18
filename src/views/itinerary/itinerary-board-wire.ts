@@ -8,7 +8,6 @@
    stop you are on, so there is no second source of truth to keep in sync.
    ========================================================================== */
 
-import { navigateTo, type NavIntent } from '../../core/app.ts';
 import { wirePassportOpeners } from '../passport/passport-links.ts';
 import type { BoardCtx } from './itinerary-board.ts';
 
@@ -25,13 +24,17 @@ function closeBoardMenus() {
   document.querySelectorAll<HTMLElement>('.rb-menu:not([hidden])').forEach((m) => { m.hidden = true; });
 }
 
-/** Wires what the gate card offers: open the city, jump to the map, open the passport. */
+/** The whole gate card opens its stop (click, Enter or Space); the passport icon beside it opens the passport. */
 function wireGate(root: HTMLElement, env: BoardEnv) {
   wirePassportOpeners(root);
-  root.querySelectorAll<HTMLElement>('[data-act="open"]').forEach((el) =>
-    el.addEventListener('click', () => env.open(el.dataset.id!)));
-  root.querySelectorAll<HTMLElement>('[data-act="gate-map"]').forEach((el) =>
-    el.addEventListener('click', () => navigateTo('map', { mode: 'route', legId: el.dataset.id! } satisfies NavIntent)));
+  root.querySelectorAll<HTMLElement>('.rb-gate[data-act="open"]').forEach((el) => {
+    el.addEventListener('click', () => env.open(el.dataset.id!));
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      env.open(el.dataset.id!);
+    });
+  });
 }
 
 export function wireBoard(timeline: HTMLElement, env: BoardEnv) {

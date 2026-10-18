@@ -505,7 +505,7 @@ export const en: StringTable = {
   'board.gate.tomorrow':  'tomorrow',
   'board.gate.inDays':    'in {n} days',
   'board.gate.daysToGo':  'days to go',
-  'board.gate.open':      'Open city',
+  'board.gate.no':        'Gate {n}',
   'board.gate.overText':  '{stops} stops · {nights} nights on the road',
   // ── Itinerary: plan tickets ──
   'route.planNoCategory':   'Ticket',

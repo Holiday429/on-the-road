@@ -10,12 +10,14 @@
 
 import { t as tr } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import { renderStamp } from '../../core/paper/stamp.ts';
-import type { CardPostmarks } from '../../data/card-postmarks.ts';
+import { renderStamp, type StampSpec } from '../../core/paper/stamp.ts';
+import { postmarksFor, type CardPostmarks } from '../../data/card-postmarks.ts';
+import type { StampLeg } from '../../data/stamps.ts';
 import type { Leg } from './itinerary-shared.ts';
 import { TRANSPORT_ICONS, daysBetween, fmtDate, legStays } from './itinerary-utils.ts';
 import { legCoverArt, nightsLabel } from './itinerary-cards.ts';
 import { ensurePlanDays } from './itinerary-plan-views.ts';
+import { ledText } from './itinerary-led.ts';
 import {
   boardState, boardSummary, gapBetween, gateFor, tileText,
   type BoardState, type Gate,
@@ -138,20 +140,24 @@ function stateChip(leg: Leg, today: string): string {
   return `<span class="rb-pill is-${s}">${esc(tr(STATE_KEY[s]))}</span>`;
 }
 
-/** One city on the gate card. `gate` carries the live state; `preview` shows any stop on hover. */
-export function renderGate(gate: Gate, ctx: BoardCtx, opts: { preview?: Leg } = {}): string {
-  if (opts.preview) {
-    const leg = opts.preview;
-    const nights = Math.max(0, daysBetween(leg.dateFrom, leg.dateTo));
-    return gateCard({
-      mode: 'preview', leg, ctx, label: tr('board.gate.preview'),
-      stub: `<span class="rb-stub-big">${nights}</span><span class="rb-stub-sm">${esc(nightsLabel(nights).replace(/^\d+\s*/, ''))}</span>`,
-      lines: [
-        { icon: '🛏', html: esc(firstStay(leg) || tr('board.noStay')) },
-        { icon: '🎫', html: transportLine(leg) + ' ' + stateChip(leg, ctx.today) },
-      ],
-    });
-  }
+/** Both postmarks of a stop for the gate card: inked once their day has come, ghosted until then. */
+function gateMarks(leg: Leg, ctx: BoardCtx): { arrive?: StampSpec; depart?: StampSpec } {
+  const all = postmarksFor(ctx.legs as unknown as StampLeg[], '9999-12-31').get(leg.id);
+  const mark = (s: StampSpec | undefined) => (s ? { ...s, earned: s.date <= ctx.today } : undefined);
+  return { arrive: mark(all?.arrive), depart: mark(all?.depart) };
+}
+
+/** "20 AUG" for the LED: always three letters, whatever the locale spells the month as. */
+function ledDate(iso: string): string {
+  const [d, m = ''] = boardDate(iso).toUpperCase().split(' ');
+  return `${d} ${m.slice(0, 3)}`;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const screen = (inner: string, cls = '') => `<span class="rb-led-screen${cls ? ` ${cls}` : ''}">${inner}</span>`;
+
+/** The card above the board, for where you are or the next departure. The whole card opens the stop. */
+export function renderGate(gate: Gate, ctx: BoardCtx): string {
   if (gate.kind === 'none') return '';
   if (gate.kind === 'over') {
     return `
@@ -168,7 +174,7 @@ export function renderGate(gate: Gate, ctx: BoardCtx, opts: { preview?: Leg } = 
       mode: 'next', leg, ctx, label: tr('board.gate.next'),
       stub: gate.daysUntil <= 1
         ? `<span class="rb-stub-word">${esc(countdown(gate.daysUntil))}</span>`
-        : `<span class="rb-stub-big">${gate.daysUntil}</span><span class="rb-stub-sm">${esc(tr('board.gate.daysToGo'))}</span>`,
+        : `${screen(ledText(pad2(gate.daysUntil)), 'rb-led-screen--stub')}<span class="rb-stub-sm">${esc(tr('board.gate.daysToGo'))}</span>`,
       lines: [
         { icon: '🎫', html: transportLine(leg) + ' ' + stateChip(leg, ctx.today) },
         { icon: '🛏', html: esc(firstStay(leg) || tr('board.noStay')) },
@@ -190,32 +196,39 @@ export function renderGate(gate: Gate, ctx: BoardCtx, opts: { preview?: Leg } = 
   const ticks = Array.from({ length: dayTotal }, (_, i) => `<i class="${i < dayNo ? 'is-on' : ''}"></i>`).join('');
   return gateCard({
     mode: 'now', leg, ctx, label: tr('board.gate.now'),
-    stub: `<span class="rb-stub-sm">${esc(tr('board.gate.day'))}</span><span class="rb-stub-big">${dayNo}</span><span class="rb-stub-sm">${esc(tr('board.gate.of', { n: dayTotal }))}</span><span class="rb-ticks" aria-hidden="true">${ticks}</span>`,
+    stub: `<span class="rb-stub-sm">${esc(tr('board.gate.day'))}</span>${screen(ledText(pad2(dayNo), String(dayNo)), 'rb-led-screen--stub')}<span class="rb-stub-sm">${esc(tr('board.gate.of', { n: dayTotal }))}</span><span class="rb-ticks" aria-hidden="true">${ticks}</span>`,
     lines,
   });
 }
 
-function gateCard(o: { mode: 'now' | 'next' | 'preview'; leg: Leg; ctx: BoardCtx; label: string; stub: string; lines: { icon: string; html: string }[] }): string {
+function gateCard(o: { mode: 'now' | 'next'; leg: Leg; ctx: BoardCtx; label: string; stub: string; lines: { icon: string; html: string }[] }): string {
   const { leg, ctx } = o;
   const nights = Math.max(0, daysBetween(leg.dateFrom, leg.dateTo));
-  const m = ctx.marks(leg);
-  const spec = m?.arrive;
+  const marks = gateMarks(leg, ctx);
+  const stamp = (spec: StampSpec | undefined, cls: string, size: number) =>
+    spec ? `<span class="rb-gate-stamp ${cls}">${renderStamp(spec, { size })}</span>` : '';
+  const gateNo = pad2(ctx.legs.findIndex((l) => l.id === leg.id) + 1);
+  const dates = `${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)}`;
+  const aria = tr('board.rowAria', { city: leg.city, from: fmtDate(leg.dateFrom), to: fmtDate(leg.dateTo), nights: nightsLabel(nights), status: o.label });
   return `
-    <section class="rb-gate rb-gate--${o.mode}" data-gate-leg="${esc(leg.id)}" aria-label="${esc(o.label)}">
-      <div class="rb-gate-cover route-leg-cover" data-act="open" data-id="${esc(leg.id)}">
+    <section class="rb-gate rb-gate--${o.mode}" data-act="open" data-id="${esc(leg.id)}" role="button" tabindex="0" aria-label="${esc(aria)}">
+      <div class="rb-gate-photo" aria-hidden="true">
         ${legCoverArt(leg, 'route-leg-cover')}
-        ${spec ? `<span class="rb-gate-stamp" aria-hidden="true">${renderStamp(spec, { size: 56 })}</span>` : ''}
+        <i class="rb-gate-frost"></i>
       </div>
       <div class="rb-gate-main">
-        <div class="rb-gate-kicker"><span class="rb-lamp" aria-hidden="true"></span>${esc(o.label)}</div>
-        <h2 class="rb-gate-city"><span aria-hidden="true">${leg.flag || ''}</span> ${esc(leg.city)}</h2>
-        <div class="rb-gate-dates">${esc(fmtDate(leg.dateFrom))} → ${esc(fmtDate(leg.dateTo))} · ${esc(nightsLabel(nights))}</div>
-        <ul class="rb-gate-lines">${o.lines.map((l) => `<li><span class="rb-gate-ico" aria-hidden="true">${l.icon}</span><span>${l.html}</span></li>`).join('')}</ul>
-        <div class="rb-gate-actions">
-          <button type="button" class="btn btn-primary rd-sm" data-act="open" data-id="${esc(leg.id)}">${esc(tr('board.gate.open'))}</button>
-          <button type="button" class="btn btn-ghost rd-sm" data-act="gate-map" data-id="${esc(leg.id)}">${esc(tr('route.btnOnMap'))}</button>
+        <div class="rb-gate-kicker">
+          <span class="rb-lamp" aria-hidden="true"></span><span>${esc(o.label)}</span>
+          <span class="rb-gate-plate" aria-hidden="true">${esc(tr('board.gate.no', { n: gateNo }))}</span>
         </div>
+        <div class="rb-gate-dates">
+          ${screen(ledText(`${ledDate(leg.dateFrom)} → ${ledDate(leg.dateTo)}`, dates))}
+          <span class="rb-gate-nights">${esc(nightsLabel(nights))}</span>
+        </div>
+        <h2 class="rb-gate-city"><span aria-hidden="true">${leg.flag || ''}</span> ${esc(leg.city)}</h2>
+        <ul class="rb-gate-lines">${o.lines.map((l) => `<li><span class="rb-gate-ico" aria-hidden="true">${l.icon}</span><span>${l.html}</span></li>`).join('')}</ul>
       </div>
+      <div class="rb-gate-stamps" aria-hidden="true">${stamp(marks.arrive, 'is-arrive', 56)}${stamp(marks.depart, 'is-depart', 50)}</div>
       <div class="rb-gate-stub">${o.stub}</div>
     </section>`;
 }

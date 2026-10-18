@@ -499,7 +499,7 @@ export const zh: StringTable = {
   'board.gate.tomorrow':  '明天',
   'board.gate.inDays':    '{n} 天后',
   'board.gate.daysToGo':  '天后出发',
-  'board.gate.open':      '打开城市',
+  'board.gate.no':        '登机口 {n}',
   'board.gate.overText':  '{stops} 站 · 在路上 {nights} 晚',
   // ── Itinerary: plan tickets ──
   'route.planNoCategory':   '票',

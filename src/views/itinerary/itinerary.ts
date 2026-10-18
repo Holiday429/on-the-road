@@ -23,6 +23,7 @@ import { flagForCountry } from '../../data/destinations.ts';
 import type { StampLeg } from '../../data/stamps.ts';
 import { postmarksFor, type CardPostmarks } from '../../data/card-postmarks.ts';
 import { todayIso as stampToday } from '../../data/trip-phase.ts';
+import { onSimChange } from '../../data/sim-clock.ts';
 import { mountPassportIcon, wirePassportOpeners } from '../passport/passport-links.ts';
 import { postmarkPair } from '../passport/postmark.ts';
 import {
@@ -92,6 +93,7 @@ let sharedCities: StoredCityShared[] = [];   // per-trip intent layer (repeated 
 let addFormOpen = false;
 let selectedLegId: string | null = null;   // null = list view
 let _unsubRoute: (() => void) | null = null;
+let _unsubSim: (() => void) | null = null;
 let _unsubShared: (() => void) | null = null;
 let _navIntentBound = false;   // window listener for Today deep-links, bound once
 // Legs whose note cards were just saved locally → suppress re-renders briefly so
@@ -1563,6 +1565,7 @@ export function initRoute() {
   // Idempotent: re-runs on trip switch, re-subscribing under the new tripId.
   _unsubRoute?.();
   _unsubShared?.();
+  _unsubSim?.();
   destroyPickers();
   legs = [];
   sharedCities = [];
@@ -1574,6 +1577,8 @@ export function initRoute() {
     render();
     applyNavIntent();
   });
+  // Time travel: the board, gate card and plan days all read "today", so repaint the moment the clock moves.
+  _unsubSim = onSimChange(() => render());
   // The shared "intent layer" for repeated cities. Kept in module state so the
   // detail renderers can read a city's shared wishlist/clips/notes synchronously.
   _unsubShared = citySharedStore.subscribe((rows) => {
