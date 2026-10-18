@@ -40,6 +40,13 @@ export interface RouteLayerOpts {
    * not at all.
    */
   pins?: boolean | 'dots';
+  /**
+   * Where the traveller stands, as an index into the stops, instead of where today's date puts
+   * them. Everything up to it is behind them (a solid line); everything after is still to walk
+   * (dashed). The Journal's Places view uses it to walk the figure to whichever country or place
+   * is picked, whatever the calendar says.
+   */
+  cursor?: number | null;
 }
 
 export interface RouteLayer {
@@ -56,12 +63,14 @@ export interface RouteLayer {
  * into the stop you are in is coloured — the line stops where you are, not at
  * the last place you left.
  */
-export function splitRoute(stops: RouteStop[], today: string): { done: [number, number][][]; ahead: [number, number][][] } {
+export function splitRoute(stops: RouteStop[], today: string, cursor: number | null = null): { done: [number, number][][]; ahead: [number, number][][] } {
   const done: [number, number][][] = [];
   const ahead: [number, number][][] = [];
   for (let i = 0; i < stops.length - 1; i++) {
     const seg = arcPoints(stops[i], stops[i + 1], 20, 0.15);
-    (legVisitState(stops[i + 1], today) === 'visited' ? done : ahead).push(seg);
+    // With a cursor the line is split at the figure; without one, at today.
+    const behind = cursor != null ? i + 1 <= cursor : legVisitState(stops[i + 1], today) === 'visited';
+    (behind ? done : ahead).push(seg);
   }
   return { done, ahead };
 }
@@ -137,8 +146,10 @@ export function createRouteLayer(
 
   function paintLines(): void {
     const w = worldPalette();
+    // Under a cursor the ground already covered is a solid line and what is left a dashed one;
+    // by the calendar both stay dashed, as on the Route page.
     doneSeries.mapLines.template.setAll({
-      stroke: am5.color(C().route), strokeWidth: 2.5, strokeOpacity: 0.9, strokeDasharray: [4, 6],
+      stroke: am5.color(C().route), strokeWidth: 2.5, strokeOpacity: 0.9, strokeDasharray: opts.cursor != null ? [] : [4, 6],
     });
     aheadSeries.mapLines.template.setAll({
       stroke: am5.color(w.border), strokeWidth: 2, strokeOpacity: 0.65, strokeDasharray: [4, 6],
@@ -166,13 +177,14 @@ export function createRouteLayer(
   }
 
   function draw(): void {
-    const { done, ahead } = splitRoute(stops, today);
+    const { done, ahead } = splitRoute(stops, today, opts.cursor ?? null);
+    const reached = (i: number) => (opts.cursor != null ? i <= opts.cursor : legVisitState(stops[i], today) === 'visited');
     doneSeries.data.setAll(done.map((coordinates) => ({ geometry: { type: 'LineString', coordinates } })));
     aheadSeries.data.setAll(ahead.map((coordinates) => ({ geometry: { type: 'LineString', coordinates } })));
     pinSeries.data.setAll(opts.pins === false ? [] : stops.map((s, index) => ({
       geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
       index,
-      planned: legVisitState(s, today) === 'planned',
+      planned: !reached(index),
       dot: opts.pins === 'dots',
     })));
     paintLines();

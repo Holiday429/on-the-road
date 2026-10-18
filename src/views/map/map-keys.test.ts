@@ -18,7 +18,6 @@ describe('map translation keys', () => {
     expect(used.size).toBeGreaterThan(70);
     expect(used.has('map.replay')).toBe(true);
     expect(used.has('world.country.viewRoute')).toBe(true);
-    expect(used.has('map.layer.expenses')).toBe(true);   // via LAYER_META, not t() directly
   });
   it('every key exists in English', () => {
     expect([...used].filter(([k]) => !(k in en)).map(([k, f]) => `${k} (${f})`)).toEqual([]);

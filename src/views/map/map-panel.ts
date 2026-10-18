@@ -75,10 +75,6 @@ export function stageInnerMarkup(): string {
   return `
     <div id="mapChart" class="map-chart"></div>
     <div class="map-region-labels" id="mapRegionLabels"></div>
-    <div class="map-data-pins" id="mapDataPins"></div>
-    <div class="map-data-pins" id="mapJournalPins"></div>
-    <div class="map-data-pins" id="mapGuidePins"></div>
-    <div class="map-data-pins" id="mapStayPins"></div>
     <div class="map-country-pins" id="mapCountryPins"></div>
     <div class="map-tooltip" id="mapTooltip">
       <span class="map-tooltip-name" id="mapTooltipName"></span>

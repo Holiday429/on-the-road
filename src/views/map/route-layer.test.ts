@@ -44,6 +44,24 @@ describe('splitRoute', () => {
   });
 });
 
+describe('splitRoute with a cursor', () => {
+  it('splits the line at the figure, whatever the date says', () => {
+    // The date is after the whole trip, but the figure stands in Paris: Lisbon → Paris behind, Paris → Rome ahead.
+    const { done, ahead } = splitRoute(ROUTE, '2026-12-31', 1);
+    expect(done).toHaveLength(1);
+    expect(ahead).toHaveLength(1);
+  });
+
+  it('has nothing behind a figure at the first stop, and nothing ahead of one at the last', () => {
+    expect(splitRoute(ROUTE, '2026-12-31', 0)).toMatchObject({ done: [], ahead: [expect.anything(), expect.anything()] });
+    expect(splitRoute(ROUTE, '2026-01-01', 2)).toMatchObject({ done: [expect.anything(), expect.anything()], ahead: [] });
+  });
+
+  it('falls back to the date when there is no cursor', () => {
+    expect(splitRoute(ROUTE, '2026-07-03', null)).toEqual(splitRoute(ROUTE, '2026-07-03'));
+  });
+});
+
 describe('routeCountries', () => {
   it('lists the countries in order, once each, ignoring stops with none', () => {
     const repeated = [...ROUTE, stop(43.3, 5.4, 'FR', '2026-09-01', '2026-09-03'), stop(0, 0, null, '2026-09-04', '2026-09-05')];

@@ -1,7 +1,7 @@
 /* ==========================================================================
    On the Road · Map page (Route)
    --------------------------------------------------------------------------
-   `#map` is the route map of the CURRENT trip: stops, route, replay, layers.
+   `#map` is the route map of the CURRENT trip: stops, route, replay.
    The lifelong footprint — every country on every trip — is the Atlas
    (`#atlas`, views/atlas/), a page of its own beside the passport.
 
@@ -10,10 +10,10 @@
    ========================================================================== */
 
 import './map.css';
-import { renderViewTitleMarkup, consumeNavIntent, navigateTo, openTripSwitcher } from '../../core/app.ts';
+import { renderViewTitleMarkup, consumeNavIntent, navigateTo } from '../../core/app.ts';
 import { t, onLocaleChange } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
-import { switchTrip, currentTripId, currentTrip, onTripChange } from '../../data/trip-context.ts';
+import { switchTrip, currentTripId, onTripChange } from '../../data/trip-context.ts';
 
 let _inited = false;
 
@@ -21,10 +21,7 @@ function renderHeader(view: HTMLElement) {
   // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
   view.querySelector('.view-header')!.innerHTML = `
     <div class="view-title">${renderViewTitleMarkup('map', t('map.title'))}</div>
-    <div class="view-subtitle">${esc(t('map.subtitle'))}</div>
-    ${currentTrip() ? `<button type="button" class="map-trip-chip" id="mapTripChip" title="${esc(t('map.tripChip'))}">✈ ${esc(currentTrip()!.name)} ▾</button>` : ''}`;
-  // This page is one trip's route — the chip says which, and switches it.
-  view.querySelector<HTMLElement>('#mapTripChip')?.addEventListener('click', (e) => openTripSwitcher(e.currentTarget as HTMLElement));
+    <div class="view-subtitle">${esc(t('map.subtitle'))}</div>`;
 }
 
 /**

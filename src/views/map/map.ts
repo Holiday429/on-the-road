@@ -25,22 +25,17 @@ import { t, getLocale } from '../../core/i18n.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 import {
   type GeoPt, chainWaypoints,
-  expandBounds, geoDist, wrapMapLabel, heatColor,
+  expandBounds, geoDist, wrapMapLabel,
 } from './map-geo.ts';
 import {
   type PlottedLeg, type FlightChain, type CountryStop,
   summarizeRoute, buildCountryStops,
-  aggregateExpensesByIso, fmtSpend,
 } from './map-stats.ts';
-import { bindHeroOverlay, ensureHeroOverlay } from './hero-overlay.ts';
+import { bindHeroOverlay, ensureHeroOverlay, HERO_SRC } from './hero-overlay.ts';
 import { type Am5Obj, type MapChart, asMapChart } from './map-amcharts.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
-import { nomadStore, type StoredNomadSpot } from '../../data/stores/nomad-store.ts';
-import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
-import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
-import { cityStore, type StoredCityIntel } from '../../data/stores/city-store.ts';
 import {
-  onTripChange, currentTrip, currentTripId,
+  onTripChange, currentTrip,
 } from '../../data/trip-context.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
@@ -53,7 +48,6 @@ import {
 // Assets live in public/art/. Prefix with Vite's base URL so they resolve under
 // any deploy base (e.g. /on-the-road/) instead of the site root.
 const ART = `${import.meta.env.BASE_URL}art/`.replace(/\/{2,}/g, '/');
-const HERO_GIF  = `${ART}logo.webp`;
 const PLANE_PNG = `${ART}plane.png`;
 
 // PlottedLeg, FlightChain, CountryStop are defined in ./map-stats.ts (imported
@@ -95,33 +89,6 @@ let _bootChartAttempt = 0; // guards against overlapping buildAndBoot() calls ra
 let _chartAbort: AbortController | null = null;   // listeners wired for the live chart; aborted on teardown
 let _unlocated: Array<{ legId: string; place: string }> = [];   // stops geocoding could not place
 let _repaintExtras: Array<() => void> = [];   // recolour hooks for the route lines / pins of the live chart
-
-/* ── Data layers (overlays beyond the route itself) ───────────────────────── */
-type LayerId = 'nomad' | 'journal' | 'guide' | 'stay' | 'expenses';
-const _layersOn = new Set<LayerId>();
-
-// Pin layers share a single state shape; expenses is a separate country-fill layer.
-type PinLayerId = Exclude<LayerId, 'expenses'>;
-interface PinLayer { overlays: OverlayItem[]; unsub: (() => void) | null }
-const _pinLayers: Record<PinLayerId, PinLayer> = {
-  nomad:   { overlays: [], unsub: null },
-  journal: { overlays: [], unsub: null },
-  guide:   { overlays: [], unsub: null },
-  stay:    { overlays: [], unsub: null },
-};
-const PIN_DOM: Record<PinLayerId, string> = {
-  nomad: 'mapDataPins', journal: 'mapJournalPins',
-  guide: 'mapGuidePins', stay: 'mapStayPins',
-};
-
-let _nomadSpots:    Array<{ spot: StoredNomadSpot; lat: number; lng: number }> = [];
-let _journalPlaces: Array<{ destination: string; count: number; lat: number; lng: number }> = [];
-let _guidePlaces:   Array<{ city: string; count: number; lat: number; lng: number }> = [];
-let _stayPlaces:    Array<{ name: string; city: string; legId: string; lat: number; lng: number }> = [];
-
-let _expenseUnsub: (() => void) | null = null;
-let _expenseByIso = new Map<string, number>();
-
 
 function setReplayBtnLabel(playing: boolean) {
   const btn = document.getElementById('mapReplay');
@@ -312,215 +279,6 @@ function clearDrillOverlays() {
   _countryPinOverlays = clearOverlayItems(_countryPinOverlays, 'mapCountryPins');
 }
 
-/* ── Pin-layer helpers ────────────────────────────────────────────────────── */
-function clearPinLayer(id: PinLayerId) {
-  const pl = _pinLayers[id];
-  pl.unsub?.(); pl.unsub = null;
-  pl.overlays = clearOverlayItems(pl.overlays, PIN_DOM[id]);
-}
-function addPin(id: PinLayerId, lat: number, lng: number, el: HTMLButtonElement) {
-  overlayLayer(PIN_DOM[id])?.appendChild(el);
-  _pinLayers[id].overlays.push({ el, lng, lat });
-}
-function syncPinLayer(id: PinLayerId) { syncOverlayItems(_pinLayers[id].overlays); }
-
-/* ── Nomad ────────────────────────────────────────────────────────────────── */
-function enableNomadLayer() {
-  clearPinLayer('nomad');
-  _pinLayers.nomad.unsub = nomadStore.subscribeForTrip(currentTripId(), (rows) => { void resolveNomadSpots(rows); });
-}
-function disableNomadLayer() { _nomadSpots = []; clearPinLayer('nomad'); }
-
-async function resolveNomadSpots(rows: StoredNomadSpot[]) {
-  const token = _buildToken;
-  const out: typeof _nomadSpots = [];
-  for (const spot of rows) {
-    const q = spot.address?.trim() || [spot.name, spot.city, spot.country].filter(Boolean).join(', ');
-    const hit = q ? await geocode(q) : null;
-    if (token !== _buildToken) return;
-    if (hit) out.push({ spot, lat: hit.lat, lng: hit.lng });
-  }
-  if (token !== _buildToken || !_layersOn.has('nomad')) return;
-  _nomadSpots = out;
-  renderNomadPins();
-}
-function renderNomadPins() {
-  _pinLayers.nomad.overlays = clearOverlayItems(_pinLayers.nomad.overlays, PIN_DOM.nomad);
-  if (!overlayLayer(PIN_DOM.nomad) || !_layersOn.has('nomad')) return;
-  for (const { spot, lat, lng } of _nomadSpots) {
-    const el = document.createElement('button');
-    el.className = 'map-nomad-pin'; el.type = 'button';
-    el.title = `${spot.name}${spot.city ? ' · ' + spot.city : ''}`;
-    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-    el.innerHTML = '<span class="map-nomad-pin-dot">☕</span>';
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      import('../nomad/nomad-modal.ts').then(({ openDetailModal }) => openDetailModal(spot, () => {}));
-    });
-    addPin('nomad', lat, lng, el);
-  }
-  syncPinLayer('nomad');
-}
-
-/* ── Journal ──────────────────────────────────────────────────────────────── */
-function enableJournalLayer() {
-  clearPinLayer('journal');
-  _pinLayers.journal.unsub = journalStore.subscribe((rows) => { void resolveJournalPlaces(rows); });
-}
-function disableJournalLayer() { _journalPlaces = []; clearPinLayer('journal'); }
-
-async function resolveJournalPlaces(rows: StoredJournalEntry[]) {
-  const token = _buildToken;
-  const counts = new Map<string, number>();
-  for (const e of rows) {
-    const dest = (e.destination ?? '').trim();
-    if (dest) counts.set(dest, (counts.get(dest) ?? 0) + 1);
-  }
-  const out: typeof _journalPlaces = [];
-  for (const [destination, count] of counts) {
-    const hit = await geocode(destination);
-    if (token !== _buildToken) return;
-    if (hit) out.push({ destination, count, lat: hit.lat, lng: hit.lng });
-  }
-  if (token !== _buildToken || !_layersOn.has('journal')) return;
-  _journalPlaces = out;
-  renderJournalPins();
-}
-function renderJournalPins() {
-  _pinLayers.journal.overlays = clearOverlayItems(_pinLayers.journal.overlays, PIN_DOM.journal);
-  if (!overlayLayer(PIN_DOM.journal) || !_layersOn.has('journal')) return;
-  for (const { destination, count, lat, lng } of _journalPlaces) {
-    const el = document.createElement('button');
-    el.className = 'map-journal-pin'; el.type = 'button';
-    el.title = `${destination} · ${t(count === 1 ? 'map.pin.entry' : 'map.pin.entries', { n: count })}`;
-    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-    el.innerHTML = '<span class="map-journal-pin-emoji">✍️</span>' + `<span class="map-journal-pin-count">${count}</span>`;
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      import('../../core/app.ts').then(({ navigateTo }) => navigateTo('journal'));
-    });
-    addPin('journal', lat, lng, el);
-  }
-  syncPinLayer('journal');
-}
-
-/* ── Guide ────────────────────────────────────────────────────────────────── */
-function enableGuideLayer() {
-  clearPinLayer('guide');
-  _pinLayers.guide.unsub = cityStore.subscribe((rows) => { void resolveGuidePlaces(rows); });
-}
-function disableGuideLayer() { _guidePlaces = []; clearPinLayer('guide'); }
-
-async function resolveGuidePlaces(rows: StoredCityIntel[]) {
-  const token = _buildToken;
-  const out: typeof _guidePlaces = [];
-  for (const intel of rows) {
-    const count = (intel.attractions?.length ?? 0) + (intel.cityWalks?.length ?? 0)
-      + (intel.restaurants?.length ?? 0) + (intel.experiences?.length ?? 0);
-    const q = [intel.city, intel.country].filter(Boolean).join(', ');
-    const hit = q ? await geocode(q) : null;
-    if (token !== _buildToken) return;
-    if (hit) out.push({ city: intel.city, count, lat: hit.lat, lng: hit.lng });
-  }
-  if (token !== _buildToken || !_layersOn.has('guide')) return;
-  _guidePlaces = out;
-  renderGuidePins();
-}
-function renderGuidePins() {
-  _pinLayers.guide.overlays = clearOverlayItems(_pinLayers.guide.overlays, PIN_DOM.guide);
-  if (!overlayLayer(PIN_DOM.guide) || !_layersOn.has('guide')) return;
-  for (const { city, count, lat, lng } of _guidePlaces) {
-    const el = document.createElement('button');
-    el.className = 'map-guide-pin'; el.type = 'button';
-    el.title = `${city} · ${t(count === 1 ? 'map.pin.idea' : 'map.pin.ideas', { n: count })}`;
-    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-    el.innerHTML = '<span class="map-guide-pin-emoji">📍</span>' + (count ? `<span class="map-guide-pin-count">${count}</span>` : '');
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openCityActionSheet(city);
-    });
-    addPin('guide', lat, lng, el);
-  }
-  syncPinLayer('guide');
-}
-
-/* ── Stay ─────────────────────────────────────────────────────────────────── */
-interface StayLegInput {
-  id: string; city: string; country: string;
-  accommodation?: { name: string; address?: string };
-  accommodations?: Array<{ name: string; address?: string }>;
-}
-function enableStayLayer() {
-  clearPinLayer('stay');
-  _pinLayers.stay.unsub = routeStore.subscribe((legs) => { void resolveStayPlaces(legs as StayLegInput[]); });
-}
-function disableStayLayer() { _stayPlaces = []; clearPinLayer('stay'); }
-
-async function resolveStayPlaces(legs: StayLegInput[]) {
-  const token = _buildToken;
-  const out: typeof _stayPlaces = [];
-  for (const leg of legs) {
-    const stays = leg.accommodations?.length ? leg.accommodations
-      : (leg.accommodation ? [leg.accommodation] : []);
-    for (const stay of stays) {
-      if (!stay?.name) continue;
-      const q = stay.address?.trim() || `${stay.name}, ${leg.city}, ${leg.country}`;
-      const hit = await geocode(q);
-      if (token !== _buildToken) return;
-      if (hit) out.push({ name: stay.name, city: leg.city, legId: leg.id, lat: hit.lat, lng: hit.lng });
-    }
-  }
-  if (token !== _buildToken || !_layersOn.has('stay')) return;
-  _stayPlaces = out;
-  renderStayPins();
-}
-function renderStayPins() {
-  _pinLayers.stay.overlays = clearOverlayItems(_pinLayers.stay.overlays, PIN_DOM.stay);
-  if (!overlayLayer(PIN_DOM.stay) || !_layersOn.has('stay')) return;
-  for (const { name, city, lat, lng } of _stayPlaces) {
-    const el = document.createElement('button');
-    el.className = 'map-stay-pin'; el.type = 'button';
-    el.title = `${name}${city ? ' · ' + city : ''}`;
-    // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-    el.innerHTML = '<span class="map-stay-pin-emoji">🛏️</span>';
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      import('../../core/app.ts').then(({ navigateTo }) => navigateTo('route'));
-    });
-    addPin('stay', lat, lng, el);
-  }
-  syncPinLayer('stay');
-}
-
-
-/* ── Expense layer ────────────────────────────────────────────────────────── */
-/** Subscribe to expenses (current trip only), aggregate spend per country ISO. */
-function enableExpenseLayer() {
-  _expenseUnsub?.();
-  // Ensure every visited country is lit so the heat is visible without replaying.
-  _legsRef.forEach(lightLeg);
-  _expenseUnsub = expenseStore.subscribe((rows) => aggregateExpenses(rows));
-}
-
-function disableExpenseLayer() {
-  _expenseUnsub?.();
-  _expenseUnsub = null;
-  _expenseByIso = new Map();
-  // Restore the normal "visited" lighting for the countries we tinted.
-  _lit.forEach(paintState);
-}
-
-function aggregateExpenses(rows: StoredExpense[]) {
-  _expenseByIso = aggregateExpensesByIso(rows);
-  if (_layersOn.has('expenses')) applyExpenseHeat();
-}
-
-/** Tint each visited country by its share of total spend (light → deep amber). */
-function applyExpenseHeat() {
-  if (!_layersOn.has('expenses')) return;
-  _lit.forEach(paintState);
-}
-
 function zoomToCountryPoly(poly: Am5Obj) {
   const di = poly?.dataItem;
   if (!_worldSeries || !_chart || !di) return;
@@ -600,7 +358,6 @@ function stageMarkup(): string {
   return `
     <div class="map-layout">
       <div class="map-main">
-        <div class="map-layers-bar" id="mapLayersBar"></div>
         <div class="map-stage">
           ${stageInnerMarkup()}
         </div>
@@ -701,13 +458,6 @@ function subscribeLegs(view: HTMLElement) {
   _unsubLegs?.();
   teardownChart();
   const token = ++_buildToken;
-  // Clear all pin layers; re-enable whichever are active.
-  (Object.keys(_pinLayers) as PinLayerId[]).forEach(clearPinLayer);
-  if (_layersOn.has('nomad')) enableNomadLayer();
-  if (_layersOn.has('journal')) enableJournalLayer();
-  if (_layersOn.has('guide')) enableGuideLayer();
-  if (_layersOn.has('stay')) enableStayLayer();
-  if (_layersOn.has('expenses')) enableExpenseLayer();
   _unsubLegs = routeStore.subscribe((storedLegs) => {
     if (token !== _buildToken) return;
     // Preserve the user's custom order within the trip.
@@ -735,9 +485,6 @@ function subscribeLegs(view: HTMLElement) {
 function showEmpty(view: HTMLElement) {
   const panel = view.querySelector<HTMLElement>('.map-panel');
   if (panel) panel.replaceChildren();
-  // No data → no layer chips.
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  const bar = document.getElementById('mapLayersBar'); if (bar) bar.innerHTML = '';
   const stage = view.querySelector<HTMLElement>('.map-stage');
   if (!stage) return;
   if (!stage.querySelector('.map-idle-hint')) {
@@ -757,9 +504,6 @@ async function showSetupPanel(view: HTMLElement, token: number) {
   const stage = view.querySelector<HTMLElement>('.map-stage');
   const panel = view.querySelector<HTMLElement>('.map-panel');
   if (!stage || !panel) return;
-
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  const bar = document.getElementById('mapLayersBar'); if (bar) bar.innerHTML = '';
 
   // Stage: outline world map + hint banner overlay.
   if (!stage.querySelector('.map-idle-hint')) {
@@ -907,9 +651,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     const base = legHere.length
       ? [t(legHere.length === 1 ? 'map.tip.stop' : 'map.tip.stops', { n: legHere.length }), zoomHint].filter(Boolean).join(' · ')
       : zoomHint;
-    // When the spend-heat layer is on, lead with the country's total spend.
-    const spend = _layersOn.has('expenses') ? (_expenseByIso.get(id) ?? 0) : 0;
-    tipMeta.textContent = spend > 0 ? `${fmtSpend(spend, currentTrip()?.baseCurrency, loc())}${base ? ' · ' + base : ''}` : base;
+    tipMeta.textContent = base;
     tooltip.classList.add('visible');
   });
   world.mapPolygons.template.events.on('globalpointermove', (ev:any) => positionTooltip(view, ev));
@@ -1013,7 +755,7 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   const heroImg = ensureHeroOverlay(
     document.querySelector('.map-stage') as HTMLElement,
     'map-hero-img',
-    HERO_GIF,
+    HERO_SRC,
   );
   mc._heroImg = heroImg;
   const syncHero = bindHeroOverlay(root, {
@@ -1025,7 +767,6 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   root.events.on('frameended', () => {
     syncOverlayItems(_regionLabelOverlays);
     syncOverlayItems(_countryPinOverlays);
-    (Object.keys(_pinLayers) as PinLayerId[]).forEach(syncPinLayer);
   });
 
   chart.appear(motionMs(700), motionMs(100)).then(() => {
@@ -1037,12 +778,6 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
       syncHero(); syncPlane(); fitToRoute(legs, 700);
       applyPendingLeg();
     }, 400);
-    // Re-paint any active data layers onto the freshly-booted chart.
-    if (_layersOn.has('nomad') && _nomadSpots.length) renderNomadPins();
-    if (_layersOn.has('journal') && _journalPlaces.length) renderJournalPins();
-    if (_layersOn.has('guide') && _guidePlaces.length) renderGuidePins();
-    if (_layersOn.has('stay') && _stayPlaces.length) renderStayPins();
-    if (_layersOn.has('expenses')) applyExpenseHeat();
   });
 
   // Toolbar buttons live in the stage markup, which outlives a chart rebuild
@@ -1203,17 +938,6 @@ function backToOverview() {
 }
 
 /* ── Country lighting ─────────────────────────────────────────────────────── */
-/** The fill a visited country should have right now — heat tint if the expense
- *  layer is on and we have spend for it, otherwise its normal visited colour. */
-function litColorFor(iso: string): string {
-  if (_layersOn.has('expenses')) {
-    const max = Math.max(0, ..._expenseByIso.values());
-    const spend = _expenseByIso.get(iso) ?? 0;
-    if (max > 0 && spend > 0) return heatColor(spend / max);
-  }
-  return countryColor(iso);
-}
-
 /**
  * Give one country its explicit paint for its current state: visited (full
  * colour), planned (dashed outline, faint fill — not counted as visited) or
@@ -1224,7 +948,7 @@ function paintState(iso: string) {
   const poly = _polyById.get(iso); if (!poly) return;
   _painted.add(iso);
   if (_lit.has(iso)) {
-    poly.setAll({ fill: am5.color(litColorFor(iso)), fillOpacity: 1, stroke: am5.color(C().landStroke), strokeDasharray: [] });
+    poly.setAll({ fill: am5.color(countryColor(iso)), fillOpacity: 1, stroke: am5.color(C().landStroke), strokeDasharray: [] });
   } else if (_planned.has(iso)) {
     const col = am5.color(countryColor(iso));
     poly.setAll({ fill: col, fillOpacity: 0.28, stroke: col, strokeDasharray: [3, 3] });
@@ -1489,58 +1213,6 @@ function travelHeroLegs(legs: PlottedLeg[]): Promise<void> {
   });
 }
 
-/* ── Side panel helpers ───────────────────────────────────────────────────── */
-/* ── Layer toggles ────────────────────────────────────────────────────────── */
-const LAYER_META: Record<LayerId, { icon: string; label: string }> = {
-  nomad:    { icon: '☕',  label: 'map.layer.nomad'    },
-  journal:  { icon: '✍️', label: 'map.layer.journal'  },
-  guide:    { icon: '📍', label: 'map.layer.guide'    },
-  stay:     { icon: '🛏️', label: 'map.layer.stay'     },
-  expenses: { icon: '💸', label: 'map.layer.expenses' },
-};
-
-function visibleLayers(): LayerId[] {
-  return Object.keys(LAYER_META) as LayerId[];
-}
-
-function toggleLayer(id: LayerId, on: boolean) {
-  if (on) _layersOn.add(id); else _layersOn.delete(id);
-  if (id === 'nomad')    { if (on) enableNomadLayer();   else disableNomadLayer(); }
-  if (id === 'journal')  { if (on) enableJournalLayer(); else disableJournalLayer(); }
-  if (id === 'guide')    { if (on) enableGuideLayer();   else disableGuideLayer(); }
-  if (id === 'stay')     { if (on) enableStayLayer();    else disableStayLayer(); }
-  if (id === 'expenses') { if (on) enableExpenseLayer(); else disableExpenseLayer(); }
-}
-
-/** Render the layer chip row above the map and wire its toggles. */
-function renderLayersBar() {
-  const bar = document.getElementById('mapLayersBar');
-  if (!bar) return;
-  // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N10)
-  bar.innerHTML = `
-    <span class="map-layers-label">${esc(t('map.layers'))}</span>
-    ${visibleLayers().map((id) => {
-      const m = LAYER_META[id];
-      const on = _layersOn.has(id);
-      return `
-        <button class="map-layer-chip${on ? ' active' : ''}" data-layer="${id}"
-                role="switch" aria-checked="${on}">
-          <span class="map-layer-chip-icon">${m.icon}</span>
-          <span class="map-layer-chip-label">${esc(t(m.label))}</span>
-        </button>`;
-    }).join('')}`;
-
-  bar.querySelectorAll<HTMLButtonElement>('.map-layer-chip').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.layer as LayerId;
-      const on = !_layersOn.has(id);
-      btn.classList.toggle('active', on);
-      btn.setAttribute('aria-checked', String(on));
-      toggleLayer(id, on);
-    });
-  });
-}
-
 /* ── Side panel ───────────────────────────────────────────────────────────── */
 function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
   const summary = summarizeRoute(legs, _outboundChain, _returnChain);
@@ -1554,9 +1226,6 @@ function renderPanel(view: HTMLElement, legs: PlottedLeg[]) {
       ${flightRowMarkup(_returnChain, 'flight-return', _activeMotionId)}
     </div>
     ${unlocatedMarkup(_unlocated)}`;
-
-  // Layer chips live above the map (their own bar), re-rendered with the panel.
-  renderLayersBar();
 
   view.querySelectorAll<HTMLButtonElement>('.leg-row').forEach((btn) => {
     btn.addEventListener('click', () => {

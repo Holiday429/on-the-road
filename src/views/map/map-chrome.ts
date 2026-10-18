@@ -19,7 +19,6 @@ const KEY = 'otr:map:panelHidden';
 export function postmarkPin(bRoot: Am5Obj, n: number, planned: boolean): Am5Obj {
   const route = am5.color(C().route);
   const c = am5.Container.new(bRoot, { opacity: planned ? 0.8 : 1 });
-  c.children.push(am5.Circle.new(bRoot, { radius: 13, strokeWidth: 1.3, strokeDasharray: [2, 2], stroke: route }));
   c.children.push(am5.Circle.new(bRoot, planned
     ? { radius: 9, fill: am5.color(C().land), stroke: route, strokeWidth: 1.6, strokeDasharray: [3, 2] }
     : { radius: 9, fill: route }));
@@ -33,10 +32,9 @@ export function postmarkPin(bRoot: Am5Obj, n: number, planned: boolean): Am5Obj 
 /** Recolour a pin built by postmarkPin after a theme change. */
 export function repaintPostmarkPin(sprite: Am5Obj, planned: boolean): void {
   const route = am5.color(C().route);
-  sprite?.children.getIndex(0)?.set('stroke', route);
-  const disc = sprite?.children.getIndex(1);
+  const disc = sprite?.children.getIndex(0);
   if (planned) { disc?.set('fill', am5.color(C().land)); disc?.set('stroke', route); } else disc?.set('fill', route);
-  if (planned) sprite?.children.getIndex(2)?.set('fill', route);
+  if (planned) sprite?.children.getIndex(1)?.set('fill', route);
 }
 
 export function wireRouteChrome(host: HTMLElement | null, signal: AbortSignal): void {

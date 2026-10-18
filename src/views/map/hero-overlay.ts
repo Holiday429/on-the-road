@@ -1,5 +1,8 @@
 import type { Am5Obj } from './map-amcharts.ts';
 
+/** The little traveller — the same figure the Route page walks along the trip. */
+export const HERO_SRC = `${import.meta.env.BASE_URL}art/logo.webp`.replace(/\/{2,}/g, '/');
+
 interface HeroOverlayOptions {
   chart: Am5Obj;
   item: Am5Obj;
