@@ -437,6 +437,8 @@ export const en: StringTable = {
   'route.coverAdd':          '📷 Add cover',
   'route.coverChange':       '📷 Change cover',
   'route.coverRemove':       'Remove cover',
+  'route.coverReposition':   '⤢ Reposition',
+  'route.coverRepositionHint': 'Drag the photo to reposition it',
   'route.coverUploading':    'Uploading…',
   'route.coverFailed':       'Could not upload the photo. Check your connection and try again.',
   'route.ticketFlight':      'Boarding pass',

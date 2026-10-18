@@ -32,13 +32,14 @@
 .rb-seg.has-tick::after { content: ''; position: absolute; right: -2px; top: -4px; bottom: -4px; width: 1px; background: var(--surface-4); }
 
 /* ── Gate card ──────────────────────────────────────────────────────────── */
-/* The photo is shown whole on the left, edge to edge; only past its clear width does
-   it dissolve — through frosted glass with fine horizontal brushing — into the paper.
+/* The photo keeps its own proportions and is shown whole on the left; past it the
+   frosted glass carries on all the way to the stub's perforation, so the right of
+   the card reads as one brushed pane rather than a photo that was cut off.
    The whole card is one button: there are no buttons inside it. */
 .rb-gate {
-  --gate-clear: clamp(190px, 26%, 280px); --gate-fade: 96px;
-  position: relative; display: grid; grid-template-columns: calc(var(--gate-clear) + var(--gate-fade) - 28px) minmax(0, 1fr) 104px; column-gap: var(--sp-3);
-  margin-bottom: var(--sp-4); min-height: 138px; cursor: pointer; isolation: isolate;
+  --gate-photo: clamp(230px, 32%, 360px);
+  position: relative; display: grid; grid-template-columns: calc(var(--gate-photo) + 52px) minmax(0, 1fr) 104px; column-gap: var(--sp-4);
+  margin-bottom: var(--sp-4); min-height: 148px; cursor: pointer; isolation: isolate;
   background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: var(--r-xl); box-shadow: var(--shadow-md);
   overflow: hidden; animation: fadeUp var(--dur-mid) var(--ease-out);
   transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast);
@@ -48,31 +49,37 @@
 .rb-gate:focus-visible { outline: 2px solid var(--amber-500); outline-offset: 2px; }
 .rb-gate--now { border-color: color-mix(in srgb, var(--amber-500) 45%, var(--rule)); }
 
-.rb-gate-photo { position: absolute; z-index: 0; top: 0; bottom: 0; left: 0; width: calc(var(--gate-clear) + var(--gate-fade)); }
+/* The photo runs under the text to the stub; only its left part is left clear,
+   and the fade out of it is long and smooth rather than a hard edge. */
+.rb-gate-photo { position: absolute; z-index: 0; top: 0; bottom: 0; left: 0; right: 104px; }
 .rb-gate-photo .route-leg-cover-img, .rb-gate-photo .route-leg-cover-fallback {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - var(--gate-fade)), rgba(0,0,0,.55) calc(100% - var(--gate-fade) * .45), transparent);
-          mask-image: linear-gradient(90deg, #000 calc(100% - var(--gate-fade)), rgba(0,0,0,.55) calc(100% - var(--gate-fade) * .45), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 0 var(--gate-photo), rgba(0,0,0,.62) calc(var(--gate-photo) + 14%), rgba(0,0,0,.26) calc(var(--gate-photo) + 32%), transparent 96%);
+          mask-image: linear-gradient(90deg, #000 0 var(--gate-photo), rgba(0,0,0,.62) calc(var(--gate-photo) + 14%), rgba(0,0,0,.26) calc(var(--gate-photo) + 32%), transparent 96%);
 }
-.rb-gate-photo .route-leg-cover-img { object-fit: cover; transition: transform var(--dur-slow) var(--ease-out); }
-.rb-gate:hover .rb-gate-photo .route-leg-cover-img { transform: scale(1.03); }
-.rb-gate-photo .route-leg-cover-fallback-flag { font-size: clamp(40px, 7cqw, 64px); margin-right: 30%; }
+.rb-gate-photo .route-leg-cover-img { object-fit: cover; object-position: left center; transition: transform var(--dur-slow) var(--ease-out); }
+.rb-gate:hover .rb-gate-photo .route-leg-cover-img { transform: scale(1.02); }
+.rb-gate-photo .route-leg-cover-fallback { justify-content: flex-start; padding-left: 8%; }
+.rb-gate-photo .route-leg-cover-fallback-flag { font-size: clamp(40px, 7cqw, 64px); }
+/* Brushed glass: starts where the photo starts to give way and carries on to the stub. */
 .rb-gate-frost {
-  position: absolute; top: 0; bottom: 0; right: 0; left: calc(100% - var(--gate-fade)); pointer-events: none;
-  -webkit-backdrop-filter: blur(7px) saturate(1.15); backdrop-filter: blur(7px) saturate(1.15);
+  position: absolute; top: 0; bottom: 0; right: 0; left: calc(var(--gate-photo) - 26px); pointer-events: none;
+  -webkit-backdrop-filter: blur(9px) saturate(1.12); backdrop-filter: blur(9px) saturate(1.12);
   background:
-    repeating-linear-gradient(0deg, rgba(255,255,255,.20) 0 1px, rgba(255,255,255,0) 1px 3px),
-    repeating-linear-gradient(0deg, rgba(0,0,0,.035) 0 1px, rgba(0,0,0,0) 1px 7px);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%, #000 62%, transparent);
-          mask-image: linear-gradient(90deg, transparent, #000 30%, #000 62%, transparent);
+    repeating-linear-gradient(0deg, rgba(255,255,255,.22) 0 1px, rgba(255,255,255,0) 1px 3px),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.035) 0 1px, rgba(0,0,0,0) 1px 7px),
+    linear-gradient(90deg, rgba(255,255,255,0), color-mix(in srgb, var(--surface) 72%, transparent) 34%, color-mix(in srgb, var(--surface) 93%, transparent) 62%, var(--surface));
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%);
+          mask-image: linear-gradient(90deg, transparent, #000 22%);
 }
 :root[data-theme='dark'] .rb-gate-frost {
   background:
-    repeating-linear-gradient(0deg, rgba(255,255,255,.07) 0 1px, rgba(255,255,255,0) 1px 3px),
-    repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, rgba(0,0,0,0) 1px 7px);
+    repeating-linear-gradient(0deg, rgba(255,255,255,.08) 0 1px, rgba(255,255,255,0) 1px 3px),
+    repeating-linear-gradient(0deg, rgba(0,0,0,.20) 0 1px, rgba(0,0,0,0) 1px 7px),
+    linear-gradient(90deg, rgba(0,0,0,0), color-mix(in srgb, var(--surface) 74%, transparent) 34%, color-mix(in srgb, var(--surface) 94%, transparent) 62%, var(--surface));
 }
 
-.rb-gate-main { position: relative; z-index: 1; grid-column: 2; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; padding: 12px 0; }
+.rb-gate-main { position: relative; z-index: 1; grid-column: 2; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; padding: 14px var(--sp-2) 14px 0; }
 .rb-gate-kicker { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-stamp); font-size: var(--fs-xs); letter-spacing: .22em; text-transform: uppercase; color: var(--board-warn); }
 .rb-gate-city { margin: 0; font-family: var(--font-display); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: 1.12; color: var(--ink); overflow-wrap: anywhere; }
 .rb-gate-dates { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); }
@@ -103,29 +110,39 @@
 .rb-pill.is-tobook { background: var(--accent-bg); color: var(--board-warn); }
 
 /* ── Board ──────────────────────────────────────────────────────────────── */
-/* One machine, like the till on Expenses: a plastic body with four screws, an engraved
-   nameplate, and a recessed display behind a bezel and a pane of glass. */
+/* A departures board as an object: a deep enamelled frame screwed to the wall, a
+   header rail with the lamp and the date panel, then the schedule itself recessed
+   behind the frame's inner lip. Light mode is cream enamel with a brass lip, dark
+   mode the black board. */
 .rb {
-  --rb-cols: 14px minmax(150px, 1.3fr) 104px minmax(0, 1.5fr) minmax(0, 1.2fr) 40px 176px;
-  --rb-hi: rgba(255,255,255,.75);
-  --rb-lo: rgba(36,33,29,.10);
-  --rb-ring: color-mix(in srgb, var(--surface-4) 78%, #000);
-  --led-on: var(--amber-400);
-  --led-off: color-mix(in srgb, var(--amber-400) 11%, transparent);
-  position: relative; padding: 0 14px 14px; border-radius: 20px; color: var(--board-ink);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 80%, #fff), var(--surface-2) 90%);
-  border: 1px solid var(--rule);
-  box-shadow: inset 0 1px 0 var(--rb-hi), inset 0 -3px 7px var(--rb-lo), var(--shadow-md);
+  --rb-cols: 14px minmax(140px, 1.15fr) 100px minmax(168px, 1.7fr) minmax(0, 1fr) 36px 162px;
+  --rb-frame: linear-gradient(180deg, color-mix(in srgb, var(--amber-100) 62%, var(--surface)), color-mix(in srgb, var(--amber-200, var(--amber-100)) 46%, var(--surface-2)));
+  --rb-lip: color-mix(in srgb, var(--amber-700) 34%, var(--surface-4));
+  --rb-hi: rgba(255,255,255,.8);
+  --rb-lo: rgba(36,33,29,.13);
+  /* dot-matrix: ink dots on the board's own panel, not a black screen */
+  --led-panel: color-mix(in srgb, var(--amber-100) 70%, var(--surface));
+  --led-on: var(--amber-700);
+  --led-off: color-mix(in srgb, var(--amber-700) 13%, transparent);
+  position: relative; padding: 0 13px 13px; border-radius: 16px; color: var(--board-ink);
+  background: var(--rb-frame);
+  border: 1px solid var(--rb-lip);
+  box-shadow: inset 0 1px 0 var(--rb-hi), inset 0 -4px 9px var(--rb-lo), 0 2px 0 var(--rb-lip), var(--shadow-md);
 }
 :root[data-theme='dark'] .rb {
-  --rb-hi: rgba(255,255,255,.07); --rb-lo: rgba(0,0,0,.35); --rb-ring: #080a09;
-  background: linear-gradient(180deg, #2a2620, #1b1814 90%);
+  --rb-frame: linear-gradient(180deg, #332d24, #1d1915 85%);
+  --rb-lip: #0c0a08;
+  --rb-hi: rgba(255,255,255,.08);
+  --rb-lo: rgba(0,0,0,.45);
+  --led-panel: #191511;
+  --led-on: var(--amber-400);
+  --led-off: color-mix(in srgb, var(--amber-400) 13%, transparent);
 }
-.rb::before {   /* four screws */
-  content: ''; position: absolute; inset: 7px; pointer-events: none; z-index: 3;
-  --screw: radial-gradient(circle at 50% 45%, var(--rb-hi) 0 1px, color-mix(in srgb, var(--ink) 30%, var(--surface-4)) 1.5px 3px, transparent 3.6px);
-  background: var(--screw) 0 0 / 8px 8px no-repeat, var(--screw) 100% 0 / 8px 8px no-repeat,
-              var(--screw) 0 100% / 8px 8px no-repeat, var(--screw) 100% 100% / 8px 8px no-repeat;
+.rb::before {   /* four screws holding the frame to the wall */
+  content: ''; position: absolute; inset: 6px; pointer-events: none; z-index: 3;
+  --screw: radial-gradient(circle at 50% 42%, var(--rb-hi) 0 1px, color-mix(in srgb, var(--ink) 34%, var(--rb-lip)) 1.5px 3px, transparent 3.6px);
+  background: var(--screw) 0 0 / 9px 9px no-repeat, var(--screw) 100% 0 / 9px 9px no-repeat,
+              var(--screw) 0 100% / 9px 9px no-repeat, var(--screw) 100% 100% / 9px 9px no-repeat;
 }
 .rb.is-over { --board-bar-ink: var(--ink-muted); }
 .rb.is-over .rb-row { opacity: .72; }
@@ -134,40 +151,35 @@
 .rb-done-tag {
   font-family: var(--font-stamp); font-size: var(--fs-2xs); font-weight: var(--fw-medium);
   letter-spacing: .14em; text-transform: uppercase; color: var(--ink-muted);
-  border: 1px solid var(--rule); border-radius: var(--r-full); padding: 2px 9px;
+  border: 1px solid var(--rb-lip); border-radius: var(--r-full); padding: 2px 9px;
 }
-/* nameplate: the title is engraved into the body, the date sits in a small LED window */
-.rb-bar { display: flex; align-items: center; gap: var(--sp-3); padding: 14px 10px 14px; }
+/* Header rail: the title is enamelled on the frame, the date sits in its own panel. */
+.rb-bar { display: flex; align-items: center; gap: var(--sp-3); padding: 13px 12px; }
 .rb-title { margin: 0; font-family: var(--font-stamp); font-size: clamp(14px, 2.2vw, 18px); font-weight: var(--fw-medium); letter-spacing: .26em; text-transform: uppercase; color: var(--board-bar-ink); text-shadow: 0 1px 0 var(--rb-hi); }
 :root[data-theme='dark'] .rb-title { text-shadow: 0 -1px 0 #000, 0 0 10px color-mix(in srgb, var(--amber-400) 35%, transparent); }
 .rb-clock { margin-left: auto; line-height: 0; }
-/* the display: recessed behind a bezel, glass on top (a sheen; scanlines in dark) */
+/* The schedule itself: set into the frame behind a lip, so it reads as recessed. */
 .rb-screen {
-  position: relative; margin: 0 5px; border-radius: 12px; overflow: hidden; background: var(--board-bg);
-  box-shadow: inset 0 2px 10px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.22),
-              0 0 0 5px var(--rb-ring), 0 0 0 6px rgba(0,0,0,.25), 0 1px 0 6px var(--rb-hi), 0 8px 14px -6px rgba(36,33,29,.5);
+  position: relative; border-radius: 9px; overflow: hidden; background: var(--board-bg);
+  box-shadow: inset 0 2px 6px var(--rb-lo), 0 0 0 1px var(--rb-lip), 0 0 0 4px color-mix(in srgb, var(--rb-lip) 30%, transparent), 0 1px 0 4px var(--rb-hi);
 }
-.rb-screen::after {
+:root[data-theme='dark'] .rb-screen::after {
   content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
-  background: linear-gradient(115deg, rgba(255,255,255,.10) 0 18%, transparent 18.4%);
+  background: repeating-linear-gradient(180deg, rgba(0,0,0,.2) 0 1px, transparent 1px 3px);
 }
-:root[data-theme='dark'] .rb-screen::after { background: repeating-linear-gradient(180deg, rgba(0,0,0,.26) 0 1px, transparent 1px 3px), linear-gradient(115deg, rgba(255,255,255,.05) 0 18%, transparent 18.4%); }
 
-/* Dot-matrix windows (itinerary-led.ts): dark glass in a bezel, lit amber dots over a faint grid of unlit ones. */
+/* Dot-matrix panels (itinerary-led.ts): ink dots on a recessed panel of the board's
+   own stock — amber on cream in light mode, amber on black in dark. */
 .rb-led-screen {
-  position: relative; display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 5px; overflow: hidden;
-  background: linear-gradient(180deg, #1d1914, #0e0c0a 60%, #14110e);
-  box-shadow: inset 0 1px 5px rgba(0,0,0,.8), inset 0 0 0 1px rgba(0,0,0,.6), 0 0 0 1px var(--rb-ring), 0 1px 0 1px var(--rb-hi);
-}
-.rb-led-screen::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(115deg, rgba(255,255,255,.10) 0 26%, transparent 26.4%);
+  position: relative; display: inline-flex; align-items: center; padding: 3px 7px; border-radius: 4px;
+  background: var(--led-panel);
+  box-shadow: inset 0 1px 3px var(--rb-lo), inset 0 0 0 1px color-mix(in srgb, var(--rb-lip) 55%, transparent), 0 1px 0 var(--rb-hi);
 }
 .rb-led-screen--clock { padding: 5px 10px; margin: 2px 0; }
 .rb-led { display: inline-block; line-height: 0; }
 .rb-led svg { display: block; height: 14px; width: auto; max-width: 100%; overflow: visible; }
-.rb-led-screen--clock .rb-led svg { height: 14px; }
-.rb-led-on { fill: var(--led-on); filter: drop-shadow(0 0 1.6px color-mix(in srgb, var(--led-on) 75%, transparent)); }
+.rb-led-on { fill: var(--led-on); }
+:root[data-theme='dark'] .rb-led-on { filter: drop-shadow(0 0 1.6px color-mix(in srgb, var(--led-on) 75%, transparent)); }
 .rb-led-dim { fill: var(--led-off); }
 .rb-date { display: flex; align-items: center; }
 
@@ -215,10 +227,17 @@
 .rb-row.is-flipping .rb-ch { animation: rb-flip 360ms ease both; animation-delay: calc(var(--i, 0) * 14ms); }
 .rb.is-shuffling .rb-ch { animation: rb-flip 360ms ease both; animation-delay: calc(var(--row, 0) * 70ms + var(--i, 0) * 22ms); }
 
-.rb-arr, .rb-stay { display: flex; align-items: center; gap: 8px; min-width: 0; font-family: var(--font-data); font-size: var(--fs-xs); }
+.rb-arr { display: flex; align-items: flex-start; gap: 7px; min-width: 0; font-family: var(--font-data); font-size: var(--fs-xs); }
+.rb-arr-glyph { flex: none; line-height: 1.5; }
+/* Each leg of the journey is one unbreakable unit: a code and its times never split,
+   but a two-train journey wraps onto a second line. */
+.rb-arr-legs { display: flex; flex-wrap: wrap; gap: 1px 8px; min-width: 0; }
+.rb-arr-leg { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.rb-arr-via { flex-basis: 100%; color: var(--board-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rb-stay { display: flex; align-items: center; gap: 8px; min-width: 0; font-family: var(--font-data); font-size: var(--fs-xs); }
 .rb-stay { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); font-size: var(--fs-sm); color: var(--board-ink); opacity: .85; }
 .rb-arr-code { color: var(--board-ink); letter-spacing: .04em; white-space: nowrap; }
-.rb-arr-times { color: var(--board-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-arr-times { color: var(--board-dim); white-space: nowrap; }
 .rb-n { text-align: right; font-family: var(--font-data); font-size: var(--fs-sm); }
 .rb-status { display: flex; align-items: center; gap: 6px; font-family: var(--font-stamp); font-size: var(--fs-2xs); font-weight: var(--fw-medium); letter-spacing: .16em; text-transform: uppercase; color: var(--board-dim); }
 .rb-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
@@ -255,7 +274,8 @@
   .rb-stamps { gap: 5px; }
   .rb-stamp .pp-stamp svg { width: 29px; height: 29px; }
   .rb-arr, .rb-c-arr { display: none; }
-  .rb-gate { --gate-clear: clamp(150px, 24%, 220px); --gate-fade: 80px; grid-template-columns: calc(var(--gate-clear) + var(--gate-fade) - 24px) minmax(0, 1fr) 92px; }
+  .rb-gate { --gate-photo: clamp(150px, 24%, 220px); grid-template-columns: calc(var(--gate-photo) + 40px) minmax(0, 1fr) 92px; column-gap: var(--sp-3); }
+  .rb-gate-photo { right: 92px; }
 }
 @container rb (max-width: 540px) {
   .rb { --rb-cols: 12px minmax(0, 1fr) 88px; padding: 0 8px 8px; }
@@ -263,13 +283,16 @@
   .rb-sub { display: block; }
   .rb-row { padding: 11px 40px 11px 14px; }
   .rb-head { display: none; }
-  .rb-gate { --gate-fade: 36px; grid-template-columns: 1fr auto; grid-template-rows: 100px auto; min-height: 0; }
-  .rb-gate-photo { right: 0; width: auto; height: calc(100px + var(--gate-fade)); bottom: auto; }
+  /* Stacked: the photo is a band across the top, the text starts below it. */
+  .rb-gate { --gate-photo: 100%; grid-template-columns: 1fr auto; grid-template-rows: 124px auto; min-height: 0; column-gap: 0; }
+  .rb-gate-photo { right: 0; bottom: auto; height: 124px; }
   .rb-gate-photo .route-leg-cover-img, .rb-gate-photo .route-leg-cover-fallback {
-    -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - var(--gate-fade)), transparent); mask-image: linear-gradient(180deg, #000 calc(100% - var(--gate-fade)), transparent);
+    -webkit-mask-image: linear-gradient(180deg, #000 0 86px, rgba(0,0,0,.45) 108px, transparent);
+            mask-image: linear-gradient(180deg, #000 0 86px, rgba(0,0,0,.45) 108px, transparent);
   }
-  .rb-gate-frost { left: 0; top: calc(100% - var(--gate-fade)); bottom: 0; -webkit-mask-image: linear-gradient(180deg, transparent, #000 50%, transparent); mask-image: linear-gradient(180deg, transparent, #000 50%, transparent); }
-  .rb-gate-main { grid-column: 1; grid-row: 2; padding: 30px var(--sp-3) var(--sp-3) var(--sp-4); }
+  .rb-gate-photo .route-leg-cover-img { object-position: center; }
+  .rb-gate-frost { left: 0; top: 78px; bottom: auto; height: 46px; -webkit-mask-image: linear-gradient(180deg, transparent, #000 50%); mask-image: linear-gradient(180deg, transparent, #000 50%); }
+  .rb-gate-main { grid-column: 1; grid-row: 2; padding: 2px var(--sp-3) var(--sp-3) var(--sp-4); }
   .rb-gate-stub { grid-column: 2; grid-row: 2; min-width: 84px; }
   .rb-gate-stub::before, .rb-gate-stub::after { display: none; }
   .rb-ticks { display: none; }

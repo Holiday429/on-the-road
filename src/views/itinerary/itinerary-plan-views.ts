@@ -173,16 +173,16 @@ export function renderPlanFeedView(leg: Leg): string {
   const days = ensurePlanDays(leg);
   const today = todayIso();
 
-  if (!plans.length) {
+  if (!plans.some(p => p.dayId)) {
     return `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.feedEmpty')}</span></div>`;
   }
 
-  // Group by day in chronological order; unassigned appended at end
+  // Days in order. Unscheduled tickets are NOT listed here — they already have a
+  // home in the Unassigned column on the right, and repeating them made the feed
+  // read as two lists of the same thing.
   const assigned: { day: PlanDay; items: typeof plans }[] = days
     .map(day => ({ day, items: plans.filter(p => p.dayId === day.id).sort((a, b) => a.order - b.order) }))
     .filter(g => g.items.length > 0);
-
-  const unassigned = plans.filter(p => !p.dayId).sort((a, b) => a.order - b.order);
 
   function dayStatus(date: string): 'active' | 'past' | 'upcoming' {
     if (date === today) return 'active';
@@ -214,19 +214,7 @@ export function renderPlanFeedView(leg: Leg): string {
       </div>`;
   }).join('');
 
-  const unassignedGroup = unassigned.length ? `
-    <div class="rd-feed-day-group rd-feed-day--unassigned">
-      <div class="rd-feed-day-head">
-        <span class="rd-feed-day-dot" style="background:var(--ink-faint)"></span>
-        <span class="rd-feed-day-label">${tr('route.unassigned')}</span>
-        <span class="rd-feed-day-date">${tr('route.notYetScheduled')}</span>
-      </div>
-      <div class="rd-feed-items">
-        ${unassigned.map(p => feedItem(p, 'upcoming')).join('')}
-      </div>
-    </div>` : '';
-
-  return `<div class="rd-feed-list">${dayGroups}${unassignedGroup}</div>`;
+  return `<div class="rd-feed-list">${dayGroups}</div>`;
 }
 
 /** Stored on the section so prev/next buttons can navigate without full re-render. */

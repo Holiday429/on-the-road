@@ -46,6 +46,20 @@
   background: linear-gradient(to top, rgba(20,16,12,0.45) 0%, rgba(20,16,12,0) 60%);
 }
 
+/* City top-left, country opposite it; the dates stay on the bottom-left. */
+.rd-hero-topline {
+  position: absolute; z-index: 1; top: var(--sp-5); left: var(--sp-6); right: var(--sp-6);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4);
+  color: #fff; pointer-events: none;
+}
+.rd-hero-ident { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; min-width: 0; }
+.rd-hero-country {
+  flex: none; align-self: center;
+  font-size: var(--fs-md); font-weight: var(--fw-medium);
+  text-shadow: 0 1px 6px rgba(0,0,0,0.45);
+  /* the tools sit at the top-right, so the country keeps clear of them */
+  margin-right: 220px;
+}
 .rd-hero-content {
   position: relative;
   z-index: 1;
@@ -54,20 +68,14 @@
   color: #fff;
   min-width: 0;
 }
-.rd-hero-kicker {
-  display: flex; align-items: center; gap: var(--sp-2);
-  flex-wrap: wrap;
-  font-size: var(--fs-sm); font-weight: var(--fw-medium);
-  text-shadow: 0 1px 6px rgba(0,0,0,0.35);
-}
 .rd-hero-city {
   font-family: var(--font-display);
-  font-size: clamp(30px, 4.2vw, 48px);
+  font-size: clamp(28px, 3.6vw, 42px);
   font-weight: var(--fw-bold);
   line-height: 1.05;
   letter-spacing: -0.01em;
-  margin: 6px 0 4px;
-  text-shadow: 0 2px 14px rgba(0,0,0,0.35);
+  margin: 0;
+  text-shadow: 0 2px 14px rgba(0,0,0,0.4);
   overflow-wrap: anywhere;
 }
 .rd-hero-dates {
@@ -86,6 +94,35 @@
   transition: background var(--dur-fast);
 }
 .rd-hero-edit:hover { background: rgba(255,255,255,0.32); }
+
+/* Reposition mode: the photo becomes draggable and everything laid over it steps aside. */
+.rd-hero.is-repositioning { cursor: grab; }
+.rd-hero.is-repositioning .rd-hero-img { cursor: grab; touch-action: none; }
+.rd-hero.is-repositioning .rd-hero-img:active { cursor: grabbing; }
+.rd-hero.is-repositioning .rd-hero-shade,
+.rd-hero.is-repositioning .rd-hero-topline,
+.rd-hero.is-repositioning .rd-hero-content,
+.rd-hero.is-repositioning .rd-hero-tools,
+.rd-hero.is-repositioning .rd-hero-cover-actions { opacity: 0; pointer-events: none; }
+.rd-hero.is-repositioning::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--amber-400);
+  border-radius: inherit;
+}
+.rd-hero-reposition {
+  position: absolute; z-index: 2; left: var(--sp-4); right: var(--sp-4); bottom: var(--sp-4);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap;
+  pointer-events: none;
+}
+.rd-hero-reposition[hidden] { display: none; }
+.rd-hero-reposition-hint {
+  padding: 6px 12px; border-radius: var(--r-full);
+  background: rgba(28,25,23,0.52); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: #fff; font-size: var(--fs-sm); font-weight: var(--fw-medium);
+}
+.rd-hero-reposition-actions { display: flex; gap: var(--sp-2); pointer-events: auto; }
+.rd-glass-btn--go { background: var(--amber-400); color: var(--on-accent); border-color: transparent; }
+.rd-glass-btn--go:hover { background: var(--amber-500); border-color: transparent; }
 
 .rd-hero-tools,
 .rd-hero-cover-actions {
@@ -135,6 +172,8 @@
   .rd-hero { min-height: 240px; }
   .rd-hero-content { padding: var(--sp-5); padding-bottom: 60px; }
   .rd-hero-cover-actions { left: var(--sp-5); right: auto; }
+  .rd-hero-topline { top: var(--sp-4); left: var(--sp-5); right: var(--sp-5); flex-direction: column; gap: var(--sp-2); }
+  .rd-hero-country { margin-right: 0; align-self: flex-start; }
 }
 
 /* ── Sections ────────────────────────────────────────────────────────────── */

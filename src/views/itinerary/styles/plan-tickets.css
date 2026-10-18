@@ -67,7 +67,7 @@
 }
 
 /* ── Ticket machine ─────────────────────────────────────────────────────── */
-.rd-pm { display: flex; align-items: stretch; max-width: 620px; }
+.rd-pm { display: flex; align-items: stretch; width: 100%; }
 .rd-pm-body {
   flex: 1; min-width: 0; background: var(--paper-grain), var(--surface); border: 1px solid var(--rule); border-radius: var(--r-lg) 0 0 var(--r-lg); box-shadow: var(--shadow-sm);
 }
@@ -113,16 +113,18 @@
 /* ── Day envelopes ──────────────────────────────────────────────────────── */
 .rd-env-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 11px; align-items: start; padding-top: 4px; }
 .rd-env {
-  --pt-bg: var(--env);
-  position: relative; min-height: 76px; background: var(--paper-grain), var(--env); border: 1px solid var(--env-edge); border-radius: var(--r-md);
+  /* The manila stock, lightened: the envelope still reads as paper, but the
+     tickets and labels on it stay legible (the full-strength --env was too dark). */
+  --pt-bg: var(--env-light);
+  position: relative; min-height: 76px; background: var(--paper-grain), var(--env-light); border: 1px solid var(--env-edge); border-radius: var(--r-md);
   box-shadow: var(--shadow-sm); transition: border-color var(--dur-fast), transform var(--dur-mid), box-shadow var(--dur-mid);
 }
 .rd-env:hover { box-shadow: var(--shadow-md); }
 .rd-env.is-today { border-color: var(--amber-400); transform: translateY(-3px); box-shadow: 0 0 0 2px color-mix(in srgb, var(--amber-400) 28%, transparent), var(--shadow-sm); }
 .rd-env.is-open { border-color: var(--amber-500); }
-.rd-env.is-drag-over { background: var(--paper-grain), var(--env); border-color: var(--amber-500); outline: 2px dashed var(--amber-500); outline-offset: 2px; }
+.rd-env.is-drag-over { background: var(--paper-grain), var(--env-light); border-color: var(--amber-500); outline: 2px dashed var(--amber-500); outline-offset: 2px; }
 .rd-env-flap {
-  position: absolute; left: 0; right: 0; top: 0; height: 22px; pointer-events: none; opacity: .5; background: var(--env-edge);
+  position: absolute; left: 0; right: 0; top: 0; height: 22px; pointer-events: none; opacity: .38; background: var(--env-edge);
   clip-path: polygon(0 0, 100% 0, 50% 100%); border-radius: var(--r-md) var(--r-md) 0 0; transform-origin: top center;
   transition: transform 300ms cubic-bezier(.3, .9, .3, 1), opacity var(--dur-mid);
 }
@@ -130,7 +132,7 @@
 .rd-env-btn { position: relative; display: flex; flex-direction: column; gap: 7px; width: 100%; padding: 9px 10px 10px; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .rd-env-btn:focus-visible { outline: 2px solid var(--amber-500); outline-offset: -2px; border-radius: var(--r-md); }
 .rd-env-head { display: flex; align-items: baseline; gap: 6px; padding-right: 26px; }
-.rd-env-day { font-family: var(--font-stamp); font-size: var(--fs-xs); letter-spacing: .13em; text-transform: uppercase; color: var(--ink-soft); }
+.rd-env-day { font-family: var(--font-stamp); font-size: var(--fs-xs); letter-spacing: .13em; text-transform: uppercase; color: var(--ink); }
 .rd-env-date { font-family: var(--font-data); font-size: var(--fs-2xs); color: var(--ink-muted); }
 .rd-env-spines { display: flex; flex-direction: column; width: 100%; }
 .rd-env-spine {
@@ -153,11 +155,11 @@
 .rd-env .rd-plan-day-nav:hover { background: var(--surface); }
 
 .rd-env-panel {
-  --pt-bg: var(--env);
-  margin-top: 13px; padding: 14px 15px 16px; background: var(--paper-grain), var(--env); border: 1px solid var(--env-edge); border-radius: var(--r-lg);
+  --pt-bg: var(--env-light);
+  margin-top: 13px; padding: 14px 15px 16px; background: var(--paper-grain), var(--env-light); border: 1px solid var(--env-edge); border-radius: var(--r-lg);
   box-shadow: var(--shadow-sm); animation: fadeUp var(--dur-mid) var(--ease-out);
 }
-.rd-env-panel.is-drag-over { outline: 2px dashed var(--amber-500); outline-offset: 2px; background: var(--paper-grain), var(--env); }
+.rd-env-panel.is-drag-over { outline: 2px dashed var(--amber-500); outline-offset: 2px; background: var(--paper-grain), var(--env-light); }
 .rd-env-panel-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 13px; }
 .rd-env-panel-meta { font-family: var(--font-data); font-size: var(--fs-xs); color: var(--ink-muted); }
 .rd-env-close { margin-left: auto; border: 0; background: none; cursor: pointer; font: inherit; font-size: var(--fs-sm); color: var(--ink-muted); text-decoration: underline; text-underline-offset: 3px; }

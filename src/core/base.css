@@ -159,6 +159,7 @@
   --kraft:         #ded1b5;
   --kraft-edge:    #c9b997;
   --env:           #e7dfcb;
+  --env-light:     #f2ecde;   /* day envelopes: manila lightened so tickets stay readable */
   --env-edge:      #cfc3a6;
   --pp-gold:       #c4a672;
   --pp-paper:      #f7f1e2;
@@ -254,6 +255,7 @@
   --kraft:         #4b4136;
   --kraft-edge:    #5c5044;
   --env:           #3a332b;
+  --env-light:     #433b31;
   --env-edge:      #4b4136;
   --pp-gold:       #c4a672;
   --pp-paper:      #403b33;

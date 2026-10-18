@@ -45,13 +45,19 @@ function tiles(text: string): string {
   return `<span class="rb-chars" aria-hidden="true">${cells}</span>`;
 }
 
-function arriveBy(leg: Leg): { glyph: string; code: string; times: string } | null {
+/** The way in, split into the parts the board prints. `service` may name more than
+ *  one leg of the journey ("RJ 383 + ICE 146"); each gets its own line so a code and
+ *  its times are never broken apart. */
+function arriveBy(leg: Leg): { glyph: string; codes: string[]; times: string; via: string } | null {
   const t = leg.arrivalTransport;
   if (!t) return null;
+  const raw = (t.service || t.from || '').trim();
+  const codes = raw.split(/\s*(?:\+|\/|,|·|→|->)\s*/).filter(Boolean);
   return {
     glyph: TRANSPORT_ICONS[t.type] ?? '',
-    code: t.service || t.from,
-    times: t.time ? `${t.time}${t.arrivalTime ? `→${t.arrivalTime}` : ''}` : '',
+    codes: codes.length ? codes : [raw],
+    times: t.time ? `${t.time}${t.arrivalTime ? `\u2192${t.arrivalTime}` : ''}` : '',
+    via: t.via?.length ? t.via.join(' · ') : '',
   };
 }
 
@@ -83,7 +89,7 @@ function renderRow(leg: Leg, i: number, ctx: BoardCtx): string {
       ${transportOk ? '' : `<span class="rb-chip">${esc(tr('board.noTransport'))}</span>`}
       ${stay ? '' : `<span class="rb-chip">${esc(tr('board.noStay'))}</span>`}
     </span>`;
-  const sub = [boardDate(leg.dateFrom).toUpperCase(), ar ? `${ar.glyph} ${ar.code}` : '', stay, `${nights}n`].filter(Boolean).join('  ·  ');
+  const sub = [boardDate(leg.dateFrom).toUpperCase(), ar ? `${ar.glyph} ${ar.codes.join(' + ')}` : '', stay, `${nights}n`].filter(Boolean).join('  ·  ');
   return `
     <div class="rb-rowwrap" data-id="${esc(leg.id)}" style="--row:${i}">
       <button type="button" class="rb-row is-${state}" data-act="open" data-id="${esc(leg.id)}"
@@ -91,7 +97,9 @@ function renderRow(leg: Leg, i: number, ctx: BoardCtx): string {
         <span class="rb-marker" aria-hidden="true"></span>
         <span class="rb-city"><span class="rb-flag" aria-hidden="true">${leg.flag || ''}</span>${tiles(tileText(leg.city, 13))}</span>
         <span class="rb-date" aria-hidden="true"><span class="rb-led-screen rb-led-screen--row">${ledText(ledDate(leg.dateFrom))}</span></span>
-        <span class="rb-arr">${ar ? `<span class="rb-arr-glyph" aria-hidden="true">${ar.glyph}</span><span class="rb-arr-code">${esc(ar.code)}</span><span class="rb-arr-times">${esc(ar.times)}</span>` : '<span class="rb-dim">—</span>'}</span>
+        <span class="rb-arr">${ar ? `
+          <span class="rb-arr-glyph" aria-hidden="true">${ar.glyph}</span>
+          <span class="rb-arr-legs">${ar.codes.map((c, n) => `<span class="rb-arr-leg"><span class="rb-arr-code">${esc(c)}</span>${n === 0 && ar.times ? `<span class="rb-arr-times">${esc(ar.times)}</span>` : ''}</span>`).join('')}${ar.via ? `<span class="rb-arr-via">${esc(tr('route.ticketVia', { cities: ar.via }))}</span>` : ''}</span>` : '<span class="rb-dim">—</span>'}</span>
         <span class="rb-stay">${stay ? esc(stay) : '<span class="rb-dim">—</span>'}</span>
         <span class="rb-n">${nights}</span>
         <span class="rb-status"><span class="rb-dot" aria-hidden="true"></span><span class="rb-status-text">${esc(status)}</span>${rowStamps(leg, ctx)}</span>
@@ -123,7 +131,7 @@ function transportLine(leg: Leg): string {
   const ar = arriveBy(leg);
   if (!ar) return esc(tr('board.noTransport'));
   const when = `${fmtDate(leg.dateFrom)}${leg.arrivalTransport?.time ? ` ${leg.arrivalTransport.time}` : ''}`;
-  return `${ar.glyph} ${esc(ar.code)} · ${esc(when)}`;
+  return `${ar.glyph} ${esc(ar.codes.join(' + '))} · ${esc(when)}`;
 }
 
 function countdown(n: number): string {

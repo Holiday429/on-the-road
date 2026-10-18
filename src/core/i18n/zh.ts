@@ -431,6 +431,8 @@ export const zh: StringTable = {
   'route.coverAdd':          '📷 添加封面',
   'route.coverChange':       '📷 更换封面',
   'route.coverRemove':       '移除封面',
+  'route.coverReposition':   '⤢ 调整位置',
+  'route.coverRepositionHint': '拖动照片调整显示位置',
   'route.coverUploading':    '上传中…',
   'route.coverFailed':       '照片上传失败，请检查网络后重试。',
   'route.ticketFlight':      '登机牌',

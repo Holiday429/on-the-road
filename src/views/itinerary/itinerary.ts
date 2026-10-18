@@ -25,7 +25,6 @@ import { postmarksFor, type CardPostmarks } from '../../data/card-postmarks.ts';
 import { todayIso as stampToday } from '../../data/trip-phase.ts';
 import { onSimChange } from '../../data/sim-clock.ts';
 import { mountPassportIcon, wirePassportOpeners } from '../passport/passport-links.ts';
-import { postmarkPair } from '../passport/postmark.ts';
 import {
   uid, clean, daysBetween, fmtDate, legStatus, sortLegs,
   legStays, NOTE_COLORS, noteColor, dayColour, bearing,
@@ -624,32 +623,40 @@ function renderDetail(leg: Leg): string {
   const hasCover = !!safeUrl(leg.coverImageUrl);
   return `
     <div class="rd-shell status-${status}">
-      <header class="rd-hero ${hasCover ? 'has-cover' : ''}">
+      <header class="rd-hero ${hasCover ? 'has-cover' : ''}" data-leg="${esc(leg.id)}">
         ${legCoverArt(leg, 'rd-hero', true)}
         <div class="rd-hero-shade"></div>
-        ${(() => { const pm = postmarkPair(legMarks(leg), { size: 84, openId: `city:${leg.id}`, onPhoto: true }); return pm ? `<div class="rd-hero-stamp">${pm}</div>` : ''; })()}
+        <div class="rd-hero-topline">
+          <div class="rd-hero-ident">
+            <h2 class="rd-hero-city">${esc(leg.city)}</h2>
+            ${status === 'past' ? '' : `<span class="rd-status-pill status-${status}">${status === 'active' ? tr('route.statusActive') : tr('route.statusUpcoming')}</span>`}
+          </div>
+          <span class="rd-hero-country">${leg.flag || ''} ${esc(leg.country)}</span>
+        </div>
         <div class="rd-hero-tools">
           <button class="rd-glass-btn" data-act="open-guide">${tr('route.btnCityGuide')}</button>
-          <button class="rd-glass-btn" data-act="open-compare">${tr('route.btnCompare')}</button>
           <button class="rd-glass-btn" data-act="open-map">${tr('route.btnOnMap')}</button>
         </div>
         <div class="rd-hero-content">
-          <div class="rd-hero-kicker">
-            ${status === 'past' ? '' : `<span class="rd-status-pill status-${status}">${status === 'active' ? tr('route.statusActive') : tr('route.statusUpcoming')}</span>`}
-            <span>${leg.flag || ''} ${esc(leg.country)}</span>
-          </div>
-          <h2 class="rd-hero-city">${esc(leg.city)}</h2>
           <div class="rd-hero-dates" id="rd-datebar-dates">
             <span>${fmtDate(leg.dateFrom)} → ${fmtDate(leg.dateTo)} · ${nightsLabel(days)}</span>
             <button class="rd-hero-edit" data-act="edit-dates" title="Edit dates" aria-label="Edit dates">✎</button>
           </div>
         </div>
         <div class="rd-hero-cover-actions">
+          ${hasCover ? `<button class="rd-glass-btn" data-act="cover-reposition">${tr('route.coverReposition')}</button>` : ''}
           <label class="rd-glass-btn rd-cover-pick">
             <span class="rd-cover-pick-label">${hasCover ? tr('route.coverChange') : tr('route.coverAdd')}</span>
             <input type="file" accept="image/*" data-act="cover-file" hidden>
           </label>
           ${hasCover ? `<button class="rd-glass-btn rd-glass-btn--icon" data-act="cover-remove" title="${tr('route.coverRemove')}" aria-label="${tr('route.coverRemove')}">✕</button>` : ''}
+        </div>
+        <div class="rd-hero-reposition" hidden>
+          <span class="rd-hero-reposition-hint">${tr('route.coverRepositionHint')}</span>
+          <span class="rd-hero-reposition-actions">
+            <button class="rd-glass-btn" data-act="cover-reposition-cancel">${tr('common.cancel')}</button>
+            <button class="rd-glass-btn rd-glass-btn--go" data-act="cover-reposition-save">${tr('common.save')}</button>
+          </span>
         </div>
       </header>
       ${renderCityShareBar(leg)}
@@ -822,6 +829,69 @@ function persistStays(leg: Leg, stays: Accommodation[]) {
   return patchLeg(leg.id, { accommodations: reindexed });
 }
 
+/** Drag-to-reposition for the hero cover (the Notion gesture): while repositioning,
+ *  dragging the photo moves its vertical focal point, and Save writes coverFocalY —
+ *  the same field iOS reads, so the crop matches on both. */
+function wireCoverReposition(timeline: HTMLElement, leg: Leg) {
+  const hero = timeline.querySelector<HTMLElement>('.rd-hero');
+  const img = hero?.querySelector<HTMLImageElement>('.rd-hero-img');
+  const bar = hero?.querySelector<HTMLElement>('.rd-hero-reposition');
+  if (!hero || !img || !bar) return;
+
+  const current = () => legs.find((l) => l.id === leg.id) ?? leg;
+  let focal = current().coverFocalY ?? 0.5;
+  let dragging = false;
+  let startY = 0;
+  let startFocal = focal;
+
+  const paint = () => { img.style.objectPosition = `50% ${Math.round(focal * 100)}%`; };
+  const stop = () => {
+    hero.classList.remove('is-repositioning');
+    bar.hidden = true;
+    dragging = false;
+  };
+
+  timeline.querySelector<HTMLElement>('[data-act="cover-reposition"]')?.addEventListener('click', () => {
+    focal = current().coverFocalY ?? 0.5;
+    startFocal = focal;
+    hero.classList.add('is-repositioning');
+    bar.hidden = false;
+    paint();
+  });
+  timeline.querySelector<HTMLElement>('[data-act="cover-reposition-cancel"]')?.addEventListener('click', () => {
+    focal = current().coverFocalY ?? 0.5;
+    paint();
+    stop();
+  });
+  timeline.querySelector<HTMLElement>('[data-act="cover-reposition-save"]')?.addEventListener('click', () => {
+    stop();
+    patchLeg(leg.id, { coverFocalY: focal }).catch(saveFailed);
+  });
+
+  img.addEventListener('pointerdown', (e) => {
+    if (!hero.classList.contains('is-repositioning')) return;
+    e.preventDefault();
+    dragging = true;
+    startY = e.clientY;
+    startFocal = focal;
+    img.setPointerCapture(e.pointerId);
+  });
+  img.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    // Drag down to reveal more of the top of the photo, so the image follows the cursor.
+    const travel = Math.max(hero.clientHeight, 1);
+    focal = Math.min(1, Math.max(0, startFocal - (e.clientY - startY) / travel));
+    paint();
+  });
+  const end = (e: PointerEvent) => {
+    if (!dragging) return;
+    dragging = false;
+    if (img.hasPointerCapture(e.pointerId)) img.releasePointerCapture(e.pointerId);
+  };
+  img.addEventListener('pointerup', end);
+  img.addEventListener('pointercancel', end);
+}
+
 function wireDetail(timeline: HTMLElement, leg: Leg) {
   wirePassportOpeners(timeline);
   const on = (act: string, fn: (el: HTMLElement, e: Event) => void) => {
@@ -854,8 +924,10 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     if (!current.coverImageUrl || !confirm(`${tr('route.coverRemove')}?`)) return;
     setLegCover(current, null).catch(saveFailed);
   });
+  /* — Reposition the cover, Notion-style: drag the photo to set its vertical focus — */
+  wireCoverReposition(timeline, leg);
+
   on('open-guide', () => navigateTo('cities'));
-  on('open-compare', () => navigateTo('budget', { city: leg.city, dateFrom: leg.dateFrom } satisfies NavIntent));
   on('open-map', () => navigateTo('map', { mode: 'route', legId: leg.id } satisfies NavIntent));
 
   /* — Dates — */
