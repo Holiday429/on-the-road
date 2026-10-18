@@ -1,8 +1,8 @@
 /* ==========================================================================
    On the Road · Itinerary board — digital-watch display
    --------------------------------------------------------------------------
-   Numbers drawn as 7-segment digits, slanted the way a digital watch sets them,
-   with the words around them (MON, JUL) in small caps beside. Segments that are
+   Numbers drawn as upright 7-segment digits, with the words around them (MON, JUL)
+   set beside them at the same height. Segments that are
    off are simply not drawn — no ghost "8" and no panel behind the figures, so
    the digits sit straight on the board. Inline SVG: no font file, scales with
    `height`. Colour and glow live in board.css (.rb-led). No DOM, no stores.
@@ -23,8 +23,6 @@ const H = 16;         // digit height
 const T = 1.9;        // segment thickness
 const GAP = 0.28;     // air between neighbouring segments
 const PAD = 3.4;      // advance between digits
-const SKEW = Math.tan((7 * Math.PI) / 180);
-const LEAN = H * SKEW;   // how far the top leans past the bottom
 
 /** One hexagonal bar along x (horizontal) or y (vertical), centred on (cx, cy). */
 function bar(cx: number, cy: number, len: number, vertical: boolean): string {
@@ -78,9 +76,9 @@ function digits(run: string): string {
     parts.push(g.d);
     x += g.w + PAD;
   }
-  const w = Math.max(1, x - PAD) + LEAN;
+  const w = Math.max(1, x - PAD);
   return `<svg class="rb-led-seg" viewBox="0 0 ${+w.toFixed(2)} ${H}" focusable="false" aria-hidden="true">`
-    + `<path class="rb-led-on" transform="translate(0 ${H}) skewX(-7) translate(0 ${-H})" d="${parts.join('')}"/></svg>`;
+    + `<path class="rb-led-on" d="${parts.join('')}"/></svg>`;
 }
 
 /** `text` as a digital-watch strip: digits (and - : .) as segments, any other characters as small

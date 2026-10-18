@@ -3,20 +3,15 @@
    --------------------------------------------------------------------------
    "City guide" and "On map" on a stop's header used to leave the page. They now
    slide the same content in from the right (a half sheet on phones): the stop's
-   saved guide, and just the map — the stop, its stays and its plan items — with
+   saved guide, and the Map page's route view of the whole trip (just the map), with
    a link on to the full page for when the drawer is not enough.
    ========================================================================== */
 
-import L from 'leaflet';
 import { openDrawer } from '../../core/drawer.ts';
 import { t as tr } from '../../core/i18n.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { navigateTo, type NavIntent } from '../../core/app.ts';
-import { coordsFor } from '../map/geo.ts';
-import { geocodeLocal } from '../map/geocode.ts';
 import type { Leg } from './itinerary-shared.ts';
-import { dayColour, legStays } from './itinerary-utils.ts';
-import { ensurePlanDays } from './itinerary-plan-views.ts';
 
 const footer = (label: string) => `<button type="button" class="btn btn-ghost" data-act="go-full">${esc(label)}</button>`;
 
@@ -39,53 +34,35 @@ export function openCityGuideDrawer(leg: Leg): void {
   });
 }
 
-interface Pin { lat: number; lng: number; html: string }
-
-/** Everything on this stop that has a place: the city, each stay, each plan item. */
-function pinsFor(leg: Leg): Pin[] {
-  const pins: Pin[] = [];
-  const city = coordsFor(leg.city);
-  if (city) pins.push({ ...city, html: `<span class="rd-pmap-pin-label">${esc(leg.city)}</span>` });
-  for (const s of legStays(leg)) {
-    const at = geocodeLocal(s.address || s.name, leg.country);
-    if (at) pins.push({ lat: at.lat, lng: at.lng, html: `<span class="rd-pmap-pin-badge rd-side-pin--stay">🛏</span><span class="rd-pmap-pin-label">${esc(s.name)}</span>` });
-  }
-  const days = ensurePlanDays(leg);
-  for (const p of leg.plans ?? []) {
-    const at = p.lat != null && p.lng != null ? { lat: p.lat, lng: p.lng } : geocodeLocal(p.address || p.title, leg.country);
-    if (!at) continue;
-    const i = p.dayId ? days.findIndex((x) => x.id === p.dayId) : -1;
-    const colour = i >= 0 ? dayColour(i) : '#94a3b8';
-    pins.push({ lat: at.lat, lng: at.lng, html: `<span class="rd-pmap-pin-badge" style="background:${colour}">${i >= 0 ? `D${i + 1}` : '?'}</span><span class="rd-pmap-pin-label">${esc(p.title)}</span>` });
-  }
-  return pins;
-}
-
-/** Just the map: this stop and what is on it, with no panels around it. */
+/** The Map page's own route view — the whole trip, not just this stop — in the drawer. The page owns a single
+ *  live chart (its DOM is found by id), so rather than build a second one the page's map stage is lent to the
+ *  drawer and handed back when it closes. The side panel and layer bar stay on the page. */
 export function openCityMapDrawer(leg: Leg): void {
-  let map: L.Map | null = null;
+  let home: { parent: Node; next: Node | null } | null = null;
+  let stage: HTMLElement | null = null;
+  const give = () => {
+    if (stage && home && home.parent.isConnected) home.parent.insertBefore(stage, home.next);
+    stage = null; home = null;
+  };
   const d = openDrawer({
     title: leg.city, subtitle: leg.country, className: 'rd-side-drawer rd-side-drawer--map',
     body: '<div class="rd-side-map"></div>', footer: footer(tr('route.drawer.fullMap')),
-    onClose: () => { map?.remove(); map = null; },
+    onClose: give,
   });
   d.root.querySelector('[data-act="go-full"]')?.addEventListener('click', () => {
     d.close();
     void navigateTo('map', { mode: 'route', legId: leg.id } satisfies NavIntent);
   });
 
-  const el = d.body.querySelector<HTMLElement>('.rd-side-map')!;
-  map = L.map(el, { zoomControl: true, attributionControl: false });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-  L.control.attribution({ prefix: '© <a href="https://www.openstreetmap.org/copyright">OSM</a>' }).addTo(map);
-
-  const pins = pinsFor(leg);
-  const markers = pins.map((p) => L.marker([p.lat, p.lng], {
-    icon: L.divIcon({ className: 'rd-pmap-pin', html: p.html, iconSize: [0, 0], iconAnchor: [0, 0] }),
-  }).addTo(map!));
-  if (markers.length > 1) map.fitBounds(L.featureGroup(markers).getBounds().pad(0.3));
-  else if (pins.length) map.setView([pins[0].lat, pins[0].lng], 13);
-  else map.setView([48, 6], 4);
-  // The drawer slides in; measure again once it has settled.
-  setTimeout(() => map?.invalidateSize(), 320);
+  void import('../map/map-page.ts').then(async (m) => {
+    m.initMap();
+    // initMap mounts the route view in a second dynamic import: wait for its stage to exist.
+    for (let i = 0; i < 100 && !document.querySelector('#view-map .map-stage'); i++) await new Promise((r) => setTimeout(r, 50));
+    const el = document.querySelector<HTMLElement>('#view-map .map-stage');
+    const slot = d.body.querySelector('.rd-side-map');
+    if (!el || !slot || !d.root.isConnected) return;
+    stage = el;
+    home = { parent: el.parentNode!, next: el.nextSibling };
+    slot.appendChild(el);
+  });
 }

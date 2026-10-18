@@ -180,16 +180,15 @@
 .rb-title { margin: 0; font-family: var(--font-stamp); font-size: clamp(14px, 2.2vw, 18px); font-weight: var(--fw-medium); letter-spacing: .26em; text-transform: uppercase; color: var(--board-bar-ink); text-shadow: 0 1px 0 var(--rb-hi); }
 :root[data-theme='dark'] .rb-title { text-shadow: 0 -1px 0 #000, 0 0 10px color-mix(in srgb, var(--amber-400) 35%, transparent); }
 .rb-clock { margin-left: auto; line-height: 0; }
-.rb-clock .rb-led svg { height: 17px; }
-.rb-clock .rb-led-word { font-size: 12px; }
+.rb-clock .rb-led { --led-h: 17px; }
 /* The schedule: no border of its own — the strip above is the only divider. */
 .rb-screen { position: relative; border-radius: 10px; overflow: hidden; }
 
 /* Digital-watch text (itinerary-led.ts): 7-segment digits straight on the board's enamel,
    with the words beside them in small caps. No panel, no unlit segments. */
-.rb-led { display: inline-flex; align-items: flex-end; gap: 5px; line-height: 1; color: var(--led-on); }
-.rb-led svg { display: block; height: 15px; width: auto; max-width: 100%; overflow: visible; }
-.rb-led-word { font-family: var(--font-stamp); font-size: 11px; font-weight: var(--fw-medium); letter-spacing: .14em; line-height: 1; padding-bottom: 1px; }
+.rb-led { --led-h: 15px; display: inline-flex; align-items: center; gap: 6px; line-height: 1; color: var(--led-on); }
+.rb-led svg { display: block; height: var(--led-h); width: auto; max-width: 100%; overflow: visible; }
+.rb-led-word { font-family: var(--font-stamp); font-size: calc(var(--led-h) * 1.13); font-weight: var(--fw-medium); letter-spacing: .06em; line-height: 1; }   /* cap height of Oswald ≈ .88em: the words stand as tall as the digits */
 .rb-led-on { fill: var(--led-on); }
 :root[data-theme='dark'] .rb-led-on { filter: drop-shadow(0 0 2px color-mix(in srgb, var(--led-on) 60%, transparent)); }
 .rb-date { display: flex; align-items: center; }

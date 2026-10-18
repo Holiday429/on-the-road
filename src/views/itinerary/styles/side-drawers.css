@@ -10,8 +10,11 @@
 
 /* Map only: the map fills the drawer edge to edge. */
 .rd-side-drawer--map .otr-drawer-body { padding: 0; overflow: hidden; display: flex; }
-.rd-side-map { flex: 1; min-height: 320px; background: var(--surface-3); }
-.rd-side-pin--stay { background: var(--ink); }
+.rd-side-map { flex: 1; min-width: 0; min-height: 320px; position: relative; background: var(--surface-3); }
+/* The Map page's stage, lent to the drawer: it fills it, with none of the page's card styling. */
+.rd-side-map .map-stage { position: absolute; inset: 0; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+.rd-side-map .map-chart { height: 100%; }
+.rd-side-map #mapPanelToggle { display: none; }   /* the side panel is not here to toggle */
 
 @media (max-width: 720px) {
   .rd-side-map { height: 56dvh; flex: none; width: 100%; }
