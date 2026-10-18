@@ -92,7 +92,7 @@ let _replaying = false;
 /** Pending "close the book" after the back cover; 0 = none. */
 let _shutTimer = 0;
 let _running = 0;
-const narrow = () => window.matchMedia?.('(max-width: 820px)').matches ?? false;
+const narrow = () => window.matchMedia?.('(max-width: 599px)').matches ?? false;
 
 const nickname = (): string => _profile.nickname || defaultNickname();
 const nationality = (): string => _profile.nationality || _safetyNationality;
@@ -299,8 +299,11 @@ function fitRoom(): void {
   // The controls' own height (it wraps to more rows on a narrow window) is read at its CURRENT size — fixed
   // input, not fed by the book — so there is nothing here for a feedback loop to run away with.
   const controlsH = controls ? Math.round(controls.getBoundingClientRect().height) : 0;
-  const gap = 16;      // the column's own gaps (.pp-body's `gap`, roughly) between desk, tray and controls
-  const ceiling = window.innerHeight - above - below - controlsH - gap;
+  // The tray of unpressed stamps sits between the desk and the controls; it takes its own height out of the book's room.
+  const tray = body.querySelector<HTMLElement>('.pp-tray-host');
+  const trayH = tray && tray.childElementCount ? Math.round(tray.getBoundingClientRect().height) + 12 : 0;
+  const gap = 28;      // the column's own gaps (.pp-body's `gap`, roughly) between desk, tray and controls
+  const ceiling = window.innerHeight - above - below - controlsH - trayH - gap;
   const room = Math.max(240, Math.round(ceiling - 8));
   body.style.setProperty('--pp-room', `${room}px`);
   // Half a spread can never be wider than half the desk, whatever the window's shape.
@@ -348,6 +351,7 @@ function afterTurn(): void {
   const tray = root.querySelector<HTMLElement>('[data-pp-tray]');
   // eslint-disable-next-line no-restricted-syntax -- audited: tray markup escapes every interpolation
   if (tray) tray.innerHTML = trayHtml();
+  fitRoom();
   landVisible(book, turned);
   watchForEnd(turned);
 }
@@ -796,7 +800,7 @@ export function initPassport(): void {
     visaStore.subscribe((rows) => { _visas = rows.slice().sort((a, b) => (a.validFrom || '9').localeCompare(b.validFrom || '9')); refresh(); }),
     onLocaleChange(() => { head(root); refresh(true); }),
   ];
-  const mq = window.matchMedia?.('(max-width: 820px)');
+  const mq = window.matchMedia?.('(max-width: 599px)');
   const onMq = () => { if (narrow() !== _single) render(); };
   mq?.addEventListener('change', onMq);
   _unsubs.push(() => mq?.removeEventListener('change', onMq));

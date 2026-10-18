@@ -700,14 +700,23 @@
   .journal-layout-tab:first-child { padding-left: 0; }
   .journal-composer-overlay { padding: var(--sp-6); }
 }
-/* An unfolded foldable (600–860): tabs and the tools share one row, as on the web — Portrait and Export keep
-   only their icon, the tabs sit a little closer. */
-@media (min-width: 600px) and (max-width: 860px) {
-  .journal-topbar { flex-wrap: nowrap; gap: var(--sp-2); }
-  .journal-topbar-right { flex-wrap: nowrap; flex: none; }
-  .journal-layout-bar { flex-wrap: nowrap; min-width: 0; }
-  .journal-layout-tab { padding-inline: 8px; }
+/* The bottom-nav shell (phone, foldable): Portrait, Export and New entry are bare icons — no frame, no fill — and the
+   scope toggle is the size of the site's other buttons, so tabs and tools sit on one row. */
+@media (max-width: 768px) {
+  .journal-topbar { --jt-h: 38px; flex-wrap: nowrap; gap: var(--sp-2); }
+  .journal-topbar-right { flex-wrap: nowrap; flex: none; gap: 2px; }
+  .journal-tool-btn .jt-label, .journal-new-btn .jt-label { display: none; }
+  .journal-tool-btn, .journal-new-btn {
+    width: var(--jt-h); padding: 0; justify-content: center; border: 0; background: transparent; box-shadow: none;
+    font-size: 20px; color: var(--ink);
+  }
+  .journal-tool-btn:hover, .journal-new-btn:hover { background: var(--surface-3); }
+  .journal-scope-btn { min-height: 0; padding: 0 12px; }
+  .journal-layout-bar { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .journal-layout-bar::-webkit-scrollbar { display: none; }
+  .journal-layout-tab { padding-inline: 8px; flex: none; min-height: 0; }
   .journal-layout-tab:first-child { padding-left: 0; }
-  .journal-tool-btn .jt-label { display: none; }
-  .journal-tool-btn { padding: 0 12px; }
+}
+@media (max-width: 460px) {
+  .journal-topbar { flex-wrap: wrap; }
 }

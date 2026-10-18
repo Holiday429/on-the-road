@@ -5,6 +5,9 @@
 /* Compact sidebar breakpoint (~900px content) */
 @media (max-width: 900px) {
   .rd-section { padding: var(--sp-3) var(--sp-4); }
+}
+/* Transport | stays stay side by side down to the foldable's width; only a phone stacks them. */
+@media (max-width: 599px) {
   .rd-detail-grid--top { grid-template-columns: 1fr; }
 }
 

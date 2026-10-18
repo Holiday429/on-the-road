@@ -104,18 +104,24 @@ button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
 /* Narrow: let the blocks wrap instead of squeezing */
 /* Roomy (an unfolded foldable): the four blocks stay on one line — the mascot steps aside and the blocks tighten
    — so the third column (stay / next ride / trip summary) is not pushed onto a row of its own. */
-@container tdgrid (max-width: 900px) {
-  .td-hero { padding-inline: var(--sp-4); }
-  .td-hero-logo { display: none; }
-  .td-hero-inner { flex-wrap: wrap; gap: var(--sp-3); }
-  .td-hero-weather-sq { width: 72px; padding-right: var(--sp-3); }
-  .td-dial { padding-right: var(--sp-3); max-width: 190px; }
-  .td-hero-info { flex: 1 1 150px; }
-  .td-hero-clocks { padding: 0 0 0 var(--sp-3); gap: var(--sp-2); }
-  .td-clock { width: 58px; }
-  .td-clock svg { width: 46px; height: 46px; }
-  .td-clock-cap { font-size: 10px; gap: 2px; }
-  .td-banner-summary { font-size: var(--fs-sm); }
+@container tdgrid (min-width: 561px) and (max-width: 900px) {
+  .td-hero { padding-inline: var(--sp-4); gap: var(--sp-2); }
+  .td-hero-logo { width: 52px; height: 52px; }
+  .td-hero-inner { flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
+  .td-hero-weather-sq { width: 50px; padding-right: var(--sp-2); }
+  .td-hero-weather-icon { font-size: 26px; }
+  .td-dial { padding-right: var(--sp-2); max-width: 150px; gap: var(--sp-2); }
+  .td-dial-ring, .td-dial-ring svg { width: 38px; height: 38px; }
+  .td-dial-num { font-size: 15px; }
+  .td-dial-country { font-size: var(--fs-base); }
+  .td-dial-sub { font-size: 10px; margin-top: 3px; }
+  .td-hero-info { flex: 1 1 0; min-width: 180px; }
+  .td-hero-clocks { padding: 0 0 0 var(--sp-2); gap: 0; }
+  .td-clock { width: 44px; }
+  .td-clock svg { width: 34px; height: 34px; }
+  .td-clock-cap { font-size: 9px; gap: 2px; }
+  .td-clock-diff { font-size: 9px; }
+  .td-banner-row, .td-banner-summary { font-size: var(--fs-xs); }
 }
 @container tdgrid (max-width: 560px) {
   .td-dial { border-right: 0; padding-right: 0; }

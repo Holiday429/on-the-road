@@ -274,3 +274,26 @@
   .ck-caret, .ck-last.is-marquee, .ck-scanbtn:disabled, .ck-status b.is-bump, .ck-screen.is-ok .ck-led, .ck-screen.is-err { animation: none; }
   .odo-strip, .ck-key { transition: none; }
 }
+
+/* Date field: Chromium draws the digits of a date input a size of its own — set them to the other fields' type. */
+.ck-machine input[type="date"].input,
+.ck-machine input[type="date"].input::-webkit-datetime-edit,
+.ck-machine input[type="date"].input::-webkit-datetime-edit-fields-wrapper,
+.ck-machine input[type="date"].input::-webkit-datetime-edit-text,
+.ck-machine input[type="date"].input::-webkit-datetime-edit-month-field,
+.ck-machine input[type="date"].input::-webkit-datetime-edit-day-field,
+.ck-machine input[type="date"].input::-webkit-datetime-edit-year-field {
+  font-family: var(--font-data); font-size: 12px; letter-spacing: .02em;
+}
+
+/* The bottom-nav shell on a roomy screen (unfolded foldable): the nav takes 70px of the window, so the page
+   gives up a little air — everything, down to SCAN, stays on one screen without scrolling. */
+@media (min-width: 600px) and (max-width: 768px) and (max-height: 860px) {
+  #view-expenses .exp-summary { margin-bottom: var(--sp-2); }
+  #view-expenses .exp-hero-btn { padding: 9px 14px 9px; }
+  #view-expenses .exp-hero-eyebrow { margin-bottom: 3px; }
+  #view-expenses .exp-hero-bar-track { margin-top: 5px; }
+  .exp-form.ck-machine { --ck-pad: 10px; --ck-gap: 6px; --ck-screen-gap: 12px; --ck-field-gap: 6px; --ctl-h: 32px; }
+  .ck-machine .field-label { margin-bottom: 2px; }
+  .ck-keys-row { margin: 6px 0; }
+}

@@ -511,7 +511,7 @@
 .pp-slot[data-stamp] { cursor: pointer; }
 .pp-slot[data-stamp]:hover .pp-stamp { opacity: 1; }
 /* Narrow: both become a sheet from the bottom, with a dim behind. */
-@media (max-width: 820px) {
+@media (max-width: 599px) {
   .pp-drawer, .pp-drawer.is-left {
     position: fixed; inset: auto 0 0 0; width: auto; max-height: 82vh; z-index: 90; border: 0; border-radius: 18px 18px 0 0;
     box-shadow: 0 -18px 40px -20px color-mix(in srgb, black 55%, transparent); animation-name: pp-sheet-in;
@@ -556,3 +556,16 @@
 .pp-share-preview { display: block; line-height: 0; }
 .pp-share-canvas { display: block; width: auto; height: min(calc(100dvh - 250px), calc((96vw - 56px) * 0.675)); max-width: 100%; margin: 0 auto; border-radius: var(--r-md); box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent), 0 8px 24px -12px color-mix(in srgb, black 40%, transparent); }
 .pp-share-note { margin: var(--sp-3) 0 0; font-size: var(--fs-xs); color: var(--ink-muted); text-align: center; }
+
+/* The bottom-nav shell (phone, foldable): the tray is a slim strip so the book keeps its room. */
+@media (max-width: 768px) {
+  .pp-tray { gap: var(--sp-2) var(--sp-3); padding: var(--sp-2) var(--sp-3); }
+  .pp-tray-stamp { margin-left: -22px; }
+  .pp-tray-stamp .pp-stamp, .pp-tray-stamp svg { width: 38px; height: 38px; }
+  .pp-tray-text { font-size: var(--fs-xs); flex: 1 1 160px; }
+}
+
+/* Foldable / small tablet: the card takes half the desk, the book steps back into the other half (fitStage). */
+@media (min-width: 600px) and (max-width: 900px) {
+  .pp-drawer { width: 52%; }
+}

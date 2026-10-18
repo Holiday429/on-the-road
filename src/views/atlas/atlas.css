@@ -212,8 +212,8 @@ button.atlas-next:hover { color: var(--accent-deep); }
 @media (max-width: 1100px) {
   .atlas-desk { --card-w: 300px; }
 }
-/* Phones and small tablets: header, globe and card stack; the page scrolls. */
-@media (max-width: 820px) {
+/* Phones: header, globe and card stack; the page scrolls. (An unfolded foldable keeps the desk: globe | card.) */
+@media (max-width: 599px) {
   .atlas-desk { min-height: 0; display: flex; flex-direction: column; padding-bottom: var(--sp-6); }
   .atlas-hud { position: static; padding: var(--sp-4) var(--sp-4) 0; }
   .atlas-stage { position: relative; inset: auto; padding: var(--sp-3) var(--sp-3) 0; }
@@ -224,4 +224,20 @@ button.atlas-next:hover { color: var(--accent-deep); }
   .atlas-ribbon { position: static; margin: var(--sp-3) var(--sp-4) 0; justify-content: flex-start; }
   .atlas-tools { flex-wrap: wrap; justify-content: flex-end; }
   .atlas-prop { display: none; }
+}
+
+/* Foldable / small tablet inside the bottom-nav shell (no sidebar; the nav takes the foot): globe on the left, the
+   card beside it, both inside the window's height. */
+@media (min-width: 600px) and (max-width: 1100px) {
+  .atlas-desk { --card-w: 250px; --sidebar-w: 0px; min-height: calc(100dvh - var(--topbar-h) - 70px - env(safe-area-inset-bottom)); }
+  .atlas-hud { left: var(--sp-4); right: var(--sp-4); top: var(--sp-3); }
+  .atlas-title { font-size: var(--fs-xl); }
+  .atlas-stats { font-size: var(--fs-xs); gap: 2px var(--sp-3); }
+  .atlas-line { font-size: var(--fs-xs); }
+  .atlas-stage { padding: 64px calc(var(--card-w) + var(--sp-4) * 2) var(--sp-4) var(--sp-4); }
+  .globe-rig { --rig-h: min(calc(100dvh - var(--topbar-h) - 70px - 90px), calc((100vw - var(--card-w) - 3 * var(--sp-4)) * 1.1667), 920px); }
+  .atlas-card { top: 64px; right: var(--sp-4); bottom: var(--sp-4); }
+  .atlas-stage .map-zoom-controls { right: calc(var(--card-w) + var(--sp-4) * 2); bottom: var(--sp-4); }
+  .atlas-ribbon { left: var(--sp-4); right: calc(var(--card-w) + var(--sp-4) * 2 + 56px); }
+  .atlas-timeline { left: var(--sp-4); right: calc(var(--card-w) + var(--sp-4) * 2); }
 }

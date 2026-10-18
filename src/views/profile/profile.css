@@ -115,3 +115,12 @@
   }
   .profile-world-go { margin-left: auto; color: var(--ink-faint); }
 }
+
+/* Foldable / small tablet (bottom-nav shell and the collapsed sidebar): two columns instead of four full-width
+   rows — who you are, your world and your preferences on the left; the account and the emergency card beside them. */
+@media (min-width: 600px) and (max-width: 1100px) {
+  .profile-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
+  .profile-body > .profile-section { margin-bottom: 0; padding: var(--sp-5); grid-column: 1; }
+  .profile-body > .profile-section:last-child { grid-column: 2; grid-row: 1 / span 3; }
+  .profile-emergency-empty { padding: var(--sp-5) var(--sp-3); }
+}
