@@ -8,9 +8,10 @@
 /* ── Map ─────────────────────────────────────────────────────────────────── */
 .jp-stage { position: relative; border: 1px solid var(--rule); border-radius: var(--r-xl); overflow: hidden; box-shadow: var(--shadow-sm); background: var(--surface-3); }
 .jp-map { position: relative; height: clamp(260px, 38vh, 420px); width: 100%; }
-/* The little traveller, the same figure the Route page walks. Its feet are on the point. */
+/* The little traveller, the same figure the Route page walks. Its feet stand just BESIDE the point (the
+   margin), not on it, so it does not sit on top of the place pin and hide it. */
 .jp-hero-img {
-  position: absolute; left: 0; top: 0; width: 44px; height: 44px; z-index: 3; pointer-events: none;
+  position: absolute; left: 0; top: 0; width: 36px; height: 36px; margin-left: 26px; z-index: 3; pointer-events: none;
   transform-origin: center bottom; transform: translate(-50%, -100%) scaleX(1);
   transition: transform var(--dur-mid) var(--ease-out), opacity .4s ease;
   filter: drop-shadow(0 5px 6px rgba(58, 29, 110, .28)); will-change: left, top;
@@ -27,7 +28,11 @@
 .jp-hud .jp-link { font-size: var(--fs-xs); }
 
 /* ── The line: countries strung in the order you reached them ────────────── */
-.jp-line { overflow-x: auto; padding: var(--sp-3) 0 var(--sp-2); scrollbar-width: thin; }
+/* The line scrolls sideways, which clips anything that grows past its box — and the picked country's
+   dot grows (scale 1.18) and wears a focus ring. So the box is wider than the content by `--bleed` on
+   each side, and pulled back by the same amount: the first country still sits on the page's left edge,
+   with room around it for its enlarged border. */
+.jp-line { --bleed: var(--sp-2); overflow-x: auto; margin-inline: calc(var(--bleed) * -1); padding: var(--sp-4) var(--bleed) var(--sp-2); scrollbar-width: thin; }
 .jp-track { position: relative; display: flex; gap: 0; margin: 0; padding: 0; list-style: none; min-width: min-content; }
 /* the string the countries hang on */
 .jp-track::before { content: ''; position: absolute; left: 26px; right: 26px; top: 26px; border-top: 2.5px dashed color-mix(in srgb, var(--ink) 22%, transparent); }

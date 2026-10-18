@@ -80,9 +80,12 @@ let building = 0;
  */
 export const PLACE_PIN_PATH = 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z';
 
-/** The chosen place's pin stands a little taller than the rest. */
+/**
+ * The chosen place's pin stands a little taller than the rest. Both are small: the pins mark
+ * spots, and the traveller stands beside them (see `.jp-hero-img`), so a big pin would crowd it.
+ */
 export function pinScale(selected: boolean): number {
-  return selected ? 1.9 : 1.45;
+  return selected ? 1.3 : 0.95;
 }
 
 function readModel(el: HTMLElement): PlacesMapModel {
