@@ -103,7 +103,8 @@ export function lineRects(el: HTMLElement): DOMRect[] {
   const range = document.createRange();
   range.selectNodeContents(el);
   const out: DOMRect[] = [];
-  for (const r of Array.from(range.getClientRects())) {
+  const boxes = typeof range.getClientRects === 'function' ? Array.from(range.getClientRects()) : [];
+  for (const r of boxes) {
     if (r.width < 1) continue;
     const prev = out[out.length - 1];
     if (prev && Math.abs(prev.top - r.top) < prev.height / 2) {
