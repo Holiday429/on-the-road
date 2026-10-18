@@ -108,8 +108,20 @@ button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
 }
 @container tdgrid (max-width: 560px) {
   .td-dial { border-right: 0; padding-right: 0; }
-  .td-hero-clocks { border-left: 0; padding-left: 0; margin-left: auto; }
   .td-dial-country { white-space: normal; }
+  /* Phone: weather | dial on the first line, then the two clocks beside the stay and the next ride —
+     one line fewer than clocks on a row of their own, and the clocks no longer sit alone on the right. */
+  .td-hero { padding: var(--sp-3) var(--sp-4); }
+  .td-hero-inner { gap: var(--sp-3) var(--sp-4); }
+  .td-hero-weather-sq { width: 68px; padding-right: var(--sp-3); }
+  .td-hero-weather-icon { font-size: 32px; }
+  .td-hero-clocks { order: 2; flex-shrink: 0; margin-left: 0; padding: 0; gap: var(--sp-1); border-left: 0; align-self: center; }
+  .td-clock { width: 58px; }
+  .td-clock svg { width: 44px; height: 44px; }
+  .td-clock-cap { font-size: 10px; gap: 2px; }
+  .td-clock-diff { font-size: 10px; }
+  .td-hero-info { order: 3; flex: 1 1 150px; }
+  .td-banner-row { font-size: var(--fs-xs); }
 }
 
 /* ── Drawer contents (stay / transport detail) ─────────────────────────── */

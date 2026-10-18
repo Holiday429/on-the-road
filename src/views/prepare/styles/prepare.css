@@ -97,7 +97,7 @@
 
 /* ── Panels ───────────────────────────────────────────────────────────────── */
 
-/* Checklist | Pack side by side; stacks below 900px. */
+/* Checklist | Pack side by side from 600px (an unfolded foldable keeps the web layout); a phone stacks them. */
 .prep-split {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -158,7 +158,8 @@
   .prep-hero { flex-wrap: wrap; row-gap: var(--sp-3); padding-block: var(--sp-3); }
   .prep-hero-alert { max-width: none; flex: 1 1 100%; }
 }
-@media (max-width: 900px) { .prep-split { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 599px) { .prep-split { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 600px) and (max-width: 900px) { .prep-split { gap: var(--sp-4); } }
 @media (max-width: 720px) {
   .prep-hero-dial { border-right: 0; padding-right: 0; }
   .prep-hero-copy { flex-basis: calc(100% - 80px); }

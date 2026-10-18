@@ -55,7 +55,7 @@
 
 /* Album drawer: the Journal page's compose / export bar and first-time hint aren't wanted here (the + is on the card) */
 .jr-album-drawer .journal-compose-bar, .jr-album-drawer .journal-first-guide { display: none; }
-@container tdgrid (max-width: 900px) { .jr-carousel { --jr-gap: 14px; padding-inline: 10px; } .jr-place { font-size: 17px; } .jr-sub { font-size: 13px; } .jr-row .td-plus--lg { width: 32px; height: 32px; font-size: 18px; } }
+@container tdgrid (max-width: 900px) { .jr-carousel { --jr-gap: 12px; padding-inline: 8px; } .jr-place { font-size: 15px; } .jr-sub { font-size: 12px; } .jr-row .td-plus--lg { width: 32px; height: 32px; font-size: 18px; } .jr-tile { padding: 5px 5px 0; } .jr-cap { height: 34px; } }
 
 /* Album drawer: just the albums — no hint line, no AI tidy, no tag groups */
 .jr-album-drawer .journal-album-hint, .jr-album-drawer [data-album-tidy], .jr-album-drawer .journal-tidy, .jr-album-drawer .journal-tidy-empty, .jr-album-drawer .journal-auto-groups, .jr-album-drawer .journal-section-kicker { display: none; }

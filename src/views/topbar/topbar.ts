@@ -115,13 +115,15 @@ function paintLive(): void {
 function paintAll(): void {
   const bar = host();
   if (!bar) return;
+  // The string carries its own "+"; the bar draws the plus itself so a phone can keep just that.
+  const newTripName = t('common.newTrip').replace(/^\+\s*/, '');
   // eslint-disable-next-line no-restricted-syntax -- audited: every interpolation goes through esc()
   bar.innerHTML = `
     <div class="tb-inner">
       <div class="tb-head" data-tb-title></div>
       <div class="tb-slot" data-tb-sim></div>
       <div class="tb-slot" data-tb-bell></div>
-      <button type="button" class="btn btn-ghost tb-new-trip" data-tb-new-trip>${esc(t('common.newTrip'))}</button>
+      <button type="button" class="btn btn-ghost tb-new-trip" data-tb-new-trip title="${esc(newTripName)}" aria-label="${esc(newTripName)}"><span class="tb-nt-plus" aria-hidden="true">+</span><span class="tb-nt-text">${esc(newTripName)}</span></button>
       <div class="tb-prefs" data-lang-mount></div>
     </div>`;
   bar.querySelector('[data-tb-new-trip]')?.addEventListener('click', () => openNewTrip());

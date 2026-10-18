@@ -85,6 +85,11 @@
 
 /* ── Soft keys: every category, one row ──────────────────────────────────── */
 .td-keys { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; padding: 1px; }
+/* Below the web width the seven keys would be too narrow to read: four to a row, the rest on a second. */
+@container tdgrid (max-width: 900px) {
+  .td-keys { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .td-key-label { font-size: 8px; }
+}
 .td-key {
   --tile: color-mix(in srgb, var(--kc, var(--scr-bg)) 62%, var(--scr-bg));
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0; height: 30px;

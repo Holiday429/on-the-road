@@ -89,5 +89,5 @@
 .ag-add:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 2px; }
 
 /* Narrow widget (phones / 3-col fallback): stack month above the day. */
-@container tdgrid (max-width: 680px) { .ag-body { grid-template-columns: minmax(0, 1fr); } }
+@container tdgrid (max-width: 519px) { .ag-body { grid-template-columns: minmax(0, 1fr); } }
 .ag-none { font-size: var(--fs-sm); color: var(--ink-faint); padding: var(--sp-3) 0; }

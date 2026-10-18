@@ -3,8 +3,8 @@
    Row 2: agenda(1-6) | to-do(7-9) | pack(10-12)
    Rows 3-4: map(1-6, spans both rows) | spend(7-12) over journal(7-12)
    Row 5: where to go(1-12, only when some city has recommendations)
-   Narrow (container < 900px): two columns — agenda · to-do + pack · map (own
-   row) · spend + journal (one row) · where to go.
+   Narrow (container < 900px): two columns — agenda · to-do | pack · map | spend over journal ·
+   where to go. Phone (container < 520px): one column.
    ─────────────────────────────────────────────────────────────────────────── */
 .td-grid {
   display: grid;
@@ -31,17 +31,19 @@
 
 .td-w-whereto  { grid-column: 1 / span 12; align-self: start; }
 
+/* Roomy (container < 900px: an unfolded foldable, a small tablet) keeps the web layout in two equal
+   columns — calendar across the top, to-do | pack, then the map beside spend over journal — so nothing
+   gets a row to itself that the web gives to a pair. Only a phone-width container goes to one column. */
 @container tdgrid (max-width: 900px) {
-  .td-grid { grid-template-columns: 1fr 1fr; grid-template-rows: none; }
+  .td-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto 1fr auto; }
   .td-w-agenda { grid-column: 1 / span 2; }
   .td-w-todo   { grid-column: 1; }
   .td-w-pack   { grid-column: 2; }
-  .td-w-map, .td-w-whereto { grid-column: 1 / span 2; grid-row: auto; }
-  /* spend and journal share one row */
-  .td-w-spend   { grid-column: 1; grid-row: auto; }
-  .td-w-journal { grid-column: 2; grid-row: auto; }
+  .td-w-map    { grid-column: 1; grid-row: span 2; }
+  .td-w-spend, .td-w-journal { grid-column: 2; grid-row: auto; }
+  .td-w-whereto { grid-column: 1 / span 2; grid-row: auto; }
 }
-@container tdgrid (max-width: 420px) {
+@container tdgrid (max-width: 519px) {
   .td-grid { grid-template-columns: 1fr; grid-template-rows: none; }
   .td-w-agenda, .td-w-todo, .td-w-pack, .td-w-map, .td-w-spend, .td-w-journal,
   .td-w-whereto { grid-column: 1; grid-row: auto; }

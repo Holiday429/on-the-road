@@ -5,7 +5,7 @@
    (clipboard = 4 lines, floor = 3 bags + a tag). Markup: prepare-scenes.ts.
    ========================================================================== */
 
-.prep-scene-host { display: flex; flex-direction: column; }
+.prep-scene-host { display: flex; flex-direction: column; container: prep-rail / inline-size; }
 
 /* ── Scene frame (same size in both panels, whatever they hold) ──────────── */
 .prep-scene { position: relative; height: clamp(360px, 50vh, 440px); box-sizing: border-box; border: 1px solid var(--rule); border-radius: var(--r-xl); overflow: hidden; }
@@ -100,8 +100,8 @@
 .prep-scale-obj.is-idle { cursor: default; }
 .prep-scale-obj.is-idle:hover { transform: none; }
 .prep-scale-art { display: block; }
-@media (max-width: 560px) {
-  /* On a phone the frame is narrower than three bags at their natural size:
+@container prep-rail (max-width: 480px) {
+  /* A panel narrower than three bags at their natural size (a phone, or half a foldable):
      let them shrink together rather than pushing the panel off-screen. */
   .prep-scene { height: clamp(300px, 46vh, 380px); }
   .prep-floor { gap: var(--sp-2); padding: var(--sp-4) var(--sp-3) var(--sp-3); }

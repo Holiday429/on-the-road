@@ -39,6 +39,9 @@
 .tb-title.is-home-link::after { content: '›'; margin-left: 2px; color: var(--ink-faint); font-weight: var(--fw-medium); }
 .tb-slot { display: contents; }
 .tb-new-trip { flex-shrink: 0; font-size: var(--fs-sm); font-weight: var(--fw-medium); white-space: nowrap; }
+.tb-new-trip { gap: 0; }
+.tb-nt-plus { margin-right: 4px; }
+@media (max-width: 480px) { .tb-nt-plus { margin-right: 0; } }
 .tb-prefs { display: flex; align-items: center; gap: var(--sp-2); }
 
 /* My world: passport · atlas · wrap */
@@ -65,7 +68,22 @@
 .view > .view-header:not(:has(> :not(.view-title):not(.view-subtitle))) { padding: 0; margin-bottom: var(--sp-2); }
 #view-today .td-greeting-row { display: none; }
 
+/* Phones and foldables in the bottom-nav shell: the controls that already live on the Settings page
+   (theme, language) keep only their icon, so the whole bar fits one row and the page starts higher. */
+@media (max-width: 768px) {
+  .tb-prefs .lang-picker-label { display: none; }
+  .tb-prefs .lang-picker-btn { padding-inline: var(--sp-3); }
+  .tb-prefs { gap: var(--sp-1); }
+}
 @media (max-width: 560px) {
   .tb-new-trip { padding-inline: var(--sp-3); }
   .tb-title, .tb-greeting { font-size: var(--fs-lg); }
+}
+/* Narrow phones: "New trip" shrinks to its plus, and when the title takes the first line the controls
+   sit together at the right of the second. */
+@media (max-width: 480px) {
+  .tb-slot[data-tb-sim] > :first-child { margin-left: auto; }
+  .tb-inner { gap: var(--sp-1) var(--sp-1); }
+  .tb-nt-text { display: none; }
+  .tb-new-trip { width: 40px; height: 40px; padding: 0; border-radius: 50%; justify-content: center; font-size: var(--fs-xl); font-weight: var(--fw-regular); line-height: 1; }
 }

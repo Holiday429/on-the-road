@@ -89,6 +89,12 @@
   .cal-page { height: auto; }
   .cal-cell { min-height: 62px; }
 }
+/* Roomy but not desktop (an unfolded foldable, a small tablet): the calendar still takes the width, but the
+   day sheet and the note sit side by side under it instead of one under the other. */
+@media (min-width: 600px) and (max-width: 980px) {
+  .cal-desk { flex-direction: row; align-items: stretch; gap: var(--sp-4); }
+  .cal-desk > .cal-slot, .cal-desk > .cal-note { flex: 1 1 0; min-width: 0; }
+}
 
 /* ── The wall calendar: cap, rings, stacked sheets ────────────────────────── */
 .cal-book { position: relative; isolation: isolate; margin-top: 2px; }

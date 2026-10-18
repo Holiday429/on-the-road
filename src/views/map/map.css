@@ -532,11 +532,11 @@
    PWA screens (unfolded foldables / tablets in the mobile shell) match the
    website's two-column layout instead of stacking. The map stays dominant and
    the itinerary list shows in full beside it. */
-@media (max-width: 760px) and (min-width: 681px) {
+@media (max-width: 760px) and (min-width: 600px) {
   .map-layout { grid-template-columns: minmax(0, 1fr) 200px; gap: var(--sp-3); }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 599px) {
   .map-layout { grid-template-columns: 1fr; }
   .map-panel { contain: none; }
   .map-legs { flex: none; overflow: visible; }
@@ -585,10 +585,10 @@
 .map-portal:focus-visible { outline: 2px solid var(--select-bg); outline-offset: 4px; }
 
 /* Stops folded away: the map column takes the whole width. */
-@media (min-width: 681px) {
+@media (min-width: 600px) {
   .map-layout.panel-collapsed { grid-template-columns: minmax(0, 1fr); }
   .map-layout.panel-collapsed .map-panel { display: none; }
 }
-@media (max-width: 680px) {
+@media (max-width: 599px) {
   #mapPanelToggle { display: none; }
 }

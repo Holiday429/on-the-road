@@ -288,6 +288,11 @@
   .rb-arr, .rb-c-arr { display: none; }
   .rb-gate { --gate-stub: 92px; }
 }
+/* In between (an unfolded foldable): the passport stamps give up their column so the stay keeps its width. */
+@container rb (min-width: 541px) and (max-width: 760px) {
+  .rb { --rb-cols: 14px minmax(170px, 1.3fr) 94px minmax(0, 1fr) 34px 104px; }
+  .rb-stamps { display: none; }
+}
 @container rb (max-width: 540px) {
   .rb { --rb-cols: 12px minmax(0, 1fr) 88px; padding: 0 8px 8px; }
   .rb-date, .rb-stay, .rb-n, .rb-c-stay, .rb-c-n, .rb-miss, .rb-stamps { display: none; }

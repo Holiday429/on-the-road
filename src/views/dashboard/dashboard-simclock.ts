@@ -71,9 +71,9 @@ function simCalendar(monthKey: string, picked: string): string {
   const [y, m] = monthKey.split('-').map(Number);
   const first = new Date(y, m - 1, 1);
   const days = new Date(y, m, 0).getDate();
-  const offset = (first.getDay() + 6) % 7;
+  const offset = first.getDay();   // Sunday-first, as the Agenda page
   const today = nowDateValue();
-  const hdr = ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<span class="ag-dow">${d}</span>`).join('');
+  const hdr = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => `<span class="ag-dow">${d}</span>`).join('');
   let cells = '<span class="ag-cell ag-empty"></span>'.repeat(offset);
   for (let d = 1; d <= days; d++) {
     const cur = `${monthKey}-${String(d).padStart(2, '0')}`;
