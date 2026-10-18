@@ -326,21 +326,30 @@ describe('pages of pictures with no words left', () => {
  */
 describe('a page reads left column then right, top to bottom', () => {
   const COL = BODY_W / 2;
-
-  /** Two frames are in the same column when they overlap horizontally by more than half a column. */
-  const sameColumn = (a: { x: number; w: number }, b: { x: number; w: number }) =>
-    Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > COL / 2;
+  /** A frame that spans the page rather than sitting in one of its columns. */
+  const isFullWidth = (f: { w: number }) => f.w > COL * 1.5;
+  /** The column a frame sits in: its own, or 'all' when it spans the page. */
+  const columnOf = (f: { x: number; w: number }) => (isFullWidth(f) ? 'all' : f.x < COL / 2 ? 'left' : 'right');
 
   const readsInOrder = (pages: ReturnType<typeof paginateArticle>) => {
     for (const page of pages) {
       for (let i = 1; i < page.frames.length; i++) {
         const prev = page.frames[i - 1];
         const next = page.frames[i];
-        // Down the same column, or on to a column further right. Nothing else.
-        if (sameColumn(prev, next)) {
+        const from = columnOf(prev);
+        const to = columnOf(next);
+        // A frame across the page begins again at its left edge, so the words
+        // in a right-hand column before it are read, then jumped back over.
+        if (from === 'right' && to === 'all') {
+          return `${page.template}: frame ${i} spans the page after one in the right column — the eye jumps back left`;
+        }
+        if (from === 'all' && to === 'right') {
+          return `${page.template}: frame ${i} is in the right column after one spanning the page`;
+        }
+        if (from === to) {
           if (next.y < prev.y) return `${page.template}: frame ${i} sits above the one before it in the same column`;
-        } else if (next.x < prev.x) {
-          return `${page.template}: frame ${i} is in a column left of the one before it`;
+        } else if (from === 'right' && to === 'left') {
+          return `${page.template}: frame ${i} is in the left column after one in the right`;
         }
       }
     }
