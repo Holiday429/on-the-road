@@ -81,16 +81,19 @@ export function syncProgress(shell: ParentNode): void {
   const total = cards.length;
   const open = openCount(cards);
 
-  shell.querySelectorAll<HTMLElement>('.recap-dot').forEach((dot, i) => {
+  // The dots, label and Turn all live in the top bar, beside the title — outside the deck's own shell.
+  const bar: ParentNode = (shell as Element).closest?.('.journal-mode-shell') ?? shell;
+
+  bar.querySelectorAll<HTMLElement>('.recap-dot').forEach((dot, i) => {
     const card = cards[i];
     const on = card ? indexOf(card) === 0 || card.classList.contains('is-flipped') : false;
     dot.classList.toggle('is-on', on);
   });
 
-  const label = shell.querySelector<HTMLElement>('[data-recap-progress-label]');
+  const label = bar.querySelector<HTMLElement>('[data-recap-progress-label]');
   if (label) label.textContent = t('recap.progress', { n: open, total });
 
-  const all = shell.querySelector<HTMLElement>('[data-recap-flip-all]');
+  const all = bar.querySelector<HTMLElement>('[data-recap-flip-all]');
   if (all) {
     const turnable = cards.filter((c) => indexOf(c) > 0);
     const done = turnable.length > 0 && turnable.every((c) => c.classList.contains('is-flipped'));

@@ -117,7 +117,6 @@ export function renderRecap(input: RecapRenderInput): string {
   const cards = buildDeck(recap);
   return shell(`
     ${ui.error ? `<p class="recap-error">${escHtml(ui.error)}</p>` : ''}
-    ${headerHtml(cards, ui)}
     <div class="recap-deck" data-recap-deck>
       ${cards.map((card, i) => cardHtml(card, i, cards.length, ui)).join('')}
     </div>
@@ -415,31 +414,31 @@ function markSvg(key: string): string {
 
 /* ── Chrome ───────────────────────────────────────────────────────────────── */
 
-function headerHtml(cards: Card[], ui: RecapUiState): string {
+/**
+ * The portrait's controls — progress dots, Public / Private, Turn all — as one group. They live in the Journal's top bar,
+ * on the row of the "Portrait" title, so the deck gets the whole page under it (index.ts places them).
+ */
+export function recapActionsHtml(recap: StoredTravelerRecap | null, ui: RecapUiState): string {
+  if (!recap || ui.generating) return '';
+  const cards = buildDeck(recap);
   const total = cards.length;
   const open = cards.reduce((n, _card, i) => (i === 0 || ui.flipped.has(i) ? n + 1 : n), 0);
   const turnable = cards.map((_card, i) => i).filter((i) => i > 0);
   const done = turnable.length > 0 && turnable.every((i) => ui.flipped.has(i));
 
   return `
-    <div class="recap-header">
-      <div class="recap-header-text">
-        <h2 class="recap-title">${escHtml(t('recap.title'))}</h2>
-        <p class="recap-sub">${escHtml(ui.publicMode ? t('recap.sub.public') : t('recap.sub.private'))}</p>
-      </div>
-      <div class="recap-header-actions">
-        <div class="recap-progress">
-          <div class="recap-dots">
-            ${cards.map((_card, i) => `<i class="recap-dot${i === 0 || ui.flipped.has(i) ? ' is-on' : ''}"></i>`).join('')}
-          </div>
-          <span class="recap-progress-label" data-recap-progress-label>${escHtml(t('recap.progress', { n: open, total }))}</span>
+    <div class="recap-header-actions">
+      <div class="recap-progress">
+        <div class="recap-dots">
+          ${cards.map((_card, i) => `<i class="recap-dot${i === 0 || ui.flipped.has(i) ? ' is-on' : ''}"></i>`).join('')}
         </div>
-        <div class="recap-segment" role="group">
-          <button class="${ui.publicMode ? 'is-on' : ''}" data-recap-view="public" type="button">${escHtml(t('recap.view.public'))}</button>
-          <button class="${ui.publicMode ? '' : 'is-on'}" data-recap-view="private" type="button">${escHtml(t('recap.view.private'))}</button>
-        </div>
-        <button class="btn btn-ghost" data-recap-flip-all type="button">${escHtml(done ? t('recap.reset') : t('recap.turnAll'))}</button>
+        <span class="recap-progress-label" data-recap-progress-label>${escHtml(t('recap.progress', { n: open, total }))}</span>
       </div>
+      <div class="recap-segment" role="group">
+        <button class="${ui.publicMode ? 'is-on' : ''}" data-recap-view="public" type="button">${escHtml(t('recap.view.public'))}</button>
+        <button class="${ui.publicMode ? '' : 'is-on'}" data-recap-view="private" type="button">${escHtml(t('recap.view.private'))}</button>
+      </div>
+      <button class="btn btn-ghost" data-recap-flip-all type="button">${escHtml(done ? t('recap.reset') : t('recap.turnAll'))}</button>
     </div>
   `;
 }

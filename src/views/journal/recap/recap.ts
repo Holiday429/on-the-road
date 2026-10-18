@@ -12,7 +12,7 @@ import { handleAiError } from '../../../core/paywall.ts';
 import { t } from '../../../core/i18n.ts';
 import { generateRecap, isRecapStale, MIN_ENTRIES_FOR_PORTRAIT } from './generator.ts';
 import { flipAll, toggleCard } from './interact.ts';
-import { renderRecap } from './render.ts';
+import { renderRecap, recapActionsHtml } from './render.ts';
 import { initialRecapUi, type RecapUiState } from './types.ts';
 import { ensureCardFonts } from '../card/card-fonts.ts';
 import { drawCardBack, CARD_H, CARD_W } from './export/draw.ts';
@@ -52,16 +52,24 @@ export function createRecapController(deps: RecapControllerDeps) {
     });
   }
 
+  /** Public / Private, progress and Turn all — drawn in the Journal's top bar, on the row of the title. */
+  function actionsHtml(): string {
+    const recaps = sorted();
+    return recapActionsHtml(active(recaps), ui);
+  }
+
   function bind(root: HTMLElement) {
     const shell = root.querySelector<HTMLElement>('.journal-recap-shell');
     if (!shell || bound.has(shell)) return;
     bound.add(shell);
+    // The controls sit in the top bar, outside the shell: they share its click handler.
+    const bar = root.querySelector<HTMLElement>('.journal-topbar');
 
     // Press-and-hold saves one card (phones). The gesture also ends in a click,
     // which must not turn the card over as well.
     const press = bindLongPress(shell, (card) => { void saveCard(Number(card.dataset.recapCard)); });
 
-    shell.addEventListener('click', (event) => {
+    const onClick = (event: Event) => {
       if (press.consumeClick()) return;
       const target = event.target as HTMLElement;
 
@@ -79,7 +87,9 @@ export function createRecapController(deps: RecapControllerDeps) {
       // Flip last: an evidence chip or button inside a card must not also turn it.
       const card = target.closest<HTMLElement>('[data-recap-card]');
       if (card) toggleCard(shell, ui, Number(card.dataset.recapCard));
-    });
+    };
+    shell.addEventListener('click', onClick);
+    if (bar && !bound.has(bar)) { bound.add(bar); bar.addEventListener('click', onClick); }
 
     // Keyboard parity for the cards, which are div[role=button].
     shell.addEventListener('keydown', (event) => {
@@ -99,7 +109,7 @@ export function createRecapController(deps: RecapControllerDeps) {
     }
   }
 
-  return { render, bind, handleDataChange };
+  return { render, actionsHtml, bind, handleDataChange };
 
   /* ── Interaction ───────────────────────────────────────────────────────── */
 

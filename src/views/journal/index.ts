@@ -160,6 +160,7 @@ function renderJournal() {
       ${mode === 'capture' ? renderToolbar() : `
         <div class="journal-topbar">
           <span class="journal-topbar-title is-story">${mode === 'recap' ? `🃏 ${esc(t('journal.mode.portrait'))}` : `📖 ${esc(t('journal.mode.story'))}`}</span>
+          ${mode === 'recap' ? recap.actionsHtml() : ''}
           <button class="btn journal-story-btn btn-ghost" data-journal-mode="capture" type="button">← ${esc(t('journal.mode.entries'))}</button>
         </div>
       `}

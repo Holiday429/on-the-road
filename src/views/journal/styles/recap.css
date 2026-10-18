@@ -690,7 +690,12 @@
    is what the format is for. Padding centres a card and leaves the next one's
    edge showing as the cue that there is more. */
 
-@media (max-width: 860px) and (min-width: 521px) {
+/* A foldable keeps three cards a row (smaller gaps, the dealt-hand offset eased); only a phone-width page goes to two. */
+@media (max-width: 860px) and (min-width: 600px) {
+  .recap-deck { gap: 20px 14px; }
+  .recap-deck > .recap-card:nth-child(3n + 2) { transform: translateY(14px); }
+}
+@media (max-width: 599px) and (min-width: 521px) {
   .recap-deck { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .recap-deck > .recap-card:nth-child(3n + 2) { transform: none; }
 }
@@ -812,3 +817,12 @@
 }
 .recap-pick-flag i { flex: none; width: 8px; height: 8px; border-radius: var(--r-full); background: var(--accent-deep); }
 .recap-confirm-text { margin: 0; font-size: var(--fs-base); line-height: 1.65; color: var(--ink); }
+
+/* The controls in the top bar, beside the "Portrait" title: one row, the title first, ← Entries last. */
+.journal-topbar .recap-header-actions { margin-left: auto; margin-right: var(--sp-2); gap: var(--sp-3); flex-wrap: nowrap; min-width: 0; }
+@media (max-width: 768px) {
+  .journal-topbar .recap-progress-label { display: none; }
+  .journal-topbar .recap-header-actions { gap: var(--sp-2); }
+  .journal-topbar .recap-dots { display: none; }
+  .journal-topbar .recap-segment button { padding-inline: 10px; }
+}
