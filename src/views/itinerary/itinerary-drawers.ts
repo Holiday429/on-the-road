@@ -64,5 +64,7 @@ export function openCityMapDrawer(leg: Leg): void {
     stage = el;
     home = { parent: el.parentNode!, next: el.nextSibling };
     slot.appendChild(el);
+    // Once the chart is up, the traveller walks to this stop and its country lights.
+    void import('../map/map.ts').then((r) => r.focusRouteLeg(leg.id));
   });
 }
