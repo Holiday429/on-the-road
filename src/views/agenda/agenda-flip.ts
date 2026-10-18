@@ -27,17 +27,25 @@ export function finishFlip(): void { _active?.finish(); }
  * copy of the page that arrives. Calls `commit` once it has landed — or at
  * once when there is nothing to animate with.
  */
-export function turnPage(host: HTMLElement, live: HTMLElement, target: HTMLElement, dir: HingeDir, commit: () => void): void {
+export function turnPage(host: HTMLElement, live: HTMLElement, target: HTMLElement, dir: HingeDir, commit: () => void, feel: TurnFeel = {}): void {
   finishFlip();
   const flip = dir === 1
-    ? beginHingeFlip(host, { dir, sheet: pageCopy(live), under: target })
-    : beginHingeFlip(host, { dir, sheet: target, under: pageCopy(live) });
+    ? beginHingeFlip(host, { dir, sheet: pageCopy(live), under: target, curl: feel.curl })
+    : beginHingeFlip(host, { dir, sheet: target, under: pageCopy(live), curl: feel.curl });
   if (!flip) { commit(); return; }
-  hold(host, live, flip, commit, 1);
+  hold(host, live, flip, commit, 1, feel.ms);
+}
+
+/** How a sheet moves: a wall-calendar month is stiff card and takes its time; a day's tear-off sheet is thin and quick. */
+export interface TurnFeel {
+  /** How far the free edge leads the hinge when most bent, degrees. */
+  curl?: number;
+  /** Time a whole turn takes, ms. */
+  ms?: number;
 }
 
 /** Keep the live page out of the way while the sheet moves, and finish the turn when it has landed. */
-function hold(host: HTMLElement, live: HTMLElement, flip: HingeFlip, commit: () => void, settleTo: 0 | 1): void {
+function hold(host: HTMLElement, live: HTMLElement, flip: HingeFlip, commit: () => void, settleTo: 0 | 1, ms?: number): void {
   live.style.visibility = 'hidden';
   // The page that arrives may be taller than the one that leaves (a day with more on it).
   const under = host.querySelector<HTMLElement>('.hf-under > *');
@@ -54,7 +62,7 @@ function hold(host: HTMLElement, live: HTMLElement, flip: HingeFlip, commit: () 
     _idle();
   };
   _active = { finish };
-  void flip.settle(settleTo).then(finish);
+  void flip.settle(settleTo, ms).then(finish);
 }
 
 export interface DragHooks {

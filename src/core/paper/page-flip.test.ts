@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it } from 'vitest';
-import { LIFT_DEG, beginHingeFlip, commitsTurn, dragProgress, liftAngle, liftOpacity, liftShade, pageCopy } from './page-flip.ts';
+import { CURL_DEG, LIFT_DEG, SLICES, absoluteAngles, beginHingeFlip, bendAngle, commitsTurn, dragProgress, liftAngle, liftShade, pageCopy, sliceAngles, sliceGloss, sliceShade } from './page-flip.ts';
 
 describe('liftAngle', () => {
   it('lifts the leaving sheet 0 → LIFT_DEG going forward', () => {
@@ -20,12 +20,40 @@ describe('liftAngle', () => {
   });
 });
 
-describe('liftOpacity', () => {
-  it('is solid while the sheet is low and gone by the time it leaves', () => {
-    expect(liftOpacity(0)).toBe(1);
-    expect(liftOpacity(50)).toBe(1);
-    expect(liftOpacity(80)).toBeLessThan(1);
-    expect(liftOpacity(LIFT_DEG)).toBe(0);
+describe('bendAngle / sliceAngles', () => {
+  it('is flat at rest and at the end, most bent in the middle', () => {
+    expect(bendAngle(0)).toBeCloseTo(0);
+    expect(bendAngle(1)).toBeCloseTo(0);
+    expect(bendAngle(0.5)).toBeCloseTo(CURL_DEG);
+    expect(bendAngle(0.2)).toBeLessThan(bendAngle(0.5));
+  });
+  it('gives each slice a turn, the first carrying the whole lift', () => {
+    const rel = sliceAngles(1, 1);
+    expect(rel).toHaveLength(SLICES);
+    expect(rel[0]).toBeCloseTo(LIFT_DEG);
+    expect(rel.slice(1).every((a) => Math.abs(a) < 1e-6)).toBe(true);
+  });
+  it('shares the bend so that the free edge ends CURL_DEG ahead of the hinge edge, and the curve steepens toward it', () => {
+    const rel = sliceAngles(0.5, 1);
+    const abs = absoluteAngles(rel);
+    expect(abs[abs.length - 1] - liftAngle(0.5, 1)).toBeCloseTo(CURL_DEG);
+    expect(rel[SLICES - 1]).toBeGreaterThan(rel[1]);
+  });
+  it('a sheet coming down starts lifted and lands flat', () => {
+    expect(absoluteAngles(sliceAngles(0, -1))[0]).toBeCloseTo(LIFT_DEG);
+    expect(absoluteAngles(sliceAngles(1, -1)).every((a) => Math.abs(a) < 1e-6)).toBe(true);
+  });
+});
+
+describe('sliceShade / sliceGloss', () => {
+  it('is nothing facing you and darkest edge-on', () => {
+    expect(sliceShade(0)).toBe(0);
+    expect(sliceShade(90)).toBeGreaterThan(sliceShade(40));
+    expect(sliceShade(160)).toBe(sliceShade(90));
+  });
+  it('catches the light only in a band of angles', () => {
+    expect(sliceGloss(38)).toBeGreaterThan(sliceGloss(0));
+    expect(sliceGloss(38)).toBeGreaterThan(sliceGloss(90));
   });
 });
 
@@ -59,14 +87,19 @@ describe('beginHingeFlip', () => {
     expect(beginHingeFlip(host, { dir: 1, sheet: mk('a') })).toBeNull();
   });
 
-  it('lays the sheet and the page under it over the host, and takes them away again', () => {
+  it('cuts the sheet into slices hung one from the next, with the page under it', () => {
     const host = document.createElement('div');
     host.animate = (() => ({})) as never;
     const flip = beginHingeFlip(host, { dir: 1, sheet: mk('old'), under: mk('new') })!;
     expect(host.querySelector('.hf.is-forward .hf-sheet .is-front .old')).toBeTruthy();
     expect(host.querySelector('.hf-under .new')).toBeTruthy();
+    expect(host.querySelectorAll('.hf-slice')).toHaveLength(SLICES);
+    expect(host.querySelectorAll('.hf-page')).toHaveLength(SLICES);
+    // each slice sits inside the one above it (that is what bends the sheet)
+    expect(host.querySelector('.hf-sheet > .hf-slice > .hf-slice')).toBeTruthy();
     flip.set(0.5);
-    expect(host.querySelector<HTMLElement>('.hf-sheet')!.style.transform).toBe(`rotateX(${LIFT_DEG / 2}deg)`);
+    const rel = sliceAngles(0.5, 1);
+    expect(host.querySelector<HTMLElement>('.hf-sheet')!.style.transform).toBe(`rotateX(${rel[0].toFixed(2)}deg)`);
     flip.destroy();
     expect(host.querySelector('.hf')).toBeNull();
   });
@@ -76,9 +109,9 @@ describe('beginHingeFlip', () => {
     host.animate = (() => ({})) as never;
     const flip = beginHingeFlip(host, { dir: -1, sheet: mk('arriving'), under: mk('leaving') })!;
     const sheet = host.querySelector<HTMLElement>('.hf-sheet')!;
-    expect(sheet.style.transform).toBe(`rotateX(${LIFT_DEG}deg)`);
+    expect(sheet.style.transform).toBe(`rotateX(${LIFT_DEG.toFixed(2)}deg)`);
     flip.set(1);
-    expect(sheet.style.transform).toBe('rotateX(0deg)');
+    expect(sheet.style.transform).toBe('rotateX(0.00deg)');
     flip.destroy();
   });
 });

@@ -33,6 +33,7 @@ import { t, getLocale } from '../../core/i18n.ts';
 import { renderFastener } from '../../core/paper/fastener.ts';
 import { emptyDraft, renderTodoAddRow, wireTodoAddRow } from '../todo/todo-add.ts';
 import { attachPageDrag, finishFlip, isFlipping, onFlipIdle, turnPage } from './agenda-flip.ts';
+import { monthArt, seasonOf } from './agenda-art.ts';
 import { openModal } from '../../core/modal.ts';
 import { scheduleAllNotifications, clearAllNotificationTimers } from '../../core/notifications.ts';
 import { entryCover, excerpt, moodEmoji, titleFor } from '../journal/shared/utils.ts';
@@ -94,6 +95,10 @@ function select(iso: string): void {
 
 const LEGEND: AgendaKind[] = ['transport', 'stay', 'plan', 'journal', 'spend', 'todo'];
 
+/** A line drawing for a day with nothing in it: the sun just up over the horizon. */
+const EMPTY_ART = `<svg class="cal-empty-art" viewBox="0 0 72 44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+  <path d="M6 36h60M16 36a20 20 0 0 1 40 0"/><path d="M36 8v6M17 15l4 4M55 15l-4 4M8 28l5 1.5M64 28l-5 1.5"/><path d="M22 41h28" stroke-dasharray="1 4"/></svg>`;
+
 /* ── Month page ──────────────────────────────────────────────────────────── */
 const RING_COUNT = 14;
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];   // Sunday-first, as Date.getDay() numbers
@@ -126,9 +131,13 @@ function renderMonthPage(year: number, month: number, kinds: Map<string, Set<Age
     const dots = set
       ? LEGEND.filter((k) => set.has(k)).map((k) => `<i style="background:${AGENDA_COLORS[k]}"></i>`).join('')
       : '';
-    const leg = _legs.find((l) => l.dateFrom <= iso && iso <= l.dateTo);
-    const cls = ['cal-cell', weekend.trim(), iso === today ? 'is-today' : '', iso === _selected ? 'is-sel' : '', leg ? 'in-leg' : ''].filter(Boolean).join(' ');
-    // A new city starts today: its flag sits by the date.
+    const legIdx = _legs.findIndex((l) => l.dateFrom <= iso && iso <= l.dateTo);
+    const leg = legIdx >= 0 ? _legs[legIdx] : undefined;
+    const cls = ['cal-cell', weekend.trim(), iso === today ? 'is-today' : '', iso === _selected ? 'is-sel' : '', leg ? 'in-leg' : '',
+      leg && leg.dateFrom === iso ? 'leg-start' : '', leg && leg.dateTo === iso ? 'leg-end' : ''].filter(Boolean).join(' ');
+    // The days of a stay are gone over with a highlighter, one colour per city.
+    const hl = leg ? ` style="--leg-c:var(--hl-${legIdx % 5})"` : '';
+    // A new city starts today: its flag is stuck by the date.
     const arriving = _legs.find((l) => l.dateFrom === iso);
     const city = arriving ? `<span class="cal-city" aria-hidden="true">${esc(arriving.flag || '📍')}</span>` : '';
     // The day's headline, written into the cell the way you'd pencil it in — so
@@ -137,14 +146,14 @@ function renderMonthPage(year: number, month: number, kinds: Map<string, Set<Age
     const note = b?.label
       ? `<span class="cal-cell-note" style="--ag-c:${AGENDA_COLORS[b.kind]}">
            ${b.icon ? `<span class="cal-cell-note-ic" aria-hidden="true">${esc(b.icon)}</span>` : ''}
-           <span class="cal-cell-note-tx">${esc(b.label)}</span>
+           <span class="cal-cell-note-tx"><span>${esc(b.label)}</span></span>
          </span>`
       : '';
     const more = b && b.more > 0 ? `<span class="cal-more">+${b.more}</span>` : '';
     // The full day is read out for screen readers; sighted users get the line above.
     const label = [String(d), b?.label, b && b.more > 0 ? `+${b.more}` : ''].filter(Boolean).join(' · ');
     cells += `
-      <button type="button" class="${cls}" data-day="${iso}" aria-label="${esc(label)}">
+      <button type="button" class="${cls}" data-day="${iso}"${hl} aria-label="${esc(label)}">
         <span class="cal-cell-top"><span class="cal-daynum">${d}</span>${city}${more}</span>
         ${note}
         <span class="cal-dots">${dots}</span>
@@ -152,7 +161,8 @@ function renderMonthPage(year: number, month: number, kinds: Map<string, Set<Age
   }
 
   return `
-    <div class="cal-page" data-ym="${year}-${pad(month + 1)}">
+    <div class="cal-page" data-ym="${year}-${pad(month + 1)}" data-season="${seasonOf(month)}">
+      <div class="cal-art" aria-hidden="true">${monthArt(month)}</div>
       <div class="cal-nav">
         <div class="cal-title">
           <h2 class="cal-month-title">${esc(monthName)}</h2>
@@ -169,6 +179,7 @@ function renderMonthPage(year: number, month: number, kinds: Map<string, Set<Age
         <div class="cal-legend">${LEGEND.map((k) => `<span><i style="background:${AGENDA_COLORS[k]}"></i>${esc(t(`cal.kind.${k}`))}</span>`).join('')}</div>
         ${renderStats(year, month)}
       </div>
+      <button type="button" class="cal-curl" data-dir="1" aria-label="Next month"><i></i></button>
     </div>`;
 }
 
@@ -230,12 +241,13 @@ function renderItem(it: AgendaItem): string {
   return `
     <div class="cal-item${it.done ? ' is-done' : ''}" style="--ag-c:${AGENDA_COLORS[it.kind]}">
       <div class="cal-item-row"${nav}>
+        <span class="cal-item-time${it.time ? '' : ' is-none'}">${it.time ? esc(it.time) : ''}</span>
+        <span class="cal-item-dot" aria-hidden="true"></span>
         <span class="cal-item-icon">${it.icon}</span>
         <span class="cal-item-copy">
           <span class="cal-item-title">${esc(it.title)}</span>
           ${it.subtitle ? `<span class="cal-item-sub">${esc(it.subtitle)}</span>` : ''}
         </span>
-        ${it.time ? `<span class="cal-item-time">${esc(it.time)}</span>` : ''}
         ${check}${chevron}
       </div>
       ${open ? expandedBody(it) : ''}
@@ -268,7 +280,8 @@ function renderDayPanel(): string {
   const loc = getLocale();
   const fullDate = d.toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const weekday = d.toLocaleDateString(loc, { weekday: 'long' });
-  const monthYear = d.toLocaleDateString(loc, { month: 'long', year: 'numeric' });
+  const monthName = d.toLocaleDateString(loc, { month: 'long' });
+  const dow = d.getDay();
   const where = day.leg
     ? `${esc(day.leg.flag)} ${esc(day.leg.city)}${day.dayInLeg ? ` · ${esc(t('dash.agenda.dayOf', { n: day.dayInLeg.n, total: day.dayInLeg.total }))}` : ''}`
     : '';
@@ -281,7 +294,7 @@ function renderDayPanel(): string {
     const title = e.title.trim() ? titleFor(e) : excerpt(e.body, 40) || titleFor(e);
     return `
       <div class="cal-journal-card" data-nav="journal">
-        <span class="cal-jthumb">${cover ? `<img src="${esc(cover)}" alt="" loading="lazy">` : esc(moodEmoji(e.mood) || '📖')}</span>
+        <span class="cal-jthumb"><i class="cal-jtape" aria-hidden="true"></i>${cover ? `<img src="${esc(cover)}" alt="" loading="lazy">` : esc(moodEmoji(e.mood) || '📖')}</span>
         <span class="cal-item-copy">
           <span class="cal-item-title">${esc(title)}</span>
           ${e.destination ? `<span class="cal-item-sub">${esc(e.destination)}</span>` : ''}
@@ -291,15 +304,16 @@ function renderDayPanel(): string {
   }).join('');
 
   const empty = !rows.length && !journal
-    ? `<div class="cal-empty-day">${esc(t('dash.agenda.empty'))}</div>` : '';
+    ? `<div class="cal-empty-day">${EMPTY_ART}<span>${esc(t('dash.agenda.empty'))}</span></div>` : '';
 
   // A tear-off sheet: the month on the red header, the day in big print, then the day's lines.
   return `
-    <aside class="cal-panel" id="cal-panel" aria-label="${esc(fullDate)}">
+    <aside class="cal-panel${dow === 0 ? ' is-sun' : dow === 6 ? ' is-sat' : ''}" id="cal-panel" aria-label="${esc(fullDate)}">
+      <div class="cal-sheet-band" aria-hidden="true"><span>${esc(monthName)}</span><span>${d.getFullYear()}</span></div>
       <div class="cal-panel-head">
         <div class="cal-bigday">${d.getDate()}</div>
         <div class="cal-panel-id">
-          <div class="cal-panel-date">${esc(weekday)}<span class="cal-panel-month">${esc(monthYear)}</span></div>
+          <div class="cal-panel-date">${esc(weekday)}</div>
           ${where ? `<div class="cal-panel-where">${where}</div>` : ''}
           ${hint ? `<div class="cal-panel-hint">${esc(hint)}</div>` : ''}
         </div>
@@ -436,6 +450,9 @@ function render(): void {
   }
 }
 
+/** The day sheet is thin paper: it bends further and goes over quicker than a month's card stock. */
+const DAY_SHEET_FEEL = { curl: 60, ms: 560 };
+
 /** A detached copy of a month page / the day sheet, for a turn to bring in. */
 function detached(html: string): HTMLElement {
   const box = document.createElement('div');
@@ -488,7 +505,7 @@ function goToDay(iso: string, scroll = false): void {
   _selected = iso;
   const target = detached(renderDayPanel());
   _selected = prev;
-  turnPage(slot, live, target, iso > prev ? 1 : -1, commit);
+  turnPage(slot, live, target, iso > prev ? 1 : -1, commit, DAY_SHEET_FEEL);
 }
 
 function wire(body: HTMLElement): void {
