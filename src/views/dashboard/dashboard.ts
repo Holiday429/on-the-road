@@ -6,6 +6,7 @@
    ========================================================================== */
 
 import './dashboard.css';
+import { strikeRow } from '../todo/todo-strike.ts';
 import { routeStore, type StoredLeg } from '../../data/stores/route-store.ts';
 import { expenseStore, type StoredExpense } from '../../data/stores/expense-store.ts';
 import { journalStore, type StoredJournalEntry } from '../../data/stores/journal-store.ts';
@@ -647,7 +648,12 @@ function wire(body: HTMLElement): void {
       const leg = _legs.find(l => l.id === legId);
       if (!leg) return;
       const plans = (leg.plans ?? []).map((p: PlanItem) => p.id === planId ? { ...p, done: !p.done } : p);
-      void routeStore.update(legId, { plans });
+      const commit = () => routeStore.update(legId, { plans });
+      // On the Agenda card a plan item is crossed off with the same pen stroke as a to-do.
+      const row = el.closest<HTMLElement>('.ag-item');
+      const title = row?.querySelector<HTMLElement>('.ag-title');
+      if (row && title && !el.classList.contains('is-done')) strikeRow(row, { from: title, to: title }, commit);
+      else void commit();
     });
   });
 
@@ -656,15 +662,6 @@ function wire(body: HTMLElement): void {
     btn.addEventListener('click', e => {
       e.stopPropagation();
       import('../journal/index.ts').then(m => m.openJournalComposerOverlay());
-    });
-  });
-
-  // Todo inline toggle.
-  body.querySelectorAll<HTMLElement>('[data-toggle-todo]').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const [id, doneStr] = btn.dataset.toggleTodo!.split(':');
-      void todoStore.toggle(id, doneStr === 'true');
     });
   });
 

@@ -72,7 +72,8 @@ function renderMonth(monthKey: string, today: string, selected: string): string 
   let cells = '<span class="ag-cell ag-empty"></span>'.repeat(offset);
   for (let d = 1; d <= days; d++) {
     const cur = `${monthKey}-${String(d).padStart(2, '0')}`;
-    const cls = ['ag-cell', cur === today ? 'is-today' : '', cur === selected ? 'is-sel' : ''].filter(Boolean).join(' ');
+    const dow = new Date(y, m - 1, d).getDay();
+    const cls = ['ag-cell', dow === 0 || dow === 6 ? 'is-weekend' : '', cur === today ? 'is-today' : '', cur === selected ? 'is-sel' : ''].filter(Boolean).join(' ');
     // The ring / fill sits on .ag-num (a fixed circle around the digits).
     cells += `<button type="button" class="${cls}" data-agenda-day="${cur}"><span class="ag-num">${d}</span></button>`;
   }

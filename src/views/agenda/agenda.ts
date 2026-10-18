@@ -33,6 +33,7 @@ import { t, getLocale } from '../../core/i18n.ts';
 import { renderFastener } from '../../core/paper/fastener.ts';
 import { emptyDraft, renderTodoAddRow, wireTodoAddRow } from '../todo/todo-add.ts';
 import { attachPageDrag, finishFlip, isFlipping, onFlipIdle, turnPage } from './agenda-flip.ts';
+import { captureRects, playMoves, strikeRow, type RowRects } from '../todo/todo-strike.ts';
 import { monthArt, seasonOf } from './agenda-art.ts';
 import { openModal } from '../../core/modal.ts';
 import { scheduleAllNotifications, clearAllNotificationTimers } from '../../core/notifications.ts';
@@ -57,8 +58,8 @@ let _selected: string = todayIso();
 /** The add row's picks (due date, reminder); the typed text is carried across a redraw by render(). */
 const _draft = emptyDraft();
 const _expanded = new Set<string>();  // item ids whose detail rows are open
-/** The to-do ticked here a moment ago: its line is drawn across as the row redraws, once. */
-let _striking: string | null = null;
+/** Where the to-do rows were just before a tick was written, so they can slide to where they land. */
+let _rowsBefore: RowRects | null = null;
 let _unsubs: Array<() => void> = [];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -101,7 +102,7 @@ const LEGEND: AgendaKind[] = ['transport', 'stay', 'plan', 'journal', 'spend', '
  *  both ends the way a real one does. `pathLength` is normalised so the dash can be animated
  *  without knowing how long the stroke is. */
 const PEN_LINE = `<svg class="cal-strike" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true">
-  <path pathLength="1" d="M-1 7.4 C 18 5.2, 34 8.1, 52 6.1 S 86 4.4, 101 6.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
+  <path pathLength="1" d="M-1 7.4 C 18 5.2, 34 8.1, 52 6.1 S 86 4.4, 101 6.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
 
 /** A line drawing for a day with nothing in it: the sun just up over the horizon. */
 const EMPTY_ART = `<svg class="cal-empty-art" viewBox="0 0 72 44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
@@ -239,8 +240,10 @@ function expandedBody(it: AgendaItem): string {
 function renderItem(it: AgendaItem): string {
   const open = _expanded.has(it.id);
   const nav = it.navTo ? ` data-nav="${it.navTo}"${it.intent ? ` data-intent='${esc(JSON.stringify(it.intent))}'` : ''}` : '';
+  // A plan item is ticked off in front, with a pen-drawn box. The emoji it used to carry (✅ once done)
+  // said the same thing a second time, so the box stands in for it.
   const check = it.planRef
-    ? `<button type="button" class="cal-check${it.done ? ' is-done' : ''}" data-toggle-plan="${esc(it.planRef.legId)}:${esc(it.planRef.planId)}" aria-label="Toggle done">${it.done ? '✓' : ''}</button>`
+    ? `<button type="button" class="cal-check${it.done ? ' is-done' : ''}" data-toggle-plan="${esc(it.planRef.legId)}:${esc(it.planRef.planId)}" aria-label="Toggle done" aria-pressed="${it.done}"></button>`
     : '';
   const expandable = it.details.length > 0 || it.kind === 'transport' || it.kind === 'stay';
   const chevron = expandable
@@ -249,13 +252,13 @@ function renderItem(it: AgendaItem): string {
   return `
     <div class="cal-item${it.done ? ' is-done' : ''}" style="--ag-c:${AGENDA_COLORS[it.kind]}">
       <div class="cal-item-row"${nav}>
-        <span class="cal-item-icon">${it.icon}</span>
+        ${check || `<span class="cal-item-icon">${it.icon}</span>`}
         <span class="cal-item-copy">
-          <span class="cal-item-title">${esc(it.title)}</span>
+          <span class="cal-item-title">${esc(it.title)}${it.done && it.planRef ? PEN_LINE : ''}</span>
           ${it.subtitle ? `<span class="cal-item-sub">${esc(it.subtitle)}</span>` : ''}
         </span>
         ${it.time ? `<span class="cal-item-time">${esc(it.time)}</span>` : ''}
-        ${check}${chevron}
+        ${chevron}
       </div>
       ${open ? expandedBody(it) : ''}
     </div>`;
@@ -266,7 +269,7 @@ function todoRow(td: StoredTodo, today: string): string {
   const due = !td.dueDate ? '' : td.dueDate === today ? 'Today' : overdue ? `Overdue · ${td.dueDate}` : td.dueDate;
   const remind = td.remindAt ? new Date(td.remindAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
   return `
-    <div class="cal-todo-row ${td.done ? 'is-done' : ''}${td.dueDate === _selected && !td.done ? ' is-due-sel' : ''}">
+    <div class="cal-todo-row ${td.done ? 'is-done' : ''}${td.dueDate === _selected && !td.done ? ' is-due-sel' : ''}" data-todo-id="${esc(td.id)}">
       <button class="cal-todo-check ${td.done ? 'is-checked' : ''}" data-toggle-todo="${esc(td.id)}:${td.done}" title="${td.done ? 'Mark undone' : 'Mark done'}" aria-pressed="${td.done}"></button>
       <div class="cal-todo-body">
         <span class="cal-todo-label ${overdue ? 'is-overdue' : ''}">${esc(td.text)}${td.done ? PEN_LINE : ''}</span>
@@ -447,13 +450,8 @@ function render(): void {
       </div>
     </div>`;
   wire(body);
-  if (_striking) {
-    const row = body.querySelector<HTMLElement>(`[data-toggle-todo^="${CSS.escape(_striking)}:"]`)?.closest('.cal-todo-row');
-    _striking = null;
-    row?.classList.add('is-striking');
-    // The class is taken off once the stroke has been drawn, so a later redraw does not repeat it.
-    row?.addEventListener('animationend', () => row.classList.remove('is-striking'), { once: true });
-  }
+  playMoves(body, _rowsBefore);
+  _rowsBefore = null;
   if (typed || hadFocus) {
     const box = body.querySelector<HTMLTextAreaElement>('.td-todo-add-input');
     if (box) {
@@ -586,7 +584,12 @@ function wire(body: HTMLElement): void {
       const leg = _legs.find((l) => l.id === legId);
       if (!leg) return;
       const plans = (leg.plans ?? []).map((p: PlanItem) => (p.id === planId ? { ...p, done: !p.done } : p));
-      void routeStore.update(legId, { plans });
+      const commit = () => routeStore.update(legId, { plans });
+      const row = btn.closest<HTMLElement>('.cal-item-row');
+      const title = row?.querySelector<HTMLElement>('.cal-item-title');
+      const wasDone = !!leg.plans?.find((p: PlanItem) => p.id === planId)?.done;
+      if (row && title && !wasDone) strikeRow(row, { from: title, to: row.querySelector<HTMLElement>('.cal-item-copy') ?? title }, commit);
+      else void commit();
     });
   });
 
@@ -594,9 +597,18 @@ function wire(body: HTMLElement): void {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const [id, doneStr] = btn.dataset.toggleTodo!.split(':');
-      // Ticking it here draws the line; unticking, or a change from anywhere else, just redraws.
-      _striking = doneStr === 'true' ? null : id;
-      void todoStore.toggle(id, doneStr === 'true');
+      const wasDone = doneStr === 'true';
+      const note = btn.closest<HTMLElement>('.cal-note');
+      const commit = () => {
+        if (note) _rowsBefore = captureRects(note);
+        return todoStore.toggle(id, wasDone);
+      };
+      const row = btn.closest<HTMLElement>('.cal-todo-row');
+      const label = row?.querySelector<HTMLElement>('.cal-todo-label');
+      // Crossing it off: the line is drawn across the whole entry, then it moves down to "done".
+      // Taking it back has nothing to cross out — it just moves up again.
+      if (row && label && !wasDone) strikeRow(row, { from: label, to: row.querySelector<HTMLElement>('.cal-todo-body') ?? label }, commit);
+      else void commit();
     });
   });
   body.querySelectorAll<HTMLElement>('[data-edit-todo]').forEach((btn) => {

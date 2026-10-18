@@ -16,6 +16,8 @@ import { openTodosFor } from '../../data/todo-order.ts';
 import { renderFastener } from '../../core/paper/fastener.ts';
 import '../../core/paper/fastener.css';
 import { emptyDraft, renderTodoAddRow, wireTodoAddRow } from '../todo/todo-add.ts';
+import { strikeRow } from '../todo/todo-strike.ts';
+import { todoStore } from '../../data/stores/todo-store.ts';
 
 import { WIDGET_ICON } from '../../core/icons.ts';
 const SHOWN = 4;
@@ -83,6 +85,20 @@ export function renderTodoWidget(todos: StoredTodo[], selected: string, today: s
 
 /** Wire the add row and its two pickers. `render` re-renders the dashboard. */
 export function wireTodo(body: HTMLElement, render: () => void): void {
+  // Ticking an item: the line is drawn across the whole entry (the same motion as on the Agenda's note),
+  // the entry slides off the note, and only then is the change written — this note lists open items only.
+  body.querySelectorAll<HTMLElement>('.td-w-todo [data-toggle-todo]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const [id, doneStr] = btn.dataset.toggleTodo!.split(':');
+      const commit = () => todoStore.toggle(id, doneStr === 'true');
+      const row = btn.closest<HTMLElement>('.td-todo-row');
+      const label = row?.querySelector<HTMLElement>('.td-todo-label');
+      if (row && label && doneStr !== 'true') {
+        strikeRow(row, { from: label, to: row.querySelector<HTMLElement>('.td-todo-due') ?? label, leave: true }, commit);
+      } else void commit();
+    });
+  });
   wireTodoAddRow(body, _draft, {
     rerender: render,
     refocus: () => document.querySelector<HTMLTextAreaElement>('#view-today .td-todo-add-input')?.focus(),

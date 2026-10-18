@@ -1,0 +1,28 @@
+/* ==========================================================================
+   On the Road · To-do — crossing an item off (todo-strike.ts)
+   ========================================================================== */
+
+:root {
+  --todo-pen-red: color-mix(in srgb, var(--coral-500) 78%, var(--ink));
+  /* A tick made with a pen: it starts low on the left and runs out past the box. */
+  --todo-tick: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3.5 13.5 C6 14.5 8 17 9.5 20 C12 12 16.5 6 22 2.5' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+
+/* The line across the whole entry, drawn left to right. */
+.todo-pen {
+  position: absolute; z-index: 2; height: 12px; overflow: visible; pointer-events: none; color: var(--todo-pen-red);
+}
+.todo-pen path {
+  fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round;
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+}
+.todo-pen.is-drawing path { stroke-dashoffset: 0; transition: stroke-dashoffset 380ms cubic-bezier(0.5, 0.1, 0.3, 1) 90ms; }
+
+/* While it is being crossed off the words go quiet, and a row that is leaving slides out to the right. */
+[data-striking] { transition: opacity 300ms ease; }
+[data-striking].is-leaving { transform: translateX(28px); opacity: 0; transition: transform 300ms cubic-bezier(0.5, 0, 0.9, 0.4), opacity 300ms ease-in; }
+
+@media (prefers-reduced-motion: reduce) {
+  .todo-pen.is-drawing path { transition: none; }
+  [data-striking].is-leaving { transition: none; }
+}

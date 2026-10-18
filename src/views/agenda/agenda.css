@@ -67,6 +67,20 @@
 .cal-root .hf-under > * { height: 100%; }
 /* The note is the pad the day sheet sits on: it takes whatever the sheet leaves, so the desk always reaches the bottom of the calendar. */
 .cal-note { flex: 1 1 auto; min-height: 150px; overflow-y: auto; }
+/* A cell is exactly as tall as its row — never taller. (A cell with a 76px floor in a row that is
+   shorter spills into the row below it, and its highlighter band and ring then look as if they
+   run up into the row above.) What does not fit is trimmed by the cell's own size: a short cell
+   shows one line of its note, a shorter one only the day. */
+@media (min-width: 981px) {
+  .cal-grid .cal-cell { min-height: 0; container-type: size; }
+  .cal-grid .cal-cell-note { flex: 0 1 auto; min-height: 0; overflow: hidden; }
+  .cal-grid .cal-dots, .cal-grid .cal-cell-top { flex-shrink: 0; }
+  @container (max-height: 74px) { .cal-cell-note-tx { -webkit-line-clamp: 1; } }
+  @container (max-height: 56px) { .cal-dots { display: none; } }
+  @container (max-height: 44px) { .cal-cell-note { display: none; } }
+  /* a short window: the picture gives up a little room to the rows */
+  @media (max-height: 820px) { .cal-page .cal-art { height: 60px; } }
+}
 /* Stacked: calendar → the chosen day → all open to-dos. */
 @media (max-width: 980px) {
   .cal-root { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-5); height: auto; min-height: 0; }
@@ -399,7 +413,7 @@
   content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 2px; background: var(--ag-c, var(--rule));
 }
 .cal-item.is-done { opacity: 0.55; }
-.cal-item.is-done .cal-item-title { text-decoration: line-through; text-decoration-color: var(--cal-red); text-decoration-thickness: 1.5px; }
+.cal-item.is-done .cal-item-title { color: var(--ink-muted); }
 .cal-item-row { position: relative; display: flex; align-items: center; gap: var(--sp-2); padding: 8px 4px 8px 12px; border-radius: var(--r-sm); }
 .cal-item-row[data-nav] { cursor: pointer; }
 .cal-item-row[data-nav]:hover { background: color-mix(in srgb, var(--amber-300) 14%, transparent); }
@@ -408,15 +422,10 @@
   color: var(--ink-muted); font-variant-numeric: tabular-nums;
 }
 .cal-item-icon { flex-shrink: 0; width: 24px; font-size: 16px; text-align: left; }
+.cal-item-row > .cal-check { margin-left: 2px; margin-right: 2px; }
 .cal-item-copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.cal-item-title { font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-item-title { position: relative; align-self: flex-start; max-width: 100%; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-item-sub { font-size: var(--fs-xs); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-check {
-  flex-shrink: 0; width: 20px; height: 20px; border-radius: 4px 5px 4px 6px; border: 1.8px solid color-mix(in srgb, var(--cal-ink) 55%, transparent);
-  background: color-mix(in srgb, var(--surface) 55%, transparent); cursor: pointer;
-  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: transparent; display: grid; place-items: center;
-}
-.cal-check.is-done { background: color-mix(in srgb, var(--sage-500) 22%, transparent); border-color: var(--sage-500); color: var(--sage-500); font-size: 15px; transform: rotate(-4deg); }
 .cal-chev {
   flex-shrink: 0; position: relative; width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
   background: color-mix(in srgb, var(--surface) 55%, transparent); color: var(--ink-soft); border: 1px solid var(--cal-rule);
@@ -440,7 +449,9 @@
    (their edit buttons stay on the pages). Notches are punched through to the sheet. */
 .cal-itn { padding: 2px 0 12px 10px; --tk-notch: var(--pp-paper); }
 .cal-itn .rd-stay-actions .rd-icon-btn { display: none; }
-.cal-itn .exp-tags { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.cal-itn .exp-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.cal-itn .exp-tag-item { padding: 3px 10px; gap: 6px; }
+.cal-itn .exp-tag-icon { font-size: 14px; }
 .cal-itn .exp-tag-item { flex: 0 1 auto; max-width: 100%; }
 .cal-itn .exp-tag-item::after { display: none; }
 
@@ -501,41 +512,34 @@
 .cal-todo-row.is-done { opacity: 0.6; }
 /* Due on the day chosen in the month — marked in highlighter instead of repeating it on the sheet. */
 .cal-todo-row.is-due-sel { background: color-mix(in srgb, var(--amber-400) 22%, transparent); box-shadow: inset 3px 0 0 var(--amber-400); }
-.cal-todo-check {
+.cal-check, .cal-todo-check {
   position: relative; width: 20px; height: 20px; border-radius: 4px 6px 4px 5px; flex-shrink: 0; margin-top: 1px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: var(--fw-semibold); line-height: 1; color: transparent;
   background: color-mix(in srgb, var(--surface) 55%, transparent); border: 1.8px solid color-mix(in srgb, var(--cal-ink) 55%, transparent);
-  transition: border-color var(--dur-fast), background var(--dur-fast);
+  transition: border-color var(--dur-fast);
 }
-.cal-todo-check:hover { border-color: var(--cal-ink); }
-/* Ticked in pen: the stroke runs out past the box. */
-.is-done .cal-todo-check { background: color-mix(in srgb, var(--surface) 55%, transparent); border-color: color-mix(in srgb, var(--cal-ink) 55%, transparent); color: transparent; }
-.is-done .cal-todo-check::after {
+.cal-check { margin-top: 0; }
+.cal-check:hover, .cal-todo-check:hover { border-color: var(--cal-ink); }
+/* Ticked in pen: the stroke starts low on the left and runs out past the box. It is drawn on when the
+   row is being crossed off (is-ticking), and simply there on a row that was ticked before. */
+.cal-check.is-done::after, .cal-todo-row.is-done .cal-todo-check::after, .is-ticking .cal-check::after, .is-ticking .cal-todo-check::after {
   content: ''; position: absolute; left: 1px; top: -5px; width: 22px; height: 22px; pointer-events: none; background: var(--cal-ink);
-  -webkit-mask: var(--cal-tick) center / contain no-repeat; mask: var(--cal-tick) center / contain no-repeat;
+  -webkit-mask: var(--todo-tick) center / contain no-repeat; mask: var(--todo-tick) center / contain no-repeat;
 }
-/* The tick lands first, then the line goes across. */
-.is-striking .cal-todo-check::after { animation: calTick 180ms var(--ease-out) backwards; }
+.is-ticking .cal-check::after, .is-ticking .cal-todo-check::after { animation: calTick 200ms var(--ease-out) backwards; }
 @keyframes calTick { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
-.is-striking .cal-strike path { animation-delay: 120ms; }
-/* The row settles back as it is put away. */
-.is-striking { animation: calStruckRow 420ms var(--ease-out); }
-@keyframes calStruckRow { 0%, 40% { opacity: 1; } 100% { opacity: 0.6; } }
-.cal-root { --cal-tick: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M3.5 13.5 C6 14.5 8 17 9.5 20 C12 12 16.5 6 22 2.5' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/></svg>"); }
+.cal-todo-row, .cal-item-row { position: relative; }
+.is-ticking .cal-todo-label, .is-ticking .cal-item-title { color: var(--ink-muted); transition: color 300ms; }
 .cal-todo-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cal-todo-label { position: relative; align-self: flex-start; max-width: 100%; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); line-height: 1.3; overflow-wrap: anywhere; }
-/* Finished: struck through with a pen. The stroke is an SVG path over the words (never
-   text-decoration, which cannot be drawn on), in the same red as the overdue ink. It is
-   already there on a row that was finished before — only a tick made HERE draws it. */
+/* Finished: struck through with a pen — one stroke over the words, there already on a row finished earlier
+   (an SVG path, since text-decoration cannot be a wobbly pen line). A tick made now is drawn across the whole
+   entry by todo-strike.ts before the row moves here. */
 .cal-strike {
   position: absolute; left: -3px; top: 50%; width: calc(100% + 6px); height: 12px; margin-top: -6px;
   overflow: visible; pointer-events: none; color: var(--cal-red);
 }
-.cal-strike path { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.cal-strike path { stroke-dasharray: none; }
 .is-done .cal-todo-label { color: var(--ink-muted); }
-/* The pen going across, once, as the row is ticked. */
-.is-striking .cal-strike path { animation: calStrike 340ms var(--ease-out) backwards; }
-@keyframes calStrike { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 .cal-todo-meta { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .cal-todo-due { font-size: var(--fs-2xs); color: var(--ink-muted); white-space: nowrap; }
 /* Overdue is written in red pen. */
@@ -575,6 +579,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cal-note { transform: none; }
-  /* The line is still there — it just is not drawn on. */
-  .is-striking .cal-strike path, .is-striking .cal-todo-check::after, .is-striking { animation: none; }
+  .is-ticking .cal-check::after, .is-ticking .cal-todo-check::after { animation: none; }
 }
