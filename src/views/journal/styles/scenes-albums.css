@@ -44,3 +44,10 @@
   .jb-rack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-6) var(--sp-4); }
   .jb-book, .jb-book--new { width: 100%; }
 }
+
+/* An unfolded foldable (600–860): three books to a row, the shelf spread across the whole width so nothing is left
+   hanging on the right. */
+@media (min-width: 600px) and (max-width: 860px) {
+  .jb-rack { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); justify-items: center; gap: var(--sp-8) var(--sp-5); }
+  .jb-book, .jb-book--new { width: 100%; max-width: 210px; }
+}

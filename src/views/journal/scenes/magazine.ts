@@ -47,8 +47,8 @@ const view: { mode: ViewMode; k: number } = { mode: 'spread', k: 0.6 };
 
 export const currentMode = (): ViewMode => view.mode;
 
-/** A phone-width desk shows one page; anything wider shows the spread. */
-const SINGLE_BELOW = 760;
+/** A phone-width desk shows one page; anything wider (an unfolded foldable too) shows the spread. */
+const SINGLE_BELOW = 600;
 
 /**
  * Measure the desk and set the scale. Returns true if the one-or-two-pages
@@ -62,7 +62,9 @@ export function syncMagazineView(root: ParentNode): boolean {
   const mode: ViewMode = width < SINGLE_BELOW ? 'single' : 'spread';
   const across = mode === 'single' ? PAGE_W : PAGE_W * 2;
   // On a phone the app's tab bar sits over the foot of the screen; the page must end above it.
-  const room = Math.max(360, window.innerHeight - fit.getBoundingClientRect().top - (mode === 'single' ? 96 : 28));
+  const nav = document.getElementById('mobile-nav');
+  const navH = nav && getComputedStyle(nav).display !== 'none' ? nav.offsetHeight : 0;   // the tab bar covers the window's foot
+  const room = Math.max(360, window.innerHeight - fit.getBoundingClientRect().top - (mode === 'single' ? 96 : 28 + navH));
   const k = Math.max(0.2, Math.min(width / across, room / PAGE_H));
   view.k = k;
   fit.style.setProperty('--k', String(k));

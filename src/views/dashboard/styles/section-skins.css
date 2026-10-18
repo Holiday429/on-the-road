@@ -4,26 +4,20 @@
    The calendar and the to-do already take the Agenda's paper (paper-widgets.css) and the
    prints the Journal's polaroids (journal-album.css). This is the rest of the set, paint only —
    no box changes size, nothing moves:
-     Agenda  wire-o binding along the top edge, as the wall calendar's rings
-     Pack    the Prepare scene's floor (--surface-3 panel, --rule frame)
+     Pack    the Prepare scene's floor: the Agenda's paper stock, --rule frame
      Spend   the Expenses till's body: gradient plastic, four screws, a nameplate for a title
      Map     the Map page's sea
    ========================================================================== */
 
-/* ── Agenda: wire-o binding ──────────────────────────────────────────────── */
-.td-w-agenda::after {
-  content: ''; position: absolute; left: 24px; right: 24px; top: 0; height: 12px; z-index: 2; pointer-events: none;
-  --wire-a: color-mix(in srgb, var(--ink) 58%, var(--surface));
-  --wire-b: color-mix(in srgb, var(--surface) 86%, var(--ink));
-  background: linear-gradient(90deg, var(--wire-a) 0, var(--wire-b) 45%, var(--wire-a) 7px, transparent 7px) 0 0 / 30px 11px repeat-x;
-  border-radius: 0 0 4px 4px;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
-  -webkit-mask: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
-  mask: linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
-}
-
 /* ── Pack: the Prepare scene's floor ─────────────────────────────────────── */
-.td-w-pack { background: var(--surface-3); border-color: var(--rule); }
+.td-w-pack {
+  border-color: var(--rule);
+  background:
+    repeating-linear-gradient(94deg, transparent 0 2px, color-mix(in srgb, var(--ink) 1.6%, transparent) 2px 3px),
+    var(--paper-grain),
+    radial-gradient(130% 100% at 50% 0%, transparent 60%, color-mix(in srgb, var(--pp-paper-edge) 38%, transparent)),
+    color-mix(in srgb, var(--pp-paper) 55%, var(--surface));
+}
 .td-w-pack .td-expand { background: var(--surface); box-shadow: var(--shadow-sm); }
 .td-w-pack .td-expand:hover { background: var(--amber-100); }
 

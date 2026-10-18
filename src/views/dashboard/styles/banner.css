@@ -102,9 +102,20 @@ button.td-banner-row:hover .td-banner-caret { color: var(--accent-deep); }
 }
 
 /* Narrow: let the blocks wrap instead of squeezing */
+/* Roomy (an unfolded foldable): the four blocks stay on one line — the mascot steps aside and the blocks tighten
+   — so the third column (stay / next ride / trip summary) is not pushed onto a row of its own. */
 @container tdgrid (max-width: 900px) {
-  .td-hero-inner { flex-wrap: wrap; row-gap: var(--sp-3); }
-  .td-hero-info { flex-basis: 100%; order: 3; }
+  .td-hero { padding-inline: var(--sp-4); }
+  .td-hero-logo { display: none; }
+  .td-hero-inner { flex-wrap: wrap; gap: var(--sp-3); }
+  .td-hero-weather-sq { width: 72px; padding-right: var(--sp-3); }
+  .td-dial { padding-right: var(--sp-3); max-width: 190px; }
+  .td-hero-info { flex: 1 1 150px; }
+  .td-hero-clocks { padding: 0 0 0 var(--sp-3); gap: var(--sp-2); }
+  .td-clock { width: 58px; }
+  .td-clock svg { width: 46px; height: 46px; }
+  .td-clock-cap { font-size: 10px; gap: 2px; }
+  .td-banner-summary { font-size: var(--fs-sm); }
 }
 @container tdgrid (max-width: 560px) {
   .td-dial { border-right: 0; padding-right: 0; }

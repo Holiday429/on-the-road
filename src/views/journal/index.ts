@@ -131,9 +131,9 @@ function renderToolbar(): string {
           <button class="journal-scope-btn ${entryScope === 'all' ? 'active' : ''}" data-journal-scope="all" type="button">${esc(t('journal.scope.all'))}</button>
         </div>
         <button class="journal-tool-btn" data-journal-mode="recap" type="button"
-          ${enough ? '' : `disabled title="${esc(t('journal.portrait.need', { n: short }))}"`}>🃏 ${esc(t('journal.mode.portrait'))}</button>
+          ${enough ? '' : `disabled title="${esc(t('journal.portrait.need', { n: short }))}"`}>🃏<span class="jt-label"> ${esc(t('journal.mode.portrait'))}</span></button>
         <details class="journal-menu">
-          <summary class="journal-tool-btn journal-menu-toggle" title="${esc(t('journal.export.hint'))}">⬇ ${esc(t('journal.export'))}</summary>
+          <summary class="journal-tool-btn journal-menu-toggle" title="${esc(t('journal.export.hint'))}">⬇<span class="jt-label"> ${esc(t('journal.export'))}</span></summary>
           <div class="journal-menu-sheet">
             <span class="journal-menu-hint">${esc(t('journal.export.hint'))}</span>
             <button class="journal-menu-item" data-journal-export="md" type="button">Markdown</button>

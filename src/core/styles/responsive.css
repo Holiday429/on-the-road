@@ -36,9 +36,12 @@
   /* Collapsed: the pill is just the day count — everything else would not fit. */
   .trip-pill > *:not(.trip-pill-date) { display: none; }
 
+  /* A square tile whatever the digit count (it was a tall rectangle at three digits). */
   .trip-pill {
     margin: var(--sp-3) var(--sp-2) 0;
-    padding: var(--sp-2) 2px;
+    padding: 2px;
+    aspect-ratio: 1 / 1;
+    justify-content: center;
     overflow: hidden;
   }
 

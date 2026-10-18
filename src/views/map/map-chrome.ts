@@ -69,7 +69,10 @@ export function bindStageHeight(host: HTMLElement): void {
     const layout = host.querySelector<HTMLElement>('.map-layout');
     if (!layout || !layout.offsetParent) return;   // hidden: nothing to measure
     const top = layout.getBoundingClientRect().top + window.scrollY;
-    layout.style.setProperty('--map-h', `${Math.max(MIN_STAGE_H, Math.floor(window.innerHeight - top - BOTTOM_GAP))}px`);
+    // On a phone / foldable the bottom nav is fixed over the window's foot: the map must end above it.
+    const nav = document.getElementById('mobile-nav');
+    const navH = nav && getComputedStyle(nav).display !== 'none' ? nav.offsetHeight : 0;
+    layout.style.setProperty('--map-h', `${Math.max(MIN_STAGE_H, Math.floor(window.innerHeight - top - BOTTOM_GAP - navH))}px`);
   };
   const later = () => requestAnimationFrame(fit);
   window.addEventListener('resize', later);

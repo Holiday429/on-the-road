@@ -38,7 +38,6 @@ function carousel(tiles: string[]): string {
 
 function renderTiles(groups: PlaceGroup[]): string {
   const tiles = journalTiles(groups);
-  const single = groups.length === 1;
   return carousel(tiles.map((tile, i) => {
     const g = tile.group;
     const place = [g.flag, g.city].filter(Boolean).join(' ');
@@ -47,7 +46,6 @@ function renderTiles(groups: PlaceGroup[]): string {
         <span class="jr-photo-win"><img src="${esc(tile.image)}" alt="" loading="lazy" decoding="async"></span>
         <span class="jr-cap">
           ${place ? `<span class="jr-place">${esc(place)}</span>` : ''}
-          ${!single || i === 0 ? `<span class="jr-sub">${esc(entriesLabel(g.entries.length))}</span>` : ''}
         </span>
       </button>`;
   }));

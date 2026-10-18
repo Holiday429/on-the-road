@@ -2,8 +2,10 @@
    On the Road · Journal gallery — the drifting wall
    --------------------------------------------------------------------------
    Like a hall where the photographs slowly pass you: the wall scrolls upward
-   by itself, and the moment you touch it — wheel, drag, key, tap — it hands
-   control back and stays put. At the bottom it stops (nothing loops). The
+   by itself, and the moment you take hold of it — wheel, drag, key — it hands
+   control back and stays put. (A tap or a finger resting on it does not: on a touch screen that
+   would end the drift the first time the page was held. A scrollbar drag is caught by the
+   "someone else moved the wall" check below.) At the bottom it stops (nothing loops). The
    scroller node survives re-renders (the journal morphs its markup), so one
    loop per node is enough; whether it should be drifting is the caller's state.
    ========================================================================== */
@@ -47,7 +49,7 @@ export function syncGalleryFlow(root: ParentNode, deps: FlowDeps): void {
     const h: Handle = { el: wall, raf: 0, pos: wall.scrollTop, last: 0, stop: () => {} };
     const touch = () => { if (deps.isDrifting()) deps.onStop(); };
     const events: [string, EventListener][] = [
-      ['wheel', touch], ['touchstart', touch], ['pointerdown', touch], ['keydown', touch],
+      ['wheel', touch], ['touchmove', touch], ['keydown', touch],
     ];
     for (const [name, fn] of events) wall.addEventListener(name, fn, { passive: true });
     h.stop = () => {

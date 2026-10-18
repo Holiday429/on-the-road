@@ -700,3 +700,14 @@
   .journal-layout-tab:first-child { padding-left: 0; }
   .journal-composer-overlay { padding: var(--sp-6); }
 }
+/* An unfolded foldable (600–860): tabs and the tools share one row, as on the web — Portrait and Export keep
+   only their icon, the tabs sit a little closer. */
+@media (min-width: 600px) and (max-width: 860px) {
+  .journal-topbar { flex-wrap: nowrap; gap: var(--sp-2); }
+  .journal-topbar-right { flex-wrap: nowrap; flex: none; }
+  .journal-layout-bar { flex-wrap: nowrap; min-width: 0; }
+  .journal-layout-tab { padding-inline: 8px; }
+  .journal-layout-tab:first-child { padding-left: 0; }
+  .journal-tool-btn .jt-label { display: none; }
+  .journal-tool-btn { padding: 0 12px; }
+}

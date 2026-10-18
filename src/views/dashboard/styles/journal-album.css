@@ -33,7 +33,7 @@
 .jr-photo-win img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform var(--dur-mid) var(--ease-out); }
 .jr-tile:hover .jr-photo-win img { transform: scale(1.05); }
 /* the white strip, written on in hand */
-.jr-cap { flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0; min-width: 0; height: 40px; padding: 2px 2px 3px; text-align: center; color: var(--pola-ink); }
+.jr-cap { flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0; min-width: 0; height: 32px; padding: 2px 2px 3px; text-align: center; color: var(--pola-ink); }
 .jr-place { max-width: 100%; font-family: var(--font-hand); font-size: 20px; font-weight: var(--fw-medium); line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jr-sub { max-width: 100%; font-family: var(--font-hand); font-size: 15px; line-height: 1; opacity: .7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-jq-count { margin-left: 4px; padding: 0 7px; border-radius: var(--r-full); background: var(--surface-3); font-size: var(--fs-2xs); font-weight: var(--fw-semibold); color: var(--ink-muted); }
@@ -55,7 +55,7 @@
 
 /* Album drawer: the Journal page's compose / export bar and first-time hint aren't wanted here (the + is on the card) */
 .jr-album-drawer .journal-compose-bar, .jr-album-drawer .journal-first-guide { display: none; }
-@container tdgrid (max-width: 900px) { .jr-carousel { --jr-gap: 12px; padding-inline: 8px; } .jr-place { font-size: 15px; } .jr-sub { font-size: 12px; } .jr-row .td-plus--lg { width: 32px; height: 32px; font-size: 18px; } .jr-tile { padding: 5px 5px 0; } .jr-cap { height: 34px; } }
+@container tdgrid (max-width: 900px) { .jr-carousel { --jr-gap: 12px; padding-inline: 8px; } .jr-place { font-size: 15px; } .jr-sub { font-size: 12px; } .jr-row .td-plus--lg { width: 32px; height: 32px; font-size: 18px; } .jr-tile { padding: 5px 5px 0; } .jr-cap { height: 30px; } }
 
 /* Album drawer: just the albums — no hint line, no AI tidy, no tag groups */
 .jr-album-drawer .journal-album-hint, .jr-album-drawer [data-album-tidy], .jr-album-drawer .journal-tidy, .jr-album-drawer .journal-tidy-empty, .jr-album-drawer .journal-auto-groups, .jr-album-drawer .journal-section-kicker { display: none; }

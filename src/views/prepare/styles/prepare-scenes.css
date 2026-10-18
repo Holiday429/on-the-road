@@ -5,7 +5,14 @@
    (clipboard = 4 lines, floor = 3 bags + a tag). Markup: prepare-scenes.ts.
    ========================================================================== */
 
-.prep-scene-host { display: flex; flex-direction: column; container: prep-rail / inline-size; }
+.prep-scene-host {
+  /* The Agenda's stock — laid paper over a warm cream — so a scene is the same material as the calendar card. */
+  --prep-paper:
+    repeating-linear-gradient(94deg, transparent 0 2px, color-mix(in srgb, var(--ink) 1.6%, transparent) 2px 3px),
+    var(--paper-grain),
+    radial-gradient(130% 100% at 50% 0%, transparent 60%, color-mix(in srgb, var(--pp-paper-edge) 38%, transparent)),
+    color-mix(in srgb, var(--pp-paper) 55%, var(--surface));
+  display: flex; flex-direction: column; container: prep-rail / inline-size; }
 
 /* ── Scene frame (same size in both panels, whatever they hold) ──────────── */
 .prep-scene { position: relative; height: clamp(360px, 50vh, 440px); box-sizing: border-box; border: 1px solid var(--rule); border-radius: var(--r-xl); overflow: hidden; }
@@ -31,7 +38,7 @@
 .prep-switch-n { font-family: var(--font-data); font-size: var(--fs-2xs); color: var(--ink-faint); }
 
 /* ── Checklist: a clipboard ──────────────────────────────────────────────── */
-.prep-scene--cl { display: grid; place-items: center; padding: var(--sp-6) var(--sp-5); background: var(--surface-3); }
+.prep-scene--cl { display: grid; place-items: center; padding: var(--sp-6) var(--sp-5); background: var(--prep-paper); }
 .prep-clip-stack { position: relative; width: min(100%, 390px); padding-top: 14px; }
 .prep-clip-back {
   position: absolute; left: 8px; right: 8px; top: 18px; bottom: -4px; border: 1px solid var(--rule); border-radius: var(--r-md);
@@ -69,7 +76,7 @@
    are, so the panel matches the Checklist's whatever the list holds. */
 .prep-scene--pk {
   display: grid; grid-template-rows: 1fr auto; padding: 0;
-  background: var(--surface-3);
+  background: var(--prep-paper);
 }
 .prep-floor {
   position: relative; min-width: 0; min-height: 0;

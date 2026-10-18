@@ -41,10 +41,12 @@
 
 /* Pinned: the window is exactly as tall as the top bar + the page, so nothing scrolls. A phone needs
    more height than a roomy screen for the same till, so it pins later; below that it just scrolls. */
-@media (min-width: 600px) and (min-height: 640px), (max-width: 599px) and (min-height: 760px) {
+/* In the bottom-nav shell (≤768w) the nav takes 70px of the window, so a roomy screen there pins only when it is
+   clearly tall (a short unfolded foldable scrolls instead, rather than hiding the till's last row under the nav). */
+@media (min-width: 769px) and (min-height: 640px), (min-width: 600px) and (max-width: 768px) and (min-height: 880px), (max-width: 599px) and (min-height: 760px) {
   #main:has(#view-expenses.active) { display: flex; flex-direction: column; height: 100dvh; }
   #view-expenses.active { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-  #view-expenses .exp-layout { flex: 1 1 auto; min-height: 0; max-height: 780px; align-items: stretch; }
+  #view-expenses .exp-layout { flex: 1 1 auto; min-height: 0; max-height: 780px; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
   .exp-receipt-wrap .rc-scroll { max-height: none; }
 }
 
