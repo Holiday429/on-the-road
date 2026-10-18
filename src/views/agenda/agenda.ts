@@ -57,6 +57,8 @@ let _selected: string = todayIso();
 /** The add row's picks (due date, reminder); the typed text is carried across a redraw by render(). */
 const _draft = emptyDraft();
 const _expanded = new Set<string>();  // item ids whose detail rows are open
+/** The to-do ticked here a moment ago: its line is drawn across as the row redraws, once. */
+let _striking: string | null = null;
 let _unsubs: Array<() => void> = [];
 
 /* ── Helpers ─────────────────────────────────────────────────────────────── */
@@ -94,6 +96,12 @@ function select(iso: string): void {
 }
 
 const LEGEND: AgendaKind[] = ['transport', 'stay', 'plan', 'journal', 'spend', 'todo'];
+
+/** The line struck through a finished to-do: one pen stroke, drawn left to right, overshooting
+ *  both ends the way a real one does. `pathLength` is normalised so the dash can be animated
+ *  without knowing how long the stroke is. */
+const PEN_LINE = `<svg class="cal-strike" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true">
+  <path pathLength="1" d="M-1 7.4 C 18 5.2, 34 8.1, 52 6.1 S 86 4.4, 101 6.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
 
 /** A line drawing for a day with nothing in it: the sun just up over the horizon. */
 const EMPTY_ART = `<svg class="cal-empty-art" viewBox="0 0 72 44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
@@ -241,13 +249,12 @@ function renderItem(it: AgendaItem): string {
   return `
     <div class="cal-item${it.done ? ' is-done' : ''}" style="--ag-c:${AGENDA_COLORS[it.kind]}">
       <div class="cal-item-row"${nav}>
-        <span class="cal-item-time${it.time ? '' : ' is-none'}">${it.time ? esc(it.time) : ''}</span>
-        <span class="cal-item-dot" aria-hidden="true"></span>
         <span class="cal-item-icon">${it.icon}</span>
         <span class="cal-item-copy">
           <span class="cal-item-title">${esc(it.title)}</span>
           ${it.subtitle ? `<span class="cal-item-sub">${esc(it.subtitle)}</span>` : ''}
         </span>
+        ${it.time ? `<span class="cal-item-time">${esc(it.time)}</span>` : ''}
         ${check}${chevron}
       </div>
       ${open ? expandedBody(it) : ''}
@@ -260,9 +267,9 @@ function todoRow(td: StoredTodo, today: string): string {
   const remind = td.remindAt ? new Date(td.remindAt).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
   return `
     <div class="cal-todo-row ${td.done ? 'is-done' : ''}${td.dueDate === _selected && !td.done ? ' is-due-sel' : ''}">
-      <button class="cal-todo-check ${td.done ? 'is-checked' : ''}" data-toggle-todo="${esc(td.id)}:${td.done}" title="${td.done ? 'Mark undone' : 'Mark done'}">${td.done ? '✓' : ''}</button>
+      <button class="cal-todo-check ${td.done ? 'is-checked' : ''}" data-toggle-todo="${esc(td.id)}:${td.done}" title="${td.done ? 'Mark undone' : 'Mark done'}" aria-pressed="${td.done}"></button>
       <div class="cal-todo-body">
-        <span class="cal-todo-label ${overdue ? 'is-overdue' : ''}">${esc(td.text)}</span>
+        <span class="cal-todo-label ${overdue ? 'is-overdue' : ''}">${esc(td.text)}${td.done ? PEN_LINE : ''}</span>
         <span class="cal-todo-meta">
           ${due ? `<span class="cal-todo-due ${overdue ? 'is-overdue' : ''}">${esc(due)}</span>` : ''}
           ${remind ? `<span class="cal-remind-tag">🔔 ${remind}</span>` : ''}
@@ -440,6 +447,13 @@ function render(): void {
       </div>
     </div>`;
   wire(body);
+  if (_striking) {
+    const row = body.querySelector<HTMLElement>(`[data-toggle-todo^="${CSS.escape(_striking)}:"]`)?.closest('.cal-todo-row');
+    _striking = null;
+    row?.classList.add('is-striking');
+    // The class is taken off once the stroke has been drawn, so a later redraw does not repeat it.
+    row?.addEventListener('animationend', () => row.classList.remove('is-striking'), { once: true });
+  }
   if (typed || hadFocus) {
     const box = body.querySelector<HTMLTextAreaElement>('.td-todo-add-input');
     if (box) {
@@ -580,6 +594,8 @@ function wire(body: HTMLElement): void {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const [id, doneStr] = btn.dataset.toggleTodo!.split(':');
+      // Ticking it here draws the line; unticking, or a change from anywhere else, just redraws.
+      _striking = doneStr === 'true' ? null : id;
       void todoStore.toggle(id, doneStr === 'true');
     });
   });

@@ -53,23 +53,36 @@ const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
  */
 export function liftAngle(progress: number, dir: HingeDir): number {
   const p = clamp01(progress);
-  return LIFT_DEG * (dir === 1 ? p : 1 - p);
-}
-
-/** How much the free edge leads the hinge edge: none at rest, most mid-turn. */
-export function bendAngle(progress: number, curl = CURL_DEG): number {
-  const p = clamp01(progress);
-  return curl * Math.sin(Math.PI * p) ** 0.85;
+  const forward = dir === 1 ? p : 1 - p;
+  // Slow to come off the page (it has to be peeled), quicker once it is up and falling over.
+  return LIFT_DEG * forward ** 1.22;
 }
 
 /**
- * The turn of each slice relative to the one above it, degrees. The first is
- * the sheet's whole lift; the rest share the bend, growing toward the free edge
- * so the curve is the shallow one of a sheet held at its hinge.
+ * How much the free edge leads the hinge edge, degrees. Paper does not bend evenly
+ * through a turn: the free edge lifts and curls FIRST, while the body of the sheet is
+ * still lying down, and the sheet has mostly straightened again by the time it goes
+ * over. So the curve peaks early (around a third of the way through) and leaves slowly
+ * — a symmetric bend is what makes a turn read as a hinged flap instead of paper.
+ */
+export function bendAngle(progress: number, curl = CURL_DEG): number {
+  const p = clamp01(progress);
+  // A skewed hump: rises fast to its peak at p≈0.32, falls away gently after it.
+  const peak = 0.32;
+  const t = p < peak ? p / peak : 1 - (p - peak) / (1 - peak);
+  return curl * Math.max(0, t) ** (p < peak ? 0.62 : 1.45);
+}
+
+/**
+ * The turn of each slice relative to the one above it, degrees. The first is the sheet's
+ * whole lift; the rest share the bend. The share is NOT even: paper takes its curve
+ * nearest the free edge (the stiff body stays flat and the last third does the bending),
+ * so the weights grow sharply toward the end of the chain. That is the difference between
+ * a sheet of paper and a bent plane.
  */
 export function sliceAngles(progress: number, dir: HingeDir, n = SLICES, curl = CURL_DEG): number[] {
   const bend = bendAngle(progress, curl);
-  const weights = Array.from({ length: n }, (_, k) => 0.35 + 0.65 * (k / Math.max(1, n - 1)));
+  const weights = Array.from({ length: n }, (_, k) => 0.12 + (k / Math.max(1, n - 1)) ** 2.4);
   const total = weights.reduce((a, b) => a + b, 0);
   return weights.map((w, k) => (k === 0 ? liftAngle(progress, dir) : 0) + (bend * w) / total);
 }

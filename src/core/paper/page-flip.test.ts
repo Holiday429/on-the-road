@@ -7,8 +7,12 @@ import { CURL_DEG, LIFT_DEG, SLICES, absoluteAngles, beginHingeFlip, bendAngle, 
 describe('liftAngle', () => {
   it('lifts the leaving sheet 0 → LIFT_DEG going forward', () => {
     expect(liftAngle(0, 1)).toBe(0);
-    expect(liftAngle(0.5, 1)).toBeCloseTo(LIFT_DEG / 2);
-    expect(liftAngle(1, 1)).toBe(LIFT_DEG);
+    expect(liftAngle(1, 1)).toBeCloseTo(LIFT_DEG);
+  });
+  it('is slow to come off the page, then goes over quickly', () => {
+    // behind a linear lift for the whole first half: the sheet has to be peeled up first
+    expect(liftAngle(0.5, 1)).toBeLessThan(LIFT_DEG / 2);
+    expect(liftAngle(0.75, 1) - liftAngle(0.5, 1)).toBeGreaterThan(liftAngle(0.25, 1));
   });
   it('brings the arriving sheet down LIFT_DEG → 0 going back', () => {
     expect(liftAngle(0, -1)).toBe(LIFT_DEG);
@@ -21,11 +25,13 @@ describe('liftAngle', () => {
 });
 
 describe('bendAngle / sliceAngles', () => {
-  it('is flat at rest and at the end, most bent in the middle', () => {
+  it('is flat at rest and at the end, and bends most EARLY — paper curls as it is peeled, not at the halfway mark', () => {
     expect(bendAngle(0)).toBeCloseTo(0);
     expect(bendAngle(1)).toBeCloseTo(0);
-    expect(bendAngle(0.5)).toBeCloseTo(CURL_DEG);
-    expect(bendAngle(0.2)).toBeLessThan(bendAngle(0.5));
+    expect(bendAngle(0.32)).toBeCloseTo(CURL_DEG);
+    // the peak is before the middle, and the sheet has largely straightened by the end
+    expect(bendAngle(0.32)).toBeGreaterThan(bendAngle(0.5));
+    expect(bendAngle(0.5)).toBeGreaterThan(bendAngle(0.85));
   });
   it('gives each slice a turn, the first carrying the whole lift', () => {
     const rel = sliceAngles(1, 1);
@@ -33,11 +39,16 @@ describe('bendAngle / sliceAngles', () => {
     expect(rel[0]).toBeCloseTo(LIFT_DEG);
     expect(rel.slice(1).every((a) => Math.abs(a) < 1e-6)).toBe(true);
   });
-  it('shares the bend so that the free edge ends CURL_DEG ahead of the hinge edge, and the curve steepens toward it', () => {
-    const rel = sliceAngles(0.5, 1);
+  it('shares the whole bend between the slices, over and above the lift', () => {
+    const rel = sliceAngles(0.4, 1);
     const abs = absoluteAngles(rel);
-    expect(abs[abs.length - 1] - liftAngle(0.5, 1)).toBeCloseTo(CURL_DEG);
-    expect(rel[SLICES - 1]).toBeGreaterThan(rel[1]);
+    expect(abs[abs.length - 1] - liftAngle(0.4, 1)).toBeCloseTo(bendAngle(0.4));
+  });
+  it('takes its curve near the free edge, leaving the body of the sheet flat', () => {
+    const rel = sliceAngles(0.32, 1);
+    // the last slice bends several times as hard as one in the middle, and that one harder than the top
+    expect(rel[SLICES - 1]).toBeGreaterThan(rel[SLICES >> 1] * 3);
+    expect(rel[SLICES >> 1]).toBeGreaterThan(rel[1]);
   });
   it('a sheet coming down starts lifted and lands flat', () => {
     expect(absoluteAngles(sliceAngles(0, -1))[0]).toBeCloseTo(LIFT_DEG);
