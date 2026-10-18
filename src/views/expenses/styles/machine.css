@@ -253,7 +253,7 @@
   .ck-amount { font-size: clamp(24px, 6cqi, 30px); }
   .ck-scanbtn { height: var(--ctl-h); min-width: 132px; }
 }
-@media (pointer: coarse) and ((max-height: 820px), (max-width: 599px)) { .exp-form.ck-machine { --ctl-h: 40px; } }
+@media (pointer: coarse) and (max-height: 820px), (pointer: coarse) and (max-width: 599px) { .exp-form.ck-machine { --ctl-h: 40px; } }
 @media (max-width: 599px) {
   .ck-head-tools { gap: var(--sp-2); flex-wrap: nowrap; }
   .ck-machine .exp-base-picker > span { display: none; }
