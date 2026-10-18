@@ -42,11 +42,13 @@
   border-radius: var(--r-2xl);
   overflow: hidden;
   box-shadow: var(--shadow-md);
-  min-height: 540px;
+  /* --map-h is set from the viewport (map-chrome.ts) so the map and the stop list run down to
+     the foot of the page; 540px is only the fallback before that has measured. */
+  height: var(--map-h, 540px);
 }
 .map-chart {
   width: 100%;
-  height: 540px;
+  height: 100%;
 }
 .map-region-labels,
 .map-country-pins {
@@ -538,7 +540,7 @@
   .map-layout { grid-template-columns: 1fr; }
   .map-panel { contain: none; }
   .map-legs { flex: none; overflow: visible; }
-  .map-chart { height: 420px; }
+  .map-stage { height: 420px; }
 }
 
 /* ── City action sheet rows (shell comes from core/modal.ts) ──────────────── */

@@ -7,7 +7,7 @@
    chart recolours its shapes in place — no rebuild, so zoom and rotation stay.
    ========================================================================== */
 
-import { MAP_PALETTE, MAP_PALETTE_DARK, hashStr } from '../../data/palette.ts';
+import { MAP_PALETTE, hashStr } from '../../data/palette.ts';
 
 const MAP_COLORS_LIGHT = {
   land:        '#f0ead6',
@@ -21,8 +21,8 @@ const MAP_COLORS_LIGHT = {
 };
 
 const MAP_COLORS_DARK = {
-  land:        '#39414b',
-  landStroke:  '#66717e',
+  land:        '#2f363f',
+  landStroke:  '#505b68',
   route:       '#f07a6a',
   ink:         '#d8cbf9',
   hover:       '#f0947e',
@@ -43,11 +43,6 @@ const COUNTRY_COLORS_LIGHT: Record<string, string> = {
   IT: '#c4aad4',
 };
 
-const COUNTRY_COLORS_DARK: Record<string, string> = {
-  DK: '#7d5252', DE: '#4a6b5e', NL: '#80693c', BE: '#5c4f76',
-  FR: '#40607a', ES: '#6e5640', PT: '#4b6b40', CH: '#6e5f31', IT: '#5e4276',
-};
-
 function isDark(): boolean {
   return document.documentElement.dataset.theme === 'dark';
 }
@@ -57,10 +52,46 @@ export function mapColors() {
   return isDark() ? MAP_COLORS_DARK : MAP_COLORS_LIGHT;
 }
 
+/* A country's tone follows the itinerary's category tags (base.css "Category tone"):
+   light mode paints its pastel as is, with a deeper rim; dark mode keeps the pastel's
+   hue but re-lights it — a deep saturated fill and a bright mid-tone rim — so each
+   country stays tellable apart and clearly lifts off the neutral slate land. */
+function basePastel(iso: string): string {
+  return COUNTRY_COLORS_LIGHT[iso] ?? MAP_PALETTE[hashStr(iso) % MAP_PALETTE.length];
+}
+
+function hexToHsl(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  if (d === 0) return [0, 0, l * 100];
+  const sat = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, sat * 100, l * 100];
+}
+
+function hsl(h: number, s: number, l: number): string {
+  const sat = s / 100, light = l / 100, a = sat * Math.min(light, 1 - light);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    return Math.round(255 * (light - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/** Fill of a country on the route. */
 export function countryColor(iso: string): string {
-  const table = isDark() ? COUNTRY_COLORS_DARK : COUNTRY_COLORS_LIGHT;
-  const palette = isDark() ? MAP_PALETTE_DARK : MAP_PALETTE;
-  return table[iso] ?? palette[hashStr(iso) % palette.length];
+  const base = basePastel(iso);
+  if (!isDark()) return base;
+  const [h, s] = hexToHsl(base);
+  return hsl(h, Math.min(s * 1.2, 50), 33);
+}
+
+/** Rim of a country on the route — the category "mark" tone. */
+export function countryMark(iso: string): string {
+  const base = basePastel(iso);
+  const [h, s, l] = hexToHsl(base);
+  return isDark() ? hsl(h, Math.min(s * 1.3, 62), 64) : hsl(h, Math.min(s * 1.1 + 8, 60), Math.max(l - 28, 38));
 }
 
 /* ── World palette ────────────────────────────────────────────────────────────

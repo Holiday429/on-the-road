@@ -18,7 +18,7 @@ import { plotStoredLegs, type StoredLegInput } from './map-plot.ts';
 import { geocode } from './geocode.ts';
 import { loadAmCharts, loadCountryGeodata, preloadDrilldownCountries, DRILLDOWN_COUNTRIES } from './amcharts-loader.ts';
 import { createMapRoot, disposeRoot, motionMs, prefersReducedMotion } from './amcharts-boot.ts';
-import { mapColors as C, countryColor, onMapRepaint } from './map-theme.ts';
+import { mapColors as C, countryColor, countryMark, onMapRepaint } from './map-theme.ts';
 import { drawRouteLines } from './route-layer.ts';
 import { legVisitState } from './map-status.ts';
 import { t, getLocale } from '../../core/i18n.ts';
@@ -41,7 +41,7 @@ import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc } from '../../core/utils.ts';
 import { openCityActionSheet } from './map-city-sheet.ts';
 import { openMapExport } from './map-export-sheet.ts';
-import { wireRouteChrome, postmarkPin, repaintPostmarkPin } from './map-chrome.ts';
+import { wireRouteChrome, bindStageHeight, postmarkPin, repaintPostmarkPin } from './map-chrome.ts';
 import {
   statsMarkup, flightRowMarkup, legListMarkup, unlocatedMarkup, stageInnerMarkup,
 } from './map-panel.ts';
@@ -303,6 +303,7 @@ export function initRoute(host: HTMLElement) {
   if (_initialized) return; _initialized = true;
   // eslint-disable-next-line no-restricted-syntax -- audited: stageMarkup() escapes every interpolation (map-panel.ts)
   host.innerHTML = stageMarkup();
+  bindStageHeight(host);
 
   // Subscribe to legs for the active scope. Re-runnable: on scope change or
   // trip switch we tear down the chart and re-subscribe so the route rebuilds.
@@ -350,8 +351,16 @@ function applyPendingLeg() {
   if (!leg) return;
   _pendingLeg = null;
   focusLeg(leg.id);
-  lightLeg(leg);
-  _chart.zoomToGeoPoint?.({ longitude: leg.lng, latitude: leg.lat }, 6, true, motionMs(700));
+  // The traveller walks to the stop while the camera closes in on its country, which lights as they arrive.
+  const hero = _chart._heroItem, ms = motionMs(1500);
+  hero?.animate({ key: 'longitude', to: leg.lng, duration: ms, easing: am5.ease.inOut(am5.ease.cubic) });
+  hero?.animate({ key: 'latitude', to: leg.lat, duration: ms, easing: am5.ease.inOut(am5.ease.cubic) });
+  let bounds: Parameters<typeof fitGeoBounds>[0] | null = null;
+  try { bounds = am5map.getGeoBounds((leg.iso ? _polyById.get(leg.iso) : null)?.dataItem?.get('geometry')); } catch { /* no polygon: zoom to the point */ }
+  if (!(bounds && Number.isFinite(bounds.left) && fitGeoBounds(bounds, 1500, 0.25))) {
+    _chart.zoomToGeoPoint?.({ longitude: leg.lng, latitude: leg.lat }, 5, true, ms);
+  }
+  window.setTimeout(() => { if (_chart) lightLeg(leg); }, ms * 0.7);
 }
 
 function stageMarkup(): string {
@@ -629,7 +638,6 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     interactive:true, fill:am5.color(C().land),
     stroke:am5.color(C().landStroke), strokeWidth:0.6, nonScalingStroke:true,
   });
-  world.mapPolygons.template.states.create('hover', { fill:am5.color(C().hover) });
   world.events.on('datavalidated', () => {
     _polyById.clear();
     world.mapPolygons.each((poly:any) => {
@@ -645,6 +653,8 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
   const tipMeta = document.getElementById('mapTooltipMeta')!;
   world.mapPolygons.template.events.on('pointerover', (ev:any) => {
     const id = ev.target.dataItem.get('id');
+    // Only countries on this trip light up under the pointer; the rest of the world stays put.
+    if (_lit.has(id) || _planned.has(id)) ev.target.set('fill', am5.color(C().hover));
     const legHere = legs.filter((l) => l.iso === id);
     tipName.textContent = ev.target.dataItem.dataContext?.name ?? id;
     const zoomHint = DRILLDOWN_COUNTRIES[id] ? t('map.tip.zoomIn') : '';
@@ -655,7 +665,11 @@ function bootChart(view: HTMLElement, legs: PlottedLeg[]) {
     tooltip.classList.add('visible');
   });
   world.mapPolygons.template.events.on('globalpointermove', (ev:any) => positionTooltip(view, ev));
-  world.mapPolygons.template.events.on('pointerout', () => tooltip.classList.remove('visible'));
+  world.mapPolygons.template.events.on('pointerout', (ev:any) => {
+    tooltip.classList.remove('visible');
+    const id = ev.target.dataItem?.get('id');
+    if (id) paintState(id);
+  });
   world.mapPolygons.template.events.on('click', (ev:any) => {
     const id = ev.target.dataItem.get('id');
     if (!DRILLDOWN_COUNTRIES[id]) return;
@@ -865,14 +879,12 @@ async function drillCountry(code: string, name: string, legs: PlottedLeg[], worl
     shadowColor:am5.color(C().ink), shadowBlur:6, shadowOpacity:0.12,
     tooltipText: '',
   });
-  series.mapPolygons.template.states.create('hover', {
-    fill:am5.color(C().hover), stroke:am5.color('#ffffff'), strokeWidth:1.5,
-  });
 
   const tooltip = document.getElementById('mapTooltip')!;
   const tipName = document.getElementById('mapTooltipName')!;
   const tipMeta = document.getElementById('mapTooltipMeta')!;
   series.mapPolygons.template.events.on('pointerover', (ev:any) => {
+    ev.target.set('fill', am5.color(C().hover));
     tipName.textContent = ev.target.dataItem.dataContext?.name ?? '';
     tipMeta.textContent = name;
     tooltip.classList.add('visible');
@@ -880,7 +892,10 @@ async function drillCountry(code: string, name: string, legs: PlottedLeg[], worl
   series.mapPolygons.template.events.on('globalpointermove', (ev:any) => {
     positionTooltip(document.getElementById('view-map') as HTMLElement, ev);
   });
-  series.mapPolygons.template.events.on('pointerout', () => tooltip.classList.remove('visible'));
+  series.mapPolygons.template.events.on('pointerout', (ev:any) => {
+    tooltip.classList.remove('visible');
+    ev.target.set('fill', am5.color(countryColor(code)));
+  });
 
   _drillSeries = series;
   _drillCode   = code;
@@ -948,14 +963,14 @@ function paintState(iso: string) {
   const poly = _polyById.get(iso); if (!poly) return;
   _painted.add(iso);
   if (_lit.has(iso)) {
-    poly.setAll({ fill: am5.color(countryColor(iso)), fillOpacity: 1, stroke: am5.color(C().landStroke), strokeDasharray: [] });
+    poly.setAll({ fill: am5.color(countryColor(iso)), fillOpacity: 1, stroke: am5.color(countryMark(iso)), strokeWidth: 1.2, strokeDasharray: [] });
   } else if (_planned.has(iso)) {
-    const col = am5.color(countryColor(iso));
-    poly.setAll({ fill: col, fillOpacity: 0.28, stroke: col, strokeDasharray: [3, 3] });
+    poly.setAll({ fill: am5.color(countryColor(iso)), fillOpacity: 0.5, stroke: am5.color(countryMark(iso)), strokeWidth: 1.2, strokeDasharray: [3, 3] });
   } else {
-    poly.setAll({ fill: am5.color(C().land), fillOpacity: 1, stroke: am5.color(C().landStroke), strokeDasharray: [] });
+    poly.setAll({ fill: am5.color(C().land), fillOpacity: 1, stroke: am5.color(C().landStroke), strokeWidth: 0.6, strokeDasharray: [] });
   }
-  poly.states.create('hover', { fill: am5.color(C().hover) });
+  // No amCharts 'hover' state: it caches the fill it is leaving and restores it on pointer-out,
+  // which resurrects the other theme's colours. Hover is set and cleared by hand (see bootChart).
 }
 
 function markCountry(iso: string | null, state: 'visited' | 'planned') {
@@ -993,13 +1008,17 @@ function repaintChart() {
   if (_worldSeries) {
     const tpl = _worldSeries.mapPolygons.template;
     tpl.setAll({ fill: am5.color(c.land), stroke: am5.color(c.landStroke) });
-    tpl.states.lookup('hover')?.setAll({ fill: am5.color(c.hover) });
-    _painted.forEach(paintState);
+    // Every polygon, not only the ones painted so far: each one gets its fill for the new theme.
+    _worldSeries.mapPolygons.each((poly: Am5Obj) => {
+      const id = poly.dataItem?.get('id');
+      if (id) paintState(id);
+    });
   }
   if (_drillSeries && _drillCode) {
     const tpl = _drillSeries.mapPolygons.template;
     tpl.setAll({ fill: am5.color(countryColor(_drillCode)), shadowColor: am5.color(c.ink) });
-    tpl.states.lookup('hover')?.setAll({ fill: am5.color(c.hover) });
+    const fill = am5.color(countryColor(_drillCode));
+    _drillSeries.mapPolygons.each((poly: Am5Obj) => poly.set('fill', fill));
   }
   _repaintExtras.forEach((fn) => fn());
 }

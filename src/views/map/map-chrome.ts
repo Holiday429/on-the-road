@@ -54,3 +54,25 @@ export function wireRouteChrome(host: HTMLElement | null, signal: AbortSignal): 
     try { localStorage.setItem(KEY, hidden ? '1' : '0'); } catch { /* not remembered */ }
   }, { signal });
 }
+
+/** Room left under the map, so it ends a comfortable step above the foot of the page. */
+const BOTTOM_GAP = 24;
+const MIN_STAGE_H = 480;
+
+/**
+ * Size the map (and with it the stop list beside it) to run from where it starts down to the
+ * bottom of the window, instead of a fixed height that leaves the page half empty. Re-measured
+ * on resize and when the page is shown again.
+ */
+export function bindStageHeight(host: HTMLElement): void {
+  const fit = () => {
+    const layout = host.querySelector<HTMLElement>('.map-layout');
+    if (!layout || !layout.offsetParent) return;   // hidden: nothing to measure
+    const top = layout.getBoundingClientRect().top + window.scrollY;
+    layout.style.setProperty('--map-h', `${Math.max(MIN_STAGE_H, Math.floor(window.innerHeight - top - BOTTOM_GAP))}px`);
+  };
+  const later = () => requestAnimationFrame(fit);
+  window.addEventListener('resize', later);
+  window.addEventListener('hashchange', later);
+  later();
+}
