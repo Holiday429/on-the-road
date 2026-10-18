@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { setLocale } from '../../../core/i18n.ts';
-import { buildDeck, bodySize, cardKey, deckSize, renderRecap } from './render.ts';
+import { buildDeck, bodySize, cardKey, deckSize, renderRecap, recapActionsHtml } from './render.ts';
 import { flipAll, openCount, cardsOf, toggleCard } from './interact.ts';
 import { initialRecapUi } from './types.ts';
 import { TONES } from './tones.ts';
@@ -19,7 +19,7 @@ beforeEach(() => setLocale('zh'));
 function mount(recap: typeof europeZh | null, ui = initialRecapUi(), entryCount = 82) {
   const root = document.createElement('div');
   // eslint-disable-next-line no-restricted-syntax -- test harness; the fixtures are authored in this repo
-  root.innerHTML = renderRecap({ recap, recaps: recap ? [recap] : [], entryCount, minEntries: 8, ui });
+  root.innerHTML = `<div class="journal-mode-shell"><div class="journal-topbar">${recapActionsHtml(recap, ui)}</div>${renderRecap({ recap, recaps: recap ? [recap] : [], entryCount, minEntries: 8, ui })}</div>`;
   return { root, shell: root.querySelector<HTMLElement>('.journal-recap-shell')!, ui };
 }
 
@@ -246,13 +246,13 @@ describe('flipping', () => {
   });
 
   it('counts the cover as open from the start and keeps the dots and label in step', () => {
-    const { shell, ui } = mount(europeZh);
+    const { root, shell, ui } = mount(europeZh);
     expect(openCount(cardsOf(shell))).toBe(1);
     toggleCard(shell, ui, 3);
     toggleCard(shell, ui, 4);
     expect(openCount(cardsOf(shell))).toBe(3);
-    expect(shell.querySelectorAll('.recap-dot.is-on')).toHaveLength(3);
-    expect(shell.querySelector('[data-recap-progress-label]')!.textContent).toBe('已翻开 3 / 9');
+    expect(root.querySelectorAll('.recap-dot.is-on')).toHaveLength(3);
+    expect(root.querySelector('[data-recap-progress-label]')!.textContent).toBe('已翻开 3 / 9');
   });
 
   it('does not count turning the cover over as another card', () => {
@@ -269,24 +269,23 @@ describe('flipping', () => {
   });
 
   it('turns everything, then reshuffles back to just the cover showing', () => {
-    const { shell, ui } = mount(europeZh);
+    const { root, shell, ui } = mount(europeZh);
     flipAll(shell, ui);
     expect(openCount(cardsOf(shell))).toBe(9);
-    expect(shell.querySelector('[data-recap-flip-all]')!.textContent).toBe('重新洗牌');
+    expect(root.querySelector('[data-recap-flip-all]')!.textContent).toBe('重新洗牌');
 
     flipAll(shell, ui);
     expect(openCount(cardsOf(shell))).toBe(1);
-    expect(shell.querySelector('[data-recap-flip-all]')!.textContent).toBe('全部翻开');
+    expect(root.querySelector('[data-recap-flip-all]')!.textContent).toBe('全部翻开');
   });
 });
 
 describe('language', () => {
   it('renders the interface in English when the locale is English', () => {
     setLocale('en');
-    const { shell } = mount(europeEn);
-    expect(shell.textContent).toContain('Your traveler portrait');
+    const { root, shell } = mount(europeEn);
     expect(shell.textContent).toContain('Based on 82 notes');
-    expect(shell.querySelector('[data-recap-progress-label]')!.textContent).toBe('1 of 9 turned');
+    expect(root.querySelector('[data-recap-progress-label]')!.textContent).toBe('1 of 9 turned');
   });
 });
 

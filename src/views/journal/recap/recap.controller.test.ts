@@ -30,7 +30,8 @@ function mount(recap: typeof europeZh) {
   const controller = createRecapController({ getEntries: () => [], getRecaps: () => [recap as never], requestRender });
   const host = document.createElement('div');
   document.body.appendChild(host);
-  const paint = () => { host.innerHTML = controller.render(); };
+  // As the journal lays it out: the controls in the top bar, the deck under it.
+  const paint = () => { host.innerHTML = `<div class="journal-mode-shell"><div class="journal-topbar">${controller.actionsHtml()}</div>${controller.render()}</div>`; };
   paint();
   return { controller, host, paint, requestRender };
 }
