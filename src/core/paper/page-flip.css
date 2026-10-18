@@ -4,30 +4,49 @@
    Markup and arithmetic: core/paper/page-flip.ts. The host (a wall-calendar
    page, a tear-off day sheet) must be `position: relative`; the sheet is laid
    over it and removed when it has landed.
+
+   The sheet is a chain of slices, each hung from the one above and turned a
+   little further — so it bends. Nothing between the slices may clip or flatten
+   (overflow, filter, opacity), or the chain collapses to a flat card; only the
+   faces, which are leaves, clip their strip of the page.
    ========================================================================== */
 
 .hf {
   position: absolute; inset: 0; z-index: 5; pointer-events: none;
-  perspective: 3200px; perspective-origin: 50% 40%;
+  perspective: 5200px; perspective-origin: 50% 8%;
+  /* A sheet that has gone over the hinge is behind whatever is fixed above the host. */
+  clip-path: inset(0 -3% -6% -3%);
   --hf-shade: 0;
 }
 .hf-under { position: absolute; inset: 0; }
 /* The shadow the standing sheet throws on the page beneath it, darkest near the hinge. */
 .hf-under::after {
   content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
-  background: linear-gradient(180deg, color-mix(in srgb, black calc(var(--hf-shade) * 120%), transparent), transparent 75%);
+  background: linear-gradient(180deg, color-mix(in srgb, black calc(var(--hf-shade) * 130%), transparent), transparent 70%);
 }
-.hf-sheet { position: absolute; inset: 0; transform-origin: 50% 0; transform-style: preserve-3d; will-change: transform, opacity; }
-.hf-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.hf-face > * { position: absolute; top: 0; left: 0; right: 0; margin: 0; transform: none; animation: none; }
-/* The sheet tilting away darkens toward its free edge. */
-.hf-face.is-front::after {
-  content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
-  background: linear-gradient(0deg, color-mix(in srgb, black calc(var(--hf-shade) * 160%), transparent), transparent 60%);
+
+.hf-slice {
+  position: absolute; left: 0; right: 0;
+  transform-origin: 50% 0; transform-style: preserve-3d;
+  --hf-dk: 0; --hf-gl: 0;
 }
-/* The back of a sheet is plain paper. */
+.hf-sheet { top: 0; will-change: transform; }
+.hf-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+/* A copy of the whole page, slid up so each slice shows its own strip of it. */
+.hf-page { position: absolute; left: 0; }
+.hf-page > * { position: absolute; top: 0; left: 0; width: 100%; height: 100%; margin: 0; transform: none; animation: none; }
+/* Light on the curve: it darkens as the slice turns edge-on, and takes a sheen where it faces the lamp. */
+.hf-dark, .hf-gloss { position: absolute; inset: 0; pointer-events: none; }
+.hf-dark  { background: #1b140a; opacity: var(--hf-dk); }
+.hf-gloss { background: linear-gradient(180deg, rgba(255, 252, 240, 0.9), rgba(255, 252, 240, 0.55)); mix-blend-mode: soft-light; opacity: calc(var(--hf-gl) * 3.4); }
+/* The back of a sheet is plain paper, a shade deeper than its face. */
 .hf-face.is-back {
   transform: rotateX(180deg);
-  background: var(--paper-grain), var(--hf-back, var(--pp-paper, var(--surface)));
-  border-radius: inherit;
+  background:
+    var(--paper-grain),
+    linear-gradient(180deg, color-mix(in srgb, black 5%, transparent), color-mix(in srgb, black 1%, transparent)),
+    var(--hf-back, var(--pp-paper, var(--surface)));
+}
+.hf-face.is-back::after {
+  content: ''; position: absolute; inset: 0; background: #1b140a; opacity: calc(var(--hf-dk) * 0.8);
 }
