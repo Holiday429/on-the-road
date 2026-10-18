@@ -206,3 +206,29 @@ export function routeNodes(legs: LegLike[]): RouteStop[] {
   }
   return out;
 }
+
+/**
+ * Where on the route the traveller stands for the current pick — an index into `route`, or null
+ * when the pick is not on the route at all (a country the itinerary never went through).
+ *
+ * A place stands at the route stop nearest to it. A country stands at the LAST stop of the first
+ * unbroken run of stops in it: Spain with Barcelona and Madrid puts you in Madrid, so the whole of
+ * Spain is behind you and only the countries after it are still to walk.
+ */
+export function cursorFor(route: RouteStop[], iso: string, stop: Pick<PlaceStop, 'lat' | 'lng'> | null = null): number | null {
+  if (stop && stop.lat != null && stop.lng != null) {
+    let best = -1;
+    let bestD = Infinity;
+    route.forEach((n, i) => {
+      if (iso && n.iso && n.iso !== iso) return;   // never across a border
+      const d = (n.lat - stop.lat!) ** 2 + (n.lng - stop.lng!) ** 2;
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    if (best >= 0) return best;
+  }
+  const first = route.findIndex((n) => !!iso && n.iso === iso);
+  if (first < 0) return null;
+  let last = first;
+  while (last + 1 < route.length && route[last + 1].iso === iso) last++;
+  return last;
+}

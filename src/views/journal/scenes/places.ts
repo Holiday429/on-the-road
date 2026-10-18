@@ -10,7 +10,7 @@
 
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 import { escHtml, entryCover, excerpt, prettyDate, titleFor, moodEmoji } from '../shared/utils.ts';
-import { byCountry, countryKey, countryName, flagOf, mapPins, resolveChosen, routeNodes, NO_PLACE, type LegLike, type PlaceStop } from './places-model.ts';
+import { byCountry, countryKey, countryName, cursorFor, flagOf, mapPins, resolveChosen, routeNodes, NO_PLACE, type LegLike, type PlaceStop } from './places-model.ts';
 import { stampDate } from './feed.ts';
 
 function span(from: string, to: string): string {
@@ -41,7 +41,11 @@ export function renderPlaces(stops: PlaceStop[], legs: LegLike[], selectedKey: s
   const total = stops.reduce((n, s) => n + s.entries.length, 0);
   const placed = groups.filter((g) => g.iso).length;
   const name = group.iso ? countryName(group.iso) : 'Elsewhere';
-  const model = { route, pins, isos: groups.map((g) => g.iso).filter(Boolean), iso: group.iso, key: chosen.key };
+  const model = {
+    route, pins, isos: groups.map((g) => g.iso).filter(Boolean), iso: group.iso, key: chosen.key,
+    // where the little traveller stands for this pick — the line behind them is solid, the line ahead dashed
+    cursor: cursorFor(route, group.iso, chosen.stop),
+  };
 
   const line = groups.map((g) => {
     const on = g.iso === group.iso;

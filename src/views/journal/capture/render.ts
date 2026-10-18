@@ -290,6 +290,7 @@ function renderAlbumsView(model: CaptureRenderModel): string {
       })();
   }
 
+  const byTag = model.state.albumsByTag && !model.albumDrawer;
   return `
     <div class="journal-album-shell">
       ${model.albumDrawer ? '' : `<div class="journal-album-head">
@@ -298,60 +299,17 @@ function renderAlbumsView(model: CaptureRenderModel): string {
           <p class="journal-album-hint">${escHtml(t('journal.album.hint'))}</p>
         </div>
         <div class="journal-album-head-actions">
-          <button class="btn btn-ghost" data-album-tidy type="button" ${model.state.tidyLoading ? 'disabled' : ''}>
-            ${escHtml(t(model.state.tidyLoading ? 'journal.tidying' : 'journal.tidy'))}
-          </button>
+          <button class="btn btn-ghost journal-album-bytag${byTag ? ' is-on' : ''}" data-albums-by-tag type="button" aria-pressed="${byTag}">#&nbsp;${escHtml(t('journal.album.byTag'))}</button>
           <button class="btn btn-ghost" data-album-create type="button">${escHtml(t('journal.album.create'))}</button>
         </div>
       </div>`}
 
-      ${model.albumDrawer ? '' : renderTidySuggestions(model)}
-
-      ${model.albums.length
-        ? renderShelf(model.albums, (a) => albumEntries(a, model.allEntries))
-        : `<div class="journal-album-empty">${escHtml(t(model.albumDrawer ? 'journal.album.none' : 'journal.album.noneHint'))}</div>`}
-
-      ${model.albumDrawer ? '' : renderAutoGroups(model.tagGroups)}
+      ${byTag
+        ? renderTagGroups(model.tagGroups)
+        : model.albums.length
+          ? renderShelf(model.albums, (a) => albumEntries(a, model.allEntries))
+          : `<div class="journal-album-empty">${escHtml(t(model.albumDrawer ? 'journal.album.none' : 'journal.album.noneHint'))}</div>`}
     </div>
-  `;
-}
-
-/**
- * The AI tidy pass's output, as a review list.
- *
- * Every suggestion needs an explicit yes. Nothing here has been written — the
- * point of grouping after the fact is that the user stays the one deciding
- * what belongs together, and an AI that silently refiled things would take
- * that back while looking helpful.
- */
-function renderTidySuggestions(model: CaptureRenderModel): string {
-  const tidy = model.state.tidy;
-  if (!tidy) return '';
-  if (!tidy.albums.length) {
-    return `<div class="journal-tidy-empty">${escHtml(t('journal.tidy.none'))}</div>`;
-  }
-  return `
-    <section class="journal-tidy">
-      <div class="journal-tidy-head">
-        <span class="journal-section-kicker">${escHtml(t('journal.tidy.suggested'))}</span>
-        <button class="journal-icon-btn" data-tidy-dismiss type="button" title="Dismiss">✕</button>
-      </div>
-      ${tidy.albums.map((album, index) => `
-        <article class="journal-tidy-card">
-          <div class="journal-tidy-card-main">
-            <div class="journal-tidy-title">${escHtml(album.emoji)} ${escHtml(album.title)}</div>
-            <div class="journal-tidy-reason">${escHtml(album.reason)}</div>
-            <div class="journal-tidy-entries">
-              ${album.entryIds.map((id) => {
-                const entry = model.allEntries.find((e) => e.id === id);
-                return entry ? `<span class="journal-tag">${escHtml(titleFor(entry))}</span>` : '';
-              }).join('')}
-            </div>
-          </div>
-          <button class="btn btn-primary" data-tidy-accept="${index}" type="button">${escHtml(t('journal.tidy.accept'))}</button>
-        </article>
-      `).join('')}
-    </section>
   `;
 }
 
@@ -374,28 +332,25 @@ function renderAlbumFeed(album: StoredJournalAlbum, all: StoredJournalEntry[], r
   `;
 }
 
-/** Tag groupings, below the user's own albums. Type buckets are gone — see classify.ts. */
-function renderAutoGroups(tagGroups: TagGroup[]): string {
-  if (!tagGroups.length) return '';
+/** Entries grouped by tag — what the "By tag" button on the Albums page shows in place of the shelf. */
+function renderTagGroups(tagGroups: TagGroup[]): string {
+  if (!tagGroups.length) return `<div class="journal-album-empty">${escHtml(t('journal.album.noTags'))}</div>`;
   return `
-    <details class="journal-auto-groups">
-      <summary class="journal-auto-groups-toggle">${escHtml(t('journal.album.byTag'))}</summary>
-      <div class="journal-category-shell">
-        <div class="journal-tag-groups">
-          ${tagGroups.map((group) => `
-            <article class="card journal-tag-group">
-              <div class="journal-tag-group-head">
-                <button class="journal-filter-chip active" data-filter-tag="${escHtml(group.tag)}" type="button">#${escHtml(group.tag)}</button>
-                <span class="journal-category-meta">${group.entries.length} entries</span>
-              </div>
-              <div class="journal-mini-list">
-                ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
-              </div>
-            </article>
-          `).join('')}
-        </div>
+    <div class="journal-category-shell">
+      <div class="journal-tag-groups">
+        ${tagGroups.map((group) => `
+          <article class="card journal-tag-group">
+            <div class="journal-tag-group-head">
+              <button class="journal-filter-chip active" data-filter-tag="${escHtml(group.tag)}" type="button">#${escHtml(group.tag)}</button>
+              <span class="journal-category-meta">${group.entries.length} entries</span>
+            </div>
+            <div class="journal-mini-list">
+              ${group.entries.slice(0, 3).map(renderMiniEntry).join('')}
+            </div>
+          </article>
+        `).join('')}
       </div>
-    </details>
+    </div>
   `;
 }
 

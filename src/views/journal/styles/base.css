@@ -6,7 +6,12 @@
    picked gallery tiles.
    ========================================================================== */
 
-#view-journal { animation: fadeUp var(--dur-mid) var(--ease-out); }
+#view-journal {
+  animation: fadeUp var(--dur-mid) var(--ease-out);
+  /* The face every note's TITLE is set in — the site's own display face (Sora, with the system
+     Chinese face behind it), not a handwriting or serif one. One place to change it. */
+  --font-note-title: var(--font-display);
+}
 
 .journal-mode-shell {
   display: flex;
@@ -210,6 +215,7 @@
   cursor: pointer;
   transition: color var(--dur-fast), border-color var(--dur-fast);
 }
+.journal-layout-tab:first-child { padding-left: 0; }   /* text on the page's left edge, in line with everything below */
 .journal-layout-tab:hover { color: var(--ink-muted); }
 .journal-layout-tab.active {
   color: var(--ink);
@@ -640,7 +646,14 @@
 }
 .journal-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-@media (max-width: 720px) {
+/* ── Three sizes of screen ───────────────────────────────────────────────────
+   phone    under 600px wide                      single column, thumb-sized targets, sheets from the bottom
+   roomy    600px+ wide AND 480px+ tall           an unfolded foldable or a tablet: the web layout —
+                                                  side-by-side panes, a full calendar, centred dialogs
+   desktop  everything the sidebar app was drawn for
+   "Roomy" asks for height as well, so a phone turned sideways (wide but short) stays a phone.
+   Everything below that says "phone" is `max-width: 599px`; "roomy" is the one query used in each file. */
+@media (max-width: 599px) {
   .journal-story-hero { grid-template-columns: 1fr; }
   .journal-story-stats { flex-wrap: wrap; }
   .journal-story-workspace,
@@ -665,4 +678,25 @@
   .journal-mini-entry { grid-template-columns: auto minmax(0, 1fr); }
   .journal-mini-entry-meta { grid-column: 2; align-items: flex-start; }
   .journal-calendar-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Phone: the tabs scroll rather than wrap, and everything you press is thumb-sized ── */
+@media (max-width: 599px) {
+  .journal-layout-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: calc(var(--sp-1) * -1); padding-inline: var(--sp-1); }
+  .journal-layout-bar::-webkit-scrollbar { display: none; }
+  .journal-layout-tab { flex: none; }
+  .journal-layout-tab:first-child { padding-left: var(--sp-1); }
+}
+@media (pointer: coarse) {
+  .journal-topbar { --jt-h: 44px; }
+  .journal-layout-tab { min-height: 44px; }
+  .journal-scope-btn { min-height: 36px; }
+}
+
+/* ── Roomy (unfolded foldable, tablet): the web layout, with room to breathe ── */
+@media (min-width: 600px) and (min-height: 480px) {
+  .journal-mode-shell { gap: var(--sp-6); }
+  .journal-layout-tab { padding-inline: 14px; }
+  .journal-layout-tab:first-child { padding-left: 0; }
+  .journal-composer-overlay { padding: var(--sp-6); }
 }

@@ -2,7 +2,7 @@
    On the Road · Journal feed — markup
    --------------------------------------------------------------------------
    Draws the blocks planned by feed-plan.ts. Every block is a paper object the
-   entry actually resembles: a cover story, a postcard with a postmark, a
+   entry actually resembles: a cover story, a postcard, a
    polaroid with a hand-written caption, a pull-quote, a ticket stub. Place and
    day live on the blocks as labels — there are no section breaks between them.
    ========================================================================== */
@@ -91,7 +91,6 @@ function photoBlock(b: FeedBlock): string {
   if (b.variant === 'postcard') {
     return `
       <div class="jf-photo">${img}</div>
-      <div class="jf-postmark" aria-hidden="true"><span>${escHtml((where || 'ON THE ROAD').toUpperCase().slice(0, 12))}</span><span>${escHtml(stampDate(e.happenedOn))}</span></div>
       <div class="jf-strip">
         <h3 class="jf-title">${escHtml(title)}</h3>
         ${where ? `<span class="jf-where">📍 ${escHtml(where)}</span>` : ''}

@@ -7,7 +7,15 @@
 
 /* ── Map ─────────────────────────────────────────────────────────────────── */
 .jp-stage { position: relative; border: 1px solid var(--rule); border-radius: var(--r-xl); overflow: hidden; box-shadow: var(--shadow-sm); background: var(--surface-3); }
-.jp-map { height: clamp(260px, 38vh, 420px); width: 100%; }
+.jp-map { position: relative; height: clamp(260px, 38vh, 420px); width: 100%; }
+/* The little traveller, the same figure the Route page walks. Its feet are on the point. */
+.jp-hero-img {
+  position: absolute; left: 0; top: 0; width: 44px; height: 44px; z-index: 3; pointer-events: none;
+  transform-origin: center bottom; transform: translate(-50%, -100%) scaleX(1);
+  transition: transform var(--dur-mid) var(--ease-out), opacity .4s ease;
+  filter: drop-shadow(0 5px 6px rgba(58, 29, 110, .28)); will-change: left, top;
+}
+.jp-hero-img.facing-right { transform: translate(-50%, -100%) scaleX(-1); }
 .jp-map[data-failed]::after { content: 'The map needs a connection — your countries are still on the line above.'; display: grid; place-items: center; height: 100%; padding: var(--sp-6); text-align: center; font-size: var(--fs-sm); color: var(--ink-muted); }
 .jp-hud {
   position: absolute; left: var(--sp-3); bottom: var(--sp-3); right: var(--sp-3); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; pointer-events: none;
@@ -19,12 +27,13 @@
 .jp-hud .jp-link { font-size: var(--fs-xs); }
 
 /* ── The line: countries strung in the order you reached them ────────────── */
-.jp-line { overflow-x: auto; padding: var(--sp-3) var(--sp-1) var(--sp-2); scrollbar-width: thin; }
+.jp-line { overflow-x: auto; padding: var(--sp-3) 0 var(--sp-2); scrollbar-width: thin; }
 .jp-track { position: relative; display: flex; gap: 0; margin: 0; padding: 0; list-style: none; min-width: min-content; }
 /* the string the countries hang on */
-.jp-track::before { content: ''; position: absolute; left: 36px; right: 36px; top: 26px; border-top: 2.5px dashed color-mix(in srgb, var(--ink) 22%, transparent); }
-.jp-item { flex: 1 0 112px; max-width: 190px; display: flex; justify-content: center; }
-.jp-stop { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0 var(--sp-2) var(--sp-2); border: 0; background: transparent; cursor: pointer; color: var(--ink-soft); text-align: center; }
+.jp-track::before { content: ''; position: absolute; left: 26px; right: 26px; top: 26px; border-top: 2.5px dashed color-mix(in srgb, var(--ink) 22%, transparent); }
+/* Each country is left-aligned in its slot, so the first one starts on the same edge as the map card beneath. */
+.jp-item { flex: 1 0 112px; max-width: 190px; display: flex; justify-content: flex-start; }
+.jp-stop { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0 var(--sp-2) var(--sp-2) 0; border: 0; background: transparent; cursor: pointer; color: var(--ink-soft); text-align: left; }
 .jp-dot {
   position: relative; z-index: 1; width: 52px; height: 52px; display: grid; place-items: center; font-size: 24px; border-radius: 50%;
   background: var(--surface); border: 2px solid var(--rule); box-shadow: var(--shadow-sm);
@@ -54,12 +63,19 @@
    One height for both columns (`--jp-h`), tall enough that the right-hand side
    shows its heading, the place chips and two full rows of cards without
    scrolling; past that the cards scroll inside their own column. */
-.jp-split { --jp-h: clamp(600px, calc(100vh - 220px), 900px); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: stretch; }
+.jp-split { --jp-h: clamp(600px, calc(100dvh - 220px), 900px); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: stretch; }
 .jp-split > * { min-width: 0; }
 .jp-split .jp-map { height: 100%; min-height: var(--jp-h); }
 .jp-split .jp-pile { overflow-y: auto; max-height: var(--jp-h); }
-@media (max-width: 900px) {
-  .jp-split { grid-template-columns: minmax(0, 1fr); --jp-h: clamp(280px, 40vh, 420px); }
+/* Phone: map, then entries, one under the other. A roomy screen (an unfolded foldable) keeps the two
+   side by side, as on the web — just a little shorter so the page does not outrun the screen. */
+@media (min-width: 600px) and (min-height: 480px) and (max-width: 1100px) {
+  .jp-split { --jp-h: clamp(520px, calc(100dvh - 240px), 760px); }
+  .jp-cards { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+/* (a phone turned sideways is wide but short — it stacks too) */
+@media (max-width: 599px), (max-height: 479px) {
+  .jp-split { grid-template-columns: minmax(0, 1fr); --jp-h: clamp(280px, 40dvh, 420px); }
   .jp-split .jp-pile { max-height: none; }
 }
 
@@ -84,7 +100,7 @@
 .jp-card-words { aspect-ratio: 1; padding: var(--sp-3); background: var(--amber-50); overflow: hidden; display: flex; flex-direction: column; gap: var(--sp-1); }
 .jp-card-words p { margin: 0; font-size: var(--fs-sm); line-height: 1.4; color: var(--ink-soft); }
 .jp-card-cap { display: flex; flex-direction: column; gap: 1px; padding: var(--sp-2) 2px var(--sp-3); }
-.jp-card-title { font-family: var(--font-hand); font-size: var(--fs-lg); line-height: 1.05; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.jp-card-title { font-family: var(--font-note-title); font-weight: var(--fw-semibold); font-size: var(--fs-md); line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .jp-card-date { font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .1em; color: var(--ink-faint); }
 /* two identical animations, swapped on every pick, so the hand re-deals each time */
 .jp-pile.is-a .jp-card { animation: jp-deal-a 520ms var(--ease-out) both; animation-delay: calc(var(--i) * 55ms); }

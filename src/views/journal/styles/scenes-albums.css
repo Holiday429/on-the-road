@@ -7,7 +7,7 @@
 /* ── The shelf ───────────────────────────────────────────────────────────── */
 .jb-rack {
   display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--sp-8) var(--sp-6);
-  padding: var(--sp-4) var(--sp-2) var(--sp-8);
+  padding: var(--sp-4) 0 var(--sp-8);   /* flush with the heading above: the first book starts on the page's left edge */
 }
 .jb-book {
   position: relative; width: 168px; padding: 0; border: 0; background: none; cursor: pointer;
@@ -39,6 +39,8 @@
 .jb-new-plus { font-size: 28px; line-height: 1; }
 .jb-new-label { font-size: var(--fs-sm); }
 
-@media (max-width: 760px) {
-  .jb-rack { gap: var(--sp-6); justify-content: center; }
+/* Phone: two books to a row, filling the width, so the shelf starts on the same edge as the page. */
+@media (max-width: 599px) {
+  .jb-rack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-6) var(--sp-4); }
+  .jb-book, .jb-book--new { width: 100%; }
 }

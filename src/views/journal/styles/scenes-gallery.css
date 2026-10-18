@@ -53,7 +53,7 @@
 .jg-tile.is-picked .jg-check { background: var(--accent); border-color: var(--accent); }
 
 @media (max-width: 1100px) { .jg-cols { columns: 2; } }
-@media (max-width: 760px)  { .jg-cols { column-gap: var(--sp-4); } .jg-tile { margin-bottom: var(--sp-4); } .jg-wall { height: clamp(420px, calc(100vh - 230px), 760px); } }
+@media (max-width: 760px)  { .jg-cols { column-gap: var(--sp-4); } .jg-tile { margin-bottom: var(--sp-4); } .jg-wall { height: clamp(420px, calc(100dvh - 230px), 760px); } }
 @media (max-width: 420px)  { .jg-cols { columns: 1; } }
 @media (hover: none) { .jg-img { filter: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .jg-img { animation: none; transition: none; } .jg-tile { transition: none; } }

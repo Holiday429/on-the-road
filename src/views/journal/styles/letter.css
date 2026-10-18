@@ -182,7 +182,7 @@
   font-size: 1rem; font-style: italic; color: var(--ink-muted);
 }
 .ltr-title {
-  margin: 0 0 22px;
+  margin: 0 0 22px; font-family: var(--font-note-title, var(--font-display));
   font-size: clamp(1.55rem, 2.4vw, 2rem); font-weight: var(--fw-semibold); line-height: 1.28;
   color: var(--ink); text-wrap: balance; overflow-wrap: anywhere;
 }
@@ -369,8 +369,8 @@
 }
 .ltr-album-pop .journal-album-add { flex: 1 1 100%; }
 
-/* ── A phone ─────────────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
+/* ── A phone: the letter rises from the bottom as a sheet. A roomy screen keeps the centred dialog. ── */
+@media (max-width: 599px) {
   .journal-composer-overlay:has(.ltr) { padding: 0; align-items: flex-end; }
   .journal-reader-overlay .journal-reader-drawer,
   .journal-composer-drawer:has(> .ltr) {
@@ -381,7 +381,7 @@
   .ltr-paper { padding: 32px 22px 28px 34px; }
   .ltr-paper::before { left: 22px; }
   .ltr-scene.has-cards .ltr-paper { margin-top: 0; }
-  .ltr-bar { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+  .ltr-bar { padding: var(--sp-2) var(--sp-3) max(var(--sp-2), env(safe-area-inset-bottom)); gap: var(--sp-2); }   /* clear of the home indicator in the installed app */
   .ltr-close { top: var(--sp-2); right: var(--sp-2); }
   .ltr-cards[data-layout='loose'] .ltr-pc { width: min(var(--w), 86%); }
 }
@@ -443,7 +443,7 @@
   display: block; width: 100%; margin: 0; padding: 0; border: 0; background: transparent; resize: none;
   font-family: var(--font-letter); color: var(--ink);
 }
-.ltr-title-input { margin-bottom: 22px; font-size: clamp(1.55rem, 2.4vw, 2rem); font-weight: var(--fw-semibold); line-height: 1.28; }
+.ltr-title-input { font-family: var(--font-note-title, var(--font-display)); margin-bottom: 22px; font-size: clamp(1.55rem, 2.4vw, 2rem); font-weight: var(--fw-semibold); line-height: 1.28; }
 .ltr-text-input { min-height: 14rem; font-size: 1.0625rem; line-height: 1.85; field-sizing: content; overflow: hidden; }
 .ltr-title-input::placeholder, .ltr-text-input::placeholder { color: var(--ink-faint); opacity: .7; }
 .ltr-title-input:focus, .ltr-text-input:focus { outline: none; }

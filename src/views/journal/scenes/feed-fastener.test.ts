@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pickFastener } from './feed.ts';
+import { pickFastener, renderBlock } from './feed.ts';
 import type { FeedBlock } from './feed-plan.ts';
 
 const block = (id: string, variant: FeedBlock['variant']): FeedBlock => ({
@@ -26,5 +26,17 @@ describe('pickFastener', () => {
     expect(kinds.has('corner')).toBe(true);
     expect(kinds.has('cornerR')).toBe(true);
     expect(kinds.has('safety')).toBe(true);
+  });
+});
+
+describe('the postcard card', () => {
+  const entry = { id: 'e1', title: 'Cabo da Roca', body: 'Wind.', destination: 'Sintra', happenedOn: '2026-07-30', images: ['a.jpg'], favorite: false, tags: [] } as unknown as FeedBlock['entry'];
+
+  it('carries no postmark stamped in its corner', () => {
+    const html = renderBlock({ ...block('e1', 'postcard'), entry }, null);
+    expect(html).not.toContain('jf-postmark');
+    // what it does carry: the photo and the title strip
+    expect(html).toContain('jf-photo');
+    expect(html).toContain('Cabo da Roca');
   });
 });

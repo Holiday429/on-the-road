@@ -11,6 +11,10 @@
    colour while the rest of the route's countries go grey. The small places you
    wrote about inside it sit on the line as pins carrying their entry counts.
 
+   The little traveller from the Route page stands wherever the pick puts them on the trip. Pick
+   Spain and they walk there along the route; the line behind them is solid, the line still to
+   walk is dashed (route-layer's `cursor`). Picking another country walks them on, or back.
+
    Click a pin or a route country to pick it. One chart at a time; it lives in a
    node marked `data-morph-keep` so the journal's re-renders leave it alone.
    ========================================================================== */
@@ -19,6 +23,7 @@ import { loadAmCharts } from '../../map/amcharts-loader.ts';
 import { createMapRoot, disposeRoot, waitForSize, motionMs } from '../../map/amcharts-boot.ts';
 import { mapColors, onMapRepaint, worldPalette } from '../../map/map-theme.ts';
 import { createRouteLayer, type RouteLayer, type RouteStop } from '../../map/route-layer.ts';
+import { bindHeroOverlay, ensureHeroOverlay, HERO_SRC } from '../../map/hero-overlay.ts';
 import { todayIso } from '../../../data/trip-phase.ts';
 import type { Am5Obj } from '../../map/map-amcharts.ts';
 import { countryKey, type MapPin } from './places-model.ts';
@@ -37,6 +42,8 @@ export interface PlacesMapModel {
   iso: string;
   /** The pick key — a country ('c:PT') or one place. */
   key: string;
+  /** Index into `route` of where the traveller stands for this pick; null when the pick is off the route. */
+  cursor: number | null;
 }
 
 interface Live {
@@ -48,6 +55,19 @@ interface Live {
   model: PlacesMapModel;
   json: string;
   off: () => void;
+  hero: Hero;
+}
+
+/** The figure: a map point the walk animates, and the picture that follows it. */
+interface Hero {
+  item: Am5Obj;
+  img: HTMLImageElement;
+  sync: () => void;
+  /** Where the figure (and so the solid line) has got to — an index into the route, or null. */
+  at: number | null;
+  /** Bumped whenever a new walk starts, so the one in flight stops. */
+  walk: number;
+  timers: number[];
 }
 
 let live: Live | null = null;
@@ -66,7 +86,7 @@ export function pinScale(selected: boolean): number {
 }
 
 function readModel(el: HTMLElement): PlacesMapModel {
-  try { return JSON.parse(el.dataset.model ?? '') as PlacesMapModel; } catch { return { route: [], pins: [], isos: [], iso: '', key: '' }; }
+  try { return JSON.parse(el.dataset.model ?? '') as PlacesMapModel; } catch { return { route: [], pins: [], isos: [], iso: '', key: '', cursor: null }; }
 }
 
 /** The place pins of the focused country — the small spots inside it. */
@@ -110,9 +130,72 @@ function fitRoute(l: Live, animate: boolean): void {
   } catch { l.chart.goHome(); }
 }
 
+/** The layer's options for a model, with the line split at `cursor` rather than at the model's own. */
+const layerOpts = (m: PlacesMapModel, cursor: number | null) => ({ focusIso: m.iso || null, pins: 'dots' as const, cursor });
+
+/** How long the figure takes over one leg, and over the whole walk at most. */
+const STEP_MS = 520;
+const WALK_MAX_MS = 2600;
+
+/**
+ * Walk the figure to `target` along the route, stop by stop (backwards too). The solid line
+ * follows it: each stop it reaches moves the split up or down by one. Under reduced motion, or
+ * when there is nowhere to walk from, it simply stands there.
+ */
+function walkTo(l: Live, target: number | null): void {
+  const h = l.hero;
+  const route = l.model.route;
+  h.timers.forEach((id) => window.clearTimeout(id));
+  h.timers = [];
+  const token = ++h.walk;
+
+  if (target == null || !route[target]) {
+    h.img.style.opacity = '0';
+    h.at = null;
+    l.layer.update(route, layerOpts(l.model, null));
+    return;
+  }
+  h.img.style.opacity = '1';
+
+  const from = h.at;
+  const ms = motionMs(STEP_MS);
+  if (from == null || from === target || ms === 0 || !route[from]) {
+    h.item.setAll({ longitude: route[target].lng, latitude: route[target].lat });
+    h.at = target;
+    l.layer.update(route, layerOpts(l.model, target));
+    h.sync();
+    return;
+  }
+
+  const dir = target > from ? 1 : -1;
+  const steps = Math.abs(target - from);
+  const leg = Math.min(ms, Math.floor(WALK_MAX_MS / steps));
+  l.layer.update(route, layerOpts(l.model, from));
+  const go = (i: number) => {
+    if (token !== h.walk || live !== l) return;
+    const next = i + dir;
+    const n = route[next];
+    h.item.animate({ key: 'longitude', to: n.lng, duration: leg, easing: (window as Am5Obj).am5.ease.inOut((window as Am5Obj).am5.ease.cubic) });
+    h.item.animate({ key: 'latitude', to: n.lat, duration: leg, easing: (window as Am5Obj).am5.ease.inOut((window as Am5Obj).am5.ease.cubic) });
+    h.timers.push(window.setTimeout(() => {
+      if (token !== h.walk || live !== l) return;
+      h.at = next;
+      // Arrived: the segment just walked turns solid (or, going back, dashed again).
+      l.layer.update(route, layerOpts(l.model, next));
+      if (next !== target) go(next);
+    }, leg));
+  };
+  go(from);
+}
+
 export function disposePlacesMap(): void {
   building++;   // cancel any build still waiting on the CDN
-  if (live) { live.off(); disposeRoot(live.root); live = null; }
+  if (live) {
+    live.hero.walk++;
+    live.hero.timers.forEach((id) => window.clearTimeout(id));
+    live.hero.img.remove();
+    live.off(); disposeRoot(live.root); live = null;
+  }
 }
 
 /** Call after each render. Builds the chart once per node, then only repaints it. */
@@ -128,10 +211,12 @@ export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Prom
     const rerouted = JSON.stringify(live.model.route) !== JSON.stringify(model.route);
     live.json = json;
     live.model = model;
-    live.layer.update(model.route, { focusIso: model.iso || null, pins: 'dots' });
+    // The country lights at once; the line behind the figure moves with it as it walks (walkTo).
+    live.layer.update(model.route, layerOpts(model, live.hero.at));
     live.pinSeries.data.setAll(pinsOf(model).map(toDatum));
     restylePins(live);
-    if (rerouted) fitRoute(live, true);
+    if (rerouted) { live.hero.at = null; fitRoute(live, true); }
+    walkTo(live, model.cursor);
     return;
   }
 
@@ -163,7 +248,7 @@ export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Prom
     if (id && live && live.model.isos.includes(id)) deps.onPick(countryKey(id));
   });
 
-  const layer = createRouteLayer(r, chart, world, todayIso(), model.route, { focusIso: model.iso || null, pins: 'dots' });
+  const layer = createRouteLayer(r, chart, world, todayIso(), model.route, layerOpts(model, model.cursor));
 
   // The journal's own pins: one per place written about inside the focused country.
   const pinSeries = chart.series.push(am5map.MapPointSeries.new(r, {}));
@@ -180,14 +265,25 @@ export async function syncPlacesMap(root: ParentNode, deps: PlacesMapDeps): Prom
     return am5.Bullet.new(root2, { sprite: pin });
   });
 
-  const next: Live = { el, root: r, chart, pinSeries, layer, model, json, off: () => {} };
+  // The traveller, on top of everything: the Route page's own figure, positioned by the same overlay code.
+  const heroSeries = chart.series.push(am5map.MapPointSeries.new(r, {}));
+  const start = model.cursor != null ? model.route[model.cursor] : undefined;
+  const heroItem = heroSeries.pushDataItem({ longitude: start?.lng ?? 0, latitude: start?.lat ?? 0 });
+  const heroImg = ensureHeroOverlay(el, 'jp-hero-img', HERO_SRC);
+  heroImg.style.opacity = start ? '1' : '0';
+  const hero: Hero = {
+    item: heroItem, img: heroImg, at: start ? model.cursor : null, walk: 0, timers: [],
+    sync: bindHeroOverlay(r, { chart, item: heroItem, image: heroImg, host: el }),
+  };
+
+  const next: Live = { el, root: r, chart, pinSeries, layer, model, json, off: () => {}, hero };
   live = next;
   next.off = onMapRepaint(() => { layer.repaint(); restylePins(next); });
   // The world series validates its data asynchronously; paint once it has polygons.
-  world.events.on('datavalidated', () => layer.update(next.model.route, { focusIso: next.model.iso || null, pins: 'dots' }));
+  world.events.on('datavalidated', () => layer.update(next.model.route, layerOpts(next.model, next.hero.at)));
   pinSeries.data.setAll(pinsOf(model).map(toDatum));
   chart.events.once('boundschanged', () => {
-    requestAnimationFrame(() => { restylePins(next); fitRoute(next, false); });
+    requestAnimationFrame(() => { restylePins(next); fitRoute(next, false); next.hero.sync(); });
   });
   chart.appear(motionMs(600));
 }

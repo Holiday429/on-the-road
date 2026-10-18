@@ -24,7 +24,6 @@ import {
 } from '../templates.ts';
 import { inferTemplate } from '../classify.ts';
 import { exportEntries } from '../export.ts';
-import { suggestTidy, type AlbumSuggestion } from '../ai-classify.ts';
 import { renderCapture, type CalendarCell, type TagGroup } from './render.ts';
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
@@ -82,8 +81,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     selection: null,
     openAlbumId: null,
     coverEdit: null,
-    tidy: null,
-    tidyLoading: false,
+    albumsByTag: false,
   };
 
   /** A save is in flight (the envelope may or may not be animating). Declared up here: the code below the controller's `return` never runs a `let`. */
@@ -236,22 +234,10 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         state.moreOpen = !(noteTab.parentElement as HTMLDetailsElement).open;
       }
 
-      const tidyBtn = target.closest<HTMLElement>('[data-album-tidy]');
-      if (tidyBtn) {
-        void runTidy();
-        return;
-      }
-
-      const tidyDismiss = target.closest<HTMLElement>('[data-tidy-dismiss]');
-      if (tidyDismiss) {
-        state.tidy = null;
+      const byTagBtn = target.closest<HTMLElement>('[data-albums-by-tag]');
+      if (byTagBtn) {
+        state.albumsByTag = !state.albumsByTag;
         deps.requestRender();
-        return;
-      }
-
-      const tidyAccept = target.closest<HTMLElement>('[data-tidy-accept]');
-      if (tidyAccept) {
-        void acceptTidyAlbum(Number(tidyAccept.dataset.tidyAccept));
         return;
       }
 
@@ -1332,52 +1318,6 @@ export function createCaptureController(deps: CaptureControllerDeps) {
     // Leave select mode on success — the batch is done.
     state.selection = null;
     deps.requestRender();
-  }
-
-  /**
-   * Ask the model to propose albums for the current entries.
-   *
-   * Nothing is written here — the result lands in `state.tidy` for the user to
-   * accept one by one. See ai-classify.ts for why it works that way.
-   */
-  async function runTidy() {
-    if (state.tidyLoading) return;
-    state.tidyLoading = true;
-    state.tidy = null;
-    deps.requestRender();
-    try {
-      state.tidy = await suggestTidy(deps.getEntries());
-    } catch (error) {
-      console.error('Journal tidy failed:', error);
-      toast('Could not get suggestions');
-    } finally {
-      state.tidyLoading = false;
-      deps.requestRender();
-    }
-  }
-
-  /** Turn one accepted suggestion into a real album, and drop it from the list. */
-  async function acceptTidyAlbum(index: number) {
-    const suggestion: AlbumSuggestion | undefined = state.tidy?.albums[index];
-    if (!suggestion) return;
-    try {
-      await journalAlbumStore.save({
-        title: suggestion.title,
-        emoji: suggestion.emoji,
-        entryIds: suggestion.entryIds,
-        coverEntryId: suggestion.entryIds[0] ?? null,
-      });
-      if (state.tidy) {
-        state.tidy = {
-          ...state.tidy,
-          albums: state.tidy.albums.filter((_, i) => i !== index),
-        };
-      }
-      deps.requestRender();
-    } catch (error) {
-      console.error('Album create from suggestion failed:', error);
-      toast('Could not create album');
-    }
   }
 
   async function removeFromAlbum(albumId: string, entryId: string) {

@@ -101,7 +101,7 @@ async function fontsReady(): Promise<void> {
   const fonts = document.fonts;
   if (!fonts) return;
   try {
-    await Promise.all([fonts.load('15px "Newsreader"'), fonts.load('600 38px "Newsreader"'), fonts.load('11px "JetBrains Mono"')]);
+    await Promise.all([fonts.load('15px "Newsreader"'), fonts.load('600 32px "Sora"'), fonts.load('11px "JetBrains Mono"')]);
     await fonts.ready;
   } catch { /* a font that will not load falls back to the system serif; measure with that */ }
 }

@@ -37,26 +37,6 @@
 
 
 
-/* Auto groups (the old Categories view), demoted below the user's albums. */
-.journal-auto-groups { margin-top: var(--sp-2); }
-
-
-.journal-auto-groups-toggle {
-  cursor: pointer; padding: 6px 0; list-style: none;
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium);
-  color: var(--ink-muted);
-}
-
-
-.journal-auto-groups-toggle::-webkit-details-marker { display: none; }
-
-
-.journal-auto-groups-toggle::before { content: '▾ '; }
-
-
-.journal-auto-groups[open] .journal-auto-groups-toggle::before { content: '⌃ '; }
-
-
 .journal-select-count { font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 
 
@@ -103,56 +83,10 @@
 
 
 
-/* ── AI tidy suggestions ─────────────────────────────────────────────────── */
+/* ── Albums page head: kicker + hint on the left, the two buttons on the right ── */
 .journal-album-head-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
-
-
-
-.journal-tidy {
-  display: flex; flex-direction: column; gap: var(--sp-2);
-  padding: var(--sp-3);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-lg);
-  background: var(--surface-2);
-}
-
-
-.journal-tidy-head { display: flex; align-items: center; justify-content: space-between; }
-
-
-.journal-tidy-card {
-  display: flex; align-items: center; gap: var(--sp-3);
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--rule-soft);
-  border-radius: var(--r-md);
-}
-
-
-.journal-tidy-card-main { flex: 1; min-width: 0; }
-
-
-.journal-tidy-title {
-  font-family: var(--font-ui); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink);
-}
-
-
-.journal-tidy-reason { font-size: var(--fs-xs); color: var(--ink-muted); margin-top: 2px; }
-
-
-.journal-tidy-entries { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-
-
-.journal-tidy-empty {
-  padding: var(--sp-4);
-  border: 1px dashed var(--rule-soft);
-  border-radius: var(--r-lg);
-  text-align: center;
-  font-size: var(--fs-sm);
-  color: var(--ink-faint);
-}
-
-
+/* "By tag" is a switch, not an action: it shows as pressed while the tag groups are on screen. */
+.journal-album-bytag.is-on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* ── Album create / rename / delete modals ──────────────────────────────── */
 .journal-modal-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); }

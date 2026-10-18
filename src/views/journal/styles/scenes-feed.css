@@ -14,7 +14,7 @@
   /* Rows are a little shorter than columns are wide, so a 3x3 block reads as a landscape card. */
   grid-auto-rows: calc((100cqw - 11 * var(--jf-gap)) / 12 * 0.86);
   grid-auto-flow: row dense; gap: var(--jf-gap);
-  padding: var(--sp-5) var(--sp-3) var(--sp-8);
+  padding: var(--sp-5) 0 var(--sp-8);   /* no side inset: the cards start where the tabs do, and 100cqw is the true grid width */
 }
 
 /* The card itself does not clip: its fastener overhangs the top edge. The paper
@@ -60,23 +60,15 @@
 .jf-v-cover .jf-title { font-size: clamp(var(--fs-lg), 2cqw, var(--fs-2xl)); }
 .jf-v-cover .jf-excerpt { color: color-mix(in srgb, var(--lit) 88%, transparent); }
 
-/* Postcard: a landscape photo, a postmark, a caption strip */
+/* Postcard: a landscape photo and a caption strip */
 .jf-v-postcard .jf-strip { display: flex; align-items: baseline; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-top: 1px dashed var(--paper-perf, var(--rule)); }
 .jf-v-postcard .jf-title { flex: 1; min-width: 0; font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.jf-postmark {
-  position: absolute; right: var(--sp-2); top: var(--sp-2); z-index: 2; width: 46px; height: 46px; border-radius: 50%;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
-  border: 1.6px solid color-mix(in srgb, var(--lit) 80%, transparent); color: var(--lit);
-  font-family: var(--font-stamp); font-size: 6.5px; letter-spacing: .06em; line-height: 1.2; transform: rotate(-11deg);
-  background: color-mix(in srgb, var(--scale-glass) 28%, transparent); text-shadow: 0 1px 2px color-mix(in srgb, var(--scale-glass) 60%, transparent);
-}
-.jf-postmark span { max-width: 40px; overflow: hidden; text-overflow: clip; white-space: nowrap; }
 .jf-v-postcard .jf-count { top: auto; bottom: var(--sp-2); }
 
 /* Polaroid: thick white border, a hand-written caption, taped down */
 .jf-v-polaroid .jf-body { padding: var(--sp-2) var(--sp-2) 0; border-radius: 3px; background: var(--paper-grain), var(--surface); }
 .jf-v-polaroid .jf-strip { padding: var(--sp-2) var(--sp-1) var(--sp-3); display: flex; flex-direction: column; gap: 2px; }
-.jf-hand { font-family: var(--font-hand); font-weight: var(--fw-regular, 400); font-size: var(--fs-md); letter-spacing: 0; line-height: 1.05; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.jf-hand { font-family: var(--font-note-title); font-weight: var(--fw-semibold); font-size: var(--fs-md); letter-spacing: -.01em; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .jf-v-polaroid .jf-count { top: calc(var(--sp-2) + var(--sp-2)); }
 .jf-v-polaroid .jf-pin { top: calc(var(--sp-2) + var(--sp-2)); }
 
@@ -97,7 +89,7 @@
 .jf-v-quote .jf-meta { margin-top: var(--sp-1); }
 
 /* ── Narrow pages and drawers: masonry columns (grid spans are ignored) ──── */
-@container jfeed (max-width: 760px) {
+@container jfeed (max-width: 599px) {
   .jf-grid { display: block; columns: 3; column-gap: var(--jf-gap); padding-inline: 0; }
   .jf-block { break-inside: avoid; margin-bottom: var(--jf-gap); }
   .jf-block--hero { column-span: all; aspect-ratio: 4 / 3; }

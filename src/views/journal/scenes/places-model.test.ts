@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildStops, byCountry, countryKey, countryName, flagOf, latestStop, mapPins, NO_PLACE, placeKey, resolveChosen, routeNodes, type LegLike } from './places-model.ts';
+import { buildStops, byCountry, cursorFor, countryKey, countryName, flagOf, latestStop, mapPins, NO_PLACE, placeKey, resolveChosen, routeNodes, type LegLike } from './places-model.ts';
 import type { StoredJournalEntry } from '../../../data/stores/journal-store.ts';
 
 let n = 0;
@@ -105,5 +105,34 @@ describe('places model', () => {
     expect(nodes.map((n) => n.iso)).toEqual(['PT', 'FR', 'IT']);
     // the dates ride along so route-layer can split the line at today
     expect(nodes.map((n) => n.dateFrom)).toEqual(['2026-06-01', '2026-07-01', '2026-08-01']);
+  });
+});
+
+describe('cursorFor — where the figure stands', () => {
+  const node = (lat: number, lng: number, iso: string | null) => ({ lat, lng, iso, dateFrom: '2026-01-01', dateTo: '2026-01-02' });
+  const route = [
+    node(55.7, 12.6, 'DK'), node(52.5, 13.4, 'DE'), node(41.4, 2.2, 'ES'), node(40.4, -3.7, 'ES'), node(48.9, 2.4, 'FR'),
+  ];
+
+  it('stands a country at the last stop of its run, so all of it is behind the figure', () => {
+    expect(cursorFor(route, 'ES')).toBe(3);
+    expect(cursorFor(route, 'DK')).toBe(0);
+    expect(cursorFor(route, 'FR')).toBe(4);
+  });
+
+  it('stands a picked place at the nearest stop, inside its own country', () => {
+    expect(cursorFor(route, 'ES', { lat: 41.39, lng: 2.17 })).toBe(2);
+    expect(cursorFor(route, 'ES', { lat: 40.41, lng: -3.70 })).toBe(3);
+  });
+
+  it('does not put a place across a border from its country', () => {
+    // a pin written as Spain but sitting nearer the French stop still stands on a Spanish one (Barcelona, the closer)
+    expect(cursorFor(route, 'ES', { lat: 47, lng: 2 })).toBe(2);
+  });
+
+  it('has no cursor for a country the route never goes through', () => {
+    expect(cursorFor(route, 'JP')).toBeNull();
+    expect(cursorFor(route, '')).toBeNull();
+    expect(cursorFor([], 'ES')).toBeNull();
   });
 });

@@ -136,14 +136,31 @@ describe('albums view', () => {
     expect(body.querySelector('[data-album-remove-entry], [data-open-entry]')).toBeFalsy();
   });
 
-  it('keeps the tag groups, but below the user albums', () => {
-    const { body } = mount([mkEntry('e1', { tags: ['food'] })], []);
+  it('shows the entries by tag only when the By tag button is pressed, and the shelf again when it is released', () => {
+    const { body } = mount([mkEntry('e1', { tags: ['food'] })], [mkAlbum('a1', ['e1'])]);
     gotoView(body, 'albums');
-    const shell = body.querySelector('.journal-album-shell')!;
-    const auto = shell.querySelector('.journal-auto-groups');
-    expect(auto, 'tag groups still present').toBeTruthy();
-    // Collapsed: it's reference material, not the main event.
-    expect((auto as HTMLDetailsElement).open).toBe(false);
+
+    // Off: the shelf of albums, and the button is there at the top of the page.
+    const toggle = () => body.querySelector('[data-albums-by-tag]') as HTMLElement;
+    expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    expect(body.querySelector('.jb-rack')).toBeTruthy();
+    expect(body.querySelector('.journal-tag-group')).toBeFalsy();
+
+    toggle().click();
+    expect(toggle().getAttribute('aria-pressed')).toBe('true');
+    expect(body.querySelector('.journal-tag-group [data-filter-tag="food"]'), 'the tag group').toBeTruthy();
+    expect(body.querySelector('.jb-rack'), 'the shelf is put away').toBeFalsy();
+
+    toggle().click();
+    expect(body.querySelector('.jb-rack')).toBeTruthy();
+    expect(body.querySelector('.journal-tag-group')).toBeFalsy();
+  });
+
+  it('has no AI tidy button', () => {
+    const { body } = mount([mkEntry('e1')], [mkAlbum('a1', ['e1'])]);
+    gotoView(body, 'albums');
+    expect(body.querySelector('[data-album-tidy]')).toBeFalsy();
+    expect(body.querySelector('.journal-tidy')).toBeFalsy();
   });
 });
 

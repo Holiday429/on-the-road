@@ -1,5 +1,4 @@
 import type { TemplateId } from '../templates.ts';
-import type { TidySuggestions } from '../ai-classify.ts';
 import type { JournalAlbumCover } from '../../../data/schema.ts';
 import type { CardFocus } from '../shared/letter-model.ts';
 
@@ -73,7 +72,6 @@ export interface CaptureState {
   openAlbumId: string | null;
   /** The cover being designed: the album's id and the unsaved draft, or null when closed. */
   coverEdit: { albumId: string; draft: JournalAlbumCover } | null;
-  /** AI tidy pass: suggestions awaiting the user's yes/no, plus its in-flight flag. */
-  tidy: TidySuggestions | null;
-  tidyLoading: boolean;
+  /** Albums view: show the entries grouped by tag instead of the shelf of albums. */
+  albumsByTag: boolean;
 }
