@@ -80,6 +80,7 @@ let _openDay: string | null = null;   // the plan board's unfolded day envelope
 let _planCat = '';                  // ticket machine: the category chip picked last
 let _openDatesFor: string | null = null;   // set when the list asks for a stop's dates editor on arrival
 let _boardShown = false;   // the list's flap tiles shuffle once per visit to the list
+let _boardDay = '';        // the day the board last painted, so a new one re-flips it
 let _stayPage = 0;  // which stay the detail page's stays ticket is showing; reset on new leg
 
 // Drag state (plan items → day columns)
@@ -252,8 +253,12 @@ function renderTimeline(): string {
       </div>`}`;
   }
 
-  const board = renderBoard({ legs, today: stampToday(), marks: legMarks }, { shuffle: !_boardShown });
+  // The whole board flips on the first paint and again whenever "today" moves —
+  // the time-travel clock lands on a new day, the way a real board resets.
+  const today = stampToday();
+  const board = renderBoard({ legs, today, marks: legMarks }, { shuffle: !_boardShown || _boardDay !== today });
   _boardShown = true;
+  _boardDay = today;
   return `
     ${renderAddForm()}
     ${board}`;
@@ -673,6 +678,7 @@ function renderDetail(leg: Leg): string {
 
 function backToList() {
   _boardShown = false;
+  _boardDay = '';
   if (_planLeaflet) { _planLeaflet.remove(); _planLeaflet = null; _planLeafletEl = null; }
   selectedLegId = null;
   render();

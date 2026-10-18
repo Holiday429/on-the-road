@@ -9,7 +9,7 @@
    ========================================================================== */
 
 import { t as tr } from '../../core/i18n.ts';
-import { escHtml as esc } from '../../core/utils.ts';
+import { escHtml as esc, safeUrl } from '../../core/utils.ts';
 import { renderStamp, type StampSpec } from '../../core/paper/stamp.ts';
 import type { CardPostmarks } from '../../data/card-postmarks.ts';
 import type { Leg } from './itinerary-shared.ts';
@@ -96,7 +96,7 @@ function renderRow(leg: Leg, i: number, ctx: BoardCtx): string {
         aria-label="${esc(tr('board.rowAria', { city: leg.city, from: fmtDate(leg.dateFrom), to: fmtDate(leg.dateTo), nights: nightsLabel(nights), status }))}">
         <span class="rb-marker" aria-hidden="true"></span>
         <span class="rb-city"><span class="rb-flag" aria-hidden="true">${leg.flag || ''}</span>${tiles(tileText(leg.city, 13))}</span>
-        <span class="rb-date" aria-hidden="true"><span class="rb-led-screen rb-led-screen--row">${ledText(ledDate(leg.dateFrom))}</span></span>
+        <span class="rb-date" aria-hidden="true">${ledText(ledDate(leg.dateFrom))}</span>
         <span class="rb-arr">${ar ? `
           <span class="rb-arr-glyph" aria-hidden="true">${ar.glyph}</span>
           <span class="rb-arr-legs">${ar.codes.map((c, n) => `<span class="rb-arr-leg"><span class="rb-arr-code">${esc(c)}</span>${n === 0 && ar.times ? `<span class="rb-arr-times">${esc(ar.times)}</span>` : ''}</span>`).join('')}${ar.via ? `<span class="rb-arr-via">${esc(tr('route.ticketVia', { cities: ar.via }))}</span>` : ''}</span>` : '<span class="rb-dim">—</span>'}</span>
@@ -204,12 +204,15 @@ function gateCard(o: { mode: 'now' | 'next'; leg: Leg; ctx: BoardCtx; label: str
   const { leg } = o;
   const nights = Math.max(0, daysBetween(leg.dateFrom, leg.dateTo));
   const aria = tr('board.rowAria', { city: leg.city, from: fmtDate(leg.dateFrom), to: fmtDate(leg.dateTo), nights: nightsLabel(nights), status: o.label });
+  // The frosted pane behind the text is the cover again, blurred — so hand the URL
+  // to CSS as well as rendering the photo itself.
+  const art = safeUrl(leg.coverImageUrl);
   return `
-    <section class="rb-gate rb-gate--${o.mode}" data-act="open" data-id="${esc(leg.id)}" role="button" tabindex="0" aria-label="${esc(aria)}">
+    <section class="rb-gate rb-gate--${o.mode}${art ? ' has-art' : ''}" data-act="open" data-id="${esc(leg.id)}" role="button" tabindex="0" aria-label="${esc(aria)}"${art ? ` style="--gate-art:url('${art}')"` : ''}>
       <div class="rb-gate-photo" aria-hidden="true">
         ${legCoverArt(leg, 'route-leg-cover')}
-        <i class="rb-gate-frost"></i>
       </div>
+      <i class="rb-gate-frost" aria-hidden="true"></i>
       <div class="rb-gate-main">
         <div class="rb-gate-kicker"><span class="rb-lamp" aria-hidden="true"></span>${esc(o.label)}</div>
         <h2 class="rb-gate-city"><span aria-hidden="true">${leg.flag || ''}</span> ${esc(leg.city)}</h2>
@@ -222,13 +225,15 @@ function gateCard(o: { mode: 'now' | 'next'; leg: Leg; ctx: BoardCtx; label: str
 
 /* ── Board ───────────────────────────────────────────────────────────────── */
 
+/** The route as one thin line under the header: a segment per stop, sized by
+ *  nights. It doubles as the rule that separates the header from the schedule. */
 function renderStrip(ctx: BoardCtx): string {
   const segs = ctx.legs.map((leg, i) => {
     const n = Math.max(1, daysBetween(leg.dateFrom, leg.dateTo));
     const state = boardState(leg, ctx.today);
     const tick = i < ctx.legs.length - 1 && ctx.legs[i + 1].country !== leg.country ? ' has-tick' : '';
     const title = `${leg.city} · ${nightsLabel(n)}`;
-    return `<button type="button" class="rb-seg is-${state}${tick}" style="flex:${n} 1 0" data-act="strip" data-id="${esc(leg.id)}" title="${esc(title)}" aria-label="${esc(title)}"><i></i></button>`;
+    return `<button type="button" class="rb-seg is-${state}${tick}" style="flex:${n} 1 0" data-act="strip" data-id="${esc(leg.id)}" title="${esc(title)}" aria-label="${esc(title)}"></button>`;
   }).join('');
   return `<div class="rb-strip">${segs}</div>`;
 }
@@ -260,14 +265,14 @@ export function renderBoard(ctx: BoardCtx, opts: { shuffle: boolean }): string {
         <button type="button" class="btn btn-primary rd-sm" data-act="add-stop">${esc(tr('route.addStop'))}</button>
       </span>
     </div>
-    ${renderStrip(ctx)}
-    <section class="rb${opts.shuffle ? ' is-shuffling' : ''}${gate.kind === 'over' ? ' is-over' : ''}" aria-label="${esc(title)}">
+    <section class="rb${opts.shuffle ? ' is-shuffling' : ''}${gate.kind === 'over' ? ' is-over' : ''}" aria-label="${esc(title)}" data-rb-day="${esc(ctx.today)}">
       <header class="rb-bar">
         <span class="rb-lamp" aria-hidden="true"></span>
         <h2 class="rb-title">${esc(title)}</h2>
         ${gate.kind === 'over' ? `<span class="rb-done-tag">${esc(tr('board.doneTag'))}</span>` : ''}
-        <time class="rb-clock" datetime="${esc(ctx.today)}" aria-label="${esc(clock)}"><span class="rb-led-screen rb-led-screen--clock" aria-hidden="true">${ledText(clockLed)}</span></time>
+        <time class="rb-clock" datetime="${esc(ctx.today)}" aria-label="${esc(clock)}"><span class="rb-led" aria-hidden="true">${ledText(clockLed)}</span></time>
       </header>
+      ${renderStrip(ctx)}
       <div class="rb-screen">
         <div class="rb-head" aria-hidden="true">
           <span></span><span>${esc(tr('board.colCity'))}</span><span>${esc(tr('board.colDate'))}</span>
@@ -275,7 +280,6 @@ export function renderBoard(ctx: BoardCtx, opts: { shuffle: boolean }): string {
           <span class="rb-c-n">${esc(tr('board.colNights'))}</span><span>${esc(tr('board.colStatus'))}</span>
         </div>
         <div class="rb-body">${rows}</div>
-        <button type="button" class="rb-add" data-act="add-stop">${esc(tr('route.addStop'))}</button>
       </div>
     </section>
     </div>`;
