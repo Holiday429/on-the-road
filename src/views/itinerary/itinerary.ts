@@ -15,7 +15,7 @@ import { t as tr } from '../../core/i18n.ts';
 import { routeStore } from '../../data/stores/route-store.ts';
 import { citySharedStore, type StoredCityShared } from '../../data/stores/city-shared-store.ts';
 import { currentTripId, listTrips, switchTrip, type StoredTrip } from '../../data/trip-context.ts';
-import { navigateTo, consumeNavIntent, setViewHome, type NavIntent } from '../../core/app.ts';
+import { consumeNavIntent, setViewHome } from '../../core/app.ts';
 import { createDestinationInput, type DestinationInputInstance } from '../../core/destination-input.ts';
 import { openTripChooser } from '../../core/trip-chooser.ts';
 import { escHtml as esc, safeUrl } from '../../core/utils.ts';
@@ -59,6 +59,7 @@ import { renderBoard } from './itinerary-board.ts';
 import { wireBoard } from './itinerary-board-wire.ts';
 import { wirePlanMachine } from './itinerary-plan-machine.ts';
 import { renderCollectionSection, wireCollectionFilter } from './itinerary-collection.ts';
+import { openCityGuideDrawer, openCityMapDrawer } from './itinerary-drawers.ts';
 import {
   ensurePlanDays, renderPlanItem, renderPlanMachine,
   renderPlanBoardView, renderPlanCategoryView, renderPlanFeedView,
@@ -634,9 +635,9 @@ function renderDetail(leg: Leg): string {
         <div class="rd-hero-topline">
           <div class="rd-hero-ident">
             <h2 class="rd-hero-city">${esc(leg.city)}</h2>
+            <span class="rd-hero-country">${leg.flag || ''} ${esc(leg.country)}</span>
             ${status === 'past' ? '' : `<span class="rd-status-pill status-${status}">${status === 'active' ? tr('route.statusActive') : tr('route.statusUpcoming')}</span>`}
           </div>
-          <span class="rd-hero-country">${leg.flag || ''} ${esc(leg.country)}</span>
         </div>
         <div class="rd-hero-tools">
           <button class="rd-glass-btn" data-act="open-guide">${tr('route.btnCityGuide')}</button>
@@ -933,8 +934,8 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
   /* — Reposition the cover, Notion-style: drag the photo to set its vertical focus — */
   wireCoverReposition(timeline, leg);
 
-  on('open-guide', () => navigateTo('cities'));
-  on('open-map', () => navigateTo('map', { mode: 'route', legId: leg.id } satisfies NavIntent));
+  on('open-guide', () => openCityGuideDrawer(leg));
+  on('open-map', () => openCityMapDrawer(leg));
 
   /* — Dates — */
   on('edit-dates', () => openDatesEditor(timeline, leg, patchLeg));
@@ -1087,9 +1088,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
       // Update card background immediately without full re-render
       const card = timeline.querySelector<HTMLElement>(`.rd-note-card[data-note-id="${id}"]`);
       if (card) {
-        card.style.background = color;
-        const trigger = card.querySelector<HTMLElement>('.rd-note-color-trigger');
-        if (trigger) trigger.style.background = color;
+        card.style.setProperty('--cat', color);
         card.querySelectorAll<HTMLButtonElement>('.rd-note-color-swatch').forEach(s => s.classList.toggle('is-active', s.dataset.color === color));
       }
       closeColorPopovers();
@@ -1142,7 +1141,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     dlg.innerHTML = `
       <div class="rd-editor rd-clip-preview-modal">
         <div class="rd-clip-preview-top">
-          ${cat ? `<span class="rd-cat-badge" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
+          ${cat ? `<span class="rd-cat-badge" style="--cat:${esc(color)}">${esc(cat.label)}</span>` : ''}
           <button class="rd-note-del rd-clip-preview-close" data-ed="close">✕</button>
         </div>
         ${(() => { const imgs = clipImages(clip); return imgs.length
@@ -1188,7 +1187,7 @@ function wireDetail(timeline: HTMLElement, leg: Leg) {
     dlg.className = 'rd-editor-overlay';
     // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
     dlg.innerHTML = `
-      <div class="rd-editor rd-note-expand-modal" style="background:${esc(color)}">
+      <div class="rd-editor rd-note-expand-modal" style="--cat:${esc(color)}">
         <div class="rd-note-card-head">
           <div class="rd-note-expand-title">${esc(card.title || 'Note')}</div>
           <button class="rd-note-del" data-ed="close" style="opacity:1">✕</button>

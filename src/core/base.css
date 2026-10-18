@@ -748,6 +748,33 @@ body.otr-modal-open { overflow: hidden; }
 /* Pastel category / note colours arrive as inline custom properties (--tint-bg,
    --ag-bg) so dark mode can sink them into the surface instead of showing a
    bright block with light text on it. */
-:root[data-theme='dark'] .rd-plan-tag,
 :root[data-theme='dark'] .pack-item-tag { background: color-mix(in srgb, var(--tint-bg, var(--surface-3)) 34%, var(--surface)); }
-:root[data-theme='dark'] .ag-item { background: color-mix(in srgb, var(--ag-bg, var(--surface-3)) 34%, var(--surface)); color: var(--ink); }
+:root[data-theme='dark'] .ag-item { background: var(--cat-bg); color: var(--cat-ink); }
+
+/* ── Category tone ──────────────────────────────────────────────────────────
+   A category stores one pastel hex. Light mode paints it as is, with dark ink.
+   Dark mode used to sink it 34% into the surface, which turned every category
+   into the same grey-brown. Instead the pastel's *hue* is kept and re-lit: a deep
+   saturated fill, light ink of the same hue, and a mid tone for marks and rings,
+   so "Food" and "Museum" stay tellable apart and the label stays readable.
+   Anything with a `--cat` (inline, or mapped from --pt-cat / --ag-bg below) gets
+   --cat-bg / --cat-ink / --cat-mark; components just use those. */
+.rd-pt-band, .rd-pm-cat, .rd-env-spine { --cat: var(--pt-cat); }
+.ag-item { --cat: var(--ag-bg, var(--surface-3)); }
+:is(.rd-cat-badge, .rd-pt-band, .rd-pm-cat, .rd-filter-chip, .rd-cal-grid-item, .rd-env-spine, .rd-note-card, .rd-note-color-swatch, .rd-note-color-trigger, .rd-clip-card, .rd-note-expand-modal, .ag-item) {
+  --cat-bg: var(--cat, var(--surface-3));
+  --cat-ink: #2b2620;
+  --cat-mark: color-mix(in srgb, var(--cat, var(--surface-4)) 45%, #6b5a3c);
+}
+:root[data-theme='dark'] :is(.rd-cat-badge, .rd-pt-band, .rd-pm-cat, .rd-filter-chip, .rd-cal-grid-item, .rd-env-spine, .rd-note-card, .rd-note-color-swatch, .rd-note-color-trigger, .rd-clip-card, .rd-note-expand-modal, .ag-item) {
+  --cat-bg: color-mix(in srgb, var(--cat, var(--surface-3)) 34%, #1c1915);
+  --cat-ink: var(--ink);
+  --cat-mark: color-mix(in srgb, var(--cat, var(--ink-faint)) 70%, var(--ink-muted));
+}
+@supports (color: hsl(from red h s l)) {
+  :root[data-theme='dark'] :is(.rd-cat-badge, .rd-pt-band, .rd-pm-cat, .rd-filter-chip, .rd-cal-grid-item, .rd-env-spine, .rd-note-card, .rd-note-color-swatch, .rd-note-color-trigger, .rd-clip-card, .rd-note-expand-modal, .ag-item) {
+    --cat-bg: hsl(from var(--cat, #888) h min(calc(s * 1.1), 44) 27%);
+    --cat-ink: hsl(from var(--cat, #888) h min(calc(s * 1.1), 60) 91%);
+    --cat-mark: hsl(from var(--cat, #888) h min(calc(s * 1.3), 62) 64%);
+  }
+}

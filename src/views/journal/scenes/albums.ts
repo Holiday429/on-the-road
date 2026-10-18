@@ -47,11 +47,15 @@ export function renderBooklet(album: StoredJournalAlbum, entries: StoredJournalE
     </button>`;
 }
 
-export function renderShelf(albums: StoredJournalAlbum[], entriesOf: (a: StoredJournalAlbum) => StoredJournalEntry[], withNew: boolean): string {
+/**
+ * The shelf. There is no "new album" tile on the end: the button above the
+ * shelf already makes one, and two of the same control read as two different
+ * things.
+ */
+export function renderShelf(albums: StoredJournalAlbum[], entriesOf: (a: StoredJournalAlbum) => StoredJournalEntry[]): string {
   return `
     <div class="jb-rack">
       ${albums.map((a) => renderBooklet(a, entriesOf(a))).join('')}
-      ${withNew ? `<button class="jb-book jb-book--new" data-album-create type="button"><span class="jb-new-plus" aria-hidden="true">+</span><span class="jb-new-label">New album</span></button>` : ''}
     </div>`;
 }
 

@@ -16,11 +16,15 @@ import type { Clip, NoteCard } from '../../data/schema.ts';
 import type { StoredCityShared } from '../../data/stores/city-shared-store.ts';
 import { allCategories, categoryById, type Leg } from './itinerary-shared.ts';
 import { clipImages, legNoteCardsOf, resolveNoteColor, NOTE_COLORS } from './itinerary-utils.ts';
-import { renderFastenerFor } from '../../core/paper/fastener.ts';
+import { renderFastener, renderFastenerFor, hashKey, type FastenerKind } from '../../core/paper/fastener.ts';
 import { cityShareContext, sharedClips, sharedNoteCards } from './itinerary-city-shared.ts';
 
 type ClipEntry = { clip: Clip; srcLegId: string };
 type NoteEntry = { card: NoteCard; srcLegId: string };
+
+/** A clipping is held by tape, a paperclip or a safety pin — never a corner strip or a tack, which
+ *  would land on the category tab that sits over its top-left. */
+const CLIP_FASTENERS: FastenerKind[] = ['tape', 'clip', 'safety', 'tape'];
 
 function clipCard({ clip: c, srcLegId }: ClipEntry, leg: Leg, legs: Leg[], visitIndex: (id: string) => number): string {
   // Category colour resolves against the clip's own leg (categories are per-leg).
@@ -30,33 +34,33 @@ function clipCard({ clip: c, srcLegId }: ClipEntry, leg: Leg, legs: Leg[], visit
   const imgs = clipImages(c);
   const foreign = srcLegId !== leg.id;
   const vIdx = foreign ? visitIndex(srcLegId) : 0;
+  const h = hashKey(c.id);
+  const fastener = renderFastener(CLIP_FASTENERS[h % CLIP_FASTENERS.length], { at: 0.72 + (h % 12) / 100, tilt: (h % 9) - 4, colour: ['var(--coral-500)', 'var(--sky-500)', 'var(--sage-500)', 'var(--amber-500)'][(h >> 3) % 4] });
   return `
-    <div class="rd-clip-card rd-clip-card--expandable${foreign ? ' rd-clip-card--shared' : ''}" data-kind="clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" data-clip-cat="${esc(c.category ?? '')}" data-act="preview-clip" data-clip-preview="${esc(c.id)}">
-      <div class="rd-clip-card-color" style="background:${esc(color)}"></div>
-      <div class="rd-clip-card-body">
-        ${imgs.length ? `<div class="rd-clip-card-imgs">${imgs.slice(0, 3).map((u, i) => `<div class="rd-clip-card-img-wrap">${i === 2 && imgs.length > 3 ? `<img class="rd-clip-card-img" src="${esc(u)}" alt=""><div class="rd-clip-card-img-more">+${imgs.length - 2}</div>` : `<img class="rd-clip-card-img" src="${esc(u)}" alt="">`}</div>`).join('')}</div>` : ''}
-        <div class="rd-clip-card-top">
-          ${cat ? `<span class="rd-cat-badge rd-cat-badge--sm" style="background:${esc(color)}">${esc(cat.label)}</span>` : ''}
-          ${foreign ? `<span class="rd-share-tag" title="${tr('route.shareFromVisitTitle')}">${tr('route.shareFromVisit', { n: vIdx })}</span>` : ''}
-          <div class="rd-clip-card-actions">
-            <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Convert to plan item">→✨</button>
-            <button class="rd-icon-btn" data-act="edit-clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Edit">✎</button>
-            <button class="rd-icon-btn rd-danger" data-act="del-clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Remove">✕</button>
-          </div>
+    <article class="rd-clip-card rd-clip-card--expandable${foreign ? ' rd-clip-card--shared' : ''}" data-kind="clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" data-clip-cat="${esc(c.category ?? '')}" data-act="preview-clip" data-clip-preview="${esc(c.id)}" style="--cat:${esc(color)}">
+      ${fastener}
+      ${cat ? `<span class="rd-cat-badge rd-clip-tab">${esc(cat.label)}</span>` : ''}
+      <div class="rd-clip-card-top">
+        ${foreign ? `<span class="rd-share-tag" title="${tr('route.shareFromVisitTitle')}">${tr('route.shareFromVisit', { n: vIdx })}</span>` : ''}
+        <div class="rd-clip-card-actions">
+          <button class="rd-icon-btn" data-act="clip-to-plan" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Convert to plan item">→✨</button>
+          <button class="rd-icon-btn" data-act="edit-clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Edit">✎</button>
+          <button class="rd-icon-btn rd-danger" data-act="del-clip" data-clip="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" title="Remove">✕</button>
         </div>
-        ${c.url
-          ? `<a class="rd-clip-card-title" href="${esc(/^https?:\/\//i.test(c.url) ? c.url : 'https://' + c.url)}" target="_blank" rel="noopener">${esc(c.title || c.url)}</a>`
-          : `<div class="rd-clip-card-title">${esc(c.title || 'Note')}</div>`}
-        ${c.body ? `<div class="rd-clip-card-body-text">${esc(c.body)}</div>` : ''}
       </div>
-    </div>`;
+      ${imgs.length ? `<div class="rd-clip-card-imgs">${imgs.slice(0, 3).map((u, i) => `<div class="rd-clip-card-img-wrap">${i === 2 && imgs.length > 3 ? `<img class="rd-clip-card-img" src="${esc(u)}" alt=""><div class="rd-clip-card-img-more">+${imgs.length - 2}</div>` : `<img class="rd-clip-card-img" src="${esc(u)}" alt="">`}</div>`).join('')}</div>` : ''}
+      ${c.url
+        ? `<a class="rd-clip-card-title" href="${esc(/^https?:\/\//i.test(c.url) ? c.url : 'https://' + c.url)}" target="_blank" rel="noopener">${esc(c.title || c.url)}</a>`
+        : `<div class="rd-clip-card-title">${esc(c.title || 'Note')}</div>`}
+      ${c.body ? `<div class="rd-clip-card-body-text">${esc(c.body)}</div>` : ''}
+    </article>`;
 }
 
 function noteCard({ card: c, srcLegId }: NoteEntry, i: number, leg: Leg, visitIndex: (id: string) => number): string {
   const color = resolveNoteColor(c.color, i);
   const foreign = srcLegId !== leg.id;
   return `
-    <div class="rd-note-card${foreign ? ' rd-note-card--shared' : ''}" data-kind="note" data-note-id="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" style="background:${esc(color)}">
+    <div class="rd-note-card${foreign ? ' rd-note-card--shared' : ''}" data-kind="note" data-note-id="${esc(c.id)}" data-src-leg="${esc(srcLegId)}" style="--cat:${esc(color)}">
       ${renderFastenerFor(c.id)}
       <div class="rd-note-card-head">
         <input class="rd-note-title-input" data-note-id="${esc(c.id)}" value="${esc(c.title)}" placeholder="Title…">
@@ -64,9 +68,9 @@ function noteCard({ card: c, srcLegId }: NoteEntry, i: number, leg: Leg, visitIn
           ${foreign ? `<span class="rd-share-tag" title="${tr('route.shareFromVisitTitle')}">${tr('route.shareFromVisit', { n: visitIndex(srcLegId) })}</span>` : ''}
           <button class="rd-note-expand-btn" data-act="expand-note" data-note-id="${esc(c.id)}" title="View full note">↗</button>
           <div class="rd-note-color-wrap" data-note-id="${esc(c.id)}">
-            <button class="rd-note-color-trigger" data-act="toggle-color" data-note-id="${esc(c.id)}" title="Note colour" style="background:${esc(color)}"></button>
+            <button class="rd-note-color-trigger" data-act="toggle-color" data-note-id="${esc(c.id)}" title="Note colour"></button>
             <div class="rd-note-color-popover" data-note-id="${esc(c.id)}" hidden>
-              ${NOTE_COLORS.map((col) => `<button class="rd-note-color-swatch${col === color ? ' is-active' : ''}" data-color="${col}" data-note-id="${esc(c.id)}" style="background:${col}"></button>`).join('')}
+              ${NOTE_COLORS.map((col) => `<button class="rd-note-color-swatch${col === color ? ' is-active' : ''}" data-color="${col}" data-note-id="${esc(c.id)}" style="--cat:${col}"></button>`).join('')}
             </div>
           </div>
           <button class="rd-note-del" data-act="del-note" data-note-id="${esc(c.id)}" title="Delete note">✕</button>
@@ -99,12 +103,17 @@ export function renderCollectionSection(leg: Leg, legs: Leg[], sharedCities: Sto
       ${kindChip('note', tr('route.collNotes'), notes.length)}
       <span class="rd-filter-sep" aria-hidden="true"></span>
       ${allCategories(leg).filter((c) => clips.some((e) => e.clip.category === c.id)).map((c) =>
-        `<button class="rd-filter-chip" data-filter="${esc(c.id)}" style="--chip-color:${esc(c.color)}">${esc(c.label)}</button>`).join('')}
+        `<button class="rd-filter-chip rd-filter-chip--cat" data-filter="${esc(c.id)}" style="--cat:${esc(c.color)}"><i class="rd-chip-dot" aria-hidden="true"></i>${esc(c.label)}</button>`).join('')}
       <button class="rd-filter-chip rd-filter-chip--add" data-act="add-clip-category" title="New category">${tr('route.btnAddCategory')}</button>
     </div>`;
 
-  const cards = clips.map((e) => clipCard(e, leg, legs, visitIndex)).join('')
-    + notes.map((e, i) => noteCard(e, i, leg, visitIndex)).join('');
+  // Clippings and notes alternate, so every column of the board mixes the two instead of one holding all
+  // the paper and the next all the stickies.
+  // Each card sits in a slot that leaves room above it for its tape / clip / tab, which hang over the edge.
+  const slot = (card: string) => `<div class="rd-coll-slot">${card}</div>`;
+  const clipHtml = clips.map((e) => slot(clipCard(e, leg, legs, visitIndex)));
+  const noteHtml = notes.map((e, i) => slot(noteCard(e, i, leg, visitIndex)));
+  const cards = Array.from({ length: Math.max(clipHtml.length, noteHtml.length) }, (_, i) => (clipHtml[i] ?? '') + (noteHtml[i] ?? '')).join('');
   const total = clips.length + notes.length;
   return `
     <section class="rd-section rd-section--collection" id="rd-clips-section">
@@ -115,7 +124,7 @@ export function renderCollectionSection(leg: Leg, legs: Leg[], sharedCities: Sto
       </div>
       ${bar}
       ${total
-        ? `<div class="rd-clip-grid rd-coll-grid">${cards}</div>`
+        ? `<div class="rd-coll-board"><div class="rd-coll-grid">${cards}</div></div>`
         : `<div class="rd-placeholder rd-placeholder-soft"><span>${tr('route.collEmpty')}</span></div>`}
     </section>`;
 }
@@ -130,9 +139,10 @@ export function wireCollectionFilter(timeline: HTMLElement): void {
   const apply = () => {
     bar.querySelectorAll<HTMLElement>('.rd-filter-chip[data-kind]').forEach((c) => c.classList.toggle('is-active', c.dataset.kind === kind));
     bar.querySelectorAll<HTMLElement>('.rd-filter-chip[data-filter]').forEach((c) => c.classList.toggle('is-active', c.dataset.filter === cat));
-    grid.querySelectorAll<HTMLElement>('[data-kind]').forEach((card) => {
-      const k = card.dataset.kind;
-      card.hidden = (kind !== '' && k !== kind) || (cat !== '' && (k === 'note' || card.dataset.clipCat !== cat));
+    grid.querySelectorAll<HTMLElement>('.rd-coll-slot').forEach((slot) => {
+      const card = slot.firstElementChild as HTMLElement | null;
+      const k = card?.dataset.kind;
+      slot.hidden = (kind !== '' && k !== kind) || (cat !== '' && (k === 'note' || card?.dataset.clipCat !== cat));
     });
   };
   bar.addEventListener('click', (e) => {

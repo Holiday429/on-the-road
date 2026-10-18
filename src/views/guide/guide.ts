@@ -51,11 +51,11 @@ let _generating = false;
 // over the Firestore snapshot, which lags behind by an async save round-trip.
 let _liveIntel: (Partial<CityIntel> & { id: string }) | null = null;
 
-type TabKey = 'intro' | 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'know' | 'moneyTips' | 'safety';
+export type TabKey = 'intro' | 'attractions' | 'cityWalks' | 'restaurants' | 'cafes' | 'experiences' | 'know' | 'moneyTips' | 'safety';
 
-interface Tab { key: TabKey; label: string; icon: string; isDo: boolean; }
+export interface Tab { key: TabKey; label: string; icon: string; isDo: boolean; }
 
-const TABS: Tab[] = [
+export const TABS: Tab[] = [
   { key: 'intro',       label: 'Overview',    icon: '🏙️',  isDo: false },
   { key: 'attractions', label: 'Attractions', icon: '🏛️',  isDo: true  },
   { key: 'cityWalks',   label: 'City Walk',   icon: '🚶',  isDo: true  },
@@ -67,7 +67,7 @@ const TABS: Tab[] = [
   { key: 'safety',      label: 'Safety',      icon: '🛡️',  isDo: false },
 ];
 
-function tabLabel(key: TabKey): string {
+export function tabLabel(key: TabKey): string {
   const map: Record<TabKey, string> = {
     intro:       t('guide.tabIntro'),
     attractions: t('guide.tabAttractions'),
@@ -437,7 +437,9 @@ function renderCityDetail(_root: HTMLElement) {
 
 // ── Tab renderers ─────────────────────────────────────────────────────────────
 
-function renderTabContent(intel: StoredCityIntel): string {
+/** The Itinerary's side drawer renders a city's guide with these, on its own host element. */
+export function setGuideTab(k: TabKey): void { _activeTab = k; }
+export function renderTabContent(intel: StoredCityIntel): string {
   switch (_activeTab) {
     case 'intro':       return renderIntroTab(intel);
     case 'attractions': return renderCardGrid(intel.attractions ?? [], intel.city, 'attraction');
@@ -677,7 +679,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 // ── Interactions ──────────────────────────────────────────────────────────────
 
-function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
+export function wireTabContent(detail: HTMLElement, intel: StoredCityIntel) {
   if (_activeTab === 'cafes') wireNomadStrip(detail, intel.city);
   if (_activeTab === 'safety') {
     wireSafetyTab(detail, intel.city, intel.country, () => {
@@ -815,7 +817,7 @@ async function loadMore(intel: StoredCityIntel, section: TabKey, btn: HTMLButton
       (intel[field] as unknown[]) = [...existing, ...fresh];
       await cityStore.save(intel);
       // Re-render the current tab to show appended items.
-      const content = document.getElementById('guide-tab-content');
+      const content = btn.closest('.guide-detail')?.querySelector<HTMLElement>('#guide-tab-content') ?? document.getElementById('guide-tab-content');
       if (content) {
         // eslint-disable-next-line no-restricted-syntax -- audited: interpolations escaped via escHtml/safeUrl (N5)
         content.innerHTML = renderTabContent(intel);

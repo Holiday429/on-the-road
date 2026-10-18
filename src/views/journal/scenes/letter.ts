@@ -49,6 +49,8 @@ export interface ReadLetterOpts {
   iso: string | null;
   country: string;
   locale: string;
+  /** Who the letter is from: the traveller's own name. */
+  author: string;
   focus: CardFocus | null;
 }
 
@@ -73,20 +75,32 @@ function entryStamp(entry: LetterHead, iso: string | null, country: string, size
 
 /* ── The envelope ────────────────────────────────────────────────────────── */
 
-function envelope(entry: LetterHead, iso: string | null, country: string, big: boolean): string {
-  const to = envelopeTitle(entry);
+/**
+ * The envelope.
+ *
+ * It is addressed the way the entry is meant to read: a love letter from the
+ * traveller TO the place they were in. So `from` is the traveller's own name
+ * and `to` is the city — not, as it was, the place in both lines with the
+ * entry's title as the addressee.
+ *
+ * One mark of the post, not two: the country stamp carries the postmark struck
+ * across it, which is what a franked envelope looks like. A second stamp
+ * somewhere else only made the corner look busy.
+ */
+function envelope(entry: LetterHead, iso: string | null, country: string, author: string, big: boolean): string {
+  const city = entry.destination.trim();
   return `
     <div class="ltr-env${big ? ' is-big' : ''}" aria-hidden="true">
       <div class="ltr-env-flap"></div>
       <div class="ltr-env-body">
         <div class="ltr-env-from">
           <span class="ltr-env-label">${escHtml(t('journal.letter.from'))}</span>
-          <span class="ltr-env-place">${escHtml(entry.destination.trim() || '—')}</span>
+          <span class="ltr-env-place">${escHtml(author.trim() || t('journal.letter.traveller'))}</span>
         </div>
         <div class="ltr-env-stamp">${entryStamp(entry, iso, country, big ? 72 : 60)}${postmark(entry.destination, entry.happenedOn)}</div>
         <div class="ltr-env-to">
           <span class="ltr-env-label">${escHtml(t('journal.letter.to'))}</span>
-          <span class="ltr-env-title">${escHtml(to)}</span>
+          <span class="ltr-env-title">${escHtml(city || envelopeTitle(entry))}</span>
           <span class="ltr-env-rule"></span>
         </div>
       </div>
@@ -120,16 +134,30 @@ function paper(entry: StoredJournalEntry, locale: string): string {
 
 /* ── The postcards ───────────────────────────────────────────────────────── */
 
+/**
+ * The photographs beside the letter.
+ *
+ * Fanned, the cards overlap — but only by the top of the one beneath, so most
+ * of every picture is in sight without a click (letter-model's MIN_SHOWN).
+ * `Spread them out` lays the same cards in a plain column, nothing covered,
+ * for when the pile is still too close for comfort.
+ */
 function postcards(o: ReadLetterOpts, photos: string[], layout: 'stack' | 'loose'): string {
   const { entry } = o;
-  const pile = pilePlan(entry.id, photos.map((_, i) => o.ratios[i]));
-  const focus = o.focus && o.focus.entryId === entry.id ? o.focus : { entryId: entry.id, picked: 0, flipped: [] };
+  const focus = o.focus && o.focus.entryId === entry.id ? o.focus : { entryId: entry.id, picked: 0, flipped: [], spread: false };
+  const spread = !!focus.spread;
+  const pile = pilePlan(entry.id, photos.map((_, i) => o.ratios[i]), spread);
   const picked = Math.min(focus.picked, photos.length - 1);
   const message = titleFor(entry);
   const country = o.country;
+  // One card is a card, not a pile: there is nothing to spread out.
+  const toggle = photos.length > 1 && layout === 'stack'
+    ? `<button class="ltr-cards-spread" data-cards-spread type="button" aria-pressed="${spread}">${escHtml(t(spread ? 'journal.letter.stack' : 'journal.letter.spread'))}</button>`
+    : '';
   return `
-    <aside class="ltr-cards" data-layout="${layout}" aria-label="${escHtml(t('journal.letter.postcards'))}"
+    <aside class="ltr-cards" data-layout="${layout}"${spread ? ' data-spread="1"' : ''} aria-label="${escHtml(t('journal.letter.postcards'))}"
            style="--pile-w:${pile.width}px;--pile-h:${pile.height}px">
+      ${toggle}
       ${photos.map((src, i) => renderPostcard({
         src, index: i, total: photos.length, card: pile.cards[i],
         z: i === picked ? 100 : 50 - Math.abs(i - picked),
@@ -200,9 +228,10 @@ export function renderReadLetter(o: ReadLetterOpts): string {
     <article class="ltr ltr--read${fade}" data-letter-scene data-layout="${layout}">
       <div class="ltr-scroll">
         <div class="ltr-scene ltr-scene--${layout}${photos.length ? ' has-cards' : ''}">
-          ${envelope(entry, o.iso, o.country, !letter)}
+          ${envelope(entry, o.iso, o.country, o.author, !letter)}
           ${letter ? paper(entry, o.locale) : ''}
           ${photos.length ? postcards(o, photos, letter ? 'stack' : 'loose') : ''}
+          <div class="ltr-fold-slot" data-morph-keep></div>
         </div>
       </div>
       ${bar(o)}
@@ -223,6 +252,8 @@ export interface WriteLetterOpts {
   iso: string | null;
   country: string;
   locale: string;
+  /** Who the letter is from: the traveller's own name. */
+  author: string;
 }
 
 /** The date, written as it will read on the letter. The real date control sits invisibly over it. */
@@ -322,7 +353,7 @@ export function renderWriteLetter(o: WriteLetterOpts): string {
     <article class="ltr ltr--write" data-letter-scene data-layout="letter">
       <div class="ltr-scroll">
         <div class="ltr-scene ltr-scene--letter has-cards${state.posting ? ' is-posting' : ''}">
-          ${envelope(head, o.iso, o.country, false)}
+          ${envelope(head, o.iso, o.country, o.author, false)}
           ${writePaper(o)}
           ${writeCards(o)}
           <div class="ltr-fold-slot" data-morph-keep></div>

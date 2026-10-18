@@ -32,8 +32,12 @@ export function stampParts(iso: string): { day: string; month: string; year: str
 
 /* ── Postcards ───────────────────────────────────────────────────────────── */
 
-/** Which postcard is on top of the pile and which are turned over. One entry's worth: reset when another is opened. */
-export interface CardFocus { entryId: string; picked: number; flipped: number[] }
+/**
+ * Which postcard is on top of the pile, which are turned over, and whether the
+ * pile has been spread out into a column. One entry's worth: reset when
+ * another is opened.
+ */
+export interface CardFocus { entryId: string; picked: number; flipped: number[]; spread?: boolean }
 
 /** A card's lean in the pile: 2°–5°, alternating sides, fixed by entry id + position. */
 export function postcardTilt(key: string, index: number): number {
@@ -92,31 +96,66 @@ export interface Pile {
 /** The pile is a column this wide; cards sit in it, nudged left and right. */
 export const PILE_WIDTH = 400;
 /** The pile never grows taller than this, however many cards: they fan more tightly instead. */
-const PILE_MAX_HEIGHT = 680;
-const PILE_MIN_STEP = 18;
-const PILE_MAX_STEP = 76;
+const PILE_MAX_HEIGHT = 1180;
+/**
+ * The least of a card that must stay uncovered, as a share of its height.
+ *
+ * Cards used to be stacked a fixed 76px apart, which left only the top third of
+ * a 239px card showing — and the top of a photograph is sky, not its subject.
+ * The step is now a share of the card under it, so most of every picture is
+ * there to be seen without touching anything, and the pile grows downwards
+ * instead of hiding its contents.
+ */
+const MIN_SHOWN = 0.62;
+const PILE_MIN_STEP = 28;
 
 /**
- * Fan `ratios` (one per photo) into a pile: each card a step lower than the one
- * before and nudged to alternate sides, so the corner of every card stays within
- * reach of a click. Size is wide or tall by the photo's orientation; nothing is random.
+ * Fan `ratios` (one per photo) into a pile: each card sits low enough on the one
+ * before that most of that one is still visible, and is nudged to alternate
+ * sides. Size is wide or tall by the photo's orientation; nothing is random.
+ *
+ * `spread` lays the same cards out in a plain column with a small gap — every
+ * photograph wholly visible, nothing overlapping — for the "spread them out"
+ * toggle in the letter.
  */
-export function pilePlan(key: string, ratios: Array<number | undefined>): Pile {
+export function pilePlan(key: string, ratios: Array<number | undefined>, spread = false): Pile {
   const frames = ratios.map(postcardFrame);
   const sizes = frames.map((f) => {
     const w = cardWidth(f);
     return { w, h: Math.round((w - 2 * CARD_BORDER) / f.ratio + 2 * CARD_BORDER) };
   });
-  const tallest = Math.max(0, ...sizes.map((s) => s.h));
-  const step = frames.length > 1
-    ? Math.min(PILE_MAX_STEP, Math.max(PILE_MIN_STEP, Math.floor((PILE_MAX_HEIGHT - tallest) / (frames.length - 1))))
-    : 0;
+
+  // Each card's own top, from the heights of the ones above it: a card may only
+  // cover the top (1 - MIN_SHOWN) of the card it lands on, never more.
+  const tops: number[] = [];
+  let y = 0;
+  sizes.forEach((size, i) => {
+    tops.push(Math.round(y));
+    const gap = spread ? size.h + 18 : Math.max(PILE_MIN_STEP, Math.round(size.h * MIN_SHOWN));
+    y += gap;
+    if (i === sizes.length - 1) y = Math.round(y - gap + size.h);
+  });
+
+  // However many cards there are, the fanned pile is kept within reach: if it
+  // runs past PILE_MAX_HEIGHT the steps are squeezed evenly rather than each
+  // card being cut by a different amount.
+  const full = Math.max(0, ...tops.map((top, i) => top + sizes[i].h));
+  const squeeze = !spread && full > PILE_MAX_HEIGHT && tops.length > 1
+    ? (PILE_MAX_HEIGHT - sizes[sizes.length - 1].h) / Math.max(1, tops[tops.length - 1])
+    : 1;
 
   const cards = frames.map((frame, i): PileCard => {
     const { w, h } = sizes[i];
-    const nudge = (4 + (hashId(`${key}>${i}`) % 22)) * (i % 2 === 0 ? -1 : 1);   // 4 – 25px
+    // Spread out, the cards line up; fanned, they lean and sit off to either side.
+    const nudge = spread ? 0 : (4 + (hashId(`${key}>${i}`) % 22)) * (i % 2 === 0 ? -1 : 1);   // 4 – 25px
     const left = Math.round((PILE_WIDTH - w) / 2 + nudge);
-    return { w, h, top: i * step, left: Math.max(0, Math.min(PILE_WIDTH - w, left)), tilt: postcardTilt(key, i), frame };
+    return {
+      w, h,
+      top: Math.round(tops[i] * squeeze),
+      left: Math.max(0, Math.min(PILE_WIDTH - w, left)),
+      tilt: spread ? 0 : postcardTilt(key, i),
+      frame,
+    };
   });
   return { width: PILE_WIDTH, height: Math.max(0, ...cards.map((c) => c.top + c.h)), cards };
 }

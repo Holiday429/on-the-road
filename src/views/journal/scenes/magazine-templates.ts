@@ -118,24 +118,32 @@ const openerLand: Template = {
   },
 };
 
-/** Tall first picture on the left, the heading beside it, words under and beside. */
+/**
+ * Tall first picture at the head of the left column, the heading beside it in
+ * the right one; the words then fill the left column under the picture and the
+ * right column under the heading.
+ *
+ * The page is two real columns, each a frame of its own, LEFT FIRST — so the
+ * text reads down the left column and then down the right, the way a page is
+ * read. (It used to set a narrow frame beside the picture and then one
+ * full-width two-column frame underneath, which made the eye start at the top
+ * right, jump to the bottom left, and cross back again.)
+ */
 const openerPort: Template = {
   id: 'opener-port', opener: true, pictureLed: true,
   applies: () => true, take: () => 1,
   layout: ({ photos, headHeight }) => {
-    const photoW = 250;
-    const photoH = Math.min(h(photoW, photos[0]), 390);
-    const sideX = photoW + GAP;
-    const sideW = BODY_W - sideX;
-    const head: HeadSlot = { x: sideX, y: 0, w: sideW, h: headHeight(sideW, 'm'), size: 'm' };
-    const besideTop = head.h + 12;
-    const below = under(0, photoH);
+    const photoH = Math.min(h(COL_W, photos[0]), 390);
+    const rightX = COL_W + COL_GAP;
+    const head: HeadSlot = { x: rightX, y: 0, w: COL_W, h: headHeight(COL_W, 'm'), size: 'm' };
+    const leftTop = under(0, photoH);
+    const rightTop = head.h + AFTER_CAP;
     return {
-      photos: [{ x: 0, y: 0, w: photoW, h: photoH }], head,
-      captions: [{ x: 0, y: photoH + 5, w: photoW }],
+      photos: [{ x: 0, y: 0, w: COL_W, h: photoH }], head,
+      captions: [{ x: 0, y: photoH + 5, w: COL_W }],
       frames: [
-        ...frame(sideX, besideTop, sideW, photoH + CAP - besideTop, 1),
-        ...frame(0, below, BODY_W, BODY_H - below, 2),
+        ...frame(0, leftTop, COL_W, BODY_H - leftTop, 1),
+        ...frame(rightX, rightTop, COL_W, BODY_H - rightTop, 1),
       ],
     };
   },

@@ -16,7 +16,7 @@ const entry = (over: Record<string, unknown> = {}): any => ({
 
 const opts = (e: any, over: Partial<ReadLetterOpts> = {}): ReadLetterOpts => ({
   entry: e, albums: [], prevId: 'p', nextId: null, dir: '', ratios: e.images.map(() => 1.5),
-  iso: 'NL', country: 'Netherlands', locale: 'en', focus: null, ...over,
+  iso: 'NL', country: 'Netherlands', locale: 'en', author: 'Mei', focus: null, ...over,
 });
 
 const dom = (o: ReadLetterOpts) => {
@@ -127,7 +127,7 @@ describe('renderWriteLetter', () => {
     // eslint-disable-next-line no-restricted-syntax -- audited: fixture markup under test
     host.innerHTML = renderWriteLetter({
       state: { draft: d, editingId: null, moreOpen: false, letter: null } as any,
-      cities: ['Berlin', 'Rome'], destinations: ['Berlin'], extras: '<i class="extra"></i>', iso: 'DE', country: 'Germany', locale: 'en', ...over,
+      cities: ['Berlin', 'Rome'], destinations: ['Berlin'], extras: '<i class="extra"></i>', iso: 'DE', country: 'Germany', locale: 'en', author: 'Mei', ...over,
     });
     return host;
   };

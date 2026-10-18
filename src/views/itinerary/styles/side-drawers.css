@@ -1,0 +1,18 @@
+/* ==========================================================================
+   Itinerary — city guide / map side drawers (itinerary-drawers.ts)
+   Opened from the stop header; the panel itself is core/drawer.ts.
+   ========================================================================== */
+.otr-drawer.rd-side-drawer { width: min(620px, 100%); }
+.rd-side-drawer .otr-drawer-body { padding: var(--sp-4); }
+.rd-side-drawer .otr-drawer-foot { padding-top: var(--sp-3); padding-bottom: var(--sp-4); }
+.rd-side-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-3); padding: var(--sp-6) var(--sp-2); color: var(--ink-muted); }
+.rd-side-empty p { margin: 0; }
+
+/* Map only: the map fills the drawer edge to edge. */
+.rd-side-drawer--map .otr-drawer-body { padding: 0; overflow: hidden; display: flex; }
+.rd-side-map { flex: 1; min-height: 320px; background: var(--surface-3); }
+.rd-side-pin--stay { background: var(--ink); }
+
+@media (max-width: 720px) {
+  .rd-side-map { height: 56dvh; flex: none; width: 100%; }
+}

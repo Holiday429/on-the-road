@@ -25,12 +25,12 @@ import {
 import { inferTemplate } from '../classify.ts';
 import { exportEntries } from '../export.ts';
 import { suggestTidy, type AlbumSuggestion } from '../ai-classify.ts';
-import { magazineCountries, renderCapture, type CalendarCell, type TagGroup } from './render.ts';
+import { renderCapture, type CalendarCell, type TagGroup } from './render.ts';
 import { openCardPreview } from '../card/card-preview.ts';
 import type { CaptureState, DraftState } from './types.ts';
 import { uploadJournalImage } from '../../../firebase/storage.ts';
 import { openModal } from '../../../core/modal.ts';
-import { playOpen, startPost } from '../scenes/letter-motion.ts';
+import { playClose, playOpen, startPost } from '../scenes/letter-motion.ts';
 import { envelopeTitle } from '../shared/letter-model.ts';
 import { cachedRatio, measureMissing, measureRatio, rememberRatio, storedRatios } from '../shared/ratio-cache.ts';
 import {
@@ -373,7 +373,12 @@ export function createCaptureController(deps: CaptureControllerDeps) {
 
       const viewBtn = target.closest<HTMLElement>('[data-journal-view]');
       if (viewBtn) {
-        state.view = viewBtn.dataset.journalView as CaptureState['view'];
+        const next = viewBtn.dataset.journalView as CaptureState['view'];
+        // The tab above an open album is the way back out of it: an album has no
+        // back button of its own, so tapping Albums (or any other tab) shuts the
+        // magazine rather than leaving it open behind the tab you asked for.
+        state.openAlbumId = null;
+        state.view = next;
         if (state.view === 'gallery') state.galleryDrift = true;   // the wall starts moving each time you walk in
         deps.requestRender();
         return;
@@ -486,6 +491,18 @@ export function createCaptureController(deps: CaptureControllerDeps) {
         return;
       }
 
+      // Spread the pile into a column, or gather it back up.
+      const spreadBtn = target.closest<HTMLElement>('[data-cards-spread]');
+      if (spreadBtn) {
+        const id = state.composerOpen ? 'draft' : state.readingId;
+        if (id) {
+          const focus = state.letter?.entryId === id ? state.letter : { entryId: id, picked: 0, flipped: [] as number[] };
+          state.letter = { ...focus, spread: !focus.spread };
+          deps.requestRender();
+        }
+        return;
+      }
+
       // A postcard: in the pile the first tap brings it to the front, the next turns it over;
       // in a row (narrow screens) or spread across the desk a tap just turns it.
       const postcard = target.closest<HTMLElement>('[data-postcard]');
@@ -513,8 +530,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
       // close the reader instead of opening the composer.
       const readerCloseBtn = target.closest<HTMLElement>('[data-reader-close]');
       if (readerCloseBtn || target.matches('[data-journal-reader-overlay]')) {
-        state.readingId = null;
-        deps.requestRender();
+        void closeReader();
         return;
       }
     });
@@ -706,6 +722,26 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   }
 
   /** The envelope opens once, when an entry is opened from a list — the page is already drawn, so this only animates. */
+  /**
+   * Shut the reader: the letter and its postcards are gathered back into the
+   * envelope first, and only then is the entry let go, so the desk is not
+   * pulled away mid-fold. Under reduce motion playClose resolves at once and
+   * this is the plain close it has always been.
+   */
+  let closing = false;
+  async function closeReader() {
+    if (closing) return;
+    closing = true;
+    try {
+      await playClose(document.querySelector<HTMLElement>('.ltr--read'));
+    } finally {
+      closing = false;
+      state.readingId = null;
+      state.letter = null;
+      deps.requestRender();
+    }
+  }
+
   function playOpening() {
     if (!state.opening || !state.readingId) return;
     state.opening = false;
@@ -766,7 +802,7 @@ export function createCaptureController(deps: CaptureControllerDeps) {
   function pagesAt(leaf: number): HTMLElement[] {
     const o = openBook();
     if (!o?.book) return [];
-    const html = renderMagazine(o.album, o.entries, o.book, { leaf, turn: false, dir: '' }, magazineCountries(o.entries, deps.getLegs()));
+    const html = renderMagazine(o.album, o.entries, o.book, { leaf, turn: false, dir: '' });
     const tmp = document.createElement('div');
     // eslint-disable-next-line no-restricted-syntax -- audited: renderMagazine escapes every field
     tmp.innerHTML = html;

@@ -29,20 +29,27 @@ export interface IssueFacts {
   to: string;
   /** For the issue line. */
   newest: string;
+  /** Every photograph in the issue, in order — the back cover prints one as a banner. */
+  gallery: string[];
 }
 
 /** The facts of an issue, from the entries as the magazine prints them. */
 export function issueFacts(entries: Array<{ destination: string; happenedOn: string; images?: string[]; coverImage?: string }>): IssueFacts {
   const places: string[] = [];
+  const gallery: string[] = [];
   for (const e of entries) {
     const p = e.destination.trim();
     if (p && !places.includes(p)) places.push(p);
+    for (const src of e.images?.length ? e.images : (e.coverImage ? [e.coverImage] : [])) {
+      if (src && !gallery.includes(src)) gallery.push(src);
+    }
   }
   const dates = entries.map((e) => e.happenedOn).filter(Boolean).sort();
   return {
     notes: entries.length,
     photos: entries.reduce((n, e) => n + (e.images?.length ?? (e.coverImage ? 1 : 0)), 0),
     places, from: dates[0] ?? '', to: dates[dates.length - 1] ?? '', newest: dates[dates.length - 1] ?? '',
+    gallery,
   };
 }
 
@@ -101,15 +108,35 @@ export function renderColophon(f: IssueFacts, issue: string): string {
     </div>`;
 }
 
-/** The back cover: the line, the price, the barcode and the code to scan. */
-export function renderBackCover(cover: JournalAlbumCover, seed: string, f: IssueFacts): string {
+/**
+ * The photograph the back cover prints across its middle.
+ *
+ * The front cover already has one (`coverPhoto`); the back takes the next one
+ * of the issue so the two covers are not the same picture, and falls back to
+ * the only photograph there is rather than leaving the band empty. The choice
+ * is a plain index, so it is the same every time the album is opened.
+ */
+export function bandPhoto(gallery: string[], coverPhoto = ''): string {
+  if (!gallery.length) return '';
+  const other = gallery.find((src) => src !== coverPhoto);
+  return other ?? gallery[0];
+}
+
+/** The back cover: the line, a band of the issue's own photograph, the price, the barcode and the code to scan. */
+export function renderBackCover(cover: JournalAlbumCover, seed: string, f: IssueFacts, coverPhoto = ''): string {
   const issue = issueLine(f.notes, f.newest);
+  const band = bandPhoto(f.gallery, coverPhoto);
   return `
-    <div class="mag-back">
+    <div class="mag-back${band ? ' has-band' : ''}">
       <div class="mag-back-top">
         <span class="mag-back-name">On the Road</span>
         <span class="mag-back-tag">${escHtml(t('journal.mag.tagline'))}</span>
       </div>
+      ${band ? `
+      <figure class="mag-back-band">
+        <img src="${escHtml(band)}" alt="" loading="lazy" draggable="false">
+        ${f.places.length ? `<figcaption class="mag-back-band-cap">${escHtml(f.places.slice(0, 3).join(' · '))}</figcaption>` : ''}
+      </figure>` : ''}
       <div class="mag-back-mid">
         <span class="mag-back-title">${escHtml(cover.headline)}</span>
         <span class="mag-back-issue">${escHtml(issue)}</span>

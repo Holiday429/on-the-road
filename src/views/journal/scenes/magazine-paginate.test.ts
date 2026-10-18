@@ -314,6 +314,62 @@ describe('pages of pictures with no words left', () => {
   });
 });
 
+/*
+ * Reading order. A page is read down one column and then down the next, so the
+ * frames a page's words flow through must be ordered that way too: never
+ * right-hand column before left-hand, and never back up the page.
+ *
+ * This is what went wrong on the portrait opener, which set a narrow frame
+ * beside the picture and then one full-width two-column frame underneath it —
+ * the reader started at the top right, dropped to the bottom left, and crossed
+ * back over again mid-sentence.
+ */
+describe('a page reads left column then right, top to bottom', () => {
+  const COL = BODY_W / 2;
+
+  /** Two frames are in the same column when they overlap horizontally by more than half a column. */
+  const sameColumn = (a: { x: number; w: number }, b: { x: number; w: number }) =>
+    Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > COL / 2;
+
+  const readsInOrder = (pages: ReturnType<typeof paginateArticle>) => {
+    for (const page of pages) {
+      for (let i = 1; i < page.frames.length; i++) {
+        const prev = page.frames[i - 1];
+        const next = page.frames[i];
+        // Down the same column, or on to a column further right. Nothing else.
+        if (sameColumn(prev, next)) {
+          if (next.y < prev.y) return `${page.template}: frame ${i} sits above the one before it in the same column`;
+        } else if (next.x < prev.x) {
+          return `${page.template}: frame ${i} is in a column left of the one before it`;
+        }
+      }
+    }
+    return '';
+  };
+
+  it('holds for the portrait opener — a tall picture, the heading beside it, two columns of words', () => {
+    const pages = paginateArticle(article({ chars: 2400, photos: [photo('2:3')] }), m, 'alb');
+    expect(pages[0].template).toBe('opener-port');
+    expect(pages[0].frames.length).toBeGreaterThan(1);
+    expect(readsInOrder(pages)).toBe('');
+  });
+
+  it('holds for every page shape the book can set', () => {
+    const shapes = [
+      article({ chars: 2600, photos: [photo('2:3')] }),
+      article({ chars: 2600, photos: [photo('3:2')] }),
+      article({ chars: 2600, photos: [] }),
+      article({ chars: 6000, photos: [photo('3:4', 0), photo('3:4', 1), photo('3:4', 2), photo('3:2', 3)], quote: '一句话。' }),
+      article({ chars: 9000, photos: [photo('3:2', 0), photo('2:3', 1), photo('2:3', 2)], quote: '一句话。' }),
+    ];
+    for (const a of shapes) {
+      for (const album of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+        expect(readsInOrder(paginateArticle(a, m, album))).toBe('');
+      }
+    }
+  });
+});
+
 describe('the other page shapes', () => {
   const landscapes = (n: number) => Array.from({ length: n }, (_, i) => photo('3:2', i));
   const portraits = (n: number) => Array.from({ length: n }, (_, i) => photo('3:4', i));

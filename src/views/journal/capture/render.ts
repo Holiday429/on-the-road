@@ -23,6 +23,29 @@ import {
   titleFor,
   tripCities,
 } from '../shared/utils.ts';
+import { passportStore } from '../../../data/stores/passport-store.ts';
+import { currentUser } from '../../../firebase/auth.ts';
+
+/**
+ * The name the traveller signs with: the one they chose in their passport,
+ * else the account's first name, else '' (the envelope then prints "a
+ * traveller"). Read straight from the stores rather than passed down, the way
+ * the locale is — every letter in the app is from the same person.
+ *
+ * Either source may not be there to ask: before sign-in, and in a test that
+ * renders the Journal without the Firebase stubs. An envelope is no reason to
+ * fail a render, so a throw just means the fallback name.
+ */
+function travellerName(): string {
+  try {
+    const nickname = passportStore.peek()?.nickname?.trim();
+    if (nickname) return nickname;
+    const u = currentUser();
+    return u?.displayName?.trim().split(/\s+/)[0] || u?.email?.trim().split('@')[0] || '';
+  } catch {
+    return '';
+  }
+}
 
 export interface TagGroup {
   tag: string;
@@ -131,7 +154,7 @@ function renderComposer(
     ? buildStops([{ id: 'draft', destination: draft.destination, happenedOn: draft.happenedOn, updatedAt: 0 } as unknown as StoredJournalEntry], legs)[0]
     : undefined;
   const iso = stop?.iso ?? null;
-  return renderWriteLetter({ state, cities, destinations, extras, iso, country: iso ? countryName(iso) : '', locale: getLocale() });
+  return renderWriteLetter({ state, cities, destinations, extras, iso, country: iso ? countryName(iso) : '', locale: getLocale(), author: travellerName() });
 }
 
 
@@ -231,6 +254,7 @@ function renderReader(
     iso,
     country: iso ? countryName(iso) : '',
     locale: getLocale(),
+    author: travellerName(),
     focus: model.state.letter,
   });
 }
@@ -242,16 +266,6 @@ function renderReader(
  * if they were the user's own organisation. Only tag groups survive, below the
  * albums.
  */
-/** The country of each entry in an album, for the magazine's running head — worked out the way the stamp's is. */
-export function magazineCountries(entries: StoredJournalEntry[], legs: StoredLeg[]): Record<string, string> {
-  const countries: Record<string, string> = {};
-  for (const e of entries) {
-    const iso = buildStops([e], legs)[0]?.iso;
-    if (iso) countries[e.id] = countryName(iso);
-  }
-  return countries;
-}
-
 function renderAlbumsView(model: CaptureRenderModel): string {
   // Designing a cover takes the whole view: the proof needs the room, and there
   // is nothing useful to do behind it.
@@ -270,10 +284,9 @@ function renderAlbumsView(model: CaptureRenderModel): string {
       ? renderAlbumFeed(open, model.allEntries, model.state.readingId)
       : (() => {
         const entries = magazineEntries(open, model.allEntries);
-        const countries = magazineCountries(entries, model.legs);
         return renderMagazine(open, entries, cachedBook(open, entries), {
           leaf: model.state.albumLeaf, turn: model.state.albumTurn, dir: model.state.albumDir,
-        }, countries);
+        });
       })();
   }
 
@@ -295,7 +308,7 @@ function renderAlbumsView(model: CaptureRenderModel): string {
       ${model.albumDrawer ? '' : renderTidySuggestions(model)}
 
       ${model.albums.length
-        ? renderShelf(model.albums, (a) => albumEntries(a, model.allEntries), !model.albumDrawer)
+        ? renderShelf(model.albums, (a) => albumEntries(a, model.allEntries))
         : `<div class="journal-album-empty">${escHtml(t(model.albumDrawer ? 'journal.album.none' : 'journal.album.noneHint'))}</div>`}
 
       ${model.albumDrawer ? '' : renderAutoGroups(model.tagGroups)}

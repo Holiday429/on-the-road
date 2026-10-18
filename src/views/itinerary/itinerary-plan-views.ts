@@ -13,7 +13,7 @@ import { daysBetween, fmtDate, dayColour } from './itinerary-utils.ts';
 import { geocodeLocal } from '../map/geocode.ts';
 import { allCategories, categoryById, type Leg } from './itinerary-shared.ts';
 import type { PlanItem, PlanDay } from '../../data/schema.ts';
-import { dayLoad, hoursLabel, loadLevel } from './itinerary-plan-parse.ts';
+import { dayLoad } from './itinerary-plan-parse.ts';
 import { todayIso } from '../../data/trip-phase.ts';
 
 export function ensurePlanDays(leg: Leg): PlanDay[] {
@@ -81,8 +81,10 @@ export function renderPlanMachine(leg: Leg, cat: string): string {
     </div>`;
 }
 
-/** Day envelopes (a wrapping grid, never a sideways rail). Each holds up to three
- *  ticket spines and a load bar; the open day unfolds as a panel under the grid. */
+/** The days (a wrapping grid, never a sideways rail). Each is a heading over up to three plain
+ *  lines — one per item, with the category as a dot — and what it costs, if known; the open day
+ *  unfolds as a panel of tickets under the grid. There is no "hours planned": most items have no
+ *  duration, so the total would only ever be wrong. */
 export function renderPlanBoardView(leg: Leg, openDayId: string | null = null): string {
   const days = ensurePlanDays(leg);
   const plans = leg.plans ?? [];
@@ -92,7 +94,6 @@ export function renderPlanBoardView(leg: Leg, openDayId: string | null = null): 
   const envelope = (day: PlanDay, idx: number) => {
     const items = byDay(day.id);
     const load = dayLoad(items);
-    const level = loadLevel(load.hours);
     const dow = new Date(day.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' }).toUpperCase();
     const spines = items.slice(0, 3).map((p) => {
       const c = p.category ? categoryById(leg, p.category)?.color : undefined;
@@ -101,7 +102,6 @@ export function renderPlanBoardView(leg: Leg, openDayId: string | null = null): 
     const open = openDayId === day.id;
     return `
       <div class="rd-plan-drop-zone rd-env${open ? ' is-open' : ''}${day.date === today ? ' is-today' : ''}" data-day-id="${esc(day.id)}">
-        <span class="rd-env-flap" aria-hidden="true"></span>
         <button type="button" class="rd-env-btn" data-act="toggle-day" data-day-id="${esc(day.id)}" aria-expanded="${open}"
           aria-label="${esc(tr('route.dayPrefix', { n: idx + 1 }))} ${esc(dow)}, ${items.length}">
           <span class="rd-env-head"><span class="rd-env-day">${esc(tr('route.dayPrefix', { n: idx + 1 }))}</span><span class="rd-env-date">${esc(dow)}</span></span>
@@ -109,8 +109,7 @@ export function renderPlanBoardView(leg: Leg, openDayId: string | null = null): 
           ${items.length
             ? `<span class="rd-env-spines">${spines}${items.length > 3 ? `<span class="rd-env-more">+${items.length - 3}</span>` : ''}</span>`
             : `<span class="rd-env-empty">${esc(tr('route.dropHint'))}</span>`}
-          ${items.length ? `<span class="rd-env-load"><span class="rd-env-bar is-${level}"><i style="width:${Math.min(100, (load.hours / 10) * 100)}%"></i></span>
-            <span class="rd-env-foot"><span>${esc(tr('route.planned', { h: hoursLabel(load.hours) }))}</span><span>${esc(load.cost)}</span></span></span>` : ''}
+          ${load.cost ? `<span class="rd-env-foot">${esc(load.cost)}</span>` : ''}
         </button>
         ${items.length ? `<button class="rd-plan-day-nav" data-act="export-day" data-day-id="${esc(day.id)}" title="${esc(tr('export.navigateDay'))}" aria-label="${esc(tr('export.navigateDay'))}">↗</button>` : ''}
       </div>`;
@@ -127,7 +126,7 @@ export function renderPlanBoardView(leg: Leg, openDayId: string | null = null): 
       <div class="rd-env-panel rd-plan-drop-zone" data-day-id="${esc(day.id)}">
         <div class="rd-env-panel-head">
           <span class="rd-env-day">${esc(tr('route.dayPrefix', { n: openIdx + 1 }))} · ${esc(dow)}</span>
-          <span class="rd-env-panel-meta">${esc(tr('route.planned', { h: hoursLabel(load.hours) }))}${load.cost ? ` · ${esc(load.cost)}` : ''}</span>
+          ${load.cost ? `<span class="rd-env-panel-meta">${esc(load.cost)}</span>` : ''}
           <button type="button" class="rd-env-close" data-act="close-day">${esc(tr('route.closeDay'))}</button>
         </div>
         <div class="rd-env-tickets">
@@ -156,7 +155,7 @@ export function renderPlanCategoryView(leg: Leg): string {
     return `
       <div class="rd-plan-cat-group">
         <div class="rd-plan-cat-head">
-          <span class="rd-cat-badge" style="background:${esc(cat.color)}">${esc(cat.label)}</span>
+          <span class="rd-cat-badge" style="--cat:${esc(cat.color)}">${esc(cat.label)}</span>
           <span class="rd-plan-cat-count">${items.length}</span>
         </div>
         <div class="rd-plan-cat-rows">
@@ -264,7 +263,7 @@ export function renderPlanCalendarView(leg: Leg, calMonth: number): string {
         ${items.slice(0, 3).map(p => {
           const cat = p.category ? categoryById(leg, p.category) : undefined;
           const color = cat?.color ?? '#f0f0f0';
-          return `<div class="rd-cal-grid-item ${p.done ? 'is-done' : ''}" data-plan="${esc(p.id)}" data-act="open-plan" style="background:${esc(color)}" title="${esc(p.title)}">${esc(p.title)}</div>`;
+          return `<div class="rd-cal-grid-item ${p.done ? 'is-done' : ''}" data-plan="${esc(p.id)}" data-act="open-plan" style="--cat:${esc(color)}" title="${esc(p.title)}">${esc(p.title)}</div>`;
         }).join('')}
         ${items.length > 3 ? `<div class="rd-cal-grid-more">+${items.length - 3} more</div>` : ''}
       </div>`;

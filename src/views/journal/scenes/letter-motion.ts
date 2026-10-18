@@ -115,6 +115,18 @@ const center = (r: DOMRect) => ({ x: r.left + r.width / 2, y: r.top + r.height /
  * the scene is not as expected) — the caller then simply saves and closes.
  */
 export function startPost(scene: HTMLElement | null): Post | null {
+  return gatherIntoEnvelope(scene);
+}
+
+/**
+ * Put the letter away: fold the paper, gather the postcards, slide both into
+ * the envelope and close its flap.
+ *
+ * Shared by posting a letter being written (`startPost`) and closing one being
+ * read (`playClose`) — the same desk, the same motion; only what happens after
+ * the flap shuts differs, which is the caller's business.
+ */
+function gatherIntoEnvelope(scene: HTMLElement | null, strike = true): Post | null {
   if (reduced() || !canAnimate(scene)) return null;
   const stage = scene.querySelector<HTMLElement>('.ltr-scene');
   const paper = stage?.querySelector<HTMLElement>(':scope > .ltr-paper');
@@ -223,14 +235,19 @@ export function startPost(scene: HTMLElement | null): Post | null {
   // 4. The flap closes over it.
   run(flap, [{ transform: 'scaleY(1)' }, { transform: 'scaleY(-1)' }], sched.flap.at, sched.flap.ms);
 
-  // 5. The postmark is struck: it was not there until now.
+  // 5. The postmark is struck: it was not there until now. Only when the letter
+  //    is being posted — a letter put away was franked long ago.
   const postmark = env.querySelector('.ltr-env-stamp .ltr-postmark');
-  const struck = run(postmark, [
-    { opacity: 0, scale: '2.4' },
-    { opacity: 0.9, scale: '0.92', offset: 0.6 },
-    { opacity: 1, scale: '1' },
-  ], sched.stamp.at, sched.stamp.ms, 'cubic-bezier(0.3, 1.4, 0.5, 1)', 'both');
-  run(env, [{ translate: '0 0' }, { translate: '0 3px', offset: 0.4 }, { translate: '0 0' }], sched.stamp.at + 60, 200, EASE_OUT, 'none');
+  const struck = strike
+    ? run(postmark, [
+      { opacity: 0, scale: '2.4' },
+      { opacity: 0.9, scale: '0.92', offset: 0.6 },
+      { opacity: 1, scale: '1' },
+    ], sched.stamp.at, sched.stamp.ms, 'cubic-bezier(0.3, 1.4, 0.5, 1)', 'both')
+    : Promise.resolve();
+  if (strike) run(env, [{ translate: '0 0' }, { translate: '0 3px', offset: 0.4 }, { translate: '0 0' }], sched.stamp.at + 60, 200, EASE_OUT, 'none');
+  // Closing instead gives the envelope the small settle of being set down.
+  if (!strike) run(env, [{ translate: '0 0', scale: '1' }, { translate: '0 2px', scale: '0.995', offset: 0.5 }, { translate: '0 0', scale: '1' }], sched.flap.at + sched.flap.ms - 60, 260, EASE_OUT, 'none');
 
   const sealed = Promise.all([struck, ...dones]).then(() => undefined);
 
@@ -255,4 +272,25 @@ export function startPost(scene: HTMLElement | null): Post | null {
       stage.classList.remove('is-posting');
     },
   };
+}
+
+/* ── Closing ─────────────────────────────────────────────────────────────── */
+
+/**
+ * Put the letter away when it is closed: the paper folds, the postcards gather,
+ * both go into the envelope and the flap shuts over them — the posting motion,
+ * played for a letter being read.
+ *
+ * Resolves when it has finished, so the caller can shut the reader on the last
+ * frame rather than pulling the desk away mid-fold. Resolves at once (and
+ * nothing plays) under reduce motion, where the Web Animations API is missing,
+ * or for an entry with no paper to fold: there the reader simply closes, as it
+ * always did.
+ */
+export function playClose(scene: HTMLElement | null): Promise<void> {
+  const post = gatherIntoEnvelope(scene, false);
+  if (!post) return Promise.resolve();
+  // The flap shuts and the envelope settles; it does not sail off — the letter
+  // is being put back on the desk, not sent.
+  return post.sealed.then(() => undefined, () => undefined);
 }

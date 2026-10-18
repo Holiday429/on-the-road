@@ -1,89 +1,94 @@
 /* ==========================================================================
-   On the Road · Itinerary board — dot-matrix display
+   On the Road · Itinerary board — digital-watch display
    --------------------------------------------------------------------------
-   Text drawn as a 5×7 LED dot matrix, the way a departures sign prints a
-   date: lit dots over a faint grid of unlit ones. Inline SVG, so it needs no
-   font file and scales with `height`. Characters it doesn't know print blank.
-   Colours and glow live in board.css (.rb-led). No DOM, no stores.
+   Numbers drawn as 7-segment digits, slanted the way a digital watch sets them,
+   with the words around them (MON, JUL) in small caps beside. Segments that are
+   off are simply not drawn — no ghost "8" and no panel behind the figures, so
+   the digits sit straight on the board. Inline SVG: no font file, scales with
+   `height`. Colour and glow live in board.css (.rb-led). No DOM, no stores.
    ========================================================================== */
 
 import { escHtml as esc } from '../../core/utils.ts';
 
-/** 5 columns × 7 rows, one string per row, '1' = lit. */
-const GLYPHS: Record<string, string[]> = {
-  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
-  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
-  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
-  '3': ['11110', '00001', '00001', '01110', '00001', '00001', '11110'],
-  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
-  '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
-  '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
-  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
-  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
-  '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
-  A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
-  B: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
-  C: ['01110', '10001', '10000', '10000', '10000', '10001', '01110'],
-  D: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
-  E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
-  F: ['11111', '10000', '10000', '11110', '10000', '10000', '10000'],
-  G: ['01110', '10001', '10000', '10111', '10001', '10001', '01111'],
-  H: ['10001', '10001', '10001', '11111', '10001', '10001', '10001'],
-  I: ['01110', '00100', '00100', '00100', '00100', '00100', '01110'],
-  J: ['00111', '00010', '00010', '00010', '00010', '10010', '01100'],
-  K: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
-  L: ['10000', '10000', '10000', '10000', '10000', '10000', '11111'],
-  M: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
-  N: ['10001', '11001', '10101', '10011', '10001', '10001', '10001'],
-  O: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
-  P: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
-  Q: ['01110', '10001', '10001', '10001', '10101', '10010', '01101'],
-  R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
-  S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
-  T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
-  U: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
-  V: ['10001', '10001', '10001', '10001', '10001', '01010', '00100'],
-  W: ['10001', '10001', '10001', '10101', '10101', '11011', '10001'],
-  X: ['10001', '10001', '01010', '00100', '01010', '10001', '10001'],
-  Y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
-  Z: ['11111', '00001', '00010', '00100', '01000', '10000', '11111'],
-  '-': ['00000', '00000', '00000', '11111', '00000', '00000', '00000'],
-  '.': ['00000', '00000', '00000', '00000', '00000', '00110', '00110'],
-  '/': ['00001', '00001', '00010', '00100', '01000', '10000', '10000'],
-  '→': ['00000', '00100', '00010', '11111', '00010', '00100', '00000'],
+/** Which of the seven segments each digit lights: a top, b upper-right, c lower-right,
+ *  d bottom, e lower-left, f upper-left, g middle. */
+const SEGMENTS: Record<string, string> = {
+  '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg',
+  '5': 'acdfg', '6': 'acdefg', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg',
+  '-': 'g',
 };
 
-const PITCH = 4;      // distance between dot centres, in viewBox units
-const RADIUS = 1.45;
-const COLS = 5;
-const ROWS = 7;
+const W = 9;          // digit width, in viewBox units
+const H = 16;         // digit height
+const T = 1.9;        // segment thickness
+const GAP = 0.28;     // air between neighbouring segments
+const PAD = 3.4;      // advance between digits
+const SKEW = Math.tan((7 * Math.PI) / 180);
+const LEAN = H * SKEW;   // how far the top leans past the bottom
 
-let _uid = 0;
+/** One hexagonal bar along x (horizontal) or y (vertical), centred on (cx, cy). */
+function bar(cx: number, cy: number, len: number, vertical: boolean): string {
+  const h = T / 2;
+  const l = len / 2;
+  const pts = vertical
+    ? [[cx, cy - l], [cx + h, cy - l + h], [cx + h, cy + l - h], [cx, cy + l], [cx - h, cy + l - h], [cx - h, cy - l + h]]
+    : [[cx - l, cy], [cx - l + h, cy - h], [cx + l - h, cy - h], [cx + l, cy], [cx + l - h, cy + h], [cx - l + h, cy + h]];
+  return `M${pts.map(([x, y]) => `${+x.toFixed(2)} ${+y.toFixed(2)}`).join('L')}Z`;
+}
 
-/** `text` as a dot-matrix strip. `label` is what a screen reader hears (the dots are decoration). */
+const mid = H / 2;
+const xl = T / 2, xr = W - T / 2;
+const horiz = W - T - GAP * 2;            // tip to tip, tucked between the two verticals
+const vert = mid - T / 2 - GAP * 2;       // tip to tip, tucked between two horizontals
+const SEG_PATH: Record<string, string> = {
+  a: bar(W / 2, T / 2, horiz + T, false),
+  g: bar(W / 2, mid, horiz + T, false),
+  d: bar(W / 2, H - T / 2, horiz + T, false),
+  f: bar(xl, (T / 2 + mid) / 2, vert, true),
+  b: bar(xr, (T / 2 + mid) / 2, vert, true),
+  e: bar(xl, (mid + H - T / 2) / 2, vert, true),
+  c: bar(xr, (mid + H - T / 2) / 2, vert, true),
+};
+
+/** Leaning digits and punctuation at x offset `x`; returns the path data. */
+function glyph(ch: string, x: number): { d: string; w: number } {
+  if (ch === ':') {
+    const dot = (cy: number) => `M${x + 0.4} ${cy - 0.95}h1.9v1.9h-1.9z`;
+    return { d: dot(H * 0.32) + dot(H * 0.68), w: 2.7 };
+  }
+  if (ch === '.') return { d: `M${x + 0.2} ${H - 1.9}h1.9v1.9h-1.9z`, w: 2.5 };
+  const segs = SEGMENTS[ch];
+  if (!segs) return { d: '', w: 0 };
+  return { d: [...segs].map((s) => shift(SEG_PATH[s], x)).join(''), w: W };
+}
+
+/** Move every coordinate pair of a path of absolute "M x y L x y …Z" commands right by `dx`. */
+function shift(d: string, dx: number): string {
+  return d.replace(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g, (_m, x: string, y: string) => `${+(parseFloat(x) + dx).toFixed(2)} ${y}`);
+}
+
+/** A run of digits / separators as one SVG. */
+function digits(run: string): string {
+  let x = 0;
+  const parts: string[] = [];
+  for (const ch of run) {
+    if (ch === ' ') { x += 3; continue; }
+    const g = glyph(ch, x);
+    if (!g.w) continue;
+    parts.push(g.d);
+    x += g.w + PAD;
+  }
+  const w = Math.max(1, x - PAD) + LEAN;
+  return `<svg class="rb-led-seg" viewBox="0 0 ${+w.toFixed(2)} ${H}" focusable="false" aria-hidden="true">`
+    + `<path class="rb-led-on" transform="translate(0 ${H}) skewX(-7) translate(0 ${-H})" d="${parts.join('')}"/></svg>`;
+}
+
+/** `text` as a digital-watch strip: digits (and - : .) as segments, any other characters as small
+ *  caps beside them. `label` is what a screen reader hears (the figures are decoration). */
 export function ledText(text: string, label = text): string {
-  const chars = [...text.toUpperCase()];
-  const cols = Math.max(1, chars.length * (COLS + 1) - 1);
-  const w = cols * PITCH;
-  const h = ROWS * PITCH;
-  const lit: string[] = [];
-  chars.forEach((ch, i) => {
-    const g = GLYPHS[ch];
-    if (!g) return;
-    g.forEach((row, y) => {
-      for (let x = 0; x < COLS; x++) {
-        if (row[x] !== '1') continue;
-        const cx = (i * (COLS + 1) + x) * PITCH + PITCH / 2;
-        const cy = y * PITCH + PITCH / 2;
-        lit.push(`M${cx - RADIUS} ${cy}a${RADIUS} ${RADIUS} 0 1 0 ${RADIUS * 2} 0a${RADIUS} ${RADIUS} 0 1 0 ${-RADIUS * 2} 0`);
-      }
-    });
-  });
-  const pid = `rb-led-${++_uid}`;
-  return `<span class="rb-led" role="img" aria-label="${esc(label)}">
-    <svg viewBox="0 0 ${w} ${h}" focusable="false" aria-hidden="true">
-      <defs><pattern id="${pid}" width="${PITCH}" height="${PITCH}" patternUnits="userSpaceOnUse"><circle class="rb-led-dim" cx="${PITCH / 2}" cy="${PITCH / 2}" r="${RADIUS}"/></pattern></defs>
-      <rect class="rb-led-off" width="${w}" height="${h}" fill="url(#${pid})"/>
-      <path class="rb-led-on" d="${lit.join('')}"/>
-    </svg></span>`;
+  const runs = text.toUpperCase().match(/[0-9:.\- ]+|[^0-9:.\- ]+/g) ?? [];
+  const html = runs.map((r) => (/^[0-9:.\- ]+$/.test(r)
+    ? (r.trim() ? digits(r.trim()) : '')
+    : `<span class="rb-led-word">${esc(r.trim())}</span>`)).join('');
+  return `<span class="rb-led" role="img" aria-label="${esc(label)}">${html}</span>`;
 }

@@ -204,15 +204,15 @@ function gateCard(o: { mode: 'now' | 'next'; leg: Leg; ctx: BoardCtx; label: str
   const { leg } = o;
   const nights = Math.max(0, daysBetween(leg.dateFrom, leg.dateTo));
   const aria = tr('board.rowAria', { city: leg.city, from: fmtDate(leg.dateFrom), to: fmtDate(leg.dateTo), nights: nightsLabel(nights), status: o.label });
-  // The frosted pane behind the text is the cover again, blurred — so hand the URL
-  // to CSS as well as rendering the photo itself.
+  // The photo sits whole at the left; the glass that carries on from its right edge is the
+  // same cover again, mirrored and stretched — so hand the URL to CSS as well.
   const art = safeUrl(leg.coverImageUrl);
   return `
     <section class="rb-gate rb-gate--${o.mode}${art ? ' has-art' : ''}" data-act="open" data-id="${esc(leg.id)}" role="button" tabindex="0" aria-label="${esc(aria)}"${art ? ` style="--gate-art:url('${art}')"` : ''}>
       <div class="rb-gate-photo" aria-hidden="true">
+        <i class="rb-gate-frost"></i>
         ${legCoverArt(leg, 'route-leg-cover')}
       </div>
-      <i class="rb-gate-frost" aria-hidden="true"></i>
       <div class="rb-gate-main">
         <div class="rb-gate-kicker"><span class="rb-lamp" aria-hidden="true"></span>${esc(o.label)}</div>
         <h2 class="rb-gate-city"><span aria-hidden="true">${leg.flag || ''}</span> ${esc(leg.city)}</h2>

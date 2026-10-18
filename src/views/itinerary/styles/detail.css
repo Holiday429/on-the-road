@@ -46,20 +46,19 @@
   background: linear-gradient(to top, rgba(20,16,12,0.45) 0%, rgba(20,16,12,0) 60%);
 }
 
-/* City top-left, country opposite it; the dates stay on the bottom-left. */
+/* City top-left with its country just to the right, sharing the city's baseline; the status pill follows. */
 .rd-hero-topline {
-  position: absolute; z-index: 1; top: var(--sp-5); left: var(--sp-6); right: var(--sp-6);
-  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4);
+  position: absolute; z-index: 1; top: var(--sp-5); left: var(--sp-6); right: 240px;
+  display: flex; align-items: flex-start; gap: var(--sp-4);
   color: #fff; pointer-events: none;
 }
-.rd-hero-ident { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; min-width: 0; }
+.rd-hero-ident { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; min-width: 0; }
 .rd-hero-country {
-  flex: none; align-self: center;
+  flex: none;
   font-size: var(--fs-md); font-weight: var(--fw-medium);
   text-shadow: 0 1px 6px rgba(0,0,0,0.45);
-  /* the tools sit at the top-right, so the country keeps clear of them */
-  margin-right: 220px;
 }
+.rd-hero-ident .rd-status-pill { align-self: center; }
 .rd-hero-content {
   position: relative;
   z-index: 1;
@@ -172,8 +171,8 @@
   .rd-hero { min-height: 240px; }
   .rd-hero-content { padding: var(--sp-5); padding-bottom: 60px; }
   .rd-hero-cover-actions { left: var(--sp-5); right: auto; }
-  .rd-hero-topline { top: var(--sp-4); left: var(--sp-5); right: var(--sp-5); flex-direction: column; gap: var(--sp-2); }
-  .rd-hero-country { margin-right: 0; align-self: flex-start; }
+  /* the tools take the top-right, so the name drops below them */
+  .rd-hero-topline { top: calc(var(--sp-4) + 34px + var(--sp-3)); left: var(--sp-5); right: var(--sp-5); }
 }
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
@@ -256,34 +255,54 @@
 .rd-placeholder-soft { border: none; padding: var(--sp-3) 0; }
 
 /* ── Plans onboarding banner ─────────────────────────────────────────────── */
+/* Inset like the header and the plan grid around it (the section itself has no padding), and
+   it takes the width it is given: the text wraps, the ✕ stays put. */
 .rd-plans-onboard {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3);
+  box-sizing: border-box; min-width: 0; max-width: 100%;
+  margin: 0 var(--sp-4) var(--sp-2);
   background: var(--warning-bg-soft); border: 1.5px dashed var(--amber-300); border-radius: var(--r-lg);
-  padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3);
-  font-size: var(--fs-sm); color: var(--ink-soft);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: var(--fs-sm); line-height: 1.5; color: var(--ink-soft);
 }
-.rd-plans-onboard strong { color: var(--ink); }
+.rd-plans-onboard > span { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.rd-plans-onboard strong { color: var(--ink); white-space: nowrap; }
 .rd-plans-onboard-close {
-  background: none; border: none; cursor: pointer; font-size: var(--fs-sm);
-  color: var(--ink-faint); padding: 0 4px; flex-shrink: 0;
+  background: none; border: none; cursor: pointer; font-size: var(--fs-sm); line-height: 1.5;
+  color: var(--ink-faint); padding: 0 4px; flex: none;
   transition: color var(--dur-fast);
 }
 .rd-plans-onboard-close:hover { color: var(--ink); }
+@media (max-width: 640px) {
+  .rd-plans-onboard { margin-inline: var(--sp-3); padding: var(--sp-2) var(--sp-3); }
+}
 
-/* ── Notes ───────────────────────────────────────────────────────────────── */
-.rd-note-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: var(--sp-3);
-}
+/* ── Notes: sticky notes ─────────────────────────────────────────────────── */
+/* A square of coloured paper stuck to the board: a lighter band where the glue is, a corner
+   folded over, faint ruling to write on, a long soft shadow. The colour is the note's
+   --cat, re-lit for dark mode (base.css), so ink always has the right contrast. */
 .rd-note-card {
-  border-radius: var(--r-lg);
-  padding: var(--sp-3);
+  position: relative;
+  padding: 14px 13px 12px;
   display: flex; flex-direction: column; gap: var(--sp-2);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
-  transition: box-shadow var(--dur-fast);
+  color: var(--cat-ink);
+  /* the cut-off corner is filled in by ::after, folded over */
+  background: linear-gradient(-45deg, transparent 15px, var(--cat-bg) 0);
+  border-radius: 2px 2px 2px 6px;
+  filter: drop-shadow(0 1px 1px color-mix(in srgb, black 16%, transparent)) drop-shadow(0 7px 7px color-mix(in srgb, black 20%, transparent));
+  transition: transform var(--dur-fast), filter var(--dur-fast);
 }
-.rd-note-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.rd-note-card::before {   /* the sticky strip across the top */
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 16px; pointer-events: none; border-radius: 2px 2px 0 0;
+  background: linear-gradient(color-mix(in srgb, white 30%, transparent), transparent);
+}
+.rd-note-card::after {    /* the folded corner */
+  content: ''; position: absolute; right: 0; bottom: 0; width: 21px; height: 21px; pointer-events: none;
+  background: linear-gradient(to bottom right, color-mix(in srgb, var(--cat-bg) 80%, black) 50%, transparent 50%);
+  border-radius: 0 0 0 3px;
+}
+.rd-note-card:has(.rd-note-color-popover:not([hidden])) { z-index: 6; }   /* the palette floats above the notes beside it */
+.rd-note-card:hover { filter: drop-shadow(0 1px 1px color-mix(in srgb, black 16%, transparent)) drop-shadow(0 11px 10px color-mix(in srgb, black 26%, transparent)); }
 .rd-note-card-head {
   display: flex; align-items: center; gap: var(--sp-2);
 }
@@ -291,9 +310,9 @@
   flex: 1; min-width: 0;
   background: transparent; border: none; outline: none;
   font-family: var(--font-ui); font-size: var(--fs-base); font-weight: var(--fw-semibold);
-  color: var(--ink); padding: 0;
+  color: var(--cat-ink); padding: 0;
 }
-.rd-note-title-input::placeholder { color: rgba(0,0,0,0.3); font-weight: var(--fw-medium); }
+.rd-note-title-input::placeholder, .rd-note-body::placeholder { color: color-mix(in srgb, var(--cat-ink) 45%, transparent); font-weight: var(--fw-medium); }
 .rd-note-card-actions {
   display: flex; align-items: center; gap: var(--sp-1);
   flex-shrink: 0;
@@ -301,20 +320,21 @@
 /* Expand button lives in the head, top-right, shown only when note is clipped. */
 .rd-note-expand-btn {
   display: none;
-  border: none; background: rgba(0,0,0,0.06);
+  border: none; background: color-mix(in srgb, var(--cat-ink) 12%, transparent);
   border-radius: var(--r-sm); padding: 1px 6px;
-  font-size: var(--fs-sm); color: var(--ink-muted); cursor: pointer;
+  font-size: var(--fs-sm); color: var(--cat-ink); cursor: pointer;
   line-height: 1.4; flex-shrink: 0;
-  transition: background var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast);
 }
 .rd-note-card.is-overflow .rd-note-expand-btn { display: inline-flex; }
-.rd-note-expand-btn:hover { background: rgba(0,0,0,0.12); color: var(--ink); }
+.rd-note-expand-btn:hover { background: color-mix(in srgb, var(--cat-ink) 22%, transparent); }
 /* Single trigger swatch; the palette opens as a popover so it never
    competes with the title for horizontal space. */
 .rd-note-color-wrap { position: relative; flex-shrink: 0; display: flex; }
 .rd-note-color-trigger {
   width: 14px; height: 14px; border-radius: 50%;
-  border: 1.5px solid rgba(0,0,0,0.18);
+  border: 1.5px solid color-mix(in srgb, var(--cat-ink) 45%, transparent);
+  background: var(--cat);
   cursor: pointer; padding: 0;
   transition: transform var(--dur-fast);
 }
@@ -329,66 +349,73 @@
 .rd-note-color-popover[hidden] { display: none; }
 .rd-note-color-swatch {
   width: 16px; height: 16px; border-radius: 50%;
-  border: 1.5px solid transparent;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 18%, transparent);
+  background: var(--cat);
   cursor: pointer; padding: 0; flex-shrink: 0;
   transition: transform var(--dur-fast), border-color var(--dur-fast);
 }
+:root[data-theme='dark'] .rd-note-color-swatch, :root[data-theme='dark'] .rd-note-color-trigger { background: var(--cat-mark); }
 .rd-note-color-swatch:hover { transform: scale(1.25); }
-.rd-note-color-swatch.is-active { border-color: rgba(0,0,0,0.4); transform: scale(1.15); }
+.rd-note-color-swatch.is-active { border-color: var(--ink); transform: scale(1.15); }
 .rd-note-del {
   border: none; background: none; padding: 2px 4px;
-  font-size: var(--fs-xs); color: rgba(0,0,0,0.25);
+  font-size: var(--fs-xs); color: color-mix(in srgb, var(--cat-ink, var(--ink)) 55%, transparent);
   cursor: pointer; flex-shrink: 0; line-height: 1;
   opacity: 0; transition: opacity var(--dur-fast), color var(--dur-fast);
 }
-.rd-note-card:hover .rd-note-del { opacity: 1; }
+.rd-note-card:hover .rd-note-del, .rd-note-card:focus-within .rd-note-del { opacity: 1; }
 .rd-note-del:hover { color: var(--badge-red, var(--danger)); }
+/* Ruled lines under the writing: the textarea's line height is the rule spacing. */
 .rd-note-body-wrap {
   position: relative;
   max-height: 150px;
   overflow: hidden;
+  background: repeating-linear-gradient(transparent 0 23px, color-mix(in srgb, var(--cat-ink) 14%, transparent) 23px 24px);
 }
 .rd-note-body-wrap::after {
   content: '';
   position: absolute; bottom: 0; left: 0; right: 0;
   height: 32px;
-  background: linear-gradient(transparent, var(--note-bg, rgba(255,255,255,0.7)));
+  background: linear-gradient(transparent, var(--cat-bg));
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--dur-fast);
 }
 .rd-note-body-wrap.is-overflow::after { opacity: 1; }
 .rd-note-body {
-  width: 100%; resize: none;
+  display: block; width: 100%; resize: none;
   background: transparent; border: none; outline: none;
-  font-size: var(--fs-base); line-height: 1.6; color: var(--ink);
+  font-size: var(--fs-base); line-height: 24px; color: var(--cat-ink);
   font-family: inherit; padding: 0;
   min-height: 3em;
   overflow-y: hidden;
 }
-.rd-note-body::placeholder { color: rgba(0,0,0,0.3); }
 .rd-note-expand-modal {
   max-width: 520px; width: 90vw;
   border-radius: var(--r-xl);
+  background: var(--cat-bg); color: var(--cat-ink);
 }
 .rd-note-expand-title {
   flex: 1; font-weight: var(--fw-semibold); font-size: var(--fs-base);
 }
 .rd-note-expand-body {
   white-space: pre-wrap; font-size: var(--fs-base);
-  line-height: 1.6; color: var(--ink);
+  line-height: 1.6; color: var(--cat-ink);
   max-height: 60vh; overflow-y: auto;
   margin-top: var(--sp-3);
 }
 
 /* ── Category badge ──────────────────────────────────────────────────────── */
+/* Colour comes from --cat (set inline, or inherited from the card it sits on); base.css turns
+   it into a fill and an ink that work in both themes. */
 .rd-cat-badge {
   display: inline-block;
   font-size: var(--fs-xs); font-weight: var(--fw-medium);
   padding: 2px 8px; border-radius: var(--r-full);
-  color: var(--ink-soft);
+  background: var(--cat-bg); color: var(--cat-ink);
   white-space: nowrap;
 }
+:root[data-theme='dark'] .rd-cat-badge { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cat-mark) 45%, transparent); }
 .rd-cat-badge--sm { font-size: var(--fs-2xs); padding: 1px 6px; }
 
 /* ── City-sharing status bar (same city repeated in the trip) ────────────── */
@@ -414,5 +441,5 @@
 }
 /* Subtle dashed outline so shared cards read as "from elsewhere" but stay editable. */
 .rd-clip-card--shared,
-.rd-note-card--shared { box-shadow: inset 0 0 0 1px var(--amber-300); }
+.rd-note-card--shared { outline: 1px dashed color-mix(in srgb, var(--amber-500) 70%, transparent); outline-offset: -4px; }
 

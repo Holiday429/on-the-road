@@ -32,7 +32,9 @@ describe('renderMagazine', () => {
 
   it('puts every control above the book, and none on a page', () => {
     const { host } = open(1);
-    for (const sel of ['[data-album-back]', '[data-album-cover]', '[data-album-rename]', '[data-album-delete]']) {
+    // No back button: the view tabs above the book are the way out of an album.
+    expect(host.querySelector('[data-album-back]')).toBeNull();
+    for (const sel of ['[data-album-cover]', '[data-album-rename]', '[data-album-delete]']) {
       expect(host.querySelector(`.mag-bar ${sel}`), sel).toBeTruthy();
       expect(host.querySelector(`.mag-page ${sel}`), `${sel} on a page`).toBeNull();
     }
@@ -100,10 +102,9 @@ describe('renderMagazine', () => {
     }
   });
 
-  it('says where a page runs on, on the side away from its page number', () => {
+  it('does not print a "continued on" line: the article simply runs on', () => {
     const { host } = open(2);
-    const cont = host.querySelector('.mag-cont');
-    expect(cont?.textContent).toContain('4');
+    expect(host.querySelector('.mag-cont')).toBeNull();
   });
 
   it('escapes what the traveller typed', () => {
@@ -116,15 +117,12 @@ describe('renderMagazine', () => {
     expect(host.querySelector('.mag-text b')).toBeNull();
   });
 
-  it('sets a caption under a photograph, and a running head at the top of every article page', () => {
+  it('sets a caption under a photograph, and prints no running head on an article page', () => {
     const { host } = open(2);
     expect(host.querySelector('.mag-cap')?.textContent).toBe('Test · 06 SEP 2026');
-    expect(host.querySelector('.mag-run')?.textContent).toContain('Brussels');
-    const withCountry = document.createElement('div');
-    const book = assembleBook([article({ chars: 200 })], fakeMeasurer(), 'alb', 'k');
-    // eslint-disable-next-line no-restricted-syntax -- audited: fixture markup under test
-    withCountry.innerHTML = renderMagazine(album, [entry('a')], book, { leaf: 2, turn: false, dir: '' }, { [book.articles[0].id]: 'Belgium' });
-    expect(withCountry.querySelector('.mag-run')?.textContent).toBe('Brussels · Belgium');
+    // The country/masthead running head was taken off the article pages: a page
+    // of the traveller's own book does not need telling which country it is in.
+    expect(host.querySelector('.mag-run')).toBeNull();
     expect(open(1).host.querySelector('.mag-toc')!.closest('.mag-page')!.querySelector('.mag-run')).toBeNull();
   });
 

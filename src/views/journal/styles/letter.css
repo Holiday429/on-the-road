@@ -134,14 +134,30 @@
 .ltr-env.is-big .ltr-env-stamp .ltr-postmark { left: -68%; }
 
 /* ── The paper ───────────────────────────────────────────────────────────── */
+/* Writing paper, not a white box: a warm sheet with the grain over it, the
+   faint horizontal laid lines of real stock, light falling across its top
+   corner, and the shadow of a sheet resting on the desk. */
 .ltr-paper {
   grid-area: paper; position: relative; z-index: 2;
   width: 100%; max-width: 640px; margin-inline: auto;
   padding: 40px 36px 36px 52px; min-height: 440px;
   display: flex; flex-direction: column;
-  background: var(--paper-grain), var(--surface);
-  border-radius: 2px;
-  box-shadow: var(--shadow-lg), 0 0 0 1px var(--rule-soft);
+  background:
+    var(--paper-grain),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 25px,
+      color-mix(in srgb, var(--ink) 3%, transparent) 25px 26px),
+    radial-gradient(130% 90% at 18% 0%, color-mix(in srgb, var(--surface) 70%, transparent), transparent 62%),
+    color-mix(in srgb, var(--surface) 93%, var(--amber-300));
+  border-radius: 2px 2px 3px 3px;
+  /* A sheet resting on the desk: a tight contact shadow, a soft cast one, and
+     a hairline edge instead of a drawn border. */
+  box-shadow:
+    0 1px 1px rgb(0 0 0 / .05),
+    0 14px 28px -12px rgb(0 0 0 / .26),
+    0 26px 36px -28px rgb(0 0 0 / .4),
+    0 0 0 1px color-mix(in srgb, var(--ink) 9%, transparent);
   font-family: var(--font-letter);
 }
 .ltr-scene.has-cards .ltr-paper { margin-top: calc(var(--sp-6) * -1); }
@@ -283,16 +299,35 @@
   width: calc((var(--row-h) - 2 * var(--b)) * var(--ar) + 2 * var(--b));
   scroll-snap-align: center;
 }
+/* Spread them out / stack them up. Sits above the pile, not on a card. */
+.ltr-cards-spread {
+  display: none; position: relative; margin: 0 auto 10px;
+  padding: 5px 12px; border: 1px solid var(--rule); border-radius: 999px;
+  background: var(--surface); color: var(--ink-soft); cursor: pointer;
+  font-family: var(--font-data); font-size: var(--fs-2xs); letter-spacing: .1em; text-transform: uppercase;
+}
+.ltr-cards-spread:hover { border-color: var(--accent); color: var(--ink); }
+
 @container ltr (min-width: 1060px) {
+  /* The pile no longer sticks: the cards barely cover one another now, so it is
+     taller than the desk and scrolls alongside the letter. */
   .ltr-cards[data-layout='stack'] {
-    display: block; position: sticky; top: 0; align-self: start;
-    width: var(--pile-w); height: var(--pile-h); overflow: visible; padding: 0; margin: 0;
+    display: block; position: relative; align-self: start;
+    width: var(--pile-w); min-height: calc(var(--pile-h) + 42px); overflow: visible; padding: 0; margin: 0;
   }
+  /* The toggle is in the flow above the pile; the cards are positioned from
+     the top of the aside, so they start below it (--pile-top). */
+  .ltr-cards[data-layout='stack'] { --pile-top: 42px; padding-top: 0; }
+  .ltr-cards[data-layout='stack'] .ltr-cards-spread { display: block; z-index: 200; height: 30px; }
   .ltr-cards[data-layout='stack'] .ltr-pc {
-    position: absolute; top: var(--top); left: var(--left); width: var(--w); z-index: var(--z);
+    position: absolute; top: calc(var(--pile-top) + var(--top)); left: var(--left); width: var(--w); z-index: var(--z);
+    transition: top 420ms var(--ease-out), left 420ms var(--ease-out), transform 420ms var(--ease-out);
   }
   .ltr-cards[data-layout='stack'] .ltr-pc.is-picked { transform: rotate(0deg) scale(1.04); }
   .ltr-cards[data-layout='stack'] .ltr-pc.is-picked .ltr-pc-face { box-shadow: var(--shadow-lg), 0 0 0 1px var(--rule-soft); }
+  /* Spread out, the cards are laid flat in a column — none leaning, none raised. */
+  .ltr-cards[data-layout='stack'][data-spread] .ltr-pc,
+  .ltr-cards[data-layout='stack'][data-spread] .ltr-pc.is-picked { transform: none; }
 }
 
 /* Postcards with no letter: scattered across the desk, each leaning its own way. */
@@ -370,6 +405,11 @@
 .ltr-scene.is-posting .ltr-env { z-index: 5; }
 .ltr--write:has(.ltr-scene.is-posting) .ltr-bar,
 .ltr--write:has(.ltr-scene.is-posting) .ltr-close { pointer-events: none; opacity: .5; }
+/* Closing a letter being read plays the same motion: while it is going in, the
+   desk takes no more clicks and the controls step back. */
+.ltr--read:has(.ltr-scene.is-posting) .ltr-bar,
+.ltr--read:has(.ltr-scene.is-posting) .ltr-close { pointer-events: none; opacity: .5; }
+.ltr-scene.is-posting .ltr-cards-spread { opacity: 0; }
 
 /* ── Writing: the same desk, editable ───────────────────────────────────── */
 .ltr-dateline.is-edit {

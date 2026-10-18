@@ -125,7 +125,7 @@ describe('albums view', () => {
     gotoView(body, 'albums');
 
     (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
-    expect(body.querySelector('[data-album-back]'), 'album detail opened').toBeTruthy();
+    expect(body.querySelector('.mag-desk'), 'album detail opened').toBeTruthy();
     expect(body.querySelector('.mag-binding'), 'binding while the fonts and photo shapes load').toBeTruthy();
 
     ctrl.afterRender(root);
@@ -357,13 +357,28 @@ describe('open album is a magazine', () => {
     expect(body.querySelector('.is-back')).toBeFalsy();
   });
 
-  it('closing the book returns to the shelf', () => {
+  // An open book has no back button of its own: the view tabs above it are the
+  // way out, whichever one is tapped.
+  it('tapping the Albums tab closes the book and returns to the shelf', () => {
     const { body } = mount([mkEntry('e1')], [mkAlbum('a1', ['e1'])]);
     gotoView(body, 'albums');
     (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
-    (body.querySelector('[data-album-back]') as HTMLElement).click();
+    expect(body.querySelector('.mag-desk')).toBeTruthy();
+
+    gotoView(body, 'albums');
     expect(body.querySelector('.jb-rack')).toBeTruthy();
-    expect(body.querySelector('.jb-open')).toBeFalsy();
+    expect(body.querySelector('.mag-desk')).toBeFalsy();
+  });
+
+  it('leaving for another view closes the book too, so it is not still open behind it', () => {
+    const { body } = mount([mkEntry('e1')], [mkAlbum('a1', ['e1'])]);
+    gotoView(body, 'albums');
+    (body.querySelector('[data-open-album="a1"]') as HTMLElement).click();
+
+    gotoView(body, 'feed');
+    gotoView(body, 'albums');
+    expect(body.querySelector('.jb-rack')).toBeTruthy();
+    expect(body.querySelector('.mag-desk')).toBeFalsy();
   });
 });
 

@@ -25,8 +25,19 @@ function closeBoardMenus() {
 }
 
 /** The whole gate card opens its stop (click, Enter or Space); the passport icon beside it opens the passport. */
+/** The photo keeps its own proportions, so its width follows from the card's height. Copy that
+ *  width to CSS (--gate-photo-w) so the text starts after the photo rather than under it. */
+function fitGatePhoto(gate: HTMLElement) {
+  const photo = gate.querySelector<HTMLElement>('.rb-gate-photo');
+  if (!photo || typeof ResizeObserver === 'undefined') return;
+  const set = () => gate.style.setProperty('--gate-photo-w', `${Math.round(photo.getBoundingClientRect().width)}px`);
+  new ResizeObserver(set).observe(photo);
+  set();
+}
+
 function wireGate(root: HTMLElement, env: BoardEnv) {
   wirePassportOpeners(root);
+  root.querySelectorAll<HTMLElement>('.rb-gate').forEach(fitGatePhoto);
   root.querySelectorAll<HTMLElement>('.rb-gate[data-act="open"]').forEach((el) => {
     el.addEventListener('click', () => env.open(el.dataset.id!));
     el.addEventListener('keydown', (e) => {

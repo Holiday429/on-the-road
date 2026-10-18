@@ -113,8 +113,28 @@ describe('pilePlan', () => {
 
   it('never grows past the height limit for a full nine', () => {
     const nine = pilePlan('x', Array(9).fill(2 / 3));
-    expect(nine.height).toBeLessThanOrEqual(700);
+    expect(nine.height).toBeLessThanOrEqual(1180);
     expect(new Set(nine.cards.map((c) => c.top)).size).toBe(9);
+  });
+
+  // The pile used to hide all but the top 76px of each card — sky, not subject.
+  it('leaves most of every card showing, not just a strip of its top', () => {
+    const pile = pilePlan('j14', ratios);
+    pile.cards.forEach((card, i) => {
+      const next = pile.cards[i + 1];
+      if (!next) return;
+      const shown = next.top - card.top;
+      expect(shown / card.h, `card ${i}`).toBeGreaterThan(0.5);
+    });
+  });
+
+  it('spread out, lays the cards in a column with nothing covering anything', () => {
+    const pile = pilePlan('j14', ratios, true);
+    pile.cards.forEach((card, i) => {
+      const next = pile.cards[i + 1];
+      expect(card.tilt, `card ${i} lies flat`).toBe(0);
+      if (next) expect(next.top, `card ${i + 1} clears card ${i}`).toBeGreaterThanOrEqual(card.top + card.h);
+    });
   });
 
   it('is just the one card for one photo, and nothing for none', () => {

@@ -77,7 +77,7 @@ const px = (n: number) => `${Math.round(n * 100) / 100}px`;
 const box = (b: { x: number; y: number; w: number; h?: number }) =>
   `left:${px(b.x)};top:${px(b.y)};width:${px(b.w)}${b.h != null ? `;height:${px(b.h)}` : ''}`;
 
-function pageBody(page: Page, book: Book, folio: number, side: 'verso' | 'recto'): string {
+function pageBody(page: Page, book: Book, side: 'verso' | 'recto'): string {
   const article = book.articles.find((a) => a.id === page.articleId)!;
   const text = book.texts[page.articleId] ?? '';
   // The frame that ends an article balances its columns, so a few lines are set as two even columns, not one long one.
@@ -91,8 +91,7 @@ function pageBody(page: Page, book: Book, folio: number, side: 'verso' | 'recto'
     ${page.captions.map((c) => `<span class="mag-cap" style="${box({ x: c.x, y: c.y, w: c.w })}">${escHtml(article.caption)}</span>`).join('')}
     ${page.head ? `<div class="mag-head${page.head.size === 'l' ? ' is-l' : ''}" style="${box(page.head)}">${headHtml(article)}</div>` : ''}
     ${page.quote && article.quote ? `<blockquote class="mag-quote" style="${box(page.quote)}">${escHtml(article.quote)}</blockquote>` : ''}
-    ${frames}
-    ${page.continues ? `<span class="mag-cont">${escHtml(t('journal.mag.continued', { n: folio + 1 }))}</span>` : ''}`;
+    ${frames}`;
 }
 
 function contentsBody(book: Book, part: number): string {
@@ -112,7 +111,7 @@ function contentsBody(book: Book, part: number): string {
     </ol>`;
 }
 
-function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalAlbum, entries: StoredJournalEntry[], book: Book, countries: Record<string, string>): string {
+function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalAlbum, entries: StoredJournalEntry[], book: Book): string {
   if (!leaf || index === null) return `<div class="mag-page is-void" aria-hidden="true"></div>`;
   const side = sideOf(index);
   const cls = `mag-page is-${side}`;
@@ -127,7 +126,9 @@ function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalA
   }
   if (leaf.kind === 'back') {
     const cover = coverOf(album);
-    return `<section class="${cls} is-back jc-tone--${cover.tone}">${renderBackCover(cover, album.id, issueFacts(entries))}</section>`;
+    // The front cover's photograph, so the back cover's band is a different one.
+    const front = coverArtOf(album, entries).photo;
+    return `<section class="${cls} is-back jc-tone--${cover.tone}">${renderBackCover(cover, album.id, issueFacts(entries), front)}</section>`;
   }
   if (leaf.kind === 'toc') {
     return `
@@ -137,13 +138,9 @@ function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalA
     </section>`;
   }
   const page = book.pages[leaf.page];
-  // The running head: the magazine's name and, when it can be worked out, the country the page is about.
-  const country = countries[page.articleId];
-  const run = [coverOf(album).headline, country].filter(Boolean).join(' · ');
   return `
     <section class="${cls}${page.plate ? ' is-plate' : ''}">
-      <span class="mag-run">${escHtml(run)}</span>
-      <div class="mag-body" style="left:${bodyLeft(side)}px;top:${MARGIN.top}px;width:${BODY_W}px;height:${BODY_H}px">${pageBody(page, book, folio, side)}</div>
+      <div class="mag-body" style="left:${bodyLeft(side)}px;top:${MARGIN.top}px;width:${BODY_W}px;height:${BODY_H}px">${pageBody(page, book, side)}</div>
       <span class="mag-folio">${folio}</span>
     </section>`;
 }
@@ -153,7 +150,6 @@ function leafHtml(leaf: Leaf | null, index: number | null, album: StoredJournalA
 function bar(album: StoredJournalAlbum, position: string): string {
   return `
     <div class="mag-bar">
-      <button class="jb-chip" data-album-back type="button">← ${escHtml(t('journal.view.albums'))}</button>
       <span class="mag-bar-title">${escHtml(album.emoji)} ${escHtml(album.title)}</span>
       <div class="mag-bar-tools">
         <button class="jb-chip" data-album-cover="${escHtml(album.id)}" type="button">${escHtml(t('journal.cover.design'))}</button>
@@ -173,8 +169,6 @@ export function renderMagazine(
   entries: StoredJournalEntry[],
   book: Book | undefined,
   s: MagazineState,
-  /** Country of each article by entry id, for the running head. */
-  countries: Record<string, string> = {},
 ): string {
   if (!book) {
     return `
@@ -204,7 +198,7 @@ export function renderMagazine(
       <div class="mag-fit" data-mode="${view.mode}" style="--k:${view.k};--across:${single ? PAGE_W : PAGE_W * 2}">
         <div class="mag-stage">
           <div class="mag-spread${fade}" style="width:${single ? PAGE_W : PAGE_W * 2}px;height:${PAGE_H}px">
-            ${shown.map((i) => leafHtml(i === null ? null : book.leaves[i], i, album, entries, book, countries)).join('')}
+            ${shown.map((i) => leafHtml(i === null ? null : book.leaves[i], i, album, entries, book)).join('')}
             <div class="mag-flip-slot" data-morph-keep></div>
           </div>
           <button class="mag-turn mag-turn--prev" data-album-page="prev" type="button" aria-label="${escHtml(t('journal.mag.prev'))}" ${atStart ? 'disabled' : ''}>‹</button>
